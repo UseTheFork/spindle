@@ -29,6 +29,7 @@
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "chalk": "^6.0.1",
+    "commander": "^15.0.0",
     "nunjucks": "^3.2.4"
   },
   "devDependencies": {

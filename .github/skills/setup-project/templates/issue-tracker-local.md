@@ -65,7 +65,7 @@ Keep durable delivery evidence in `.scratch/YYYY-MM-DD-<feature-slug>/reports/`:
 
 Before dispatch, the controller assigns absolute report destinations inside the feature's `.scratch` directory and records their tracker-relative paths. Resolve them in the existing checkout with `just sdd::workspace --workspace <checkout> --reports-dir <feature-reports-directory> --ticket <NN>`. `REPORT_FILE` is the assigned implementation report. Implementers and reviewers may save reports directly; append fix reports before review, preserving earlier rounds. The controller checks that reports exist before using them.
 
-Each report identifies its exact reviewed/tested code snapshot (base/head plus any uncommitted diff and untracked inputs), commands/results and limitations. Ticket comments link to these reports using relative paths and record acceptance/integration evidence. Preserve earlier rounds; do not overwrite history when resuming.
+Each report identifies its exact reviewed/tested code snapshot (base/head plus any uncommitted diff and untracked inputs), commands/results and limitations. List implementation and test changes separately from mutable `.scratch` tracker and report files, so a full-tree fingerprint difference from controller-owned artifacts is not mistaken for a code change; still list and review every supplied change. Ticket comments link to these reports using relative paths and record acceptance/integration evidence. Preserve earlier rounds; do not overwrite history when resuming.
 
 Before hand-back, verify reports match the recorded code snapshots and remain in `.scratch`. Preserve the existing checkout and all user changes. Report the reports' absolute paths and uncommitted status; commit tracker evidence only when authorized.
 

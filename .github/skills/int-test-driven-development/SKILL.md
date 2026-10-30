@@ -6,51 +6,56 @@ user-invocable: false
 
 # Test-Driven Development
 
-TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle: consult them before and during the loop, not after.
+Use verified RED → GREEN cycles for behavior changes and bug fixes; use existing passing tests for pure refactors.
 
-When exploring the codebase, read `GLOSSARY.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+Read the relevant glossary and ADRs so test vocabulary and boundaries match the domain.
 
-## What a good test is
+## Agree the seam
 
-Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. A good test reads like a specification: "user can checkout with valid cart" tells you exactly what capability exists, and it survives refactors because it doesn't care about internal structure.
+A **seam** is the public boundary where a test observes behavior. Reuse user-confirmed seams recorded in the assignment when unchanged. For missing or changed seams, propose the boundary and what it catches and misses; obtain user confirmation before writing tests there. If the expected behavior is unclear, clarify it first.
 
-See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
+**Ready when:** the behavior is clear and the seam has applicable confirmation.
 
-## Seams: where tests go
+## Choose the path
 
-A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
+```mermaid
+flowchart TD
+    A{Observable behavior changes?}
+    A -- Yes --> B[RED: verify intended test failure]
+    B --> C[Implement minimally; verify GREEN]
+    C --> D{More behaviors?}
+    D -- Yes --> B
+    D -- No --> E[Handoff]
+    A -- No: pure refactor --> F[Start from passing relevant tests]
+    F --> G[Refactor; rerun same tests]
+    G --> E
+```
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+### Behavior change: one slice at a time
 
-Ask: "What's the public interface, and which seams should we test?" Give each proposed seam a one-line note on what it catches and what it misses.
+1. **Write one focused test** for one behavior at the agreed seam.
+2. **Verify RED.** Run it and confirm an intended behavioral failure. Repair setup errors before evaluating RED. If it passes, investigate existing behavior or an insensitive test; never delete working code to manufacture failure.
+3. **Implement minimally.** Change only what satisfies that behavior.
+4. **Verify GREEN.** Rerun the focused test; correct failures before the next slice.
 
-When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), call the Skill tool with "codebase-design" for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
+**Complete when:** each requested behavior has coverage and relevant tests pass on the final implementation. Write tests and implementation in vertical slices, not all ticket tests followed by all code.
 
-## Anti-patterns
+### Pure refactor: preserve behavior
 
-- **Implementation-coupled**: mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
-- **Tautological**: the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth: a known-good literal, a worked example, the spec.
-- **Criteria without coverage**: a single failing test does not necessarily cover a whole task. Map every acceptance criterion to focused behavioral tests before implementation, then run the covering set together for RED. The requirement is complete behavioral coverage, not one test per behavior or one test total.
+Start from passing relevant tests, make the structural change, then rerun those same tests. No new test or RED phase is required. Preserve behavioral assertions; fix regressions rather than weakening them. Observable behavior changes take the RED → GREEN path.
 
-## Task-level test-first workflow
+Keep small necessary local refactors after GREEN; substantial cleanup requires a review finding or explicit refactoring ticket.
 
-Use one RED → implementation → GREEN sequence per assigned task.
-Do not require a separate cycle for every behavior, test, or file.
+**Complete when:** relevant tests pass again and the diff preserves tested behavior.
 
-1. **Define coverage.** Map the task's acceptance criteria to behavioral tests at the agreed public seams. Use enough focused tests to cover the task; one test is sufficient only when it covers the requirement.
-2. **RED.** Write or update the covering tests before changing production code. Run them together and confirm the expected failures demonstrate missing behavior, not broken setup or unrelated errors. Existing behavior may already pass; do not manufacture failures.
-3. **Implement the whole task.** Complete all required production changes without mandatory intermediate test runs, per-behavior checkpoints, or controller approval. Intermediate runs remain optional.
-4. **GREEN.** Run the new or changed tests and the narrowest relevant regression checks against the completed implementation. Correct failures and rerun affected checks until they pass. Any later code change requires fresh relevant verification.
+## Test quality
 
-Do not weaken behavioral assertions merely to obtain GREEN. Report
-failed or unavailable required checks explicitly.
+- Assert public behavior, not private methods or internal collaborator calls.
+- Derive expected values independently from the spec, a known-good literal, or a worked example, not the production algorithm.
+- Keep tests meaningful through behavior-preserving structural changes.
 
-Pure refactors reuse existing behavioral tests and require no RED phase.
+See [tests.md](tests.md) for examples and [mocking.md](mocking.md) when choosing mocks.
 
-## Refactoring outside the loop
+## Ticket-completion checks
 
-Refactoring preserves observable behavior. After GREEN, or for a standalone refactor with passing tests, make the structural improvement and rerun the same relevant tests. A pure refactor requires neither new tests nor a fresh RED phase; keep existing behavioral assertions unchanged.
-
-**Complete when:** the relevant tests pass again and the diff preserves the tested behavior. If the refactor breaks an existing test, correct the regression rather than weakening the assertion. If the intended behavior changes, treat it as a behavior-changing task and use this workflow instead of calling it a refactor.
-
-See [tests.md](tests.md) for test examples and [mocking.md](mocking.md) for mocking guidance.
+Hand off commands, results, the tested snapshot, and unrun checks. For dispatched tickets, the controller owns the [mechanical gate](../int-subagent-driven-dev/SKILL.md#controller-flow). Without a controller, run applicable project completion checks yourself. Early mechanical checks require a concrete diagnostic need or an explicitly scheduled gate; approved commands alone do not schedule per-edit checks. Required failures or unavailable checks block completion.

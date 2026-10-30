@@ -1,12 +1,12 @@
 # Test workflow
 
-`int-test-driven-development` defines task-level RED → GREEN and separate refactoring. Apply one sequence per assigned ticket, without a controller checkpoint or evidence matrix:
+`int-test-driven-development` defines the RED → GREEN loop and separate refactoring. Apply it without a controller checkpoint or evidence matrix:
 
-1. **RED.** Map acceptance criteria to covering behavioral tests, add or update those tests, and run them before changing production code. Confirm expected failures demonstrate missing behavior, not broken setup or unrelated errors. Existing behavior may already pass; do not manufacture failures.
-2. **Implement the ticket.** Complete all required implementation changes. Intermediate test runs are optional; no per-behavior cycle or controller checkpoint is required.
-3. **GREEN.** Run the new or changed tests and relevant regression checks against the completed implementation. After any later code edit, rerun affected checks. Correct regressions rather than weakening behavioral assertions.
-4. **Save a concise report.** Write commands/results, the tested code snapshot, and any failures or checks not run to the assigned `.scratch` report. State whether the ticket began with covering failing tests or reused existing tests for a pure refactor. Archived RED output and controller release records are not required.
+1. **Start behavior changes and fixes with RED.** Add or use a relevant test and run it before changing implementation. Confirm it fails for the behavior being changed, not a setup error. Work one behavior slice at a time.
+2. **Make it GREEN.** Implement or fix the behavior until that test passes, then continue with the next slice. A pure refactor starts from passing tests and reruns those same tests; it needs no new test or RED phase.
+3. **Verify the implementation handoff.** After modifying, refactoring, or fixing code, run the relevant tests on the final version. Correct regressions rather than weakening behavioral assertions. Leave formatting, lint, type checks, and ticket-wide regression checks to the controller's [ticket-completion gate](../int-test-driven-development/SKILL.md#ticket-completion-checks) before review.
+4. **Save a concise report.** Write commands/results, the tested code snapshot, and any failures or checks not run to the assigned `.scratch` report. Briefly state whether changes began with failing tests or reused tests for a pure refactor. Archived RED output, per-slice provenance, and controller release records are not required.
 
 On resume, read the current report and rerun relevant tests if results are stale or missing. Missing old logs alone do not block continuation. Never invent a past test run or remove working code to manufacture RED history; disclose a skipped test-first step honestly. Current passing tests establish GREEN, not historical test order.
 
-Pure refactors reuse existing behavioral tests and require no RED phase. **Complete when:** relevant tests pass after the final code edit, the report identifies what was checked, and limitations are explicit. Failed or unavailable required checks remain unresolved, not success.
+**Implementation handoff complete when:** relevant tests pass after the final code edit, the report identifies what was checked, and limitations and pending controller checks are explicit. This is readiness for review, not ticket integration. Failed or unavailable required checks remain unresolved, not success.

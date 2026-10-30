@@ -15,7 +15,6 @@ tools:
     'search',
     'read',
     'web',
-    'vscode/memory',
     'github/issue_read',
     'github.vscode-pull-request-github/issue_fetch',
     'github.vscode-pull-request-github/activePullRequest',

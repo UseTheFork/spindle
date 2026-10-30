@@ -33,9 +33,9 @@ You MUST use the JUST commands over the regular commands.
 
 ## Testing
 
-- `just test::test *args`
+- `just test::pest *args`
 - `just test::coverage *args`
-- Focused tests: `just test::test --filter=<test-name>`
-- Unit tests: `just test::test --testsuite=Unit`
-- Integration tests: `just test::test --testsuite=Integration`
-- E2E tests, when required: `just test::test --testsuite=E2E`
+- Focused tests: `just test::pest --filter=<test-name>`
+- Unit tests: `just test::pest --testsuite=Unit`
+- Integration tests: `just test::pest --testsuite=Integration`
+- E2E tests, when required: `just test::pest --testsuite=E2E`
