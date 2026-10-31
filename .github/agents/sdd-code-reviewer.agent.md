@@ -1,7 +1,7 @@
 ---
 name: sdd-code-reviewer
 description: "Use when an orchestrator assigns an initial task or final aggregate code review in subagent-driven development."
-tools: [read, search, edit, execute]
+tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 ---

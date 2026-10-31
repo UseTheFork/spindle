@@ -3,7 +3,7 @@ name: sdd-orchestrator
 description: "Use when coordinating ticket implementation, reviews, corrective rounds, and integration through the SDD subagents."
 argument-hint: The ticket, spec, or dependency graph to deliver and its scope, constraints, and permissions.
 user-invocable: true
-tools: [vscode/askQuestions, execute, read, agent, edit, web, todo]
+tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, list_skills, skill]
 agents:
   [
     sdd-implementer,

@@ -1,7 +1,7 @@
 ---
 name: sdd-task-reviewer
 description: "Use when an orchestrator assigns a task-scoped Spec and Quality review after code and code-slop review in subagent-driven development."
-tools: [read, search, edit, execute]
+tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 ---

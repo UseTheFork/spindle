@@ -1,7 +1,7 @@
 ---
 name: sdd-re-review
 description: "Use when an orchestrator assigns a scoped corrective-round re-review of findings and a fix diff in subagent-driven development."
-tools: [read, search, edit, execute]
+tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 ---
