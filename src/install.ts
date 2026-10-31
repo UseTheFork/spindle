@@ -1,12 +1,33 @@
-import { access, copyFile, lstat, mkdir, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { access, copyFile, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderFile, type RenderContext } from "./render.js";
+import { renderText, type RenderContext } from "./render.js";
 
 export const supportedStacks = ["php-laravel", "python", "typescript"] as const;
 
 export type ConflictPolicy = "overwrite" | "skip";
+
+// Only known text formats are rendered; all other files are copied unchanged.
+const textExtensions = new Set([
+  ".md",
+  ".txt",
+  ".json",
+  ".yml",
+  ".yaml",
+  ".toml",
+  ".sh",
+  ".ts",
+  ".js",
+  ".py",
+  ".php",
+  ".html",
+  ".css",
+  ".xml",
+  ".j2",
+  ".njk",
+  "",
+]);
 
 // SPINDLE_STUBS_DIR overrides the stubs root (the directory containing `skills/`); tests use it for fixture stubs.
 export function stubsRoot() {
@@ -59,11 +80,20 @@ export async function installDirectory(source: string, target: string, context: 
       await installDirectory(from, to, context);
       continue;
     }
-    const rendered = await renderFile(from, context);
-    if (rendered === null) {
+    const content = await readFile(from);
+    let text: string | null = null;
+    if (textExtensions.has(extname(from).toLowerCase()) && !content.includes(0)) {
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(content);
+      } catch {
+        // Invalid UTF-8 is not renderable text; preserve the original bytes below.
+      }
+    }
+
+    if (text === null) {
       await copyFile(from, to);
     } else {
-      await writeFile(to, rendered);
+      await writeFile(to, renderText(text, context));
     }
   }
 }

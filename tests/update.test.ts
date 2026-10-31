@@ -23,7 +23,7 @@ before(async () => {
     await mkdir(join(stubs, "skills", name), { recursive: true });
     await writeFile(
       join(stubs, "skills", name, "SKILL.md"),
-      `---\nversion: ${version}\n---\nfresh ${name} owner=<%= variables.owner %> stacks=<% for s in stacks %><%= s %>;<% endfor %>\n`,
+      `---\nversion: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
     );
   }
   await writeFile(

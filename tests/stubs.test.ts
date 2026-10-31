@@ -5,7 +5,6 @@ import { after, before, test } from "node:test";
 
 import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
-const sourceSkills = resolve(process.cwd(), ".github/skills");
 const shippedSkills = resolve(process.cwd(), "src/stubs/skills");
 let justDirectory: string;
 
@@ -62,7 +61,7 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
 });
 
 test("default init installs every internal skill byte-for-byte from production stubs", async () => {
-  const expectedDirectories = await skillDirectories(sourceSkills);
+  const expectedDirectories = await skillDirectories(shippedSkills);
   const project = await makeTempDir("spindle-production-init-");
   try {
     const result = runCli(project, ["init", "--stack", "typescript"], pathWith(justDirectory));
@@ -72,7 +71,7 @@ test("default init installs every internal skill byte-for-byte from production s
     assert.deepEqual(await skillDirectories(installedRoot), expectedDirectories);
 
     for (const skill of expectedDirectories) {
-      const sourceDirectory = join(sourceSkills, skill);
+      const sourceDirectory = join(shippedSkills, skill);
       const installedDirectory = join(installedRoot, skill);
       const sourceFiles = (await filesUnder(sourceDirectory)).sort();
       const installedFiles = (await filesUnder(installedDirectory)).sort();
@@ -81,23 +80,7 @@ test("default init installs every internal skill byte-for-byte from production s
       for (const file of sourceFiles) {
         const source = await readFile(join(sourceDirectory, file));
         const installed = await readFile(join(installedDirectory, file));
-        if (file === "SKILL.md") {
-          const installedWithoutVersion = Buffer.from(
-            installed.toString("utf8").replace(/^version: 1\.0\.0\r?\n/m, ""),
-          );
-          assert.notDeepEqual(
-            installedWithoutVersion,
-            installed,
-            `${skill}/SKILL.md lacks version`,
-          );
-          assert.deepEqual(
-            installedWithoutVersion,
-            source,
-            `${skill}/SKILL.md differs from source`,
-          );
-        } else {
-          assert.deepEqual(installed, source, `${skill}/${file} differs from source`);
-        }
+        assert.deepEqual(installed, source, `${skill}/${file} differs from source`);
       }
     }
   } finally {

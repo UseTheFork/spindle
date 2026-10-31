@@ -33,7 +33,7 @@ async function withManifest(
     await mkdir(join(stubs, "skills", "demo"), { recursive: true });
     await writeFile(
       join(stubs, "skills", "demo", "SKILL.md"),
-      definitions.map((d) => `${d.name}=<%= variables.${d.name} %>`).join("\n") + "\n",
+      definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n") + "\n",
     );
     await writeFile(join(stubs, "variables.json"), JSON.stringify(definitions));
     const result = runCli(project, ["init", ...args], pathWith(justDirectory), {
