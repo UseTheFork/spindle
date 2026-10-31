@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 import { constants } from "node:fs";
-import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { parseArgs } from "node:util";
 
 import chalk from "chalk";
 
 import {
-  assertSafeInstallPaths,
   exists,
-  installDirectory,
   parseConflictPolicy,
   stubsRoot,
   supportedStacks,
@@ -17,6 +15,7 @@ import {
   type ConflictPolicy,
 } from "./install.js";
 import { promptConflict, promptStacks, promptVariable } from "./prompts.js";
+import { reconcileSkills } from "./reconcile.js";
 import { update } from "./update.js";
 import { loadVariableDefinitions, parseVariableFlags } from "./variables.js";
 
@@ -58,57 +57,17 @@ async function init(
   policy: ConflictPolicy | undefined,
 ) {
   const githubDirectory = join(process.cwd(), ".github");
-  const skillsDirectory = join(githubDirectory, "skills");
-  const stubsDirectory = join(stubsRoot(), "skills");
-  const stubNames = await readdir(stubsDirectory, { withFileTypes: true });
-  const skillStubs = stubNames.filter((entry) => entry.isDirectory());
-
-  if (skillStubs.length === 0) {
-    throw new Error("No skill stubs are available to install.");
-  }
-
-  await assertSafeInstallPaths(
+  const outcomes = await reconcileSkills({
+    mode: "init",
     githubDirectory,
-    skillStubs.map((stub) => stub.name),
-  );
-
-  const decisions = new Map<string, ConflictPolicy>();
-  for (const stub of skillStubs) {
-    if (!(await exists(join(skillsDirectory, stub.name)))) {
-      continue;
-    }
-    if (policy) {
-      decisions.set(stub.name, policy);
-    } else if (interactive) {
-      decisions.set(stub.name, await promptConflict(stub.name));
-    } else {
-      throw new Error(
-        `Skill '${stub.name}' already exists; pass --on-conflict <overwrite|skip> to choose what to do in non-interactive runs.`,
-      );
-    }
-  }
-
-  await mkdir(skillsDirectory, { recursive: true });
-  let installed = 0;
-  let skipped = 0;
-  for (const stub of skillStubs) {
-    const target = join(skillsDirectory, stub.name);
-    const decision = decisions.get(stub.name);
-    if (decision === "skip") {
-      skipped += 1;
-      continue;
-    }
-    if (decision === "overwrite") {
-      await rm(target, { recursive: true, force: true });
-    }
-    await installDirectory(join(stubsDirectory, stub.name), target, { stacks, variables });
-    installed += 1;
-  }
-
-  await writeFile(
-    join(githubDirectory, "spindle.json"),
-    `${JSON.stringify({ stacks, variables }, null, 2)}\n`,
-  );
+    stubRoot: stubsRoot(),
+    context: { stacks, variables },
+    config: { stacks, variables },
+    conflictPolicy: policy,
+    chooseConflict: interactive ? async (name) => promptConflict(name) : undefined,
+  });
+  const installed = outcomes.filter((outcome) => outcome.status === "installed").length;
+  const skipped = outcomes.filter((outcome) => outcome.status === "skipped").length;
 
   console.log(
     `${chalk.green("✔")} Installed ${installed} skill(s) for ${chalk.cyan(stacks.join(", "))}${skipped > 0 ? `. Skipped ${skipped} existing skill(s)` : ""}`,
@@ -193,12 +152,6 @@ async function main() {
   }
 
   const githubDirectory = join(process.cwd(), ".github");
-  const skillEntries = await readdir(join(stubsRoot(), "skills"), { withFileTypes: true });
-  await assertSafeInstallPaths(
-    githubDirectory,
-    skillEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name),
-  );
-
   if (await exists(join(githubDirectory, "spindle.json"))) {
     throw new Error(
       "This repository already has .github/spindle.json; run `spindle update` instead of `init`.",

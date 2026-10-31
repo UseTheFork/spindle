@@ -97,6 +97,62 @@ test("init installs its configured skill and records repeatable stack flags", as
   }
 });
 
+test("init skip policy leaves existing Skills untouched and still writes Config", async () => {
+  const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
+  try {
+    assert.equal(initialResult.status, 0, initialResult.stderr);
+    await writeFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "preserve this");
+    const configPath = join(projectRoot, ".github/spindle.json");
+    await rm(configPath);
+
+    const project = await runCli(
+      projectRoot,
+      ["init", "--stack", "typescript", "--on-conflict", "skip"],
+      pathWith(justDirectory),
+      { SPINDLE_STUBS_DIR: stubsDirectory },
+    );
+
+    assert.equal(project.status, 0, project.stderr);
+    assert.equal(
+      project.stdout,
+      "✔ Installed 0 skill(s) for typescript. Skipped 1 existing skill(s)\n",
+    );
+    assert.equal(
+      await readFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "utf8"),
+      "preserve this",
+    );
+    assert.deepEqual(JSON.parse(await readFile(configPath, "utf8")), {
+      stacks: ["typescript"],
+      variables: {},
+    });
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test("init overwrite policy removes files that are no longer in the Stub", async () => {
+  const { project, result: initialResult } = await runInit(["--stack", "python"]);
+  try {
+    assert.equal(initialResult.status, 0, initialResult.stderr);
+    const stalePath = join(project, ".github/skills/demo/stale.txt");
+    await writeFile(stalePath, "remove me");
+    await rm(join(project, ".github/spindle.json"));
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--on-conflict", "overwrite"],
+      pathWith(justDirectory),
+      { SPINDLE_STUBS_DIR: stubsDirectory },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Installed 1 skill\(s\) for python/);
+    await assert.rejects(readFile(stalePath));
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("init fails clearly and writes nothing when no stack is selected", async () => {
   const { project, result } = await runInit([]);
 

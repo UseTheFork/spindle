@@ -1,20 +1,18 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
 
 import {
   assertSafeInstallPaths,
-  exists,
-  installDirectory,
   listSkillStubs,
   stubsRoot,
   validateStacks,
   type ConflictPolicy,
 } from "./install.js";
 import { promptOutdated } from "./prompts.js";
+import { reconcileSkills } from "./reconcile.js";
 import { loadVariableDefinitions } from "./variables.js";
-import { compareSemver, parseSemver, readSkillVersion } from "./version.js";
 
 const missingConfig = (reason: string) =>
   new Error(`${reason} Run \`spindle init\` to create .github/spindle.json.`);
@@ -73,67 +71,28 @@ async function readConfig(path: string, definitionsRoot: string) {
 
 export async function update(interactive: boolean, policy: ConflictPolicy | undefined) {
   const githubDirectory = join(process.cwd(), ".github");
-  const skillsDirectory = join(githubDirectory, "skills");
-  const stubsDirectory = join(stubsRoot(), "skills");
   await assertSafeInstallPaths(githubDirectory, await listSkillStubs());
   const context = await readConfig(join(githubDirectory, "spindle.json"), stubsRoot());
 
-  const outdated: { name: string; installed: string; available: string }[] = [];
-  let upToDate = 0;
-  let warned = 0;
-  for (const name of await listSkillStubs()) {
-    const target = join(skillsDirectory, name);
-    if (!(await exists(target))) continue;
-
-    const available = await readSkillVersion(join(stubsDirectory, name, "SKILL.md"));
-    const installed = await readSkillVersion(join(target, "SKILL.md"));
-    const availableVersion = available === null ? null : parseSemver(available);
-    const installedVersion = installed === null ? null : parseSemver(installed);
-    if (!availableVersion || available === null) {
-      throw new Error(`The shipped stub '${name}' has no valid semver version in its SKILL.md.`);
-    }
-    if (!installedVersion || installed === null) {
-      console.error(
-        chalk.yellow(
-          `Skipping '${name}': installed SKILL.md has ${installed === null ? "no version" : `non-semver version '${installed}'`}.`,
-        ),
-      );
-      warned += 1;
-      continue;
-    }
-    if (compareSemver(availableVersion, installedVersion) > 0) {
-      outdated.push({ name, installed, available });
-    } else {
-      upToDate += 1;
+  const outcomes = await reconcileSkills({
+    mode: "update",
+    githubDirectory,
+    stubRoot: stubsRoot(),
+    context,
+    conflictPolicy: policy,
+    chooseConflict:
+      interactive && policy === undefined
+        ? async (name, installed, available) => promptOutdated(name, installed!, available!)
+        : undefined,
+  });
+  for (const outcome of outcomes) {
+    if (outcome.warning) {
+      console.error(chalk.yellow(outcome.warning));
     }
   }
-
-  const decisions = new Map<string, ConflictPolicy>();
-  for (const skill of outdated) {
-    if (policy) {
-      decisions.set(skill.name, policy);
-    } else if (interactive) {
-      decisions.set(skill.name, await promptOutdated(skill.name, skill.installed, skill.available));
-    } else {
-      throw new Error(
-        `Skill '${skill.name}' is outdated (${skill.installed} -> ${skill.available}); pass --on-conflict <overwrite|skip> to choose what to do in non-interactive runs.`,
-      );
-    }
-  }
-
-  let updated = 0;
-  let skipped = warned;
-  for (const skill of outdated) {
-    if (decisions.get(skill.name) === "skip") {
-      skipped += 1;
-      continue;
-    }
-    const target = join(skillsDirectory, skill.name);
-    await rm(target, { recursive: true, force: true });
-    await mkdir(skillsDirectory, { recursive: true });
-    await installDirectory(join(stubsDirectory, skill.name), target, context);
-    updated += 1;
-  }
+  const updated = outcomes.filter((outcome) => outcome.status === "updated").length;
+  const skipped = outcomes.filter((outcome) => outcome.status === "skipped").length;
+  const upToDate = outcomes.filter((outcome) => outcome.status === "up-to-date").length;
 
   console.log(
     `${chalk.green("✔")} Updated ${updated}, skipped ${skipped}, up to date ${upToDate} skill(s)`,
