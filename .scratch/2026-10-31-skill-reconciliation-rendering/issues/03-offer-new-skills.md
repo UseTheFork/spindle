@@ -35,3 +35,6 @@ Corrective round 1 removes the `afterInstall` hook and moves the unchanged promp
 
 **2026-10-31T17:35:00Z - @unknown**
 Scoped re-review initially returned UNVERIFIED because the fix-diff excerpt retained an empty branch in its representation. The controller corrected the complete fix package; follow-up re-review marks `T03-CS-001` ADDRESSED with no new breakage and Spec/Quality PASS. Controller checks on the fixed source snapshot passed: scoped formatting, lint, types, all 65 tests, and `git diff --check`. All nine criteria are complete. Execution set to `integrated` for the pending integration commit.
+
+**2026-10-31T17:40:00Z - @unknown**
+Ticket 03 implementation and all review evidence committed as `1d22f63` (`feat: offer new skills during update`). Integration record will be committed separately after confirming the implementation commit and clean worktree. The full-spec ticket graph is now complete.
