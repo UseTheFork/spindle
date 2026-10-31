@@ -154,6 +154,43 @@ test("update reconciliation returns per-Skill version outcomes and skips uninsta
   }
 });
 
+test("update reconciliation selects overlays from context when config is omitted", async () => {
+  const project = await makeTempDir("spindle-reconcile-project-");
+  const stubRoot = await makeTempDir("spindle-reconcile-stubs-");
+  const githubDirectory = join(project, ".github");
+  const skillDirectory = join(stubRoot, "skills", "demo");
+  try {
+    await writeSkill(join(stubRoot, "skills"), "demo", "2.0.0");
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
+    await writeFile(join(skillDirectory, "shared.txt"), "shared");
+    await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python");
+    await writeFile(join(skillDirectory, "stacks", "typescript", "typescript.txt"), "typescript");
+    await writeSkill(join(githubDirectory, "skills"), "demo", "1.0.0");
+
+    const outcomes = await reconcileBlueprints([handlerFor(stubRoot)], {
+      mode: "update",
+      githubDirectory,
+      context: { stacks: ["python"], variables: {} },
+      conflictPolicy: "overwrite",
+    });
+
+    assert.deepEqual(outcomes, [{ name: "demo", status: "updated" }]);
+    assert.equal(
+      await readFile(join(githubDirectory, "skills", "demo", "shared.txt"), "utf8"),
+      "shared",
+    );
+    assert.equal(
+      await readFile(join(githubDirectory, "skills", "demo", "python.txt"), "utf8"),
+      "python",
+    );
+    await assert.rejects(readFile(join(githubDirectory, "skills", "demo", "typescript.txt")));
+  } finally {
+    await rm(project, { recursive: true, force: true });
+    await rm(stubRoot, { recursive: true, force: true });
+  }
+});
+
 test("update reconciliation rejects an invalid shipped version before overwriting an installed Skill", async () => {
   const project = await makeTempDir("spindle-reconcile-project-");
   const stubRoot = await makeTempDir("spindle-reconcile-stubs-");

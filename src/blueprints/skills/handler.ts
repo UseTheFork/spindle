@@ -24,10 +24,11 @@ export const skillHandler: BlueprintHandler = {
       );
     }
   },
-  planUpdate: async ({ name, source, target, installed, resolveContext }) => {
-    const skillFile = join(source, "SKILL.md");
-    const context = (await skillVersionIsTemplated(skillFile)) ? await resolveContext() : undefined;
-    const shipped = await readSkillVersion(skillFile, context);
+  planUpdate: async ({ name, sourceFiles, target, installed, resolveContext }) => {
+    const skillFile = sourceFiles.find((file) => file.outputPath === "SKILL.md")?.sourcePath;
+    const context =
+      skillFile && (await skillVersionIsTemplated(skillFile)) ? await resolveContext() : undefined;
+    const shipped = skillFile === undefined ? null : await readSkillVersion(skillFile, context);
     const shippedVersion = shipped === null ? null : parseSemver(shipped);
     if (shipped === null || shippedVersion === null) {
       throw new Error(

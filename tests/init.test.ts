@@ -154,6 +154,90 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
   }
 });
 
+test("init combines shared files and all selected Stack overlays only", async () => {
+  const blueprints = await makeTempDir("spindle-init-overlay-blueprints-");
+  const project = await makeTempDir();
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "python", "guidance"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: demo\nversion: 1.0.0\n---\n# shared\n",
+    );
+    await writeFile(join(skillDirectory, "shared.txt"), "shared content\n");
+    await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python content\n");
+    await writeFile(
+      join(skillDirectory, "stacks", "python", "guidance", "python.md"),
+      "nested python content\n",
+    );
+    await writeFile(
+      join(skillDirectory, "stacks", "typescript", "typescript.txt"),
+      "typescript content\n",
+    );
+    await writeFile(join(skillDirectory, "stacks", "php-laravel", "php.txt"), "php content\n");
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--stack", "typescript"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/shared.txt"), "utf8"),
+      "shared content\n",
+    );
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/python.txt"), "utf8"),
+      "python content\n",
+    );
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/guidance/python.md"), "utf8"),
+      "nested python content\n",
+    );
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/typescript.txt"), "utf8"),
+      "typescript content\n",
+    );
+    await assert.rejects(readFile(join(project, ".github/skills/demo/php.txt")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init rejects a shared file colliding with a selected Stack overlay before writing", async () => {
+  const blueprints = await makeTempDir("spindle-init-collision-blueprints-");
+  const project = await makeTempDir();
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: demo\nversion: 1.0.0\n---\n# shared\n",
+    );
+    await writeFile(join(skillDirectory, "guide.md"), "shared guide\n");
+    await writeFile(join(skillDirectory, "stacks", "python", "guide.md"), "python guide\n");
+
+    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), {
+      SPINDLE_BLUEPRINTS_DIR: blueprints,
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate blueprint output path 'guide\.md'/i);
+    assert.match(result.stderr, /guide\.md.*stacks[\\/]python[\\/]guide\.md/i);
+    await assert.rejects(readFile(join(project, ".github/skills/demo/guide.md")));
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("init skip policy leaves existing Skills untouched and still writes Config", async () => {
   const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
   try {

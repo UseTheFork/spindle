@@ -87,6 +87,144 @@ const read = (project: string, name: string) =>
 
 const goodConfig = { stacks: ["python", "typescript"], variables: { owner: "core" } };
 
+test("update combines shared files and selected Stack overlays only", async () => {
+  const blueprints = await makeTempDir("spindle-update-overlay-blueprints-");
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: demo\nversion: 2.0.0\n---\n# updated\n",
+    );
+    await writeFile(join(skillDirectory, "shared.txt"), "shared content\n");
+    await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python content\n");
+    await writeFile(
+      join(skillDirectory, "stacks", "typescript", "typescript.txt"),
+      "typescript content\n",
+    );
+    await writeFile(join(skillDirectory, "stacks", "php-laravel", "php.txt"), "php content\n");
+
+    await withProject(
+      { config: goodConfig, skills: { demo: skill("1.0.0") } },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(
+          await readFile(join(project, ".github/skills/demo/shared.txt"), "utf8"),
+          "shared content\n",
+        );
+        assert.equal(
+          await readFile(join(project, ".github/skills/demo/python.txt"), "utf8"),
+          "python content\n",
+        );
+        assert.equal(
+          await readFile(join(project, ".github/skills/demo/typescript.txt"), "utf8"),
+          "typescript content\n",
+        );
+        await assert.rejects(readFile(join(project, ".github/skills/demo/php.txt")));
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("update reads Skill metadata from a selected overlay when no shared SKILL.md exists", async () => {
+  const blueprints = await makeTempDir("spindle-update-overlay-skill-blueprints-");
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await writeFile(join(skillDirectory, "stacks", "python", "SKILL.md"), skill("2.0.0", "new"));
+
+    await withProject(
+      { config: { stacks: ["python"], variables: {} }, skills: { demo: skill("1.0.0") } },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(await read(project, "demo"), skill("2.0.0", "new"));
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("update rejects colliding selected overlays before replacing an installed Skill", async () => {
+  const blueprints = await makeTempDir("spindle-update-collision-blueprints-");
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
+    await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: demo\nversion: 2.0.0\n---\n# updated\n",
+    );
+    await writeFile(
+      join(skillDirectory, "stacks", "python", "shared-path.txt"),
+      "python content\n",
+    );
+    await writeFile(
+      join(skillDirectory, "stacks", "typescript", "shared-path.txt"),
+      "typescript content\n",
+    );
+
+    await withProject(
+      { config: goodConfig, skills: { demo: skill("1.0.0") } },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /duplicate blueprint output path 'shared-path\.txt'/i);
+        assert.match(result.stderr, /stacks[\\/]python[\\/]shared-path\.txt/i);
+        assert.match(result.stderr, /stacks[\\/]typescript[\\/]shared-path\.txt/i);
+        assert.equal(await read(project, "demo"), skill("1.0.0"));
+        await assert.rejects(readFile(join(project, ".github/skills/demo/shared-path.txt")));
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("update rejects file directory prefix collisions before replacing an installed Skill", async () => {
+  const blueprints = await makeTempDir("spindle-update-prefix-collision-blueprints-");
+  const skillDirectory = join(blueprints, "skills", "demo");
+  try {
+    await mkdir(join(skillDirectory, "stacks", "python", "docs"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: demo\nversion: 2.0.0\n---\n# updated\n",
+    );
+    await writeFile(join(skillDirectory, "docs"), "shared file\n");
+    await writeFile(
+      join(skillDirectory, "stacks", "python", "docs", "readme.md"),
+      "overlay child file\n",
+    );
+
+    await withProject(
+      { config: goodConfig, skills: { demo: skill("1.0.0") } },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.notEqual(result.status, 0);
+        assert.equal(await read(project, "demo"), skill("1.0.0"));
+        assert.equal(
+          await readFile(join(project, ".github/skills/demo/extra.txt"), "utf8"),
+          "stale",
+        );
+        assert.match(result.stderr, /file.directory prefix conflict/i);
+        assert.match(result.stderr, /'docs'.*'docs[\\/]readme\.md'/i);
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
 test("newer is overwritten with stored stacks and variables; equal, lower, non-semver and absent are not", async () => {
   const configText = JSON.stringify(goodConfig, null, 4);
   await withProject(

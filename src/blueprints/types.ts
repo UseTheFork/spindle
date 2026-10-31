@@ -7,7 +7,7 @@ export interface BlueprintHandler {
   validateMetadata?(relativePath: string, renderedText: string): void;
   planUpdate?(input: {
     name: string;
-    source: string;
+    sourceFiles: { sourcePath: string; outputPath: string }[];
     target: string;
     installed: boolean;
     resolveContext(): Promise<RenderContext | undefined>;

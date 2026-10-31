@@ -4,7 +4,8 @@ import { join } from "node:path";
 import {
   assertSafeInstallPaths,
   exists,
-  installDirectory,
+  installPlannedBlueprintFiles,
+  planBlueprintFiles,
   type ConflictPolicy,
 } from "../install.js";
 import type { RenderContext } from "../render.js";
@@ -37,7 +38,7 @@ type ReconcileOptions =
     })
   | (ReconcileCommon & {
       mode: "update";
-      config: { stacks: string[]; variables: Record<string, string> };
+      config?: { stacks: string[]; variables: Record<string, string> };
       includeNew?: boolean;
     });
 
@@ -54,6 +55,7 @@ async function reconcileBlueprint(
   options: ReconcileOptions,
 ): Promise<BlueprintOutcome[]> {
   const { mode, githubDirectory } = options;
+  const stacks = options.config?.stacks ?? options.context?.stacks ?? [];
   const destinationDirectory = handler.destinationDirectory(githubDirectory);
   const sourceDirectory = handler.sourceDirectory();
   const blueprintNames = (await readdir(sourceDirectory, { withFileTypes: true }))
@@ -65,6 +67,15 @@ async function reconcileBlueprint(
     throw new Error(`No ${handler.kind.toLowerCase()} Blueprints are available to install.`);
   }
   await assertSafeInstallPaths(githubDirectory, blueprintNames, destinationDirectory);
+
+  const sourceFilesByName = new Map(
+    await Promise.all(
+      blueprintNames.map(
+        async (name) =>
+          [name, await planBlueprintFiles(join(sourceDirectory, name), stacks)] as const,
+      ),
+    ),
+  );
 
   const plan: PlannedBlueprint[] = [];
   let resolvedContext = options.context;
@@ -86,7 +97,7 @@ async function reconcileBlueprint(
       ...(handler.planUpdate
         ? await handler.planUpdate({
             name,
-            source: join(sourceDirectory, name),
+            sourceFiles: sourceFilesByName.get(name)!,
             target,
             installed,
             resolveContext,
@@ -172,8 +183,8 @@ async function reconcileBlueprint(
       await rm(target, { recursive: true, force: true });
     }
     await mkdir(destinationDirectory, { recursive: true });
-    await installDirectory(
-      join(sourceDirectory, blueprint.name),
+    await installPlannedBlueprintFiles(
+      sourceFilesByName.get(blueprint.name)!,
       target,
       context!,
       handler.validateMetadata,
