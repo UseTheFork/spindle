@@ -96,12 +96,14 @@ const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
 
 Re-render installed skills whose shipped version is newer than the installed one.
 Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
-and never rewrites it. Skills not already in .github/skills are ignored.
+and normally leaves it unchanged. New shipped Skills are offered interactively; use
+--include-new to install all of them without a prompt.
 
 ${chalk.bold("Options:")}
   --on-conflict <overwrite|skip>
                         Policy for outdated skills; required when non-interactive and any
                         are outdated (interactive runs prompt per skill)
+  --include-new        Install every newly shipped Skill without prompting
   --no-interactive      Never prompt; outdated skills without --on-conflict are an error
   --help                Show this help
 
@@ -119,6 +121,7 @@ async function main() {
       var: { type: "string", multiple: true },
       "no-interactive": { type: "boolean" },
       "on-conflict": { type: "string" },
+      "include-new": { type: "boolean" },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -147,8 +150,12 @@ async function main() {
         "`spindle update` does not accept --stack or --var; edit .github/spindle.json.",
       );
     }
-    await update(interactive, policy);
+    await update(interactive, policy, values["include-new"]);
     return;
+  }
+
+  if (values["include-new"]) {
+    throw new Error("`spindle init` does not accept --include-new; use `spindle update`.");
   }
 
   const githubDirectory = join(process.cwd(), ".github");

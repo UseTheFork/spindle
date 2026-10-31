@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
@@ -10,14 +10,14 @@ import {
   validateStacks,
   type ConflictPolicy,
 } from "./install.js";
-import { promptOutdated } from "./prompts.js";
+import { promptNewSkills, promptOutdated, promptVariable } from "./prompts.js";
 import { reconcileSkills } from "./reconcile.js";
 import { loadVariableDefinitions } from "./variables.js";
 
 const missingConfig = (reason: string) =>
   new Error(`${reason} Run \`spindle init\` to create .github/spindle.json.`);
 
-async function readConfig(path: string, definitionsRoot: string) {
+async function readConfig(path: string) {
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
@@ -55,10 +55,26 @@ async function readConfig(path: string, definitionsRoot: string) {
   }
   validateStacks(stacks as string[]);
 
-  // Resolved on every run so hand-edits and newly added manifest variables are honoured.
+  return {
+    config: config as Record<string, unknown>,
+    stacks: stacks as string[],
+    variables: stored as Record<string, string>,
+  };
+}
+
+async function resolveVariables(
+  config: { stacks: string[]; variables: Record<string, string> },
+  definitionsRoot: string,
+  interactive: boolean,
+) {
   const variables: Record<string, string> = {};
+  const prompted: Record<string, string> = {};
   for (const definition of await loadVariableDefinitions(definitionsRoot)) {
-    const value = (stored as Record<string, string>)[definition.name] ?? definition.default;
+    let value = config.variables[definition.name] ?? definition.default;
+    if (value === undefined && interactive) {
+      value = await promptVariable(definition);
+      prompted[definition.name] = value;
+    }
     if (value === undefined) {
       throw new Error(
         `Variable '${definition.name}' (${definition.description}) has no value in .github/spindle.json and no default; add it under "variables".`,
@@ -66,35 +82,61 @@ async function readConfig(path: string, definitionsRoot: string) {
     }
     variables[definition.name] = value;
   }
-  return { stacks: stacks as string[], variables };
+  return { context: { stacks: config.stacks, variables }, prompted };
 }
 
-export async function update(interactive: boolean, policy: ConflictPolicy | undefined) {
+export async function update(
+  interactive: boolean,
+  policy: ConflictPolicy | undefined,
+  includeNew = false,
+) {
   const githubDirectory = join(process.cwd(), ".github");
   await assertSafeInstallPaths(githubDirectory, await listSkillStubs());
-  const context = await readConfig(join(githubDirectory, "spindle.json"), stubsRoot());
+  const configPath = join(githubDirectory, "spindle.json");
+  const config = await readConfig(configPath);
+  let prompted: Record<string, string> = {};
 
   const outcomes = await reconcileSkills({
     mode: "update",
     githubDirectory,
     stubRoot: stubsRoot(),
-    context,
+    includeNew,
+    chooseNew: interactive && !includeNew ? promptNewSkills : undefined,
     conflictPolicy: policy,
     chooseConflict:
       interactive && policy === undefined
         ? async (name, installed, available) => promptOutdated(name, installed!, available!)
         : undefined,
+    resolveContext: async () => {
+      const resolved = await resolveVariables(config, stubsRoot(), interactive);
+      prompted = resolved.prompted;
+      return resolved.context;
+    },
   });
+  if (Object.keys(prompted).length > 0) {
+    await writeFile(
+      configPath,
+      `${JSON.stringify(
+        {
+          ...config.config,
+          variables: { ...config.variables, ...prompted },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  }
   for (const outcome of outcomes) {
     if (outcome.warning) {
       console.error(chalk.yellow(outcome.warning));
     }
   }
+  const added = outcomes.filter((outcome) => outcome.status === "installed").length;
   const updated = outcomes.filter((outcome) => outcome.status === "updated").length;
   const skipped = outcomes.filter((outcome) => outcome.status === "skipped").length;
   const upToDate = outcomes.filter((outcome) => outcome.status === "up-to-date").length;
 
   console.log(
-    `${chalk.green("✔")} Updated ${updated}, skipped ${skipped}, up to date ${upToDate} skill(s)`,
+    `${chalk.green("✔")} Added ${added}, updated ${updated}, skipped ${skipped}, up to date ${upToDate} skill(s)`,
   );
 }

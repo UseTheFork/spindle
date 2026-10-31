@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 
@@ -33,6 +33,61 @@ export function runCli(
     encoding: "utf8",
     env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
   });
+}
+
+export function runCliInteractive(
+  project: string,
+  args: string[],
+  searchPath: string,
+  responses: { trigger: string; input: string }[],
+  env: Record<string, string> = {},
+) {
+  const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  const command = `stty cols 100 rows 30; ${[process.execPath, "--import", tsxLoader, cli, ...args]
+    .map(shellQuote)
+    .join(" ")}`;
+  return new Promise<{ status: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      const child = spawn("script", ["-qfec", command, "/dev/null"], {
+        cwd: project,
+        env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      const pending = [...responses];
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error(`Interactive CLI timed out. Output: ${stdout}\n${stderr}`));
+      }, 15_000);
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+        // oxlint-disable-next-line no-control-regex -- Remove terminal escape sequences from PTY output.
+        const visibleOutput = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+        for (let index = 0; index < pending.length;) {
+          if (visibleOutput.includes(pending[index].trigger)) {
+            child.stdin.write(pending[index].input);
+            pending.splice(index, 1);
+          } else {
+            index += 1;
+          }
+        }
+      });
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on("close", (status) => {
+        clearTimeout(timer);
+        resolve({ status, stdout, stderr });
+      });
+    },
+  );
 }
 
 export function pathWith(directory: string) {

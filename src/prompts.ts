@@ -58,3 +58,13 @@ export async function promptOutdated(
   });
   return ensureAnswer<"overwrite" | "skip">(answer);
 }
+
+export async function promptNewSkills(skills: string[]): Promise<string[]> {
+  const answer = await multiselect({
+    message: "Which new Skills should be installed?",
+    options: skills.map((value) => ({ value, label: value })),
+    initialValues: skills,
+    required: false,
+  });
+  return ensureAnswer<string[]>(answer);
+}

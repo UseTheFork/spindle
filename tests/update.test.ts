@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeJustStubDir, makeTempDir, pathWith, runCli, runCliInteractive } from "./helpers.ts";
 
 let justDirectory: string;
 let stubs: string;
@@ -48,11 +48,23 @@ interface Setup {
   skills?: Record<string, string>;
 }
 
+interface CliResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 async function withProject(
   setup: Setup,
   args: string[],
-  check: (project: string, result: ReturnType<typeof runCli>) => Promise<void>,
+  check: (project: string, result: CliResult) => Promise<void>,
   stubsDir = stubs,
+  runner: (
+    project: string,
+    args: string[],
+    searchPath: string,
+    env: Record<string, string>,
+  ) => CliResult | Promise<CliResult> = runCli,
 ) {
   const project = await makeTempDir();
   try {
@@ -68,7 +80,7 @@ async function withProject(
       await writeFile(join(project, ".github/skills", name, "SKILL.md"), content);
       await writeFile(join(project, ".github/skills", name, "extra.txt"), "stale");
     }
-    const result = runCli(project, ["update", ...args], pathWith(justDirectory), {
+    const result = await runner(project, ["update", ...args], pathWith(justDirectory), {
       SPINDLE_STUBS_DIR: stubsDir,
     });
     await check(project, result);
@@ -111,7 +123,7 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
       assert.equal(await readFile(join(project, ".github/spindle.json"), "utf8"), configText);
       assert.match(result.stderr, /missing.*no version/);
       assert.match(result.stderr, /bad.*non-semver version 'v1'/);
-      assert.match(result.stdout, /Updated 1, skipped 2, up to date 2 skill\(s\)/);
+      assert.match(result.stdout, /Added 0, updated 1, skipped 3, up to date 2 skill\(s\)/);
     },
   );
 });
@@ -123,7 +135,7 @@ test("--on-conflict skip leaves outdated skills untouched", async () => {
     async (project, result) => {
       assert.equal(result.status, 0, result.stderr);
       assert.equal(await read(project, "newer"), skill("1.0.0"));
-      assert.match(result.stdout, /Updated 0, skipped 1, up to date 0 skill\(s\)/);
+      assert.match(result.stdout, /Added 0, updated 0, skipped 6, up to date 0 skill\(s\)/);
     },
   );
 });
@@ -140,16 +152,396 @@ test("non-interactive without a policy errors naming the flag and writes nothing
   );
 });
 
+test("--include-new does not waive the outdated-Skill conflict policy", async () => {
+  await withProject(
+    { config: goodConfig, skills: { newer: skill("1.0.0") } },
+    ["--no-interactive", "--include-new"],
+    async (project, result) => {
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /--on-conflict/);
+      assert.equal(await read(project, "newer"), skill("1.0.0"));
+      await assert.rejects(read(project, "absent"));
+    },
+  );
+});
+
 test("nothing outdated needs no policy", async () => {
   await withProject(
     { config: goodConfig, skills: { equal: skill("1.0.0") } },
     ["--no-interactive"],
     async (_project, result) => {
       assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout, /Updated 0, skipped 0, up to date 1 skill\(s\)/);
+      assert.match(result.stdout, /Added 0, updated 0, skipped 5, up to date 1 skill\(s\)/);
     },
   );
 });
+
+test("no-op updates do not require missing Variables", async () => {
+  const currentSkills = {
+    newer: skill("2.0.0"),
+    equal: skill("1.0.0"),
+    lower: skill("9.0.0"),
+    missing: skill("1.0.0"),
+    bad: skill("1.0.0"),
+  };
+  await withProject(
+    { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
+    ["--no-interactive"],
+    async (project, result) => {
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
+      assert.equal(await read(project, "newer"), skill("2.0.0"));
+    },
+  );
+});
+
+test(
+  "interactive no-op updates do not prompt for missing Variables",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const currentSkills = {
+      newer: skill("2.0.0"),
+      equal: skill("1.0.0"),
+      lower: skill("9.0.0"),
+      missing: skill("1.0.0"),
+      bad: skill("1.0.0"),
+      absent: skill("1.0.0"),
+    };
+    await withProject(
+      { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
+      [],
+      async (_project, result) => {
+        assert.equal(result.status, 0, result.stdout);
+        assert.doesNotMatch(result.stdout, /needed: Needed|Which new Skills/);
+        assert.match(result.stdout, /Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
+      },
+      stubs,
+      (project, args, searchPath, env) => runCliInteractive(project, args, searchPath, [], env),
+    );
+  },
+);
+
+test("one skipped total includes conflict, invalid-version, and unselected new Skills", async () => {
+  await withProject(
+    {
+      config: goodConfig,
+      skills: {
+        newer: skill("1.0.0"),
+        equal: skill("1.0.0"),
+        lower: skill("9.0.0"),
+        missing: skill(null),
+        bad: skill("v1"),
+      },
+    },
+    ["--no-interactive", "--on-conflict", "skip"],
+    async (project, result) => {
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stderr, /missing.*no version/);
+      assert.match(result.stderr, /bad.*non-semver version 'v1'/);
+      assert.match(result.stdout, /Added 0, updated 0, skipped 4, up to date 2 skill\(s\)/);
+      assert.equal(await read(project, "newer"), skill("1.0.0"));
+      await assert.rejects(read(project, "absent"));
+    },
+  );
+});
+
+test("--include-new installs new Skills and reports them separately from updates", async () => {
+  const currentSkills = {
+    newer: skill("2.0.0"),
+    equal: skill("1.0.0"),
+    lower: skill("9.0.0"),
+    missing: skill("1.0.0"),
+    bad: skill("1.0.0"),
+  };
+  await withProject(
+    { config: goodConfig, skills: currentSkills },
+    ["--no-interactive", "--include-new"],
+    async (project, result) => {
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(
+        await read(project, "absent"),
+        /fresh absent owner=core stacks=python;typescript;/,
+      );
+      assert.match(result.stdout, /Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/);
+    },
+  );
+});
+
+test("non-interactive update skips new Skills by default and counts them as skipped", async () => {
+  const currentSkills = {
+    newer: skill("2.0.0"),
+    equal: skill("1.0.0"),
+    lower: skill("9.0.0"),
+    missing: skill("1.0.0"),
+    bad: skill("1.0.0"),
+  };
+  await withProject(
+    { config: goodConfig, skills: currentSkills },
+    ["--no-interactive"],
+    async (project, result) => {
+      assert.equal(result.status, 0, result.stderr);
+      await assert.rejects(read(project, "absent"));
+      assert.match(result.stdout, /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
+    },
+  );
+});
+
+test(
+  "interactive new-Skill selection defaults to all and permits selecting none",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const currentSkills = {
+      newer: skill("2.0.0"),
+      equal: skill("1.0.0"),
+      lower: skill("9.0.0"),
+      missing: skill("1.0.0"),
+      bad: skill("1.0.0"),
+    };
+    for (const [input, selected] of [
+      ["\r", true],
+      [" \r", false],
+    ] as const) {
+      await withProject(
+        { config: goodConfig, skills: currentSkills },
+        [],
+        async (project, result) => {
+          assert.equal(result.status, 0, result.stdout);
+          assert.equal(
+            await readFile(join(project, ".github/skills/absent/SKILL.md"), "utf8").then(
+              () => true,
+              () => false,
+            ),
+            selected,
+            result.stdout,
+          );
+          assert.match(
+            result.stdout,
+            selected
+              ? /Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/
+              : /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/,
+          );
+        },
+        stubs,
+        (project, args, searchPath, env) =>
+          runCliInteractive(project, args, searchPath, [{ trigger: "Enter: confirm", input }], env),
+      );
+    }
+  },
+);
+
+test(
+  "prompted Variables render every changed Skill and merge into Config after success",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const variableStubs = await makeTempDir("spindle-update-variable-stubs-");
+    await cp(stubs, variableStubs, { recursive: true });
+    for (const [name, version] of [
+      ["newer", "2.0.0"],
+      ["absent", "1.0.0"],
+    ]) {
+      await writeFile(
+        join(variableStubs, "skills", name, "SKILL.md"),
+        `---\nversion: ${version}\n---\nfresh ${name} owner={{ variables.owner }} needed={{ variables.needed }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+      );
+    }
+    const projectConfig = {
+      stacks: ["python"],
+      variables: { owner: "configured" },
+      unrelated: { preserve: true },
+    };
+    try {
+      await withProject(
+        {
+          config: projectConfig,
+          skills: {
+            newer: skill("1.0.0"),
+            equal: skill("1.0.0"),
+            lower: skill("9.0.0"),
+            missing: skill("1.0.0"),
+            bad: skill("1.0.0"),
+          },
+        },
+        [],
+        async (project, result) => {
+          assert.equal(result.status, 0, result.stdout);
+          assert.match(result.stdout, /Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
+          assert.match(
+            await read(project, "newer"),
+            /fresh newer owner=configured needed=shared-answer stacks=python;/,
+          );
+          assert.match(
+            await read(project, "absent"),
+            /fresh absent owner=configured needed=shared-answer stacks=python;/,
+          );
+          assert.deepEqual(
+            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+            {
+              ...projectConfig,
+              variables: { owner: "configured", needed: "shared-answer" },
+            },
+          );
+        },
+        variableStubs,
+        (project, args, searchPath, env) =>
+          runCliInteractive(
+            project,
+            args,
+            searchPath,
+            [
+              { trigger: "Enter: confirm", input: "\r" },
+              { trigger: "What should happen?", input: "\r" },
+              { trigger: "needed: Needed", input: "shared-answer\r" },
+            ],
+            env,
+          ),
+      );
+    } finally {
+      await rm(variableStubs, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "installation failure stops later Skills and does not persist prompted Variables",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const failureStubs = await makeTempDir("spindle-update-failure-stubs-");
+    await cp(stubs, failureStubs, { recursive: true });
+    const newSkills = [
+      ["alpha-new", "rendered {{ variables.needed }}"],
+      ["beta-new", "will fail {{ variables.undefinedValue }}"],
+      ["zeta-new", "must never install"],
+    ] as const;
+    for (const [name, body] of newSkills) {
+      await mkdir(join(failureStubs, "skills", name), { recursive: true });
+      await writeFile(
+        join(failureStubs, "skills", name, "SKILL.md"),
+        `---\nversion: 1.0.0\n---\n${body}\n`,
+      );
+    }
+    const originalConfig = {
+      stacks: ["python"],
+      variables: { owner: "configured" },
+      unrelated: { preserve: true },
+    };
+    const currentSkills = {
+      newer: skill("2.0.0"),
+      equal: skill("1.0.0"),
+      lower: skill("9.0.0"),
+      missing: skill("1.0.0"),
+      bad: skill("1.0.0"),
+    };
+    try {
+      await withProject(
+        { config: originalConfig, skills: currentSkills },
+        [],
+        async (project, result) => {
+          assert.notEqual(result.status, 0);
+          assert.equal(
+            await readFile(join(project, ".github/skills/alpha-new/SKILL.md"), "utf8"),
+            "---\nversion: 1.0.0\n---\nrendered shared-answer\n",
+          );
+          await assert.rejects(readFile(join(project, ".github/skills/zeta-new/SKILL.md")));
+          assert.deepEqual(
+            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+            originalConfig,
+          );
+        },
+        failureStubs,
+        (project, args, searchPath, env) =>
+          runCliInteractive(
+            project,
+            args,
+            searchPath,
+            [
+              { trigger: "Enter: confirm", input: "\r" },
+              { trigger: "needed: Needed", input: "shared-answer\r" },
+            ],
+            env,
+          ),
+      );
+    } finally {
+      await rm(failureStubs, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "Config write failure is reported without rolling back installed Skills",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const originalConfig = {
+      stacks: ["python"],
+      variables: { owner: "configured" },
+      unrelated: { preserve: true },
+    };
+    const currentSkills = {
+      newer: skill("2.0.0"),
+      equal: skill("1.0.0"),
+      lower: skill("9.0.0"),
+      missing: skill("1.0.0"),
+      bad: skill("1.0.0"),
+    };
+    const failureHook = join(process.cwd(), "tests", "fail-config-write.mjs");
+    await withProject(
+      { config: originalConfig, skills: currentSkills },
+      ["--include-new"],
+      async (project, result) => {
+        assert.equal(result.status, 1);
+        assert.match(result.stdout, /forced Config write failure/);
+        assert.match(await read(project, "absent"), /fresh absent owner=configured/);
+        assert.deepEqual(
+          JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+          originalConfig,
+        );
+      },
+      stubs,
+      (project, args, searchPath, env) =>
+        runCliInteractive(
+          project,
+          args,
+          searchPath,
+          [{ trigger: "needed: Needed", input: "shared-answer\r" }],
+          { ...env, NODE_OPTIONS: `--import=${failureHook}` },
+        ),
+    );
+  },
+);
+
+test(
+  "cancelling an outdated-Skill decision after selecting new Skills writes nothing",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const currentSkills = {
+      newer: skill("1.0.0"),
+      equal: skill("1.0.0"),
+      lower: skill("9.0.0"),
+      missing: skill("1.0.0"),
+      bad: skill("1.0.0"),
+    };
+    await withProject(
+      { config: goodConfig, skills: currentSkills },
+      [],
+      async (project, result) => {
+        assert.notEqual(result.status, 0);
+        assert.equal(await read(project, "newer"), skill("1.0.0"));
+        await assert.rejects(read(project, "absent"));
+      },
+      stubs,
+      (project, args, searchPath, env) =>
+        runCliInteractive(
+          project,
+          args,
+          searchPath,
+          [
+            { trigger: "Enter: confirm", input: "\r" },
+            { trigger: "is outdated", input: "\x03" },
+          ],
+          env,
+        ),
+    );
+  },
+);
 
 test("a hand-edited spindle.json is re-resolved on each run", async () => {
   await withProject(
@@ -240,7 +632,7 @@ test("update still requires just", async () => {
 test("update --help documents its flags", async () => {
   await withProject({}, ["--help"], async (_project, result) => {
     assert.equal(result.status, 0);
-    for (const flag of ["--on-conflict", "--no-interactive", "--help"]) {
+    for (const flag of ["--on-conflict", "--include-new", "--no-interactive", "--help"]) {
       assert.ok(result.stdout.includes(flag), flag);
     }
     assert.match(result.stdout, /spindle update/);

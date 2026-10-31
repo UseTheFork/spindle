@@ -19,8 +19,10 @@ export interface SkillOutcome {
 interface ReconcileCommon {
   githubDirectory: string;
   stubRoot: string;
-  context: RenderContext;
+  context?: RenderContext;
+  resolveContext?: () => Promise<RenderContext>;
   conflictPolicy?: ConflictPolicy;
+  chooseNew?: (skills: string[]) => Promise<string[]>;
   chooseConflict?: (
     name: string,
     installedVersion?: string,
@@ -31,20 +33,25 @@ interface ReconcileCommon {
 type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "init";
+      context: RenderContext;
       config: { stacks: string[]; variables: Record<string, string> };
     })
-  | (ReconcileCommon & { mode: "update"; config?: never });
+  | (ReconcileCommon & {
+      mode: "update";
+      config?: never;
+      includeNew?: boolean;
+    });
 
 interface PlannedSkill {
   name: string;
-  status: "install" | "conflict" | "update" | "warning" | "up-to-date";
+  status: "install" | "new" | "conflict" | "update" | "warning" | "up-to-date";
   warning?: string;
   installedVersion?: string;
   availableVersion?: string;
 }
 
 export async function reconcileSkills(options: ReconcileOptions): Promise<SkillOutcome[]> {
-  const { mode, githubDirectory, stubRoot, context } = options;
+  const { mode, githubDirectory, stubRoot } = options;
   const skillsDirectory = join(githubDirectory, "skills");
   const stubsDirectory = join(stubRoot, "skills");
   const stubNames = (await readdir(stubsDirectory, { withFileTypes: true }))
@@ -67,12 +74,15 @@ export async function reconcileSkills(options: ReconcileOptions): Promise<SkillO
       continue;
     }
 
-    if (!installed) continue;
-
     const shipped = await readSkillVersion(join(stubsDirectory, name, "SKILL.md"));
     const shippedVersion = shipped === null ? null : parseSemver(shipped);
     if (shipped === null || shippedVersion === null) {
       throw new Error(`The shipped stub '${name}' has no valid semver version in its SKILL.md.`);
+    }
+
+    if (!installed) {
+      plan.push({ name, status: "new" });
+      continue;
     }
 
     const installedVersionText = await readSkillVersion(join(target, "SKILL.md"));
@@ -103,6 +113,17 @@ export async function reconcileSkills(options: ReconcileOptions): Promise<SkillO
     }
   }
 
+  const newSkills = plan.filter((skill) => skill.status === "new").map((skill) => skill.name);
+  const selectedNewSkills = new Set(
+    options.mode === "update"
+      ? options.includeNew
+        ? newSkills
+        : options.chooseNew && newSkills.length > 0
+          ? await options.chooseNew(newSkills)
+          : []
+      : [],
+  );
+
   const decisions = new Map<string, ConflictPolicy>();
   for (const skill of plan) {
     if (skill.status !== "conflict" && skill.status !== "update") continue;
@@ -124,6 +145,20 @@ export async function reconcileSkills(options: ReconcileOptions): Promise<SkillO
     }
   }
 
+  const willInstall = plan.some(
+    (skill) =>
+      skill.status === "install" ||
+      (skill.status === "new" && selectedNewSkills.has(skill.name)) ||
+      ((skill.status === "conflict" || skill.status === "update") &&
+        decisions.get(skill.name) === "overwrite"),
+  );
+  const context = willInstall
+    ? ((await options.resolveContext?.()) ?? options.context)
+    : options.context;
+  if (willInstall && !context) {
+    throw new Error("Cannot install Skills without resolved Variables.");
+  }
+
   const outcomes: SkillOutcome[] = [];
   for (const skill of plan) {
     if (skill.status === "warning") {
@@ -132,6 +167,10 @@ export async function reconcileSkills(options: ReconcileOptions): Promise<SkillO
     }
     if (skill.status === "up-to-date") {
       outcomes.push({ name: skill.name, status: "up-to-date" });
+      continue;
+    }
+    if (skill.status === "new" && !selectedNewSkills.has(skill.name)) {
+      outcomes.push({ name: skill.name, status: "skipped" });
       continue;
     }
     if (
@@ -147,10 +186,10 @@ export async function reconcileSkills(options: ReconcileOptions): Promise<SkillO
       await rm(target, { recursive: true, force: true });
     }
     await mkdir(skillsDirectory, { recursive: true });
-    await installDirectory(join(stubsDirectory, skill.name), target, context);
+    await installDirectory(join(stubsDirectory, skill.name), target, context!);
     outcomes.push({
       name: skill.name,
-      status: mode === "init" ? "installed" : "updated",
+      status: mode === "init" || skill.status === "new" ? "installed" : "updated",
     });
   }
 
