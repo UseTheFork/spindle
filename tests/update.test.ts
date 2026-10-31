@@ -26,13 +26,6 @@ before(async () => {
       `---\nversion: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
     );
   }
-  await writeFile(
-    join(stubs, "variables.json"),
-    JSON.stringify([
-      { name: "owner", description: "Owner", default: "nobody" },
-      { name: "needed", description: "Needed" },
-    ]),
-  );
 });
 
 after(async () => {
@@ -81,7 +74,7 @@ async function withProject(
       await writeFile(join(project, ".github/skills", name, "extra.txt"), "stale");
     }
     const result = await runner(project, ["update", ...args], pathWith(justDirectory), {
-      SPINDLE_STUBS_DIR: stubsDir,
+      SPINDLE_BLUEPRINTS_DIR: stubsDir,
     });
     await check(project, result);
   } finally {
@@ -92,7 +85,7 @@ async function withProject(
 const read = (project: string, name: string) =>
   readFile(join(project, ".github/skills", name, "SKILL.md"), "utf8");
 
-const goodConfig = { stacks: ["python", "typescript"], variables: { owner: "core", needed: "x" } };
+const goodConfig = { stacks: ["python", "typescript"], variables: { owner: "core" } };
 
 test("newer is overwritten with stored stacks and variables; equal, lower, non-semver and absent are not", async () => {
   const configText = JSON.stringify(goodConfig, null, 4);
@@ -126,6 +119,64 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
       assert.match(result.stdout, /Added 0, updated 1, skipped 3, up to date 2 skill\(s\)/);
     },
   );
+});
+
+test("update reads a templated Skill version after rendering its frontmatter", async () => {
+  const templatedStubs = await makeTempDir("spindle-update-templated-version-");
+  await cp(stubs, templatedStubs, { recursive: true });
+  await writeFile(
+    join(templatedStubs, "skills", "newer", "SKILL.md"),
+    "---\nversion: {{ variables.owner }}\n---\nrendered version {{ variables.owner }}\n",
+  );
+  try {
+    await withProject(
+      {
+        config: { ...goodConfig, variables: { ...goodConfig.variables, owner: "2.0.0" } },
+        skills: {
+          newer: skill("1.0.0"),
+        },
+      },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(
+          await read(project, "newer"),
+          "---\nversion: 2.0.0\n---\nrendered version 2.0.0\n",
+        );
+      },
+      templatedStubs,
+    );
+  } finally {
+    await rm(templatedStubs, { recursive: true, force: true });
+  }
+});
+
+test("static Skill versions ignore unrelated templated metadata during no-op update", async () => {
+  const blueprints = await makeTempDir("spindle-static-version-");
+  await cp(stubs, blueprints, { recursive: true });
+  try {
+    for (const name of ["equal", "absent"]) {
+      await writeFile(
+        join(blueprints, "skills", name, "SKILL.md"),
+        '---\nversion: 1.0.0\ndescription: "{{ variables.not_supplied }}"\n---\nunused body\n',
+      );
+    }
+    const configText = JSON.stringify({ stacks: ["python"], variables: {} });
+    await withProject(
+      { config: configText, skills: { equal: skill("1.0.0") } },
+      ["--no-interactive"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /Added 0, updated 0, skipped 5, up to date 1/);
+        assert.equal(await read(project, "equal"), skill("1.0.0"));
+        await assert.rejects(read(project, "absent"));
+        assert.equal(await readFile(join(project, ".github/spindle.json"), "utf8"), configText);
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
 });
 
 test("--on-conflict skip leaves outdated skills untouched", async () => {
@@ -212,7 +263,10 @@ test(
       [],
       async (_project, result) => {
         assert.equal(result.status, 0, result.stdout);
-        assert.doesNotMatch(result.stdout, /needed: Needed|Which new Skills/);
+        assert.doesNotMatch(
+          result.stdout,
+          /owner: Team owner|lint_command: Lint command|Which new Skills/,
+        );
         assert.match(result.stdout, /Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
       },
       stubs,
@@ -330,7 +384,7 @@ test(
 );
 
 test(
-  "prompted Variables render every changed Skill and merge into Config after success",
+  "shared Variable defaults render every changed Skill without rewriting Config",
   { skip: process.platform !== "linux" },
   async () => {
     const variableStubs = await makeTempDir("spindle-update-variable-stubs-");
@@ -341,7 +395,7 @@ test(
     ]) {
       await writeFile(
         join(variableStubs, "skills", name, "SKILL.md"),
-        `---\nversion: ${version}\n---\nfresh ${name} owner={{ variables.owner }} needed={{ variables.needed }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+        `---\nversion: ${version}\n---\nfresh ${name} owner={{ variables.owner }} lint={{ variables.lint_command }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
       );
     }
     const projectConfig = {
@@ -367,18 +421,15 @@ test(
           assert.match(result.stdout, /Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
           assert.match(
             await read(project, "newer"),
-            /fresh newer owner=configured needed=shared-answer stacks=python;/,
+            /fresh newer owner=configured lint=just lint stacks=python;/,
           );
           assert.match(
             await read(project, "absent"),
-            /fresh absent owner=configured needed=shared-answer stacks=python;/,
+            /fresh absent owner=configured lint=just lint stacks=python;/,
           );
           assert.deepEqual(
             JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
-            {
-              ...projectConfig,
-              variables: { owner: "configured", needed: "shared-answer" },
-            },
+            projectConfig,
           );
         },
         variableStubs,
@@ -390,7 +441,6 @@ test(
             [
               { trigger: "Enter: confirm", input: "\r" },
               { trigger: "What should happen?", input: "\r" },
-              { trigger: "needed: Needed", input: "shared-answer\r" },
             ],
             env,
           ),
@@ -402,13 +452,13 @@ test(
 );
 
 test(
-  "installation failure stops later Skills and does not persist prompted Variables",
+  "installation failure stops later Skills and preserves Config",
   { skip: process.platform !== "linux" },
   async () => {
     const failureStubs = await makeTempDir("spindle-update-failure-stubs-");
     await cp(stubs, failureStubs, { recursive: true });
     const newSkills = [
-      ["alpha-new", "rendered {{ variables.needed }}"],
+      ["alpha-new", "rendered {{ variables.owner }}"],
       ["beta-new", "will fail {{ variables.undefinedValue }}"],
       ["zeta-new", "must never install"],
     ] as const;
@@ -439,7 +489,7 @@ test(
           assert.notEqual(result.status, 0);
           assert.equal(
             await readFile(join(project, ".github/skills/alpha-new/SKILL.md"), "utf8"),
-            "---\nversion: 1.0.0\n---\nrendered shared-answer\n",
+            "---\nversion: 1.0.0\n---\nrendered configured\n",
           );
           await assert.rejects(readFile(join(project, ".github/skills/zeta-new/SKILL.md")));
           assert.deepEqual(
@@ -453,10 +503,7 @@ test(
             project,
             args,
             searchPath,
-            [
-              { trigger: "Enter: confirm", input: "\r" },
-              { trigger: "needed: Needed", input: "shared-answer\r" },
-            ],
+            [{ trigger: "Enter: confirm", input: "\r" }],
             env,
           ),
       );
@@ -467,7 +514,7 @@ test(
 );
 
 test(
-  "Config write failure is reported without rolling back installed Skills",
+  "update does not attempt a Config write when using shared Variable defaults",
   { skip: process.platform !== "linux" },
   async () => {
     const originalConfig = {
@@ -487,8 +534,8 @@ test(
       { config: originalConfig, skills: currentSkills },
       ["--include-new"],
       async (project, result) => {
-        assert.equal(result.status, 1);
-        assert.match(result.stdout, /forced Config write failure/);
+        assert.equal(result.status, 0, result.stdout);
+        assert.doesNotMatch(result.stdout, /forced Config write failure/);
         assert.match(await read(project, "absent"), /fresh absent owner=configured/);
         assert.deepEqual(
           JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
@@ -497,13 +544,10 @@ test(
       },
       stubs,
       (project, args, searchPath, env) =>
-        runCliInteractive(
-          project,
-          args,
-          searchPath,
-          [{ trigger: "needed: Needed", input: "shared-answer\r" }],
-          { ...env, NODE_OPTIONS: `--import=${failureHook}` },
-        ),
+        runCliInteractive(project, args, searchPath, [], {
+          ...env,
+          NODE_OPTIONS: `--import=${failureHook}`,
+        }),
     );
   },
 );
@@ -546,7 +590,7 @@ test(
 test("a hand-edited spindle.json is re-resolved on each run", async () => {
   await withProject(
     {
-      config: { stacks: ["php-laravel"], variables: { owner: "edited", needed: "x" } },
+      config: { stacks: ["php-laravel"], variables: { owner: "edited" } },
       skills: { newer: skill("1.0.0") },
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
@@ -557,25 +601,16 @@ test("a hand-edited spindle.json is re-resolved on each run", async () => {
   );
 });
 
-test("variables missing from the config fall back to the default; required ones error", async () => {
+test("variables missing from the config fall back to product defaults", async () => {
   await withProject(
     {
-      config: { stacks: ["python"], variables: { needed: "x" } },
+      config: { stacks: ["python"], variables: {} },
       skills: { newer: skill("1.0.0") },
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
       assert.equal(result.status, 0, result.stderr);
       assert.match(await read(project, "newer"), /owner=nobody/);
-    },
-  );
-  await withProject(
-    { config: { stacks: ["python"], variables: {} }, skills: { newer: skill("1.0.0") } },
-    ["--no-interactive", "--on-conflict", "overwrite"],
-    async (project, result) => {
-      assert.equal(result.status, 1);
-      assert.match(result.stderr, /Variable 'needed'/);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
     },
   );
 });
@@ -679,7 +714,7 @@ test(
           ["update", "--no-interactive", "--on-conflict", "overwrite"],
           pathWith(justDirectory),
           {
-            SPINDLE_STUBS_DIR: stubs,
+            SPINDLE_BLUEPRINTS_DIR: stubs,
           },
         );
         assert.notEqual(result.status, 0, label);

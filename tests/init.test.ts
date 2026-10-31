@@ -9,6 +9,10 @@ import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
 let justDirectory: string;
 let stubsDirectory: string;
+const fixtureVariables = {
+  lint_command: "just lint",
+  owner: "nobody",
+};
 
 before(async () => {
   justDirectory = await makeJustStubDir();
@@ -31,7 +35,7 @@ async function runInit(args: string[], env: Record<string, string> = {}) {
     return {
       project,
       result: runCli(project, ["init", ...args], pathWith(justDirectory), {
-        SPINDLE_STUBS_DIR: stubsDirectory,
+        SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         ...env,
       }),
     };
@@ -86,13 +90,66 @@ test("init installs its configured skill and records repeatable stack flags", as
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
       stacks: ["php-laravel", "typescript"],
-      variables: {},
+      variables: fixtureVariables,
     });
     const skill = await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8");
     assert.match(skill, /^---\nname: demo\nversion: \d+\.\d+\.\d+\n/m);
     assert.match(skill, /# Demo/);
     assert.deepEqual(await readdir(join(project, ".github/skills")), ["demo"]);
   } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init renders nested Markdown with shared Variables and selected Stack values", async () => {
+  const blueprints = await makeTempDir("spindle-init-rendering-blueprints-");
+  const project = await makeTempDir();
+  const skillDirectory = join(blueprints, "skills", "demo");
+  const binaryAsset = Buffer.from([0x00, 0x7f, 0xff, 0x42]);
+  try {
+    await mkdir(join(skillDirectory, "guidance", "nested"), { recursive: true });
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      [
+        "---",
+        "name: demo",
+        "version: 1.0.0",
+        'description: "{{ variables.owner }}"',
+        "---",
+        "",
+        "{% if 'python' in stacks %}Python guidance{% endif %}",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(
+      join(skillDirectory, "guidance", "nested", "python.md"),
+      "Owner={{ variables.owner }}{% if 'python' in stacks %}; stack=python{% endif %}\n",
+    );
+    await writeFile(join(skillDirectory, "assets.bin"), binaryAsset);
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--var", "owner=team"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+      stacks: ["python"],
+      variables: { lint_command: "just lint", owner: "team" },
+    });
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
+      '---\nname: demo\nversion: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
+    );
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/guidance/nested/python.md"), "utf8"),
+      "Owner=team; stack=python\n",
+    );
+    assert.deepEqual(await readFile(join(project, ".github/skills/demo/assets.bin")), binaryAsset);
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
   }
 });
@@ -109,7 +166,7 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
       projectRoot,
       ["init", "--stack", "typescript", "--on-conflict", "skip"],
       pathWith(justDirectory),
-      { SPINDLE_STUBS_DIR: stubsDirectory },
+      { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
     assert.equal(project.status, 0, project.stderr);
@@ -123,7 +180,7 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
     );
     assert.deepEqual(JSON.parse(await readFile(configPath, "utf8")), {
       stacks: ["typescript"],
-      variables: {},
+      variables: fixtureVariables,
     });
   } finally {
     await rm(projectRoot, { recursive: true, force: true });
@@ -142,7 +199,7 @@ test("init overwrite policy removes files that are no longer in the Stub", async
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
       pathWith(justDirectory),
-      { SPINDLE_STUBS_DIR: stubsDirectory },
+      { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
     assert.equal(result.status, 0, result.stderr);
@@ -192,7 +249,7 @@ test(
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
         pathWith(justDirectory),
         {
-          SPINDLE_STUBS_DIR: stubsDirectory,
+          SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },
       );
 
@@ -222,7 +279,7 @@ test(
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
         pathWith(justDirectory),
         {
-          SPINDLE_STUBS_DIR: stubsDirectory,
+          SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },
       );
 
@@ -255,7 +312,7 @@ test(
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
         pathWith(justDirectory),
         {
-          SPINDLE_STUBS_DIR: stubsDirectory,
+          SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },
       );
 

@@ -6,16 +6,16 @@ import { parseArgs } from "node:util";
 
 import chalk from "chalk";
 
+import { reconcileBlueprints } from "./blueprints/lifecycle.js";
+import { blueprintHandlers } from "./blueprints/registry.js";
 import {
   exists,
   parseConflictPolicy,
-  stubsRoot,
   supportedStacks,
   validateStacks,
   type ConflictPolicy,
 } from "./install.js";
 import { promptConflict, promptStacks, promptVariable } from "./prompts.js";
-import { reconcileSkills } from "./reconcile.js";
 import { update } from "./update.js";
 import { loadVariableDefinitions, parseVariableFlags } from "./variables.js";
 
@@ -57,12 +57,12 @@ async function init(
   policy: ConflictPolicy | undefined,
 ) {
   const githubDirectory = join(process.cwd(), ".github");
-  const outcomes = await reconcileSkills({
+  const config = { stacks, variables };
+  const outcomes = await reconcileBlueprints(blueprintHandlers, {
     mode: "init",
     githubDirectory,
-    stubRoot: stubsRoot(),
-    context: { stacks, variables },
-    config: { stacks, variables },
+    context: config,
+    config,
     conflictPolicy: policy,
     chooseConflict: interactive ? async (name) => promptConflict(name) : undefined,
   });
@@ -165,7 +165,7 @@ async function main() {
     );
   }
 
-  const definitions = await loadVariableDefinitions(stubsRoot());
+  const definitions = loadVariableDefinitions();
   const supplied = parseVariableFlags(values.var ?? [], definitions);
 
   let stacks = [...new Set(values.stack ?? [])];

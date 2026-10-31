@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeJustStubDir, makeTempDir, pathWith, runCli, runCliInteractive } from "./helpers.ts";
 
 let justDirectory: string;
 
@@ -21,11 +21,20 @@ interface Definition {
   default?: string;
 }
 
-// Runs init against fixture stubs with the given variable manifest and a skill that prints every variable.
+type CliResult = Pick<ReturnType<typeof runCli>, "status" | "stdout" | "stderr">;
+
+// Runs init against a fixture Skill that prints the specified shared Variables.
 async function withManifest(
   definitions: Definition[],
   args: string[],
-  check: (result: ReturnType<typeof runCli>, project: string) => Promise<void>,
+  check: (result: CliResult, project: string) => Promise<void>,
+  runner: (
+    project: string,
+    cliArgs: string[],
+    searchPath: string,
+    env: Record<string, string>,
+  ) => Promise<CliResult> = async (project, cliArgs, searchPath, env) =>
+    runCli(project, cliArgs, searchPath, env),
 ) {
   const stubs = await makeTempDir("spindle-stubs-");
   const project = await makeTempDir();
@@ -33,11 +42,10 @@ async function withManifest(
     await mkdir(join(stubs, "skills", "demo"), { recursive: true });
     await writeFile(
       join(stubs, "skills", "demo", "SKILL.md"),
-      definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n") + "\n",
+      `---\nversion: 1.0.0\n---\n${definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n")}\n`,
     );
-    await writeFile(join(stubs, "variables.json"), JSON.stringify(definitions));
-    const result = runCli(project, ["init", ...args], pathWith(justDirectory), {
-      SPINDLE_STUBS_DIR: stubs,
+    const result = await runner(project, ["init", ...args], pathWith(justDirectory), {
+      SPINDLE_BLUEPRINTS_DIR: stubs,
     });
     await check(result, project);
   } finally {
@@ -66,7 +74,7 @@ test("flags supply variables and defaults apply when allowed", async () => {
       });
       assert.equal(
         await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
-        "lint_command=just lint\nowner=core=team\n",
+        "---\nversion: 1.0.0\n---\nlint_command=just lint\nowner=core=team\n",
       );
     },
   );
@@ -86,14 +94,54 @@ test("a --var flag overrides the default and --var is repeatable", async () => {
   );
 });
 
-test("a variable without default or flag is an error naming it, even with a TTY-less stdin", async () => {
+test("non-interactive init uses product Variable defaults without unrelated flags", async () => {
   await withManifest(definitions, ["--stack", "python"], async (result, project) => {
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /owner/);
-    assert.match(result.stderr, /--var/);
-    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual((await config(project)).variables, {
+      lint_command: "just lint",
+      owner: "nobody",
+    });
+    assert.equal(
+      await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
+      "---\nversion: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
+    );
   });
 });
+
+test(
+  "interactive init prompts for shared product Variables and accepts their defaults",
+  { skip: process.platform !== "linux" },
+  async () => {
+    await withManifest(
+      definitions,
+      ["--stack", "python"],
+      async (result, project) => {
+        assert.equal(result.status, 0, result.stdout);
+        assert.match(result.stdout, /lint_command: Lint command/);
+        assert.match(result.stdout, /owner: Team owner/);
+        assert.deepEqual((await config(project)).variables, {
+          lint_command: "just lint",
+          owner: "nobody",
+        });
+        assert.equal(
+          await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
+          "---\nversion: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
+        );
+      },
+      (project, args, searchPath, env) =>
+        runCliInteractive(
+          project,
+          args,
+          searchPath,
+          [
+            { trigger: "lint_command: Lint command", input: "\r" },
+            { trigger: "owner: Team owner", input: "\r" },
+          ],
+          env,
+        ),
+    );
+  },
+);
 
 test("--no-interactive makes missing required input an error", async () => {
   await withManifest(definitions, ["--no-interactive"], async (result, project) => {
@@ -122,10 +170,13 @@ test("malformed --var values are rejected", async () => {
   });
 });
 
-test("an empty manifest yields an empty variables object", async () => {
+test("typed Variable definitions apply independently of Blueprint fixtures", async () => {
   await withManifest([], ["--stack", "typescript"], async (result, project) => {
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(await config(project), { stacks: ["typescript"], variables: {} });
+    assert.deepEqual(await config(project), {
+      stacks: ["typescript"],
+      variables: { lint_command: "just lint", owner: "nobody" },
+    });
   });
 });
 

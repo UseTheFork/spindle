@@ -13,7 +13,10 @@ before(async () => {
   stubsDirectory = await makeTempDir("spindle-existing-stubs-");
   for (const name of ["alpha", "beta"]) {
     await mkdir(join(stubsDirectory, "skills", name, "nested"), { recursive: true });
-    await writeFile(join(stubsDirectory, "skills", name, "SKILL.md"), `fresh ${name}\n`);
+    await writeFile(
+      join(stubsDirectory, "skills", name, "SKILL.md"),
+      `---\nversion: 1.0.0\n---\nfresh ${name}\n`,
+    );
     await writeFile(
       join(stubsDirectory, "skills", name, "nested", "n.md"),
       `fresh nested ${name}\n`,
@@ -35,7 +38,7 @@ async function withProject(
   try {
     await setup(project);
     const result = runCli(project, ["init", ...args], pathWith(justDirectory), {
-      SPINDLE_STUBS_DIR: stubsDirectory,
+      SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
     });
     await check(project, result);
   } finally {
@@ -92,13 +95,16 @@ test("--on-conflict overwrite re-renders and removes stale files", async () => {
     async (project, result) => {
       assert.equal(result.status, 0, result.stderr);
       const alpha = join(project, ".github/skills/alpha");
-      assert.equal(await readFile(join(alpha, "SKILL.md"), "utf8"), "fresh alpha\n");
+      assert.equal(
+        await readFile(join(alpha, "SKILL.md"), "utf8"),
+        "---\nversion: 1.0.0\n---\nfresh alpha\n",
+      );
       assert.equal(await readFile(join(alpha, "nested/n.md"), "utf8"), "fresh nested alpha\n");
       assert.deepEqual((await readdir(alpha)).sort(), ["SKILL.md", "nested"]);
       assert.deepEqual(await readdir(join(alpha, "nested")), ["n.md"]);
       assert.equal(
         await readFile(join(project, ".github/skills/beta/SKILL.md"), "utf8"),
-        "fresh beta\n",
+        "---\nversion: 1.0.0\n---\nfresh beta\n",
       );
       assert.ok(await readFile(join(project, ".github/spindle.json"), "utf8"));
       assert.match(result.stdout, /Installed 2 skill\(s\)/);
@@ -119,11 +125,14 @@ test("--on-conflict skip leaves existing skills untouched and installs new ones"
       assert.deepEqual((await readdir(alpha)).sort(), ["SKILL.md", "nested", "stale.md"]);
       assert.equal(
         await readFile(join(project, ".github/skills/beta/SKILL.md"), "utf8"),
-        "fresh beta\n",
+        "---\nversion: 1.0.0\n---\nfresh beta\n",
       );
       assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
         stacks: ["python"],
-        variables: {},
+        variables: {
+          lint_command: "just lint",
+          owner: "nobody",
+        },
       });
       assert.match(result.stdout, /Installed 1 skill\(s\)/);
       assert.match(result.stdout, /Skipped 1/);

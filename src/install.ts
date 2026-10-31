@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { access, copyFile, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderText, type RenderContext } from "./render.js";
@@ -29,9 +30,12 @@ const textExtensions = new Set([
   "",
 ]);
 
-// SPINDLE_STUBS_DIR overrides the stubs root (the directory containing `skills/`); tests use it for fixture stubs.
-export function stubsRoot() {
-  return process.env.SPINDLE_STUBS_DIR ?? fileURLToPath(new URL("./stubs/", import.meta.url));
+// Tests may provide a Blueprint collection root.
+export function blueprintsRoot() {
+  if (process.env.SPINDLE_BLUEPRINTS_DIR) return process.env.SPINDLE_BLUEPRINTS_DIR;
+  const adjacent = fileURLToPath(new URL("./blueprints/", import.meta.url));
+  if (existsSync(join(adjacent, "skills"))) return adjacent;
+  return fileURLToPath(new URL("../src/blueprints/", import.meta.url));
 }
 
 export async function exists(path: string) {
@@ -43,12 +47,16 @@ export async function exists(path: string) {
   }
 }
 
-export async function assertSafeInstallPaths(githubDirectory: string, skillNames: string[]) {
+export async function assertSafeInstallPaths(
+  githubDirectory: string,
+  blueprintNames: string[],
+  destinationDirectory = join(githubDirectory, "skills"),
+) {
   const paths = [
     githubDirectory,
-    join(githubDirectory, "skills"),
+    destinationDirectory,
     join(githubDirectory, "spindle.json"),
-    ...skillNames.map((name) => join(githubDirectory, "skills", name)),
+    ...blueprintNames.map((name) => join(destinationDirectory, name)),
   ];
 
   for (const path of paths) {
@@ -66,18 +74,24 @@ export async function assertSafeInstallPaths(githubDirectory: string, skillNames
   }
 }
 
-export async function listSkillStubs() {
-  const entries = await readdir(join(stubsRoot(), "skills"), { withFileTypes: true });
+export async function listSkillBlueprints(sourceDirectory = join(blueprintsRoot(), "skills")) {
+  const entries = await readdir(sourceDirectory, { withFileTypes: true });
   return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
-export async function installDirectory(source: string, target: string, context: RenderContext) {
+export async function installDirectory(
+  source: string,
+  target: string,
+  context: RenderContext,
+  validateRenderedFile?: (relativePath: string, renderedText: string) => void,
+  sourceRoot = source,
+) {
   await mkdir(target, { recursive: true });
   for (const entry of await readdir(source, { withFileTypes: true })) {
     const from = join(source, entry.name);
     const to = join(target, entry.name);
     if (entry.isDirectory()) {
-      await installDirectory(from, to, context);
+      await installDirectory(from, to, context, validateRenderedFile, sourceRoot);
       continue;
     }
     const content = await readFile(from);
@@ -93,7 +107,9 @@ export async function installDirectory(source: string, target: string, context: 
     if (text === null) {
       await copyFile(from, to);
     } else {
-      await writeFile(to, renderText(text, context));
+      const rendered = renderText(text, context);
+      validateRenderedFile?.(relative(sourceRoot, from), rendered);
+      await writeFile(to, rendered);
     }
   }
 }

@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 
 import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
-const shippedSkills = resolve(process.cwd(), "src/stubs/skills");
+const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
 let justDirectory: string;
 
 before(async () => {
@@ -48,7 +48,7 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
   const skillFiles = (await filesUnder(shippedSkills))
     .filter((file) => basename(file) === "SKILL.md")
     .map((file) => join(shippedSkills, file));
-  assert.ok(skillFiles.length > 0, "expected shipped skill stubs");
+  assert.ok(skillFiles.length > 0, "expected shipped Skill Blueprints");
 
   for (const file of skillFiles) {
     const content = await readFile(file, "utf8");
@@ -60,7 +60,7 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
   }
 });
 
-test("default init installs every internal skill byte-for-byte from production stubs", async () => {
+test("default init installs every internal skill byte-for-byte from production Blueprints", async () => {
   const expectedDirectories = await skillDirectories(shippedSkills);
   const project = await makeTempDir("spindle-production-init-");
   try {

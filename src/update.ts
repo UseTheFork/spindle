@@ -3,15 +3,15 @@ import { join } from "node:path";
 
 import chalk from "chalk";
 
+import { reconcileBlueprints } from "./blueprints/lifecycle.js";
+import { blueprintHandlers } from "./blueprints/registry.js";
 import {
   assertSafeInstallPaths,
-  listSkillStubs,
-  stubsRoot,
+  listSkillBlueprints,
   validateStacks,
   type ConflictPolicy,
 } from "./install.js";
 import { promptNewSkills, promptOutdated, promptVariable } from "./prompts.js";
-import { reconcileSkills } from "./reconcile.js";
 import { loadVariableDefinitions } from "./variables.js";
 
 const missingConfig = (reason: string) =>
@@ -64,12 +64,11 @@ async function readConfig(path: string) {
 
 async function resolveVariables(
   config: { stacks: string[]; variables: Record<string, string> },
-  definitionsRoot: string,
   interactive: boolean,
 ) {
   const variables: Record<string, string> = {};
   const prompted: Record<string, string> = {};
-  for (const definition of await loadVariableDefinitions(definitionsRoot)) {
+  for (const definition of loadVariableDefinitions()) {
     let value = config.variables[definition.name] ?? definition.default;
     if (value === undefined && interactive) {
       value = await promptVariable(definition);
@@ -91,15 +90,21 @@ export async function update(
   includeNew = false,
 ) {
   const githubDirectory = join(process.cwd(), ".github");
-  await assertSafeInstallPaths(githubDirectory, await listSkillStubs());
   const configPath = join(githubDirectory, "spindle.json");
   const config = await readConfig(configPath);
   let prompted: Record<string, string> = {};
 
-  const outcomes = await reconcileSkills({
+  for (const handler of blueprintHandlers) {
+    await assertSafeInstallPaths(
+      githubDirectory,
+      await listSkillBlueprints(handler.sourceDirectory()),
+      handler.destinationDirectory(githubDirectory),
+    );
+  }
+  const outcomes = await reconcileBlueprints(blueprintHandlers, {
     mode: "update",
     githubDirectory,
-    stubRoot: stubsRoot(),
+    config: { stacks: config.stacks, variables: config.variables },
     includeNew,
     chooseNew: interactive && !includeNew ? promptNewSkills : undefined,
     conflictPolicy: policy,
@@ -108,7 +113,7 @@ export async function update(
         ? async (name, installed, available) => promptOutdated(name, installed!, available!)
         : undefined,
     resolveContext: async () => {
-      const resolved = await resolveVariables(config, stubsRoot(), interactive);
+      const resolved = await resolveVariables(config, interactive);
       prompted = resolved.prompted;
       return resolved.context;
     },

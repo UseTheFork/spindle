@@ -1,37 +1,17 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 export interface VariableDefinition {
   name: string;
   description: string;
   default?: string;
 }
 
-// A missing manifest means the stubs define no variables.
-export async function loadVariableDefinitions(stubsRoot: string): Promise<VariableDefinition[]> {
-  let raw: string;
-  try {
-    raw = await readFile(join(stubsRoot, "variables.json"), "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
+// All Blueprint kinds share this statically typed Variable namespace.
+export const variableDefinitions: readonly VariableDefinition[] = [
+  { name: "lint_command", description: "Lint command", default: "just lint" },
+  { name: "owner", description: "Team owner", default: "nobody" },
+];
 
-  const parsed: unknown = JSON.parse(raw);
-  if (!Array.isArray(parsed)) throw new Error("variables.json must be an array.");
-  return parsed.map((entry: unknown) => {
-    const item = entry as Partial<VariableDefinition> | null;
-    if (
-      typeof item?.name !== "string" ||
-      typeof item.description !== "string" ||
-      (item.default !== undefined && typeof item.default !== "string")
-    ) {
-      throw new Error(
-        "variables.json entries need string `name`, `description` and optional `default`.",
-      );
-    }
-    return { name: item.name, description: item.description, default: item.default };
-  });
+export function loadVariableDefinitions(): VariableDefinition[] {
+  return variableDefinitions.map((definition) => ({ ...definition }));
 }
 
 export function parseVariableFlags(

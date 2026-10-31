@@ -1,9 +1,13 @@
 import { readFile } from "node:fs/promises";
 
+import matter from "gray-matter";
+
+import { renderText, type RenderContext } from "./render.js";
+
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
 
-interface Semver {
+export interface Semver {
   core: [number, number, number];
   prerelease: string[];
 }
@@ -42,16 +46,43 @@ export function compareSemver(a: Semver, b: Semver) {
 }
 
 // Returns the raw `version` value from SKILL.md frontmatter, or null when absent or the file is unreadable.
-export async function readSkillVersion(skillFile: string): Promise<string | null> {
+export async function readSkillVersion(
+  skillFile: string,
+  context?: RenderContext,
+): Promise<string | null> {
   let content: string;
   try {
     content = await readFile(skillFile, "utf8");
   } catch {
     return null;
   }
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
-  if (!frontmatter) return null;
-  const line = /^version:[ \t]*(.*?)[ \t]*$/m.exec(frontmatter[1]);
-  if (!line) return null;
-  return line[1].replace(/^(["'])(.*)\1$/, "$2");
+  const parsed = matter(
+    context && versionIsTemplated(content) ? renderText(content, context) : content,
+  ).data;
+  const version = parsed.version;
+  return typeof version === "string" || typeof version === "number" ? String(version) : null;
+}
+
+function versionIsTemplated(content: string): boolean {
+  const parsed = matter(content, {});
+  const version = parsed.data.version;
+  if (typeof version === "string") return /{{|{%/.test(version);
+  if (version === null || typeof version !== "object") return false;
+  // Inspect template syntax only in the top-level version field. gray-matter
+  // still owns metadata parsing; this also handles unquoted Nunjucks expressions
+  // that YAML would otherwise interpret as mappings before rendering.
+  const versionSource = (parsed.matter ?? "").match(
+    /^version:[ \t]*([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/m,
+  )?.[1];
+  return versionSource !== undefined && /{{|{%/.test(versionSource);
+}
+
+export async function skillVersionIsTemplated(skillFile: string): Promise<boolean> {
+  let content: string;
+  try {
+    content = await readFile(skillFile, "utf8");
+  } catch {
+    return false;
+  }
+  return versionIsTemplated(content);
 }

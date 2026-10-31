@@ -3,7 +3,8 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { reconcileSkills } from "../src/reconcile.ts";
+import { reconcileBlueprints } from "../src/blueprints/lifecycle.ts";
+import { skillHandler } from "../src/blueprints/skills/handler.ts";
 import { makeTempDir } from "./helpers.ts";
 
 async function writeSkill(root: string, name: string, version: string | null, body = "") {
@@ -14,6 +15,11 @@ async function writeSkill(root: string, name: string, version: string | null, bo
     `---\n${version === null ? "" : `version: ${version}\n`}---\n${body}`,
   );
 }
+
+const handlerFor = (stubRoot: string) => ({
+  ...skillHandler,
+  sourceDirectory: () => join(stubRoot, "skills"),
+});
 
 test("init reconciliation returns outcomes, replaces selected conflicts, and installs every Stub", async () => {
   const project = await makeTempDir("spindle-reconcile-project-");
@@ -32,10 +38,9 @@ test("init reconciliation returns outcomes, replaces selected conflicts, and ins
     await writeFile(join(githubDirectory, "skills", "demo", "stale.txt"), "remove me");
 
     const conflicts: string[] = [];
-    const outcomes = await reconcileSkills({
+    const outcomes = await reconcileBlueprints([handlerFor(stubRoot)], {
       mode: "init",
       githubDirectory,
-      stubRoot,
       context: { stacks: ["python"], variables: {} },
       config: { stacks: ["python"], variables: {} },
       chooseConflict: async (name) => {
@@ -73,10 +78,9 @@ test("init reconciliation leaves skipped conflicts alone and still writes Config
     await writeSkill(join(stubRoot, "skills"), "demo", "1.0.0", "shipped");
     await writeSkill(join(githubDirectory, "skills"), "demo", "9.0.0", "existing");
 
-    const outcomes = await reconcileSkills({
+    const outcomes = await reconcileBlueprints([handlerFor(stubRoot)], {
       mode: "init",
       githubDirectory,
-      stubRoot,
       context: { stacks: config.stacks, variables: config.variables },
       config,
       chooseConflict: async () => "skip",
@@ -113,10 +117,9 @@ test("update reconciliation returns per-Skill version outcomes and skips uninsta
     await writeSkill(join(githubDirectory, "skills"), "missing-version", null, "uncertain");
     await writeSkill(join(githubDirectory, "skills"), "invalid-version", "v1", "uncertain");
 
-    const outcomes = await reconcileSkills({
+    const outcomes = await reconcileBlueprints([handlerFor(stubRoot)], {
       mode: "update",
       githubDirectory,
-      stubRoot,
       context: { stacks: ["python"], variables: {} },
       conflictPolicy: "overwrite",
     });
@@ -160,14 +163,13 @@ test("update reconciliation rejects an invalid shipped version before overwritin
     await writeSkill(join(githubDirectory, "skills"), "demo", "1.0.0", "existing");
 
     await assert.rejects(
-      reconcileSkills({
+      reconcileBlueprints([handlerFor(stubRoot)], {
         mode: "update",
         githubDirectory,
-        stubRoot,
         context: { stacks: ["python"], variables: {} },
         conflictPolicy: "overwrite",
       }),
-      /shipped stub 'demo' has no valid semver version/,
+      /shipped skill Blueprint 'demo' has no valid semver version/,
     );
     assert.equal(
       await readFile(join(githubDirectory, "skills", "demo", "SKILL.md"), "utf8"),
