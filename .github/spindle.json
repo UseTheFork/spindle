@@ -1,0 +1,9 @@
+{
+  "stacks": [
+    "typescript"
+  ],
+  "variables": {
+    "lint_command": "oxlint",
+    "owner": "nobody"
+  }
+}
