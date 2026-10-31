@@ -1,23 +1,23 @@
 # Spindle
 
-A CLI that scaffolds and maintains a project's `.github` directory from Nunjucks sources, driven by the stacks and answers the user provides.
+A CLI that scaffolds and maintains a project's `.github` directory from Blueprints, tailored by the Stacks and Variables the user provides.
 
 ## Language
 
-**Stub**:
-A Nunjucks source for a skill, shipped with spindle and rendered into a user's repo.
-_Avoid_: Template (already used for ordinary files such as `setup-project/templates/`)
+**Blueprint**:
+A definition for a kind of spindle-managed content, such as a Skill, Instruction, or Agent. A Blueprint may include guidance tailored to one or more Stacks.
+_Avoid_: Stub
 
 **Skill**:
 A rendered directory under `.github/skills/` in the user's repo, led by a `SKILL.md` that carries a `version`.
-_Avoid_: Installed stub, rendered stub
+_Avoid_: Installed Blueprint
 
 **Stack**:
 An opinionated language-and-framework choice the user selects during `init`, such as PHP (Laravel), Python or TypeScript.
 _Avoid_: Language, framework
 
 **Variable**:
-A named value the user supplies that stubs interpolate into skills.
+A named value the user supplies for use in Blueprints.
 _Avoid_: Setting, parameter
 
 **Config**:

@@ -1,0 +1,3 @@
+# Manage GitHub content through Blueprints
+
+Spindle will manage GitHub content through a shared Blueprint lifecycle engine, with a static TypeScript registry and per-kind handlers; `init` and `update` remain unified, starting with Skills and adding other kinds only when ready. Blueprints own their Markdown frontmatter, parsed with `gray-matter` after Nunjucks rendering, while typed TypeScript defines shared Variables and each project Config holds selected Stacks and user values; shared files and selected Stack overlays are combined, and duplicate output paths fail explicitly and are tested. This is a new direction with no backwards-compatibility requirement.
