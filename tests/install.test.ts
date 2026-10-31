@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { installDirectory } from "../src/install.ts";
+import { installPlannedBlueprintFiles, planBlueprintFiles } from "../src/install.ts";
 import { makeTempDir } from "./helpers.ts";
 
 test("installation renders recognized UTF-8 text and preserves files that must not be rendered", async () => {
@@ -30,7 +30,8 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       await writeFile(file, content);
     }
 
-    await installDirectory(source, target, context);
+    const files = await planBlueprintFiles(source, context.stacks);
+    await installPlannedBlueprintFiles(files, target, context);
 
     assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), "Hello Spindle!");
     assert.equal(await readFile(join(target, "templates/a.md"), "utf8"), "a python,typescript\n");

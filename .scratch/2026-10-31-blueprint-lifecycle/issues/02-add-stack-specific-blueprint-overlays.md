@@ -37,3 +37,6 @@ Execution set to `in-code-review` at the uncommitted corrective-round-2 worktree
 
 **2026-10-31 - @unknown**
 Controller acceptance: the scoped round-2 re-review marks both findings addressed with no new breakage; task review passed Spec and Quality, and final verification passed 76/76 tests, type check, lint, changed-file formatting, and whitespace checks. All ticket criteria are complete. Execution set to `integrated`; commit follows.
+
+**2026-10-31 - @unknown**
+Full-spec final fix removed the unused `installDirectory` entry point and moved text-rendering and byte-preservation test coverage to `planBlueprintFiles` plus `installPlannedBlueprintFiles`. The focused test passed before and after the refactor; aggregate final-fix re-review marks both related Minor findings addressed. See `../reports/final-fix-implementation.md` and `../reports/final-fix-review.md`.

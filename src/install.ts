@@ -106,25 +106,6 @@ async function installFile(
   }
 }
 
-export async function installDirectory(
-  source: string,
-  target: string,
-  context: RenderContext,
-  validateRenderedFile?: (relativePath: string, renderedText: string) => void,
-  sourceRoot = source,
-) {
-  await mkdir(target, { recursive: true });
-  for (const entry of await readdir(source, { withFileTypes: true })) {
-    const from = join(source, entry.name);
-    const to = join(target, entry.name);
-    if (entry.isDirectory()) {
-      await installDirectory(from, to, context, validateRenderedFile, sourceRoot);
-      continue;
-    }
-    await installFile(from, to, relative(sourceRoot, from), context, validateRenderedFile);
-  }
-}
-
 export interface PlannedBlueprintFile {
   sourcePath: string;
   outputPath: string;
