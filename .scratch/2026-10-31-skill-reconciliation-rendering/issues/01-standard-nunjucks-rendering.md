@@ -5,7 +5,7 @@
 **Blocked by:** None (can start immediately).
 
 **Status:** ready-for-agent
-**Execution:** accepted
+**Execution:** integrated
 
 - [X] Rendering uses Nunjucks standard expressions, blocks, and comments without global lexer mutation or custom delimiter configuration; legacy `<%...%>` syntax is not supported as template syntax.
 - [X] Literal Nunjucks-like content can be preserved with raw blocks; autoescaping remains disabled and undefined values remain errors.
@@ -42,3 +42,6 @@ Execution set to `in-code-review` at `d8fdab23663a028cb0af96a3f485d4eeb0431a18` 
 
 **2026-10-31T15:15:00Z - @unknown**
 Execution set to `accepted` at the current ticket 01 worktree snapshot after task Spec/Quality PASS, code review, code-slop review, corrective round 1, and scoped re-review PASS. All four acceptance criteria are complete. Focused ticket tests passed 41/41; full suite passed 48/48; changed source/test formatting, lint, types, and `git diff --check` passed. Unscoped formatting reports unrelated existing files and is outside this ticket's changed-file check.
+
+**2026-10-31T15:22:00Z - @unknown**
+Execution set to `integrated` at commit `fff5906ea487beb8613aebbfdaa7565846dcd069`; accepted ticket changes and review evidence are committed in the existing checkout, and the post-commit worktree is clean.
