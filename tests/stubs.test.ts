@@ -60,6 +60,25 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
   }
 });
 
+test("init installs author-skill with versioned metadata and unchanged authoring guidance", async () => {
+  const project = await makeTempDir("spindle-author-skill-init-");
+  try {
+    const result = runCli(
+      project,
+      ["init", "--stack", "typescript", "--stack", "python", "--stack", "php-laravel"],
+      pathWith(justDirectory),
+    );
+    assert.equal(result.status, 0, result.stderr);
+
+    const local = await readFile(".github/skills/author-skill/SKILL.md", "utf8");
+    const installed = await readFile(join(project, ".github/skills/author-skill/SKILL.md"), "utf8");
+    assert.equal(hasSemverVersion(installed), true);
+    assert.equal(installed.replace(/^version: .+\r?\n/m, ""), local);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("default init installs every internal skill byte-for-byte from production Blueprints", async () => {
   const expectedDirectories = await skillDirectories(shippedSkills);
   const project = await makeTempDir("spindle-production-init-");

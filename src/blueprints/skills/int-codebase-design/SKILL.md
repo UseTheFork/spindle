@@ -1,6 +1,6 @@
 ---
 name: int-codebase-design
-version: 1.0.0
+version: 1.1.0
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
 ---
@@ -72,6 +72,7 @@ Good interfaces make testing natural:
 
 1. **Accept dependencies, don't create them.**
 
+{% if 'typescript' in stacks %}
    ```typescript
    // Testable
    function processOrder(order, paymentGateway) {}
@@ -81,9 +82,34 @@ Good interfaces make testing natural:
      const gateway = new StripeGateway();
    }
    ```
+{% endif %}
+{% if 'python' in stacks %}
+   ```python
+   # Testable
+   def process_order(order, payment_gateway):
+       pass
+
+   # Hard to test
+   def process_order(order):
+       gateway = StripeGateway()
+   ```
+{% endif %}
+{% if 'php-laravel' in stacks %}
+   ```php
+   // Testable
+   function processOrder(Order $order, PaymentGateway $paymentGateway): void {}
+
+   // Hard to test
+   function processOrder(Order $order): void
+   {
+       $gateway = new StripeGateway();
+   }
+   ```
+{% endif %}
 
 2. **Return results, don't produce side effects.**
 
+{% if 'typescript' in stacks %}
    ```typescript
    // Testable
    function calculateDiscount(cart): Discount {}
@@ -93,6 +119,30 @@ Good interfaces make testing natural:
      cart.total -= discount;
    }
    ```
+{% endif %}
+{% if 'python' in stacks %}
+   ```python
+   # Testable
+   def calculate_discount(cart) -> Discount:
+       ...
+
+   # Hard to test
+   def apply_discount(cart) -> None:
+       cart.total -= discount
+   ```
+{% endif %}
+{% if 'php-laravel' in stacks %}
+   ```php
+   // Testable
+   function calculateDiscount(Cart $cart): Discount {}
+
+   // Hard to test
+   function applyDiscount(Cart $cart): void
+   {
+       $cart->total -= $discount;
+   }
+   ```
+{% endif %}
 
 3. **Small surface area.** Fewer methods = fewer tests needed. Fewer params = simpler test setup.
 

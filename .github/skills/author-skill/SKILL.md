@@ -1,7 +1,7 @@
 ---
 name: author-skill
 description: Create or update a project skill from the user's requirements
-argument-hint: "[--test] [--question] <skill idea or requirements>"
+argument-hint: "[--test] [--ask] <skill idea or requirements>"
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -13,7 +13,7 @@ Create or update a skill, or answer a question about it, based on the user's req
 Parse optional flags from the invocation arguments; treat the remaining text as the requirements.
 
 - `--test`: opt in to testing. When omitted, do not run tests or load the two testing skills listed below.
-- `--question`: answer the question without creating or modifying files. Read the applicable skills before answering. This mode takes precedence over implementation and test execution, including when combined with `--test`.
+- `--ask`: answer the question without creating or modifying files. Read the applicable skills before answering. This mode takes precedence over implementation and test execution, including when combined with `--test`.
 
 For every invocation, YOU MUST read and follow:
 
@@ -27,9 +27,9 @@ Only when `--test` is present, YOU MUST also read and follow:
 - **REQUIRED:** `int-test-driven-development-advanced` skill
 - **REQUIRED:** `int-verification-before-completion` skill
 
-Without `--test`, apply the writing guidance without its testing workflow or testing-skill dependencies; report that tests were not run. With `--question`, read the applicable skills and answer without executing this workflow.
+Without `--test`, apply the writing guidance without its testing workflow or testing-skill dependencies; report that tests were not run. With `--ask`, read the applicable skills and answer without executing this workflow.
 
-For `--test` without `--question`, use only read-only agents for every dispatch. The authoring agent alone edits the skill. Limit testing to three rounds total: one baseline and at most two retest rounds, with five fresh agents per round (15 agents maximum). Follow this bounded cycle:
+For `--test` without `--ask`, use only read-only agents for every dispatch. The authoring agent alone edits the skill. Limit testing to three rounds total: one baseline and at most two retest rounds, with five fresh agents per round (15 agents maximum). Follow this bounded cycle:
 
 ```mermaid
 flowchart TD
@@ -55,6 +55,6 @@ flowchart TD
 
 ## Response or implementation
 
-If `--question` is present, answer using the loaded guidance and stop without implementing changes or running tests.
+If `--ask` is present, answer using the loaded guidance and stop without implementing changes or running tests.
 
 Otherwise, create or update the skill in `.github/skills/<skill-name>/SKILL.md`, following the repository's conventions and the requested scope. Complete the task rather than returning only a plan. Do not modify unrelated files. Finish with a concise summary of the skill changes and any verification performed, including blockers or unverified requirements.

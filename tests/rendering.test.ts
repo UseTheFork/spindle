@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
+import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
 
 const context = { stacks: ["python", "typescript"], variables: { name: "Spindle" } };
@@ -37,3 +39,34 @@ test("legacy custom delimiters are literal text rather than template syntax", ()
 
   assert.equal(renderText(source, context), source);
 });
+
+for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1) {
+  const stacks = supportedStacks.filter((_, index) => selection & (1 << index));
+
+  test(`codebase design Blueprint renders testability examples for ${stacks.join(", ")}`, async () => {
+    const source = await readFile(
+      new URL("../src/blueprints/skills/int-codebase-design/SKILL.md", import.meta.url),
+      "utf8",
+    );
+    const rendered = renderText(source, { stacks, variables: {} });
+    const section = rendered.split("## Designing for testability\n")[1]?.split("## Relationships")[0];
+    assert.ok(section);
+
+    for (const [stack, language] of [
+      ["typescript", "typescript"],
+      ["python", "python"],
+      ["php-laravel", "php"],
+    ]) {
+      const codeBlocks = section.match(new RegExp("```" + language + "\\n", "g")) ?? [];
+      assert.equal(codeBlocks.length, stacks.includes(stack) ? 2 : 0, language);
+    }
+
+    assert.match(section, /Accept dependencies, don't create them/);
+    assert.match(section, /Return results, don't produce side effects/);
+    assert.match(section, /Small surface area/);
+    assert.doesNotMatch(rendered, /{%|{{/);
+    const [before, after] = source.split(/## Designing for testability\n[\s\S]*?(?=## Relationships)/);
+    assert.ok(rendered.startsWith(before));
+    assert.ok(rendered.endsWith(after));
+  });
+}
