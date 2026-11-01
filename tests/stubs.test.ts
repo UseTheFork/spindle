@@ -3,6 +3,8 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import { after, before, test } from "node:test";
 
+import { supportedStacks } from "../src/install.ts";
+import { renderText } from "../src/render.ts";
 import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
@@ -18,7 +20,7 @@ after(async () => {
 
 async function skillDirectories(directory: string) {
   return (await readdir(directory, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("int-"))
+    .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
 }
@@ -60,49 +62,49 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
   }
 });
 
-test("init installs author-skill with versioned metadata and unchanged authoring guidance", async () => {
-  const project = await makeTempDir("spindle-author-skill-init-");
-  try {
-    const result = runCli(
-      project,
-      ["init", "--stack", "typescript", "--stack", "python", "--stack", "php-laravel"],
-      pathWith(justDirectory),
-    );
-    assert.equal(result.status, 0, result.stderr);
-
-    const local = await readFile(".github/skills/author-skill/SKILL.md", "utf8");
-    const installed = await readFile(join(project, ".github/skills/author-skill/SKILL.md"), "utf8");
-    assert.equal(hasSemverVersion(installed), true);
-    assert.equal(installed.replace(/^version: .+\r?\n/m, ""), local);
-  } finally {
-    await rm(project, { recursive: true, force: true });
-  }
+test("only author-blueprint remains a local skill", async () => {
+  assert.deepEqual(await skillDirectories(".github/skills"), ["author-blueprint"]);
 });
 
-test("default init installs every internal skill byte-for-byte from production Blueprints", async () => {
-  const expectedDirectories = await skillDirectories(shippedSkills);
-  const project = await makeTempDir("spindle-production-init-");
-  try {
-    const result = runCli(project, ["init", "--stack", "typescript"], pathWith(justDirectory));
-    assert.equal(result.status, 0, result.stderr);
+for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1) {
+  const stacks = supportedStacks.filter((_, index) => selection & (1 << index));
 
-    const installedRoot = join(project, ".github/skills");
-    assert.deepEqual(await skillDirectories(installedRoot), expectedDirectories);
+  test(`init installs every production Blueprint and supporting file for ${stacks.join(", ")}`, async () => {
+    const expectedDirectories = await skillDirectories(shippedSkills);
+    const project = await makeTempDir("spindle-production-init-");
+    try {
+      const result = runCli(
+        project,
+        ["init", ...stacks.flatMap((stack) => ["--stack", stack])],
+        pathWith(justDirectory),
+      );
+      assert.equal(result.status, 0, result.stderr);
 
-    for (const skill of expectedDirectories) {
-      const sourceDirectory = join(shippedSkills, skill);
-      const installedDirectory = join(installedRoot, skill);
-      const sourceFiles = (await filesUnder(sourceDirectory)).sort();
-      const installedFiles = (await filesUnder(installedDirectory)).sort();
-      assert.deepEqual(installedFiles, sourceFiles, `${skill} installed file set differs`);
+      const installedRoot = join(project, ".github/skills");
+      assert.deepEqual(await skillDirectories(installedRoot), expectedDirectories);
 
-      for (const file of sourceFiles) {
-        const source = await readFile(join(sourceDirectory, file));
-        const installed = await readFile(join(installedDirectory, file));
-        assert.deepEqual(installed, source, `${skill}/${file} differs from source`);
+      for (const skill of expectedDirectories) {
+        const sourceDirectory = join(shippedSkills, skill);
+        const installedDirectory = join(installedRoot, skill);
+        const sourceFiles = (await filesUnder(sourceDirectory)).sort();
+        const installedFiles = (await filesUnder(installedDirectory)).sort();
+        assert.deepEqual(installedFiles, sourceFiles, `${skill} installed file set differs`);
+
+        for (const file of sourceFiles) {
+          const source = await readFile(join(sourceDirectory, file), "utf8");
+          const installed = await readFile(join(installedDirectory, file), "utf8");
+          assert.equal(
+            installed,
+            renderText(source, {
+              stacks,
+              variables: { lint_command: "just lint", owner: "nobody" },
+            }),
+            `${skill}/${file} differs from rendered source`,
+          );
+        }
       }
+    } finally {
+      await rm(project, { recursive: true, force: true });
     }
-  } finally {
-    await rm(project, { recursive: true, force: true });
-  }
-});
+  });
+}

@@ -31,7 +31,7 @@ Accept populated dispatch-template labels or equivalent structured fields. Empty
 
 ## Review
 
-Load and apply the required [int-code-slop-review](../skills/int-code-slop-review/SKILL.md) and [int-verification-before-completion](../skills/int-verification-before-completion/SKILL.md) skills. Follow applicable repository instructions and approved project tooling.
+Load and apply the required [int-code-slop-review](../../src/blueprints/skills/int-code-slop-review/SKILL.md) and [int-verification-before-completion](../../src/blueprints/skills/int-verification-before-completion/SKILL.md) skills. Follow applicable repository instructions and approved project tooling.
 
 - Inspect requirements and the exact change, including supplied uncommitted and untracked files. A snapshot mismatch blocks approval; ask the controller to resolve it.
 - Read changed code and only enough surrounding context to show that a proposed simplification preserves required behavior and repository conventions.

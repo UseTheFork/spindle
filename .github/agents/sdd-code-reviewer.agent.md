@@ -31,7 +31,7 @@ Accept populated dispatch-template labels or equivalent structured fields. Empty
 
 ## Review
 
-Load and follow [int-verification-before-completion](../skills/int-verification-before-completion/SKILL.md), read applicable repository instructions, and use approved project tooling.
+Load and follow [int-verification-before-completion](../../src/blueprints/skills/int-verification-before-completion/SKILL.md), read applicable repository instructions, and use approved project tooling.
 
 - Inspect the supplied revisions plus assigned uncommitted and untracked changes. A snapshot mismatch blocks approval; ask the controller to resolve it.
 - Read changed code and enough surrounding context to substantiate findings. Assess plan alignment, correctness, architecture, testing, production readiness, and ordinary-use defects; distinguish concrete defects from speculative features.
