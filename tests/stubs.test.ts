@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, readdir, rm } from "node:fs/promises";
+import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import { after, before, test } from "node:test";
 
@@ -11,6 +11,19 @@ import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
 const shippedAgents = resolve(process.cwd(), "src/blueprints/agents");
+const productionAgents = [
+  "sdd-code-reviewer",
+  "sdd-code-slop-reviewer",
+  "sdd-implementer",
+  "sdd-orchestrator",
+  "sdd-re-review",
+  "sdd-task-reviewer",
+  "shared-explore",
+  "shared-orchestrator",
+  "shared-r",
+  "shared-rw",
+  "shared-rwx",
+];
 const productionStackSelections = supportedStacks
   .reduce<string[][]>(
     (selections, stack) => [...selections, ...selections.map((selection) => [...selection, stack])],
@@ -112,8 +125,13 @@ for (const stacks of productionStackSelections) {
       }
 
       const installedAgents = join(project, ".github", "agents");
+      assert.equal(
+        await stat(join(project, ".github", "instructions")).catch(() => undefined),
+        undefined,
+        "production init must not ship Instructions",
+      );
       const expectedAgents = await blueprintDirectories(shippedAgents);
-      assert.ok(expectedAgents.includes("shared-r"));
+      assert.deepEqual(expectedAgents, productionAgents);
       assert.deepEqual(
         (await readdir(installedAgents)).sort(),
         expectedAgents.map((name) => `${name}.agent.md`).sort(),
@@ -123,9 +141,9 @@ for (const stacks of productionStackSelections) {
         const parsed = matter(installedAgent);
         assert.equal(parsed.data.name, agent);
         assert.equal(hasSemverVersion(installedAgent), true, agent);
+        assert.equal(parsed.data.version, "1.0.0", agent);
         assert.ok(parsed.content.trim().length > 0, `${agent} has no Agent instructions`);
         if (agent === "shared-r") {
-          assert.equal(parsed.data.version, "1.0.0");
           assert.equal(
             parsed.data.description,
             "A general subagent that assists with various tasks as directed by the main agent, with read-only capabilities.",
@@ -142,9 +160,18 @@ for (const stacks of productionStackSelections) {
           assert.deepEqual(parsed.data.agents, []);
           assert.match(parsed.content, /You are a general subagent/);
           assert.match(parsed.content, /read and follow all skill requirements/i);
-          assert.equal(
-            installedAgent,
-            await readFile(join(process.cwd(), ".github", "agents", "shared-r.agent.md"), "utf8"),
+        }
+        assert.equal(
+          installedAgent,
+          await readFile(join(process.cwd(), ".github", "agents", `${agent}.agent.md`), "utf8"),
+          `${agent} differs from the tracked .github/agents copy`,
+        );
+        for (const [, target] of installedAgent.matchAll(/\]\(([^)\s]+)\)/g)) {
+          if (/^[a-z][a-z0-9+.-]*:|^#/i.test(target)) continue;
+          const linkedPath = resolve(installedAgents, target.split("#")[0]);
+          assert.ok(
+            (await stat(linkedPath).catch(() => undefined))?.isFile(),
+            `${agent} links to missing ${target}`,
           );
         }
       }

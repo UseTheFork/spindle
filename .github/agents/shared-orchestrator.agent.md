@@ -1,6 +1,7 @@
 ---
 name: shared-orchestrator
 description: A general subagent that assists with various tasks as directed by the main agent, with read-only capabilities.
+version: 1.0.0
 user-invocable: true
 tools:
   [

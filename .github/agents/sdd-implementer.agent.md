@@ -1,6 +1,7 @@
 ---
 name: sdd-implementer
 description: "Use when an orchestrator assigns one ticket or corrective round for subagent-driven development in an existing shared checkout."
+version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
@@ -38,7 +39,7 @@ The gate completes only when all required fields are supplied and consistent. Us
 
 ## Implementation
 
-Read the supplied sources and repository instructions, then follow [int-test-driven-development](../../src/blueprints/skills/int-test-driven-development/SKILL.md) and [int-verification-before-completion](../../src/blueprints/skills/int-verification-before-completion/SKILL.md) using approved project tooling.
+Read the supplied sources and repository instructions, then follow [int-test-driven-development](../skills/int-test-driven-development/SKILL.md) and [int-verification-before-completion](../skills/int-verification-before-completion/SKILL.md) using approved project tooling.
 
 - Confirm the starting snapshot; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
 - Edit only assigned files, preserve existing changes and report history, coordinate shared-file edits, and pause edits during review. Resume from the supplied snapshot, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.

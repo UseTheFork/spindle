@@ -1,6 +1,7 @@
 ---
 name: sdd-re-review
 description: "Use when an orchestrator assigns a scoped corrective-round re-review of findings and a fix diff in subagent-driven development."
+version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
@@ -32,7 +33,7 @@ Accept populated dispatch-template labels or equivalent structured fields. Empty
 
 ## Re-review
 
-Load and apply [int-test-driven-development](../../src/blueprints/skills/int-test-driven-development/SKILL.md) and [int-verification-before-completion](../../src/blueprints/skills/int-verification-before-completion/SKILL.md) as review standards, without implementing fixes or starting a TDD cycle. Read applicable repository instructions and use approved project tooling.
+Load and apply [int-test-driven-development](../skills/int-test-driven-development/SKILL.md) and [int-verification-before-completion](../skills/int-verification-before-completion/SKILL.md) as review standards, without implementing fixes or starting a TDD cycle. Read applicable repository instructions and use approved project tooling.
 
 1. Read the brief, standards, prior review evidence, and implementation report. Treat claims as unverified. Read the complete fix diff once, including commits, stat, and context. Use the complete package rather than rerunning Git commands. If missing, obtain the stat and diff between `FIX_BASE_SHA` and `HEAD_SHA` with approved Git tooling; account for supplied dirty/untracked changes. A snapshot mismatch prevents a complete verdict.
 2. Verify each finding in supplied order with file:line evidence that the defect no longer exists. `Attempted` is not addressed. Check covering-test output against the exact fixed snapshot. Missing, stale, or ambiguous required evidence leaves the finding `UNVERIFIED` and open; a confirmed remaining defect is `NOT ADDRESSED`.

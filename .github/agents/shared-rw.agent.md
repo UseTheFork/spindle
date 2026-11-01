@@ -1,6 +1,7 @@
 ---
 name: shared-rw
 description: A general subagent that assists with various tasks as directed by the main agent, with read and write capabilities.
+version: 1.0.0
 argument-hint: The instructions or tasks to be performed by the subagent.
 user-invocable: false
 tools: [read, search, edit, todo, read_skill, list_skills, skill]
