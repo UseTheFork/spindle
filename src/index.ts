@@ -89,7 +89,7 @@ async function init(
 
 const helpText = `${chalk.bold("Usage:")} spindle init [options]
 
-Install spindle Blueprints (Skills and Agents) into .github and save .github/spindle.json.
+Install spindle Blueprints (Skills, Agents, and Instructions) into .github and save .github/spindle.json.
 
 ${chalk.bold("Options:")}
   --stack <id>          Stack to install; repeat for several (${supportedStacks.join(", ")})
@@ -107,7 +107,7 @@ Other commands: update (see \`spindle update --help\`).
 
 const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
 
-Re-render installed Blueprints (Skills and Agents) whose shipped version is newer.
+Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
 Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
 and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
 --include-new to install all of them without a prompt.

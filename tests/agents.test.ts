@@ -374,10 +374,10 @@ test("init and update help describe Blueprint kinds and generic policies", async
     const update = runCli(project, ["update", "--help"], pathWith(justDirectory));
 
     assert.equal(init.status, 0, init.stderr);
-    assert.match(init.stdout, /Blueprints.*Skills and Agents/i);
+    assert.match(init.stdout, /Blueprints.*Skills, Agents, and Instructions/i);
     assert.match(init.stdout, /--on-conflict[\s\S]*Blueprint/i);
     assert.equal(update.status, 0, update.stderr);
-    assert.match(update.stdout, /Blueprints.*Skills and Agents/i);
+    assert.match(update.stdout, /Blueprints.*Skills, Agents, and Instructions/i);
     assert.match(update.stdout, /--on-conflict[\s\S]*Blueprint/i);
     assert.match(update.stdout, /--include-new\s+Install.*Blueprint/i);
   } finally {
