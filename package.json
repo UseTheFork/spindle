@@ -18,6 +18,7 @@
     "build": "tsc && tsc-alias && mkdir -p build/blueprints && cp -R src/blueprints/. build/blueprints/ && chmod 755 build/index.js",
     "start": "node build/index.js",
     "init": "tsx src/index.ts init",
+    "update": "tsx src/index.ts update",
     "validate": "tsx src/index.ts validate",
     "publish": "tsx src/index.ts publish",
     "lint": "oxlint",
