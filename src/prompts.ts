@@ -33,9 +33,9 @@ export async function promptVariable(definition: VariableDefinition): Promise<st
   return ensureAnswer<string>(answer);
 }
 
-export async function promptConflict(skill: string): Promise<"overwrite" | "skip"> {
+export async function promptConflict(kind: string, name: string): Promise<"overwrite" | "skip"> {
   const answer = await select<"overwrite" | "skip">({
-    message: `Skill '${skill}' already exists. What should happen?`,
+    message: `${kind} '${name}' already exists. What should happen?`,
     options: [
       { value: "overwrite", label: "Overwrite" },
       { value: "skip", label: "Skip" },
@@ -45,12 +45,13 @@ export async function promptConflict(skill: string): Promise<"overwrite" | "skip
 }
 
 export async function promptOutdated(
-  skill: string,
+  kind: string,
+  name: string,
   installed: string,
   available: string,
 ): Promise<"overwrite" | "skip"> {
   const answer = await select<"overwrite" | "skip">({
-    message: `Skill '${skill}' is outdated (installed ${installed}, available ${available}). What should happen?`,
+    message: `${kind} '${name}' is outdated (installed ${installed}, available ${available}). What should happen?`,
     options: [
       { value: "overwrite", label: "Overwrite" },
       { value: "skip", label: "Skip" },
@@ -59,11 +60,11 @@ export async function promptOutdated(
   return ensureAnswer<"overwrite" | "skip">(answer);
 }
 
-export async function promptNewSkills(skills: string[]): Promise<string[]> {
+export async function promptNewBlueprints(kind: string, names: string[]): Promise<string[]> {
   const answer = await multiselect({
-    message: "Which new Skills should be installed?",
-    options: skills.map((value) => ({ value, label: value })),
-    initialValues: skills,
+    message: `Which new ${kind}s should be installed?`,
+    options: names.map((value) => ({ value, label: value })),
+    initialValues: names,
     required: false,
   });
   return ensureAnswer<string[]>(answer);

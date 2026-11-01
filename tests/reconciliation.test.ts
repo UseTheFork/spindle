@@ -43,7 +43,7 @@ test("init reconciliation returns outcomes, replaces selected conflicts, and ins
       githubDirectory,
       context: { stacks: ["python"], variables: {} },
       config: { stacks: ["python"], variables: {} },
-      chooseConflict: async (name) => {
+      chooseConflict: async (_kind, name) => {
         conflicts.push(name);
         return "overwrite";
       },
@@ -51,8 +51,8 @@ test("init reconciliation returns outcomes, replaces selected conflicts, and ins
 
     assert.deepEqual(conflicts, ["demo"]);
     assert.deepEqual(outcomes, [
-      { name: "demo", status: "installed" },
-      { name: "new-skill", status: "installed" },
+      { kind: "Skill", name: "demo", status: "installed" },
+      { kind: "Skill", name: "new-skill", status: "installed" },
     ]);
     assert.deepEqual(await readdir(join(githubDirectory, "skills", "demo")), ["SKILL.md"]);
     assert.match(
@@ -86,7 +86,7 @@ test("init reconciliation leaves skipped conflicts alone and still writes Config
       chooseConflict: async () => "skip",
     });
 
-    assert.deepEqual(outcomes, [{ name: "demo", status: "skipped" }]);
+    assert.deepEqual(outcomes, [{ kind: "Skill", name: "demo", status: "skipped" }]);
     assert.equal(
       await readFile(join(githubDirectory, "skills", "demo", "SKILL.md"), "utf8"),
       "---\nversion: 9.0.0\n---\nexisting",
@@ -125,19 +125,22 @@ test("update reconciliation returns per-Skill version outcomes and skips uninsta
     });
 
     assert.deepEqual(outcomes, [
-      { name: "equal", status: "up-to-date" },
+      { kind: "Skill", name: "equal", status: "up-to-date" },
       {
+        kind: "Skill",
         name: "invalid-version",
         status: "skipped",
-        warning: "Skipping 'invalid-version': installed SKILL.md has non-semver version 'v1'.",
+        warning:
+          "Skipping Skill 'invalid-version': installed SKILL.md has non-semver version 'v1'.",
       },
       {
+        kind: "Skill",
         name: "missing-version",
         status: "skipped",
-        warning: "Skipping 'missing-version': installed SKILL.md has no version.",
+        warning: "Skipping Skill 'missing-version': installed SKILL.md has no version.",
       },
-      { name: "newer", status: "updated" },
-      { name: "older", status: "up-to-date" },
+      { kind: "Skill", name: "newer", status: "updated" },
+      { kind: "Skill", name: "older", status: "up-to-date" },
     ]);
     assert.match(
       await readFile(join(githubDirectory, "skills", "newer", "SKILL.md"), "utf8"),
@@ -175,7 +178,7 @@ test("update reconciliation selects overlays from context when config is omitted
       conflictPolicy: "overwrite",
     });
 
-    assert.deepEqual(outcomes, [{ name: "demo", status: "updated" }]);
+    assert.deepEqual(outcomes, [{ kind: "Skill", name: "demo", status: "updated" }]);
     assert.equal(
       await readFile(join(githubDirectory, "skills", "demo", "shared.txt"), "utf8"),
       "shared",

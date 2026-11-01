@@ -13,10 +13,10 @@ A rendered directory under `.github/skills/` in the user's repo, led by a `SKILL
 _Avoid_: Installed Blueprint
 
 **Agent**:
-A custom assistant configuration with a specialized role, instructions, and available tools.
+A custom assistant with a specialized role, instructions, and optional tools.
 
 **Instruction**:
-A guidance document automatically included for work matching its declared scope.
+Guidance automatically included for work matching its declared scope.
 
 **Stack**:
 An opinionated language-and-framework choice the user selects during `init`, such as PHP (Laravel), Python or TypeScript.

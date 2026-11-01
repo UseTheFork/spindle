@@ -8,7 +8,7 @@ const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
 
 export interface Semver {
-  core: [number, number, number];
+  core: [bigint, bigint, bigint];
   prerelease: string[];
 }
 
@@ -16,7 +16,7 @@ export function parseSemver(value: string): Semver | null {
   const match = semverPattern.exec(value);
   if (!match) return null;
   return {
-    core: [Number(match[1]), Number(match[2]), Number(match[3])],
+    core: [BigInt(match[1]), BigInt(match[2]), BigInt(match[3])],
     prerelease: match[4] ? match[4].split(".") : [],
   };
 }
@@ -28,7 +28,9 @@ function comparePrerelease(a: string[], b: string[]) {
     const numA = /^\d+$/.test(a[i]);
     const numB = /^\d+$/.test(b[i]);
     if (numA && numB) {
-      if (Number(a[i]) !== Number(b[i])) return Number(a[i]) < Number(b[i]) ? -1 : 1;
+      const valueA = BigInt(a[i]);
+      const valueB = BigInt(b[i]);
+      if (valueA !== valueB) return valueA < valueB ? -1 : 1;
     } else if (numA !== numB) {
       return numA ? -1 : 1;
     } else if (a[i] !== b[i]) {
@@ -45,44 +47,49 @@ export function compareSemver(a: Semver, b: Semver) {
   return comparePrerelease(a.prerelease, b.prerelease);
 }
 
-// Returns the raw `version` value from SKILL.md frontmatter, or null when absent or the file is unreadable.
-export async function readSkillVersion(
-  skillFile: string,
+// Returns the raw `version` value from entry-file frontmatter, or null when absent or unreadable.
+export async function readBlueprintVersion(
+  entryFile: string,
   context?: RenderContext,
+  options: {
+    rejectMalformed?: boolean;
+    onRendered?: (sourceText: string, renderedText: string) => void;
+  } = {},
 ): Promise<string | null> {
   let content: string;
   try {
-    content = await readFile(skillFile, "utf8");
+    content = await readFile(entryFile, "utf8");
   } catch {
     return null;
   }
-  const parsed = matter(
-    context && versionIsTemplated(content) ? renderText(content, context) : content,
-  ).data;
-  const version = parsed.version;
-  return typeof version === "string" || typeof version === "number" ? String(version) : null;
+  const rendered = context
+    ? renderText(content, { stacks: [...context.stacks], variables: { ...context.variables } })
+    : content;
+  if (context) options.onRendered?.(content, rendered);
+  try {
+    const version = matter(rendered, {}).data.version;
+    return typeof version === "string" || typeof version === "number" ? String(version) : null;
+  } catch (error) {
+    if (options.rejectMalformed) throw error;
+    return null;
+  }
 }
 
-function versionIsTemplated(content: string): boolean {
-  const parsed = matter(content, {});
-  const version = parsed.data.version;
-  if (typeof version === "string") return /{{|{%/.test(version);
-  if (version === null || typeof version !== "object") return false;
-  // Inspect template syntax only in the top-level version field. gray-matter
-  // still owns metadata parsing; this also handles unquoted Nunjucks expressions
-  // that YAML would otherwise interpret as mappings before rendering.
-  const versionSource = (parsed.matter ?? "").match(
-    /^version:[ \t]*([^\r\n]*(?:\r?\n[ \t]+[^\r\n]*)*)/m,
-  )?.[1];
-  return versionSource !== undefined && /{{|{%/.test(versionSource);
+// Frontmatter containing any Nunjucks syntax must be rendered before its
+// version is read. Without a statically delimited frontmatter block, any
+// syntax in the file could generate one.
+function frontmatterIsTemplated(content: string): boolean {
+  const opening = content.startsWith("---") && content[3] !== "-";
+  const close = opening ? content.indexOf("\n---", 3) : -1;
+  return /{{|{%|{#/.test(close < 0 ? content : content.slice(0, close + 4));
 }
 
-export async function skillVersionIsTemplated(skillFile: string): Promise<boolean> {
+export async function blueprintFrontmatterIsTemplated(entryFile: string): Promise<boolean> {
   let content: string;
   try {
-    content = await readFile(skillFile, "utf8");
+    content = await readFile(entryFile, "utf8");
   } catch {
     return false;
   }
-  return versionIsTemplated(content);
+  return frontmatterIsTemplated(content);
 }

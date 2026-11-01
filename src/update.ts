@@ -5,13 +5,8 @@ import chalk from "chalk";
 
 import { reconcileBlueprints } from "./blueprints/lifecycle.js";
 import { blueprintHandlers } from "./blueprints/registry.js";
-import {
-  assertSafeInstallPaths,
-  listSkillBlueprints,
-  validateStacks,
-  type ConflictPolicy,
-} from "./install.js";
-import { promptNewSkills, promptOutdated, promptVariable } from "./prompts.js";
+import { validateStacks, type ConflictPolicy } from "./install.js";
+import { promptNewBlueprints, promptOutdated, promptVariable } from "./prompts.js";
 import { loadVariableDefinitions } from "./variables.js";
 
 const missingConfig = (reason: string) =>
@@ -94,23 +89,17 @@ export async function update(
   const config = await readConfig(configPath);
   let prompted: Record<string, string> = {};
 
-  for (const handler of blueprintHandlers) {
-    await assertSafeInstallPaths(
-      githubDirectory,
-      await listSkillBlueprints(handler.sourceDirectory()),
-      handler.destinationDirectory(githubDirectory),
-    );
-  }
   const outcomes = await reconcileBlueprints(blueprintHandlers, {
     mode: "update",
     githubDirectory,
     config: { stacks: config.stacks, variables: config.variables },
     includeNew,
-    chooseNew: interactive && !includeNew ? promptNewSkills : undefined,
+    chooseNew: interactive && !includeNew ? promptNewBlueprints : undefined,
     conflictPolicy: policy,
     chooseConflict:
       interactive && policy === undefined
-        ? async (name, installed, available) => promptOutdated(name, installed!, available!)
+        ? async (kind, name, installed, available) =>
+            promptOutdated(kind, name, installed!, available!)
         : undefined,
     resolveContext: async () => {
       const resolved = await resolveVariables(config, interactive);
@@ -136,12 +125,17 @@ export async function update(
       console.error(chalk.yellow(outcome.warning));
     }
   }
-  const added = outcomes.filter((outcome) => outcome.status === "installed").length;
-  const updated = outcomes.filter((outcome) => outcome.status === "updated").length;
-  const skipped = outcomes.filter((outcome) => outcome.status === "skipped").length;
-  const upToDate = outcomes.filter((outcome) => outcome.status === "up-to-date").length;
-
-  console.log(
-    `${chalk.green("✔")} Added ${added}, updated ${updated}, skipped ${skipped}, up to date ${upToDate} skill(s)`,
-  );
+  if (outcomes.length === 0) {
+    console.log(`${chalk.green("✔")} No Blueprints apply to the selected stacks`);
+  }
+  for (const kind of new Set(outcomes.map((outcome) => outcome.kind))) {
+    const ofKind = outcomes.filter((outcome) => outcome.kind === kind);
+    const added = ofKind.filter((outcome) => outcome.status === "installed").length;
+    const updated = ofKind.filter((outcome) => outcome.status === "updated").length;
+    const skipped = ofKind.filter((outcome) => outcome.status === "skipped").length;
+    const upToDate = ofKind.filter((outcome) => outcome.status === "up-to-date").length;
+    console.log(
+      `${chalk.green("✔")} Added ${added}, updated ${updated}, skipped ${skipped}, up to date ${upToDate} ${kind.toLowerCase()}(s)`,
+    );
+  }
 }

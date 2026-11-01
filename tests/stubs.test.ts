@@ -3,11 +3,20 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import { after, before, test } from "node:test";
 
+import matter from "gray-matter";
+
 import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
 import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
+const shippedAgents = resolve(process.cwd(), "src/blueprints/agents");
+const productionStackSelections = supportedStacks
+  .reduce<string[][]>(
+    (selections, stack) => [...selections, ...selections.map((selection) => [...selection, stack])],
+    [[]],
+  )
+  .slice(1);
 let justDirectory: string;
 
 before(async () => {
@@ -18,7 +27,7 @@ after(async () => {
   await rm(justDirectory, { recursive: true, force: true });
 });
 
-async function skillDirectories(directory: string) {
+async function blueprintDirectories(directory: string) {
   return (await readdir(directory, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -63,14 +72,12 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
 });
 
 test("only author-blueprint remains a local skill", async () => {
-  assert.deepEqual(await skillDirectories(".github/skills"), ["author-blueprint"]);
+  assert.deepEqual(await blueprintDirectories(".github/skills"), ["author-blueprint"]);
 });
 
-for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1) {
-  const stacks = supportedStacks.filter((_, index) => selection & (1 << index));
-
+for (const stacks of productionStackSelections) {
   test(`init installs every production Blueprint and supporting file for ${stacks.join(", ")}`, async () => {
-    const expectedDirectories = await skillDirectories(shippedSkills);
+    const expectedDirectories = await blueprintDirectories(shippedSkills);
     const project = await makeTempDir("spindle-production-init-");
     try {
       const result = runCli(
@@ -81,7 +88,7 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
       assert.equal(result.status, 0, result.stderr);
 
       const installedRoot = join(project, ".github/skills");
-      assert.deepEqual(await skillDirectories(installedRoot), expectedDirectories);
+      assert.deepEqual(await blueprintDirectories(installedRoot), expectedDirectories);
 
       for (const skill of expectedDirectories) {
         const sourceDirectory = join(shippedSkills, skill);
@@ -103,6 +110,45 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
           );
         }
       }
+
+      const installedAgents = join(project, ".github", "agents");
+      const expectedAgents = await blueprintDirectories(shippedAgents);
+      assert.ok(expectedAgents.includes("shared-r"));
+      assert.deepEqual(
+        (await readdir(installedAgents)).sort(),
+        expectedAgents.map((name) => `${name}.agent.md`).sort(),
+      );
+      for (const agent of expectedAgents) {
+        const installedAgent = await readFile(join(installedAgents, `${agent}.agent.md`), "utf8");
+        const parsed = matter(installedAgent);
+        assert.equal(parsed.data.name, agent);
+        assert.equal(hasSemverVersion(installedAgent), true, agent);
+        assert.ok(parsed.content.trim().length > 0, `${agent} has no Agent instructions`);
+        if (agent === "shared-r") {
+          assert.equal(parsed.data.version, "1.0.0");
+          assert.equal(
+            parsed.data.description,
+            "A general subagent that assists with various tasks as directed by the main agent, with read-only capabilities.",
+          );
+          assert.equal(parsed.data["user-invocable"], false);
+          assert.deepEqual(parsed.data.tools, [
+            "read",
+            "search",
+            "todo",
+            "read_skill",
+            "list_skills",
+            "skill",
+          ]);
+          assert.deepEqual(parsed.data.agents, []);
+          assert.match(parsed.content, /You are a general subagent/);
+          assert.match(parsed.content, /read and follow all skill requirements/i);
+          assert.equal(
+            installedAgent,
+            await readFile(join(process.cwd(), ".github", "agents", "shared-r.agent.md"), "utf8"),
+          );
+        }
+      }
+      assert.ok(result.stdout.includes(`${expectedAgents.length} agent(s)`));
     } finally {
       await rm(project, { recursive: true, force: true });
     }

@@ -1,6 +1,17 @@
-import { existsSync } from "node:fs";
-import { access, copyFile, lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, extname, join, normalize, relative, sep } from "node:path";
+import { existsSync, type Stats } from "node:fs";
+import {
+  access,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { basename, dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderText, type RenderContext } from "./render.js";
@@ -51,12 +62,13 @@ export async function assertSafeInstallPaths(
   githubDirectory: string,
   blueprintNames: string[],
   destinationDirectory = join(githubDirectory, "skills"),
+  targetPath = (name: string) => join(destinationDirectory, name),
 ) {
   const paths = [
     githubDirectory,
     destinationDirectory,
     join(githubDirectory, "spindle.json"),
-    ...blueprintNames.map((name) => join(destinationDirectory, name)),
+    ...blueprintNames.map(targetPath),
   ];
 
   for (const path of paths) {
@@ -74,41 +86,100 @@ export async function assertSafeInstallPaths(
   }
 }
 
-export async function listSkillBlueprints(sourceDirectory = join(blueprintsRoot(), "skills")) {
-  const entries = await readdir(sourceDirectory, { withFileTypes: true });
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+export async function listBlueprints(sourceDirectory: string) {
+  try {
+    const entries = await readdir(sourceDirectory, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
 }
 
-async function installFile(
-  sourcePath: string,
-  destinationPath: string,
-  outputPath: string,
-  context: RenderContext,
-  validateRenderedFile?: (relativePath: string, renderedText: string) => void,
-) {
-  const content = await readFile(sourcePath);
-  let text: string | null = null;
-  if (textExtensions.has(extname(sourcePath).toLowerCase()) && !content.includes(0)) {
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(content);
-    } catch {
-      // Invalid UTF-8 is not renderable text; preserve the original bytes below.
-    }
+export async function assertSingleFileDestination(path: string, mustExist = false) {
+  let stat: Stats;
+  try {
+    stat = await lstat(path);
+  } catch (error) {
+    if (!mustExist && (error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
   }
-
-  await mkdir(dirname(destinationPath), { recursive: true });
-  if (text === null) {
-    await copyFile(sourcePath, destinationPath);
-  } else {
-    const rendered = renderText(text, context);
-    validateRenderedFile?.(outputPath, rendered);
-    await writeFile(destinationPath, rendered);
+  if (stat.isSymbolicLink()) {
+    throw new Error(`Refusing to replace symbolic link '${path}'.`);
+  }
+  if (!stat.isFile()) {
+    throw new Error(`Refusing to overwrite '${path}': expected a regular file.`);
   }
 }
 
 export interface PlannedBlueprintFile {
   sourcePath: string;
   outputPath: string;
+}
+
+export interface PreparedBlueprintFile extends PlannedBlueprintFile {
+  renderedText: string | null;
+}
+
+export async function preparePlannedBlueprintFiles(
+  files: PlannedBlueprintFile[],
+  context: RenderContext,
+  validateRenderedFile?: (relativePath: string, renderedText: string) => void,
+  requireText = false,
+) {
+  const prepared: PreparedBlueprintFile[] = [];
+  for (const file of files) {
+    const content = await readFile(file.sourcePath);
+    let text: string | null = null;
+    if (textExtensions.has(extname(file.sourcePath).toLowerCase()) && !content.includes(0)) {
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(content);
+      } catch {
+        // Invalid UTF-8 is not renderable text; preserve the original bytes below.
+      }
+    }
+
+    if (text === null && requireText) {
+      throw new Error(`Blueprint entry '${file.outputPath}' must be valid UTF-8 text.`);
+    }
+    const renderedText = text === null ? null : renderText(text, context);
+    if (renderedText !== null) validateRenderedFile?.(file.outputPath, renderedText);
+    prepared.push({ ...file, renderedText });
+  }
+  return prepared;
+}
+
+async function installFile(
+  file: PreparedBlueprintFile,
+  destinationPath: string,
+  replace = false,
+  requireText = false,
+) {
+  await mkdir(dirname(destinationPath), { recursive: true });
+  if (replace && requireText) {
+    await assertSingleFileDestination(destinationPath, true);
+    const stagingDirectory = await mkdtemp(join(dirname(destinationPath), ".spindle-"));
+    try {
+      const stagedPath = join(stagingDirectory, basename(destinationPath));
+      await writeFile(stagedPath, file.renderedText!, { flag: "wx" });
+      await assertSingleFileDestination(destinationPath, true);
+      await rename(stagedPath, destinationPath);
+    } finally {
+      await rm(stagingDirectory, { recursive: true, force: true });
+    }
+    return;
+  }
+  if (replace) await rm(destinationPath, { recursive: true, force: true });
+  if (file.renderedText === null) {
+    await copyFile(file.sourcePath, destinationPath);
+  } else if (requireText) {
+    await writeFile(destinationPath, file.renderedText, { flag: "wx" });
+  } else {
+    await writeFile(destinationPath, file.renderedText);
+  }
 }
 
 async function collectFiles(directory: string, outputRoot: string, files: PlannedBlueprintFile[]) {
@@ -179,18 +250,17 @@ export async function planBlueprintFiles(source: string, stacks: string[]) {
 }
 
 export async function installPlannedBlueprintFiles(
-  files: PlannedBlueprintFile[],
+  files: PreparedBlueprintFile[],
   target: string,
-  context: RenderContext,
-  validateRenderedFile?: (relativePath: string, renderedText: string) => void,
+  entryFile?: string,
+  replace = false,
 ) {
   for (const file of files) {
     await installFile(
-      file.sourcePath,
-      join(target, file.outputPath),
-      file.outputPath,
-      context,
-      validateRenderedFile,
+      file,
+      entryFile === undefined ? join(target, file.outputPath) : target,
+      replace,
+      entryFile !== undefined,
     );
   }
 }

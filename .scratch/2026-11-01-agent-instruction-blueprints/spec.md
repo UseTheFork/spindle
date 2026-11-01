@@ -64,6 +64,7 @@ Ship the existing `sdd-*` and `shared-*` Agents as versioned Agent Blueprints. R
 - Validate that single-file Blueprint plans contain only the declared entry file. Treat a plan with no selected entry file as unavailable for that Stack selection.
 - Use the existing rendering and duplicate-output detection for shared and selected Stack-overlay files.
 - Generalize version-reading and templated-version handling, and share the version-aware update planning behavior across Skills, Agents, and Instructions.
+- Read a source version statically only when its frontmatter contains no Nunjucks syntax. If any frontmatter syntax is present, render the frontmatter with the resolved update context before reading the version. Do not use partial template or YAML dependency analysis to avoid rendering; unresolved Variables follow the normal render behavior (maintainer ruling, 2026-11-01).
 - Require SemVer `version` in the rendered Agent or Instruction entry file. Skip installed files with missing or invalid SemVer and surface the existing warning behavior.
 - Treat missing or empty Blueprint source directories as empty kinds. Skip empty kinds, but fail if all registered kinds have no Blueprints.
 - Include the Blueprint kind in lifecycle outcomes. Make prompts and command summaries kind-aware, and use kind-agnostic discovery instead of Skill-specific discovery in the update workflow.

@@ -39,7 +39,7 @@ export function runCliInteractive(
   project: string,
   args: string[],
   searchPath: string,
-  responses: { trigger: string; input: string }[],
+  responses: { trigger: string; input: string; beforeInput?: () => void }[],
   env: Record<string, string> = {},
 ) {
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
@@ -68,8 +68,16 @@ export function runCliInteractive(
         const visibleOutput = stdout.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
         for (let index = 0; index < pending.length;) {
           if (visibleOutput.includes(pending[index].trigger)) {
-            child.stdin.write(pending[index].input);
-            pending.splice(index, 1);
+            const [response] = pending.splice(index, 1);
+            try {
+              response.beforeInput?.();
+              child.stdin.write(response.input);
+            } catch (error) {
+              clearTimeout(timer);
+              child.kill();
+              reject(error);
+              return;
+            }
           } else {
             index += 1;
           }

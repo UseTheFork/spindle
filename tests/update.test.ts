@@ -289,14 +289,14 @@ test("update reads a templated Skill version after rendering its frontmatter", a
   }
 });
 
-test("static Skill versions ignore unrelated templated metadata during no-op update", async () => {
+test("static Skill frontmatter ignores an unrelated templated body during no-op update", async () => {
   const blueprints = await makeTempDir("spindle-static-version-");
   await cp(stubs, blueprints, { recursive: true });
   try {
     for (const name of ["equal", "absent"]) {
       await writeFile(
         join(blueprints, "skills", name, "SKILL.md"),
-        '---\nversion: 1.0.0\ndescription: "{{ variables.not_supplied }}"\n---\nunused body\n',
+        "---\nversion: 1.0.0\ndescription: static\n---\nunused {{ variables.not_supplied }}\n",
       );
     }
     const configText = JSON.stringify({ stacks: ["python"], variables: {} });
@@ -309,6 +309,105 @@ test("static Skill versions ignore unrelated templated metadata during no-op upd
         assert.equal(await read(project, "equal"), skill("1.0.0"));
         await assert.rejects(read(project, "absent"));
         assert.equal(await readFile(join(project, ".github/spindle.json"), "utf8"), configText);
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("quoted and spaced static Skill version keys are read without rendering", async () => {
+  const blueprints = await makeTempDir("spindle-static-yaml-version-");
+  const versions = [
+    ["quoted-single", "'version': 1.0.0"],
+    ["quoted-double", '"version": 1.0.0'],
+    ["spaced", "version : 1.0.0"],
+  ] as const;
+  try {
+    for (const [name, version] of versions) {
+      await mkdir(join(blueprints, "skills", name), { recursive: true });
+      await writeFile(
+        join(blueprints, "skills", name, "SKILL.md"),
+        [
+          "---",
+          version,
+          "description: static",
+          "---",
+          "unused {{ variables.not_supplied }}",
+          "",
+        ].join("\n"),
+      );
+    }
+
+    await withProject(
+      {
+        config: { stacks: ["python"], variables: {} },
+        skills: Object.fromEntries(versions.map(([name]) => [name, skill("1.0.0", "local")])),
+      },
+      ["--no-interactive"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /skipped 0, up to date 3 skill\(s\)/);
+        for (const [name] of versions) {
+          assert.equal(await read(project, name), skill("1.0.0", "local"));
+        }
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("update renders a templated Skill version with a quoted YAML key", async () => {
+  const blueprints = await makeTempDir("spindle-quoted-templated-version-");
+  try {
+    await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
+    await writeFile(
+      join(blueprints, "skills", "demo", "SKILL.md"),
+      '---\n"version": {{ variables.owner }}\n---\nshipped\n',
+    );
+    await withProject(
+      {
+        config: { stacks: ["python"], variables: { owner: "2.0.0" } },
+        skills: { demo: skill("1.0.0", "local") },
+      },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.equal(result.status, 0, result.stderr);
+        assert.equal(await read(project, "demo"), '---\n"version": 2.0.0\n---\nshipped\n');
+      },
+      blueprints,
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+  }
+});
+
+test("update aborts on malformed installed Skill YAML before replacing another Skill", async () => {
+  const blueprints = await makeTempDir("spindle-malformed-skill-blueprints-");
+  const malformed = "---\nname: broken\nversion: [unterminated\n---\nlocal broken Skill\n";
+  const config = JSON.stringify({ stacks: ["python"], variables: {} });
+  try {
+    for (const name of ["a-outdated", "z-broken"]) {
+      await mkdir(join(blueprints, "skills", name), { recursive: true });
+      await writeFile(join(blueprints, "skills", name, "SKILL.md"), skill("2.0.0", "shipped"));
+    }
+
+    await withProject(
+      { config, skills: { "a-outdated": skill("1.0.0", "local"), "z-broken": malformed } },
+      ["--no-interactive", "--on-conflict", "overwrite"],
+      async (project, result) => {
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /flow collection|end of the stream|YAML/i);
+        assert.equal(await read(project, "a-outdated"), skill("1.0.0", "local"));
+        assert.equal(await read(project, "z-broken"), malformed);
+        assert.equal(
+          await readFile(join(project, ".github", "skills", "a-outdated", "extra.txt"), "utf8"),
+          "stale",
+        );
+        assert.equal(await readFile(join(project, ".github", "spindle.json"), "utf8"), config);
       },
       blueprints,
     );

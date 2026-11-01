@@ -64,26 +64,39 @@ async function init(
     context: config,
     config,
     conflictPolicy: policy,
-    chooseConflict: interactive ? async (name) => promptConflict(name) : undefined,
+    chooseConflict: interactive ? promptConflict : undefined,
   });
-  const installed = outcomes.filter((outcome) => outcome.status === "installed").length;
-  const skipped = outcomes.filter((outcome) => outcome.status === "skipped").length;
+  const kinds = [...new Set(outcomes.map((outcome) => outcome.kind))];
+  const counts = (status: "installed" | "skipped") =>
+    kinds
+      .map((kind) => ({
+        kind,
+        count: outcomes.filter((outcome) => outcome.kind === kind && outcome.status === status)
+          .length,
+      }))
+      .filter(({ count }) => status === "installed" || count > 0)
+      .map(
+        ({ kind, count }) =>
+          `${count} ${status === "skipped" ? "existing " : ""}${kind.toLowerCase()}(s)`,
+      )
+      .join(", ");
+  const skipped = counts("skipped");
 
   console.log(
-    `${chalk.green("✔")} Installed ${installed} skill(s) for ${chalk.cyan(stacks.join(", "))}${skipped > 0 ? `. Skipped ${skipped} existing skill(s)` : ""}`,
+    `${chalk.green("✔")} Installed ${counts("installed") || "0 Blueprints"} for ${chalk.cyan(stacks.join(", "))}${skipped ? `. Skipped ${skipped}` : ""}`,
   );
 }
 
 const helpText = `${chalk.bold("Usage:")} spindle init [options]
 
-Install the spindle skills into .github/skills and save .github/spindle.json.
+Install spindle Blueprints (Skills and Agents) into .github and save .github/spindle.json.
 
 ${chalk.bold("Options:")}
   --stack <id>          Stack to install; repeat for several (${supportedStacks.join(", ")})
   --var <name>=<value>  Set a variable; repeat for several. Unset variables use their default
   --on-conflict <overwrite|skip>
-                        Policy for skill directories that already exist; required when
-                        non-interactive and any exist (interactive runs prompt per skill)
+                        Policy for Blueprints that already exist; required when
+                        non-interactive and any exist (interactive runs prompt per Blueprint)
   --no-interactive      Never prompt; missing required input is an error
   --help                Show this help
 
@@ -94,21 +107,21 @@ Other commands: update (see \`spindle update --help\`).
 
 const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
 
-Re-render installed skills whose shipped version is newer than the installed one.
+Re-render installed Blueprints (Skills and Agents) whose shipped version is newer.
 Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
-and normally leaves it unchanged. New shipped Skills are offered interactively; use
+and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
 --include-new to install all of them without a prompt.
 
 ${chalk.bold("Options:")}
   --on-conflict <overwrite|skip>
-                        Policy for outdated skills; required when non-interactive and any
-                        are outdated (interactive runs prompt per skill)
-  --include-new        Install every newly shipped Skill without prompting
-  --no-interactive      Never prompt; outdated skills without --on-conflict are an error
+                        Policy for outdated Blueprints; required when non-interactive and any
+                        are outdated (interactive runs prompt per Blueprint)
+  --include-new         Install every newly shipped Blueprint without prompting
+  --no-interactive      Never prompt; outdated Blueprints without --on-conflict are an error
   --help                Show this help
 
 Requires .github/spindle.json; run \`spindle init\` first.
-Installed skills with a missing or non-semver version are skipped with a warning.
+Installed Blueprints with a missing or non-semver version are skipped with a warning.
 `;
 
 async function main() {
