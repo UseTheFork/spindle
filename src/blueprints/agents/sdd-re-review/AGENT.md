@@ -1,12 +1,12 @@
 ---
 name: sdd-re-review
 description: "Use when an orchestrator assigns a scoped corrective-round re-review of findings and a fix diff in subagent-driven development."
-meta:
-  spindle:
-    version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 # SDD re-review

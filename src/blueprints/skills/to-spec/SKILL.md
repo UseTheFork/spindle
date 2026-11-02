@@ -1,11 +1,11 @@
 ---
 name: to-spec
-meta:
-  spindle:
-    version: 1.0.0
 description: "Turn the current conversation or a referenced design file into a spec and publish it to the project issue tracker."
 argument-hint: "[design file path; omit to use the current conversation]"
 disable-model-invocation: true
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 This skill produces a spec from the current conversation or a referenced design file, grounded in the codebase. Synthesize the chosen source without restarting requirements discovery. Source clarification and the test-seam confirmation below are still required when applicable.

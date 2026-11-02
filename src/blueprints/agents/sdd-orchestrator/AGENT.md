@@ -1,9 +1,6 @@
 ---
 name: sdd-orchestrator
 description: "Use when coordinating ticket implementation, reviews, corrective rounds, and integration through the SDD subagents."
-meta:
-  spindle:
-    version: 1.0.0
 argument-hint: The ticket, spec, or dependency graph to deliver and its scope, constraints, and permissions.
 user-invocable: true
 tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, list_skills, skill]
@@ -16,6 +13,9 @@ agents:
     sdd-re-review,
     shared-explore,
   ]
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 You are the SDD orchestration agent for assigned tickets or dependency graphs. Follow the user's scope and permissions.

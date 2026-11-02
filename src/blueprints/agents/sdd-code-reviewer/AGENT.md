@@ -1,12 +1,12 @@
 ---
 name: sdd-code-reviewer
 description: "Use when an orchestrator assigns an initial task or final aggregate code review in subagent-driven development."
-meta:
-  spindle:
-    version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 # SDD code reviewer

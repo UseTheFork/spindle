@@ -1,10 +1,10 @@
 ---
 name: int-grilling
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.

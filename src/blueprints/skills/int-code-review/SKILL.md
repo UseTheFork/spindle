@@ -1,10 +1,10 @@
 ---
 name: int-code-review
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 Two-axis review of the diff between `HEAD` and a fixed point the user supplies:

@@ -1,12 +1,12 @@
 ---
 name: grill-design
-meta:
-  spindle:
-    version: 1.0.0
 description: "Challenge and refine an existing design through an interview, updating the design and relevant domain documentation."
 argument-hint: "[design.md path or feature directory]"
 disable-model-invocation: true
 user-invocable: true
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 # Grill Design

@@ -1,11 +1,11 @@
 ---
 name: author-design
-meta:
-  spindle:
-    version: 1.0.0
 description: "Use when a user asks to author a design for a feature, workflow, or behavior that has important product decisions to settle."
 disable-model-invocation: true
 user-invocable: true
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 # Authoring a Design

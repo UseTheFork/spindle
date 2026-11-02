@@ -1,12 +1,12 @@
 ---
 name: sdd-task-reviewer
 description: "Use when an orchestrator assigns a task-scoped Spec and Quality review after code and code-slop review in subagent-driven development."
-meta:
-  spindle:
-    version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 # SDD task reviewer

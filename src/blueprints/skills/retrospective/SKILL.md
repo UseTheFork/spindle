@@ -1,10 +1,10 @@
 ---
 name: retrospective
+description: "Conduct a retrospective on a coding session."
+disable-model-invocation: true
 meta:
   spindle:
     version: 1.0.0
-description: "Conduct a retrospective on a coding session."
-disable-model-invocation: true
 ---
 
 The user has asked for a **retrospective**. You are suggesting improvements to the coding agent's **environment** to improve future runs.

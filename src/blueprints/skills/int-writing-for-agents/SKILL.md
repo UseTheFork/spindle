@@ -1,10 +1,10 @@
 ---
 name: int-writing-for-agents
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 Reference for writing any document an agent consumes: a skill, an `.github/copilot-instructions.md`, a doc reached by a pointer. The packaging differs; the writing does not: the same levers make each one predictable, since the agent takes the same _process_ every run rather than producing the same output.
