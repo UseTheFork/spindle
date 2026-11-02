@@ -20,7 +20,7 @@ before(async () => {
   await mkdir(join(stubsDirectory, "skills", "demo"), { recursive: true });
   await writeFile(
     join(stubsDirectory, "skills", "demo", "SKILL.md"),
-    "---\nname: demo\nversion: 1.0.0\n---\n\n# Demo\n",
+    "---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\n---\n\n# Demo\n",
   );
 });
 
@@ -93,7 +93,7 @@ test("init installs its configured skill and records repeatable stack flags", as
       variables: fixtureVariables,
     });
     const skill = await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8");
-    assert.match(skill, /^---\nname: demo\nversion: \d+\.\d+\.\d+\n/m);
+    assert.match(skill, /^---\nname: demo\nmeta:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
     assert.match(skill, /# Demo/);
     assert.deepEqual(await readdir(join(project, ".github/skills")), ["demo"]);
   } finally {
@@ -113,7 +113,9 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
       [
         "---",
         "name: demo",
-        "version: 1.0.0",
+        "meta:",
+        "  spindle:",
+        "    version: 1.0.0",
         'description: "{{ variables.owner }}"',
         "---",
         "",
@@ -141,7 +143,7 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
     });
     assert.equal(
       await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
-      '---\nname: demo\nversion: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
+      '---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
     );
     assert.equal(
       await readFile(join(project, ".github/skills/demo/guidance/nested/python.md"), "utf8"),
@@ -165,7 +167,7 @@ test("init combines shared files and all selected Stack overlays only", async ()
     await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
     await writeFile(
       join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nversion: 1.0.0\n---\n# shared\n",
+      "---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\n---\n# shared\n",
     );
     await writeFile(join(skillDirectory, "shared.txt"), "shared content\n");
     await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python content\n");
@@ -218,7 +220,7 @@ test("init rejects a shared file colliding with a selected Stack overlay before 
     await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
     await writeFile(
       join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nversion: 1.0.0\n---\n# shared\n",
+      "---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\n---\n# shared\n",
     );
     await writeFile(join(skillDirectory, "guide.md"), "shared guide\n");
     await writeFile(join(skillDirectory, "stacks", "python", "guide.md"), "python guide\n");

@@ -1,7 +1,9 @@
 ---
 name: sdd-implementer
 description: "Use when an orchestrator assigns one ticket or corrective round for subagent-driven development in an existing shared checkout."
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []

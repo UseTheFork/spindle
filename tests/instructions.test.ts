@@ -16,7 +16,7 @@ after(async () => {
 });
 
 const instruction = (name: string, version: string | null, body: string) =>
-  `---\nname: ${name}\n${version === null ? "" : `version: ${version}\n`}---\n${body}\n`;
+  `---\nname: ${name}\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
 
 async function writeInstruction(blueprints: string, path: string, text: string) {
   const file = join(blueprints, "instructions", path, "INSTRUCTION.md");
@@ -39,6 +39,7 @@ test("init and update install selected Instructions as single versioned files", 
         "{% if 'python' in stacks %}Python{% endif %} {{ variables.owner }}",
       ),
     );
+    await writeInstruction(blueprints, "invalid", instruction("invalid", "1.0.0", "shipped"));
     await writeInstruction(blueprints, "py/stacks/python", instruction("py", "1.0.0", "py only"));
     await writeInstruction(blueprints, "ts/stacks/typescript", instruction("ts", "1.0.0", "ts"));
     await writeInstruction(blueprints, "local", instruction("local", "1.0.0", "shipped"));
@@ -55,9 +56,10 @@ test("init and update install selected Instructions as single versioned files", 
     assert.equal(init.status, 0, init.stderr);
     assert.equal(
       init.stdout,
-      "✔ Installed 2 instruction(s) for python. Skipped 1 existing instruction(s)\n",
+      "✔ Installed 3 instruction(s) for python. Skipped 1 existing instruction(s)\n",
     );
     assert.deepEqual(await readdir(installed), [
+      "invalid.instructions.md",
       "local.instructions.md",
       "py.instructions.md",
       "style.instructions.md",
@@ -72,6 +74,9 @@ test("init and update install selected Instructions as single versioned files", 
       "style",
       instruction("style", "2.0.0", "{{ variables.owner }} v2"),
     );
+    const invalidInstalled = join(installed, "invalid.instructions.md");
+    const invalidLocal = instruction("invalid", "v1", "local");
+    await writeFile(invalidInstalled, invalidLocal);
     const update = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
@@ -88,8 +93,10 @@ test("init and update install selected Instructions as single versioned files", 
       await readFile(join(installed, "local.instructions.md"), "utf8"),
       instruction("local", null, "mine"),
     );
+    assert.equal(await readFile(invalidInstalled, "utf8"), invalidLocal);
     assert.match(update.stderr, /Instruction 'local'.*no version/);
-    assert.equal(update.stdout, "✔ Added 0, updated 1, skipped 1, up to date 1 instruction(s)\n");
+    assert.match(update.stderr, /Instruction 'invalid'.*non-semver version 'v1'/);
+    assert.equal(update.stdout, "✔ Added 0, updated 1, skipped 2, up to date 1 instruction(s)\n");
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });

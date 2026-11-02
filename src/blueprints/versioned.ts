@@ -2,12 +2,7 @@ import { basename } from "node:path";
 
 import matter from "gray-matter";
 
-import {
-  blueprintFrontmatterIsTemplated,
-  compareSemver,
-  parseSemver,
-  readBlueprintVersion,
-} from "../version.js";
+import { compareSemver, parseSemver, readBlueprintVersion } from "../version.js";
 import type { BlueprintUpdateInput, BlueprintUpdatePlan } from "./types.js";
 
 export function validateVersionedMetadata(
@@ -17,10 +12,10 @@ export function validateVersionedMetadata(
   renderedText: string,
 ) {
   if (relativePath !== entryFile) return;
-  const version = matter(renderedText).data.version;
+  const version = matter(renderedText).data.meta?.spindle?.version;
   if (typeof version !== "string" || parseSemver(version) === null) {
     throw new Error(
-      `Invalid ${kind} metadata in '${relativePath}': expected a semver \`version\` in frontmatter.`,
+      `Invalid ${kind} metadata in '${relativePath}': expected a semver \`meta.spindle.version\` in frontmatter.`,
     );
   }
 }
@@ -34,8 +29,12 @@ export async function planVersionedUpdate(
 ): Promise<BlueprintUpdatePlan> {
   const { name, sourceFiles, target, installed, resolveContext } = input;
   const source = sourceFiles.find((file) => file.outputPath === entryFile)?.sourcePath;
-  const context =
-    source && (await blueprintFrontmatterIsTemplated(source)) ? await resolveContext() : undefined;
+  const context = source === undefined ? undefined : await resolveContext();
+  if (source !== undefined && context === undefined) {
+    throw new Error(
+      `Cannot render the shipped ${kind.toLowerCase()} Blueprint '${name}' without resolved project Variables.`,
+    );
+  }
   let renderedEntry: BlueprintUpdatePlan["renderedEntry"];
   const shipped =
     source === undefined

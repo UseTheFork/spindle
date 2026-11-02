@@ -1,6 +1,8 @@
 ---
 name: retrospective
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: "Conduct a retrospective on a coding session."
 disable-model-invocation: true
 ---

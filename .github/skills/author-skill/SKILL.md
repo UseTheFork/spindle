@@ -1,6 +1,8 @@
 ---
 name: author-skill
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: Create or update a project skill from the user's requirements
 argument-hint: "[--test] [--ask] <skill idea or requirements>"
 disable-model-invocation: true

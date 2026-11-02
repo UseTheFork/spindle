@@ -13,7 +13,7 @@ Create and update reusable content shipped from `src/blueprints/`. Start by iden
 
 1. **Inspect the kind.** Read `docs/adr/0001-blueprint-lifecycle.md`, `docs/adr/0002-single-file-blueprints.md`, the relevant handler and a sibling Blueprint. For rendering and file selection, check `src/install.ts`, `src/render.ts`, and `src/variables.ts`. Confirm the source path, generated destination, metadata validation, available stack IDs, and declared Variables against the current code. **Complete when** the kind's authoring contract is clear. Skills, Agents, and Instructions are registered; a new kind needs handler and registry integration, not just a new source folder.
 
-2. **Author the shared content.** For a Skill Blueprint, create or update `src/blueprints/skills/<skill-id>/SKILL.md`. For an Agent Blueprint, use `src/blueprints/agents/<agent-id>/AGENT.md`; it installs directly as `.github/agents/<agent-id>.agent.md`, not as a directory. For an Instruction Blueprint, use `src/blueprints/instructions/<instruction-id>/INSTRUCTION.md`; it installs directly as `.github/instructions/<instruction-id>.instructions.md`. Keep the entry valid for its kind and include YAML frontmatter with a SemVer `version` (for example `1.0.0`) plus the kind's fields: `name` and `description` for Skills and Agents; `description` and an `applyTo` glob for Instructions. Each handler validates the rendered version. Bump the version when shipping an update: `update` replaces an installed Blueprint only when the shipped version is newer. An installed file with a missing or invalid version is skipped with a warning. **Complete when** the shared Blueprint is self-contained and its metadata meets the handler's rules.
+2. **Author the shared content.** For a Skill Blueprint, create or update `src/blueprints/skills/<skill-id>/SKILL.md`. For an Agent Blueprint, use `src/blueprints/agents/<agent-id>/AGENT.md`; it installs directly as `.github/agents/<agent-id>.agent.md`, not as a directory. For an Instruction Blueprint, use `src/blueprints/instructions/<instruction-id>/INSTRUCTION.md`; it installs directly as `.github/instructions/<instruction-id>.instructions.md`. Keep the entry valid for its kind and include YAML frontmatter with a SemVer `meta.spindle.version` (for example `1.0.0`) plus the kind's fields: `name` and `description` for Skills and Agents; `description` and an `applyTo` glob for Instructions. Each handler validates the rendered version. Bump the version when shipping an update: `update` replaces an installed Blueprint only when the shipped version is newer. An installed file with a missing or invalid version is skipped with a warning. **Complete when** the shared Blueprint is self-contained and its metadata meets the handler's rules.
 
 3. **Template only real variation.** Nunjucks renders recognized UTF-8 text files before installation. Its context exposes selected stack IDs as `stacks` and configured shared values as `variables`; use `{{ variables.owner }}` for a declared value and `{% if 'typescript' in stacks %}...{% endif %}` for stack-specific text. Undefined values are errors, and autoescaping is off. Wrap Nunjucks-looking text meant for the installed content in `{% raw %}...{% endraw %}`. **Complete when** every template reference resolves from the real context and intended literal placeholders survive rendering.
 
@@ -27,7 +27,9 @@ Example Skill source:
 ---
 name: deploy-checks
 description: Run the team's deployment checks.
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 ---
 
 Owner: {{ variables.owner }}

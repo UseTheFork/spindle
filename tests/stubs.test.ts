@@ -59,10 +59,8 @@ async function filesUnder(directory: string, prefix = ""): Promise<string[]> {
 }
 
 function hasSemverVersion(content: string) {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!match) return false;
-  const version = match[1].match(/^version:\s*(\S+)\s*$/m)?.[1];
-  if (!version) return false;
+  const version = matter(content, {}).data.meta?.spindle?.version;
+  if (typeof version !== "string") return false;
   return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.test(
     version,
   );
@@ -141,7 +139,7 @@ for (const stacks of productionStackSelections) {
         const parsed = matter(installedAgent);
         assert.equal(parsed.data.name, agent);
         assert.equal(hasSemverVersion(installedAgent), true, agent);
-        assert.equal(parsed.data.version, "1.0.0", agent);
+        assert.equal(parsed.data.meta.spindle.version, "1.0.0", agent);
         assert.ok(parsed.content.trim().length > 0, `${agent} has no Agent instructions`);
         if (agent === "shared-r") {
           assert.equal(

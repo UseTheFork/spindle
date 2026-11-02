@@ -1,6 +1,8 @@
 ---
 name: author-instruction
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: Create or revise workspace-scoped Copilot instruction files from the user's requirements
 argument-hint: "[instruction requirements]"
 disable-model-invocation: true

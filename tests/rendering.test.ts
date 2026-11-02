@@ -7,6 +7,36 @@ import { renderText } from "../src/render.ts";
 
 const context = { stacks: ["python", "typescript"], variables: { name: "Spindle" } };
 
+function assertNestedTestabilityExamples(rendered: string, languages: string[]) {
+  const section = rendered.split("## Designing for testability\n")[1]?.split("## Relationships")[0];
+  assert.ok(section);
+  const items = section.split(/^\d+\. /m).slice(1);
+  assert.equal(items.length, 3, "the section retains its three numbered entries");
+
+  for (const [index, title] of [
+    "Accept dependencies, don't create them.",
+    "Return results, don't produce side effects.",
+  ].entries()) {
+    const [heading, ...lines] = items[index].trimEnd().split("\n");
+    assert.equal(heading, `**${title}**`);
+    // A nonblank continuation must stay inside the numbered item's three-space
+    // indentation, including both fences and every line of their contents.
+    for (const line of lines.filter((line) => line.trim())) {
+      assert.match(line, /^ {3}/, `list entry ${index + 1}: ${line}`);
+    }
+    assert.deepEqual(
+      [...items[index].matchAll(/^ {3}```(\w+)\n/gm)].map((match) => match[1]),
+      languages,
+      `list entry ${index + 1} contains each selected Stack example`,
+    );
+    assert.equal(
+      [...items[index].matchAll(/^ {3}```$/gm)].length,
+      languages.length,
+      `list entry ${index + 1} closes each nested fence`,
+    );
+  }
+}
+
 test("standard Nunjucks expressions, blocks, and comments render from text", () => {
   const source =
     "Hello {{ variables.name }}! {% if 'python' in stacks %}Python{% else %}Other{% endif %}{# hidden #}";
@@ -49,7 +79,9 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
       "utf8",
     );
     const rendered = renderText(source, { stacks, variables: {} });
-    const section = rendered.split("## Designing for testability\n")[1]?.split("## Relationships")[0];
+    const section = rendered
+      .split("## Designing for testability\n")[1]
+      ?.split("## Relationships")[0];
     assert.ok(section);
 
     for (const [stack, language] of [
@@ -64,9 +96,29 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
     assert.match(section, /Accept dependencies, don't create them/);
     assert.match(section, /Return results, don't produce side effects/);
     assert.match(section, /Small surface area/);
+    assertNestedTestabilityExamples(
+      rendered,
+      [
+        ["typescript", "typescript"],
+        ["python", "python"],
+        ["php-laravel", "php"],
+      ]
+        .filter(([stack]) => stacks.includes(stack))
+        .map(([, language]) => language),
+    );
     assert.doesNotMatch(rendered, /{%|{{/);
-    const [before, after] = source.split(/## Designing for testability\n[\s\S]*?(?=## Relationships)/);
+    const [before, after] = source.split(
+      /## Designing for testability\n[\s\S]*?(?=## Relationships)/,
+    );
     assert.ok(rendered.startsWith(before));
     assert.ok(rendered.endsWith(after));
   });
 }
+
+test("installed codebase design Skill keeps examples nested in their numbered entries", async () => {
+  const installed = await readFile(
+    new URL("../.github/skills/int-codebase-design/SKILL.md", import.meta.url),
+    "utf8",
+  );
+  assertNestedTestabilityExamples(installed, ["typescript"]);
+});

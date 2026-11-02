@@ -12,7 +12,7 @@ async function writeSkill(root: string, name: string, version: string | null, bo
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, "SKILL.md"),
-    `---\n${version === null ? "" : `version: ${version}\n`}---\n${body}`,
+    `---\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}`,
   );
 }
 
@@ -30,7 +30,7 @@ test("init reconciliation returns outcomes, replaces selected conflicts, and ins
       await mkdir(join(stubRoot, "skills", name), { recursive: true });
       await writeFile(
         join(stubRoot, "skills", name, "SKILL.md"),
-        `---\nname: ${name}\nversion: 1.0.0\n---\n`,
+        `---\nname: ${name}\nmeta:\n  spindle:\n    version: 1.0.0\n---\n`,
       );
     }
     await mkdir(join(githubDirectory, "skills", "demo"), { recursive: true });
@@ -89,7 +89,7 @@ test("init reconciliation leaves skipped conflicts alone and still writes Config
     assert.deepEqual(outcomes, [{ kind: "Skill", name: "demo", status: "skipped" }]);
     assert.equal(
       await readFile(join(githubDirectory, "skills", "demo", "SKILL.md"), "utf8"),
-      "---\nversion: 9.0.0\n---\nexisting",
+      "---\nmeta:\n  spindle:\n    version: 9.0.0\n---\nexisting",
     );
     assert.deepEqual(
       JSON.parse(await readFile(join(githubDirectory, "spindle.json"), "utf8")),
@@ -149,7 +149,7 @@ test("update reconciliation returns per-Skill version outcomes and skips uninsta
     await assert.rejects(readFile(join(githubDirectory, "skills", "not-installed", "SKILL.md")));
     assert.equal(
       await readFile(join(githubDirectory, "skills", "invalid-version", "SKILL.md"), "utf8"),
-      "---\nversion: v1\n---\nuncertain",
+      "---\nmeta:\n  spindle:\n    version: v1\n---\nuncertain",
     );
   } finally {
     await rm(project, { recursive: true, force: true });
@@ -213,7 +213,7 @@ test("update reconciliation rejects an invalid shipped version before overwritin
     );
     assert.equal(
       await readFile(join(githubDirectory, "skills", "demo", "SKILL.md"), "utf8"),
-      "---\nversion: 1.0.0\n---\nexisting",
+      "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nexisting",
     );
   } finally {
     await rm(project, { recursive: true, force: true });

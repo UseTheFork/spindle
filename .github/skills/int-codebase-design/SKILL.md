@@ -1,6 +1,8 @@
 ---
 name: int-codebase-design
-version: 1.1.0
+meta:
+  spindle:
+    version: 1.1.0
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
 ---
@@ -72,7 +74,6 @@ Good interfaces make testing natural:
 
 1. **Accept dependencies, don't create them.**
 
-
    ```typescript
    // Testable
    function processOrder(order, paymentGateway) {}
@@ -83,11 +84,7 @@ Good interfaces make testing natural:
    }
    ```
 
-
-
-
 2. **Return results, don't produce side effects.**
-
 
    ```typescript
    // Testable
@@ -98,9 +95,6 @@ Good interfaces make testing natural:
      cart.total -= discount;
    }
    ```
-
-
-
 
 3. **Small surface area.** Fewer methods = fewer tests needed. Fewer params = simpler test setup.
 

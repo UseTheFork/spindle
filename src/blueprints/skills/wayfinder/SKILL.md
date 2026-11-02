@@ -1,6 +1,8 @@
 ---
 name: wayfinder
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to a background agent.
 disable-model-invocation: true
 user-invocable: true

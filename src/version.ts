@@ -47,7 +47,7 @@ export function compareSemver(a: Semver, b: Semver) {
   return comparePrerelease(a.prerelease, b.prerelease);
 }
 
-// Returns the raw `version` value from entry-file frontmatter, or null when absent or unreadable.
+// Returns the raw Spindle-owned version value from entry-file frontmatter, or null when absent or unreadable.
 export async function readBlueprintVersion(
   entryFile: string,
   context?: RenderContext,
@@ -67,29 +67,10 @@ export async function readBlueprintVersion(
     : content;
   if (context) options.onRendered?.(content, rendered);
   try {
-    const version = matter(rendered, {}).data.version;
+    const version = matter(rendered, {}).data.meta?.spindle?.version;
     return typeof version === "string" || typeof version === "number" ? String(version) : null;
   } catch (error) {
     if (options.rejectMalformed) throw error;
     return null;
   }
-}
-
-// Frontmatter containing any Nunjucks syntax must be rendered before its
-// version is read. Without a statically delimited frontmatter block, any
-// syntax in the file could generate one.
-function frontmatterIsTemplated(content: string): boolean {
-  const opening = content.startsWith("---") && content[3] !== "-";
-  const close = opening ? content.indexOf("\n---", 3) : -1;
-  return /{{|{%|{#/.test(close < 0 ? content : content.slice(0, close + 4));
-}
-
-export async function blueprintFrontmatterIsTemplated(entryFile: string): Promise<boolean> {
-  let content: string;
-  try {
-    content = await readFile(entryFile, "utf8");
-  } catch {
-    return false;
-  }
-  return frontmatterIsTemplated(content);
 }

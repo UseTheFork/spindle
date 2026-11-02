@@ -1,6 +1,8 @@
 ---
 name: author-agent
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: Create or revise a workspace custom agent from requirements.
 argument-hint: "[agent idea or requirements]"
 disable-model-invocation: true

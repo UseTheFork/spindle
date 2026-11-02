@@ -1,6 +1,8 @@
 ---
 name: setup-project
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: "Use when configuring a project's local Markdown issues, triage-role mapping, domain documentation, or Just-based agent tooling instructions."
 disable-model-invocation: false
 user-invocable: true

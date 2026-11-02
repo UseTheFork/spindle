@@ -1,6 +1,8 @@
 ---
 name: int-writing-for-agents
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
 ---

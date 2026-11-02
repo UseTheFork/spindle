@@ -1,6 +1,8 @@
 ---
 name: implement-spec
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 description: "Implement the result of /to-spec and /to-tickets in code."
 disable-model-invocation: true
 ---

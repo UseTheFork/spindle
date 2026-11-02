@@ -1,7 +1,9 @@
 ---
 name: sdd-code-slop-reviewer
 description: "Use when an orchestrator assigns a focused code-slop review after code review in subagent-driven development, including final aggregate reviews."
-version: 1.0.0
+meta:
+  spindle:
+    version: 1.0.0
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
