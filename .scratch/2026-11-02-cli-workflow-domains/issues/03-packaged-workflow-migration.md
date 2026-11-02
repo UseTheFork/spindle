@@ -3,6 +3,7 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: integrated
 
 **What to build:** Make the completed migration verifiable from the packaged
 Spindle CLI outside its source checkout, with both workflow commands, bundled
