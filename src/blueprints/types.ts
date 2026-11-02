@@ -26,6 +26,7 @@ export interface BlueprintHandler {
   kind: string;
   sourceDirectory(): string;
   destinationDirectory(githubDirectory: string): string;
+  initialize?(githubDirectory: string, context: RenderContext): Promise<string[]>;
   entryFile?: string;
   targetPath?(destinationDirectory: string, name: string): string;
   validateMetadata?(relativePath: string, renderedText: string): void;

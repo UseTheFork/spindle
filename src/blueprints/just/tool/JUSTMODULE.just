@@ -1,9 +1,10 @@
 set positional-arguments
+
 pnpm *args:
-    @cd {{ justfile_directory() }}/packages/orchestration && pnpm "$@"
+    @cd {% raw %}{{ justfile_directory() }}{% endraw %}/packages/orchestration && pnpm "$@"
 
 git *args:
-    @cd {{ justfile_directory() }} && git "$@"
+    @cd {% raw %}{{ justfile_directory() }}{% endraw %} && git "$@"
 
 git-detailed-diff:
     #!/usr/bin/env bash
@@ -29,7 +30,7 @@ git-detailed-diff:
 
     printf '\n## Untracked files\n'
     mapfile -d '' untracked_files < <(git ls-files --others --exclude-standard -z)
-    if ((${#untracked_files[@]} == 0)); then
+    if (({% raw %}${#untracked_files[@]}{% endraw %} == 0)); then
         printf '(none)\n'
     else
         for file in "${untracked_files[@]}"; do

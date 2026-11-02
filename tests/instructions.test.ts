@@ -153,7 +153,10 @@ test("production init and update ship no Instructions and do not report the empt
   try {
     const init = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory));
     assert.equal(init.status, 0, init.stderr);
-    assert.match(init.stdout, /skill\(s\), [1-9]\d* agent\(s\) for python/);
+    assert.match(
+      init.stdout,
+      /skill\(s\), [1-9]\d* agent\(s\), [1-9]\d* just module\(s\) for python/,
+    );
     assert.doesNotMatch(init.stdout, /instruction/i);
     await assert.rejects(readdir(join(project, ".github", "instructions")));
 

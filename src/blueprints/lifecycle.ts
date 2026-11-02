@@ -318,11 +318,19 @@ export async function reconcileBlueprints(
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
   }[] = [];
+  const initializers: BlueprintHandler[] = [];
   await assertSafeInstallPaths(options.githubDirectory, [], options.githubDirectory);
   for (const handler of handlers) {
     const sourceDirectory = handler.sourceDirectory();
     const blueprintNames = await listBlueprints(sourceDirectory);
     if (blueprintNames.length === 0) continue;
+    if (handler.initialize !== undefined) {
+      if (options.mode === "init") {
+        hasBlueprints = true;
+        initializers.push(handler);
+      }
+      continue;
+    }
     hasBlueprints = true;
     const files = new Map<string, PlannedBlueprintFile[]>();
     for (const name of blueprintNames) {
@@ -442,6 +450,11 @@ export async function reconcileBlueprints(
   }
   for (const plan of plans) {
     outcomes.push(...(await applyReconciliation(plan, context, preparedFilesByPlan.get(plan))));
+  }
+  for (const handler of initializers) {
+    for (const name of await handler.initialize!(options.githubDirectory, context!)) {
+      outcomes.push({ kind: handler.kind, name, status: "installed" });
+    }
   }
   if (options.mode === "init") {
     await mkdir(options.githubDirectory, { recursive: true });

@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 
 import { Chalk } from "chalk";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeJustStubDir, makeTempDir, pathWith, runCli, runCliInteractive } from "./helpers.ts";
 
 let justDirectory: string;
 let stubsDirectory: string;
@@ -96,6 +96,315 @@ test("init installs its configured skill and records repeatable stack flags", as
     assert.match(skill, /^---\nname: demo\nmeta:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
     assert.match(skill, /# Demo/);
     assert.deepEqual(await readdir(join(project, ".github/skills")), ["demo"]);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init renders and composes independently named Just Modules and creates required imports", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-blueprints-");
+  const project = await makeTempDir();
+  const moduleDirectory = join(blueprints, "just", "quality");
+  try {
+    await mkdir(join(moduleDirectory, "stacks", "typescript"), { recursive: true });
+    await mkdir(join(moduleDirectory, "stacks", "python"), { recursive: true });
+    await mkdir(join(moduleDirectory, "stacks", "php-laravel"), { recursive: true });
+    await writeFile(join(moduleDirectory, "JUSTMODULE.just"), "shared={{ variables.owner }}\n");
+    await writeFile(
+      join(moduleDirectory, "stacks", "typescript", "JUSTMODULE.just"),
+      "typescript\n",
+    );
+    await writeFile(join(moduleDirectory, "stacks", "python", "JUSTMODULE.just"), "python\n");
+    await writeFile(
+      join(moduleDirectory, "stacks", "php-laravel", "JUSTMODULE.just"),
+      "php-laravel\n",
+    );
+
+    const result = runCli(
+      project,
+      [
+        "init",
+        "--stack",
+        "typescript",
+        "--stack",
+        "python",
+        "--var",
+        "owner=team",
+        "--no-interactive",
+      ],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      await readFile(join(project, ".github/scripts/just-modules/quality.just"), "utf8"),
+      "shared=team\n\n" + "typescript\n\n" + "python\n",
+    );
+    assert.equal(
+      await readFile(join(project, "justfile"), "utf8"),
+      "mod quality '.github/scripts/just-modules/quality.just'\n",
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init replaces generated modules and reconciles managed imports without changing unrelated justfile content", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-reconcile-blueprints-");
+  const project = await makeTempDir();
+  try {
+    for (const [name, content] of [
+      ["zeta", "new zeta\n"],
+      ["alpha", "new alpha\n"],
+    ]) {
+      const source = join(blueprints, "just", name);
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), content);
+    }
+
+    const moduleOutput = join(project, ".github/scripts/just-modules");
+    await mkdir(moduleOutput, { recursive: true });
+    await writeFile(join(moduleOutput, "zeta.just"), "stale zeta\n");
+    await writeFile(join(moduleOutput, "obsolete.just"), "obsolete\n");
+    const rootJustfile = [
+      "# User-owned header",
+      "mod local '.github/other.just'",
+      "",
+      "# Keep this recipe",
+      "ready:",
+      "  @echo ready",
+      "mod zeta '.github/scripts/just-modules/zeta.just'",
+      "mod alpha '.github/scripts/just-modules/alpha.just'",
+      "mod zeta '.github/scripts/just-modules/zeta.just'",
+      "",
+    ].join("\r\n");
+    await writeFile(join(project, "justfile"), rootJustfile);
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(await readFile(join(moduleOutput, "zeta.just"), "utf8"), "new zeta\n");
+    assert.equal(await readFile(join(moduleOutput, "alpha.just"), "utf8"), "new alpha\n");
+    await assert.rejects(readFile(join(moduleOutput, "obsolete.just")));
+    assert.equal(
+      await readFile(join(project, "justfile"), "utf8"),
+      [
+        "# User-owned header",
+        "mod local '.github/other.just'",
+        "",
+        "# Keep this recipe",
+        "ready:",
+        "  @echo ready",
+        "",
+        "mod alpha '.github/scripts/just-modules/alpha.just'",
+        "mod zeta '.github/scripts/just-modules/zeta.just'",
+        "",
+      ].join("\r\n"),
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init reports Just Module import conflicts before replacing generated files", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-conflict-blueprints-");
+  const project = await makeTempDir();
+  try {
+    const source = join(blueprints, "just", "quality");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "JUSTMODULE.just"), "new generated content\n");
+    const moduleOutput = join(project, ".github/scripts/just-modules");
+    await mkdir(moduleOutput, { recursive: true });
+    await writeFile(join(moduleOutput, "quality.just"), "keep existing generated content\n");
+    const justfile = "mod quality '.github/custom/quality.just'\n";
+    await writeFile(join(project, "justfile"), justfile);
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Just Module import conflict.*quality/i);
+    assert.equal(
+      await readFile(join(moduleOutput, "quality.just"), "utf8"),
+      "keep existing generated content\n",
+    );
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init rejects invalid Just Module names without creating managed files", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-invalid-name-blueprints-");
+  const project = await makeTempDir();
+  try {
+    const source = join(blueprints, "just", "not.valid");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "JUSTMODULE.just"), "invalid module\n");
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Invalid Just Module name 'not\.valid'/);
+    await assert.rejects(readFile(join(project, ".github/scripts/just-modules/not.valid.just")));
+    await assert.rejects(readFile(join(project, "justfile")));
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init rejects Just Module Blueprints without their required shared entry", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-missing-entry-blueprints-");
+  const project = await makeTempDir();
+  try {
+    const overlay = join(blueprints, "just", "quality", "stacks", "python");
+    await mkdir(overlay, { recursive: true });
+    await writeFile(join(overlay, "JUSTMODULE.just"), "stack-only module\n");
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /Just Module 'quality' must contain a regular shared 'JUSTMODULE\.just'/,
+    );
+    await assert.rejects(readFile(join(project, ".github/scripts/just-modules/quality.just")));
+    await assert.rejects(readFile(join(project, "justfile")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init reports missing template Variables before changing managed module files", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-missing-variable-blueprints-");
+  const project = await makeTempDir();
+  try {
+    const source = join(blueprints, "just", "quality");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "JUSTMODULE.just"), "{{ variables.missing_value }}\n");
+    const moduleOutput = join(project, ".github/scripts/just-modules");
+    await mkdir(moduleOutput, { recursive: true });
+    await writeFile(join(moduleOutput, "quality.just"), "keep existing module\n");
+    const justfile = "default:\n  @echo keep\n";
+    await writeFile(join(project, "justfile"), justfile);
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /missing_value|undefined|null/i);
+    assert.equal(
+      await readFile(join(moduleOutput, "quality.just"), "utf8"),
+      "keep existing module\n",
+    );
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test(
+  "init uses an interactively prompted Variable when rendering Just Modules",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const blueprints = await makeTempDir("spindle-init-just-prompt-blueprints-");
+    const project = await makeTempDir();
+    try {
+      const source = join(blueprints, "just", "quality");
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), "owner={{ variables.owner }}\n");
+
+      const result = await runCliInteractive(
+        project,
+        ["init", "--stack", "python"],
+        pathWith(justDirectory),
+        [
+          { trigger: "lint_command: Lint command", input: "\r" },
+          { trigger: "owner: Team owner", input: "\u0015interactive-team\r" },
+        ],
+        { SPINDLE_BLUEPRINTS_DIR: blueprints },
+      );
+
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(
+        await readFile(join(project, ".github/scripts/just-modules/quality.just"), "utf8"),
+        "owner=interactive-team\n",
+      );
+      assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+        stacks: ["python"],
+        variables: { lint_command: "just lint", owner: "interactive-team" },
+      });
+    } finally {
+      await rm(blueprints, { recursive: true, force: true });
+      await rm(project, { recursive: true, force: true });
+    }
+  },
+);
+
+test("init installs the repository's shipped Just Module Blueprints with required imports", async () => {
+  const project = await makeTempDir("spindle-init-shipped-just-");
+  try {
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const moduleDirectory = join(project, ".github/scripts/just-modules");
+    assert.deepEqual(await readdir(moduleDirectory), [
+      "format.just",
+      "lint.just",
+      "test.just",
+      "tool.just",
+    ]);
+    assert.match(await readFile(join(moduleDirectory, "format.just"), "utf8"), /pnpm fmt/);
+    assert.match(await readFile(join(moduleDirectory, "lint.just"), "utf8"), /pnpm lint:fix/);
+    assert.match(await readFile(join(moduleDirectory, "test.just"), "utf8"), /pnpm test/);
+    assert.match(await readFile(join(moduleDirectory, "tool.just"), "utf8"), /git-detailed-diff/);
+    assert.equal(
+      await readFile(join(project, "justfile"), "utf8"),
+      [
+        "mod format '.github/scripts/just-modules/format.just'",
+        "mod lint '.github/scripts/just-modules/lint.just'",
+        "mod test '.github/scripts/just-modules/test.just'",
+        "mod tool '.github/scripts/just-modules/tool.just'",
+        "",
+      ].join("\n"),
+    );
   } finally {
     await rm(project, { recursive: true, force: true });
   }
