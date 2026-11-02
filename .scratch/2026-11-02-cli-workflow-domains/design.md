@@ -1,6 +1,6 @@
 # CLI workflow domains
 
-Status: Awaiting approval
+Status: Approved; shared understanding confirmed
 
 ## Intent and success criteria
 
@@ -20,6 +20,13 @@ active skill/documentation callers use the new commands.
 - Expose the SDD domain as `sdd`, not `subagent-driven-dev`.
 - Remove the old scripts and their Just wrappers; no compatibility entry points.
 - Update callers to invoke Spindle directly.
+- Retain the global Just prerequisite for all commands, including the new
+  workflow commands and help, even though these helpers do not invoke Just.
+- The setup-project source domain owns the four bootstrap templates; move them
+  out of the Skill Blueprint and update its guidance accordingly.
+- "Domain" means a feature-owned subfolder under `src`, like `src/blueprints`;
+  it does not introduce bounded contexts, per-context glossaries, or a glossary
+  map. Keep the existing root glossary and ADR layout.
 
 ## CLI
 
@@ -75,12 +82,14 @@ project configuration is complete.
 
 ### Templates and packaging
 
-Recommendation: keep setup templates canonical in the shipped setup-project
-Skill Blueprint rather than duplicating them into the new domain. Reuse the
-existing Blueprint-root resolution mechanism to read bundled defaults, never
-templates from the target project's installed `.github` content.
+Move the four bootstrap templates into `src/setup-project/templates/` as their
+single canonical source. The setup-project domain resolves its own bundled
+assets relative to its module, never through the Blueprint registry or the
+target project's installed `.github` content.
 
-Use the existing TypeScript build and Blueprint asset packaging. Verify both
+Extend the existing build to copy these templates into
+`build/setup-project/templates/`; the existing published `build` directory then
+includes them. Keep development/source execution working as well. Verify both
 commands from the built package outside this checkout, including setup template
 availability.
 
@@ -94,6 +103,9 @@ availability.
 - Relocate useful SDD helper documentation before removing its old directory.
 - Update shipped Skill Blueprints, examples, setup's issue-tracker template,
   local installed skill copies, and current agent documentation.
+- Remove the four templates from the setup-project Skill Blueprint and its local
+  installed copy; reconcile guidance and links to describe CLI-owned defaults
+  without relying on access to the package's internal source tree.
 - Bump changed Blueprint versions according to the existing lifecycle so
   `spindle update` can deliver changed command instructions.
 - Document that Spindle workflow commands are invoked directly; keep Just for
@@ -109,8 +121,8 @@ availability.
   Skill.
 - No new CLI framework, dependency, compatibility shim, or automatic fallback
   to old scripts.
-- Assumption: retain the CLI's existing global Just prerequisite; changing that
-  installation requirement is outside this migration.
+- Retain the CLI's existing global Just prerequisite, as explicitly confirmed
+  during design review.
 
 ## Verification
 
@@ -120,6 +132,7 @@ availability.
 - Verify exact JSON shapes, optional round behavior, non-mutating resolution,
   bootstrap idempotence, preservation, and rejection cases.
 - Verify commands require neither `.github/spindle.json` nor prior `init`.
+- Verify the new commands and their help retain the global Just prerequisite.
 - Exercise built/package execution from an unrelated working directory.
 - Run applicable existing formatting, lint, type/build, and regression checks
   through project Just recipes; confirm `init`/`update` regressions stay green.
@@ -130,5 +143,18 @@ Exact internal filenames, helper placement within each domain, and the smallest
 command-specific parsing refactor are implementation choices. Avoid a general
 command registry unless necessary for these four public command paths.
 
-The template ownership and unchanged Just prerequisite above are recommendations
-and assumptions proposed for approval, not separately confirmed user decisions.
+Template ownership and the global Just prerequisite were explicitly confirmed
+during design review.
+
+## Design review outcome
+
+- Separate domains are source-code folders, not new bounded contexts.
+- Keep `src/subagent-driven-dev/` with the shorter public `sdd` command.
+- Keep Just required globally, including help.
+- Make `src/setup-project/` own and package its four default templates rather
+  than depending on Skill Blueprint assets.
+- Preserve the existing helpers' behavior and JSON contracts; only their
+  implementation, entry points, asset ownership, and related guidance change.
+- No consequential design questions remain open. Internal file organization
+  and parsing mechanics remain implementation choices within these constraints.
+- The user confirmed the refined design represents the shared understanding.
