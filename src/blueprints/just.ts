@@ -1,4 +1,14 @@
-import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 
 import { blueprintsRoot } from "../install.js";
@@ -16,6 +26,10 @@ async function exists(path: string) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
   }
+}
+
+function formatFilesystemError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function readRenderedModule(path: string, context: RenderContext) {
@@ -46,11 +60,13 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
     moduleNames.map((name) => [name, `.github/scripts/just-modules/${name}.just`]),
   );
   let original: string | undefined;
+  let mode: number | undefined;
   if (await exists(justfilePath)) {
     const stat = await lstat(justfilePath);
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new Error(`Refusing to replace '${justfilePath}': expected a regular file.`);
     }
+    mode = stat.mode & 0o777;
     original = await readFile(justfilePath, "utf8");
   }
 
@@ -109,7 +125,7 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
       throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
     }
   }
-  return { path: justfilePath, content: output };
+  return { path: justfilePath, content: output, mode };
 }
 
 async function prepareModules(context: RenderContext) {
@@ -157,33 +173,94 @@ async function installModules(githubDirectory: string, context: RenderContext) {
     prepared.map((module) => module.name),
   );
 
-  if (await exists(modulesDirectory)) {
+  const moduleDirectoryExists = await exists(modulesDirectory);
+  if (moduleDirectoryExists) {
     const stat = await lstat(modulesDirectory);
     if (stat.isSymbolicLink() || !stat.isDirectory()) {
       throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
     }
-  } else {
-    await mkdir(modulesDirectory, { recursive: true });
   }
+
   const shipped = new Set(prepared.map((module) => `${module.name}.just`));
-  for (const module of prepared) {
-    const target = join(modulesDirectory, `${module.name}.just`);
-    if (await exists(target)) {
-      const stat = await lstat(target);
-      if (stat.isSymbolicLink() || !stat.isFile()) {
-        throw new Error(`Refusing to replace '${target}': expected a regular file.`);
+  const obsolete: string[] = [];
+  const moduleModes = new Map<string, number>();
+  if (moduleDirectoryExists) {
+    for (const module of prepared) {
+      const target = join(modulesDirectory, `${module.name}.just`);
+      if (await exists(target)) {
+        const stat = await lstat(target);
+        if (stat.isSymbolicLink() || !stat.isFile()) {
+          throw new Error(`Refusing to replace '${target}': expected a regular file.`);
+        }
+        moduleModes.set(module.name, stat.mode & 0o777);
+      }
+    }
+    for (const entry of await readdir(modulesDirectory, { withFileTypes: true })) {
+      if (entry.isFile() && extname(entry.name) === ".just" && !shipped.has(entry.name)) {
+        obsolete.push(entry.name);
       }
     }
   }
-  for (const module of prepared) {
-    await writeFile(join(modulesDirectory, `${module.name}.just`), module.content);
-  }
-  for (const entry of await readdir(modulesDirectory, { withFileTypes: true })) {
-    if (entry.isFile() && extname(entry.name) === ".just" && !shipped.has(entry.name)) {
-      await rm(join(modulesDirectory, entry.name));
+
+  let stagingDirectory: string | undefined;
+  try {
+    stagingDirectory = await mkdtemp(join(projectDirectory, ".spindle-just-modules-"));
+    const stagedModulesDirectory = join(stagingDirectory, "modules");
+    await mkdir(stagedModulesDirectory);
+    for (const module of prepared) {
+      const stagedPath = join(stagedModulesDirectory, `${module.name}.just`);
+      await writeFile(stagedPath, module.content);
+      const mode = moduleModes.get(module.name);
+      if (mode !== undefined) await chmod(stagedPath, mode);
     }
+    const stagedJustfile = join(stagingDirectory, "justfile");
+    await writeFile(stagedJustfile, imports.content);
+    if (imports.mode !== undefined) await chmod(stagedJustfile, imports.mode);
+  } catch (error) {
+    if (typeof stagingDirectory !== "undefined") {
+      await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+    }
+    throw new Error(`Failed to stage Just Module changes: ${formatFilesystemError(error)}`, {
+      cause: error,
+    });
   }
-  await writeFile(imports.path, imports.content);
+
+  try {
+    if (!(await exists(modulesDirectory))) {
+      await mkdir(modulesDirectory, { recursive: true });
+    }
+    const directoryStat = await lstat(modulesDirectory);
+    if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+      throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
+    }
+
+    for (const module of prepared) {
+      const target = join(modulesDirectory, `${module.name}.just`);
+      if (await exists(target)) {
+        const stat = await lstat(target);
+        if (stat.isSymbolicLink() || !stat.isFile()) {
+          throw new Error(`Refusing to replace '${target}': expected a regular file.`);
+        }
+      }
+      await rename(join(stagingDirectory, "modules", `${module.name}.just`), target);
+    }
+    if (await exists(imports.path)) {
+      const stat = await lstat(imports.path);
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        throw new Error(`Refusing to replace '${imports.path}': expected a regular file.`);
+      }
+    }
+    await rename(join(stagingDirectory, "justfile"), imports.path);
+    for (const name of obsolete) {
+      await rm(join(modulesDirectory, name));
+    }
+  } catch (error) {
+    throw new Error(`Failed to apply staged Just Module changes: ${formatFilesystemError(error)}`, {
+      cause: error,
+    });
+  } finally {
+    await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+  }
   return prepared.map((module) => module.name);
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
-import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, cp, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
@@ -214,6 +214,193 @@ test("update cleans obsolete direct modules and reconciles imports deterministic
     await rm(project, { recursive: true, force: true });
   }
 });
+
+test("update reports staging failures without changing generated modules or the root justfile", async () => {
+  const blueprints = await makeTempDir("spindle-update-just-staging-blueprints-");
+  const project = await makeTempDir();
+  const installed = join(project, ".github/scripts/just-modules");
+  const justfile = "ready:\n  @echo keep\n";
+  try {
+    for (const [name, content] of [
+      ["alpha", "new alpha\n"],
+      ["beta", "new beta\n"],
+    ]) {
+      const source = join(blueprints, "just", name);
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), content);
+    }
+    await mkdir(installed, { recursive: true });
+    await writeFile(join(installed, "alpha.just"), "old alpha\n");
+    await writeFile(join(installed, "beta.just"), "old beta\n");
+    await writeFile(join(installed, "obsolete.just"), "obsolete\n");
+    await mkdir(join(project, ".github"), { recursive: true });
+    await writeFile(join(project, ".github/spindle.json"), JSON.stringify(goodConfig));
+    await writeFile(join(project, "justfile"), justfile);
+
+    await chmod(project, 0o555);
+    let result: CliResult;
+    try {
+      result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+        SPINDLE_BLUEPRINTS_DIR: blueprints,
+      });
+    } finally {
+      await chmod(project, 0o755);
+    }
+
+    assert.notEqual(result.status, 0, result.stderr);
+    assert.match(result.stderr, /Failed to stage Just Module changes/i);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "old alpha\n");
+    assert.equal(await readFile(join(installed, "beta.just"), "utf8"), "old beta\n");
+    assert.equal(await readFile(join(installed, "obsolete.just"), "utf8"), "obsolete\n");
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+  } finally {
+    await chmod(project, 0o755);
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("update renders every module before changing generated files or the root justfile", async () => {
+  const blueprints = await makeTempDir("spindle-update-just-render-blueprints-");
+  const project = await makeTempDir();
+  const installed = join(project, ".github/scripts/just-modules");
+  const justfile = "ready:\n  @echo keep\n";
+  try {
+    const alpha = join(blueprints, "just", "alpha");
+    const zeta = join(blueprints, "just", "zeta");
+    await mkdir(alpha, { recursive: true });
+    await mkdir(zeta, { recursive: true });
+    await writeFile(join(alpha, "JUSTMODULE.just"), "new alpha\n");
+    await writeFile(join(zeta, "JUSTMODULE.just"), "{{ variables.missing_value }}\n");
+    await mkdir(installed, { recursive: true });
+    await writeFile(join(installed, "alpha.just"), "old alpha\n");
+    await writeFile(join(installed, "zeta.just"), "old zeta\n");
+    await writeFile(join(installed, "obsolete.just"), "obsolete\n");
+    await mkdir(join(project, ".github"), { recursive: true });
+    await writeFile(join(project, ".github/spindle.json"), JSON.stringify(goodConfig));
+    await writeFile(join(project, "justfile"), justfile);
+
+    const result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+      SPINDLE_BLUEPRINTS_DIR: blueprints,
+    });
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /missing_value|undefined|null/i);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "old alpha\n");
+    assert.equal(await readFile(join(installed, "zeta.just"), "utf8"), "old zeta\n");
+    assert.equal(await readFile(join(installed, "obsolete.just"), "utf8"), "obsolete\n");
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+
+    await writeFile(join(zeta, "JUSTMODULE.just"), "{% unknownTag %}\n");
+    const templateError = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+      SPINDLE_BLUEPRINTS_DIR: blueprints,
+    });
+    assert.notEqual(templateError.status, 0);
+    assert.match(templateError.stderr, /unknown|template|tag/i);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "old alpha\n");
+    assert.equal(await readFile(join(installed, "zeta.just"), "utf8"), "old zeta\n");
+    assert.equal(await readFile(join(installed, "obsolete.just"), "utf8"), "obsolete\n");
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("update reports apply failures and can regenerate staged outputs on a later run", async () => {
+  const blueprints = await makeTempDir("spindle-update-just-apply-blueprints-");
+  const project = await makeTempDir();
+  const installed = join(project, ".github/scripts/just-modules");
+  const justfile = "ready:\n  @echo keep\n";
+  try {
+    for (const [name, content] of [
+      ["alpha", "new alpha\n"],
+      ["beta", "new beta\n"],
+    ]) {
+      const source = join(blueprints, "just", name);
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), content);
+    }
+    await mkdir(installed, { recursive: true });
+    await writeFile(join(installed, "alpha.just"), "old alpha\n");
+    await writeFile(join(installed, "beta.just"), "old beta\n");
+    await writeFile(join(installed, "obsolete.just"), "obsolete\n");
+    await mkdir(join(project, ".github"), { recursive: true });
+    await writeFile(join(project, ".github/spindle.json"), JSON.stringify(goodConfig));
+    await writeFile(join(project, "justfile"), justfile);
+
+    await chmod(installed, 0o555);
+    let failed: CliResult;
+    try {
+      failed = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+        SPINDLE_BLUEPRINTS_DIR: blueprints,
+      });
+    } finally {
+      await chmod(installed, 0o755);
+    }
+
+    assert.notEqual(failed.status, 0, failed.stderr);
+    assert.match(failed.stderr, /Failed to apply staged Just Module changes/i);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "old alpha\n");
+    assert.equal(await readFile(join(installed, "beta.just"), "utf8"), "old beta\n");
+    assert.equal(await readFile(join(installed, "obsolete.just"), "utf8"), "obsolete\n");
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+
+    const regenerated = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+      SPINDLE_BLUEPRINTS_DIR: blueprints,
+    });
+    assert.equal(regenerated.status, 0, regenerated.stderr);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "new alpha\n");
+    assert.equal(await readFile(join(installed, "beta.just"), "utf8"), "new beta\n");
+    await assert.rejects(readFile(join(installed, "obsolete.just")), { code: "ENOENT" });
+  } finally {
+    await chmod(installed, 0o755).catch(() => undefined);
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test(
+  "update refuses a symlinked root justfile without following or replacing it",
+  {
+    skip: process.platform === "win32",
+  },
+  async () => {
+    const blueprints = await makeTempDir("spindle-update-just-unsafe-blueprints-");
+    const project = await makeTempDir();
+    const outside = await makeTempDir("spindle-update-just-unsafe-outside-");
+    const installed = join(project, ".github/scripts/just-modules");
+    const rootJustfile = join(project, "justfile");
+    try {
+      const source = join(blueprints, "just", "quality");
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), "new generated content\n");
+      await mkdir(installed, { recursive: true });
+      await writeFile(join(installed, "quality.just"), "old generated content\n");
+      await mkdir(join(project, ".github"), { recursive: true });
+      await writeFile(join(project, ".github/spindle.json"), JSON.stringify(goodConfig));
+      await writeFile(join(outside, "justfile"), "default:\n  @echo keep\n");
+      await symlink(join(outside, "justfile"), rootJustfile);
+
+      const result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+        SPINDLE_BLUEPRINTS_DIR: blueprints,
+      });
+
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /Refusing to replace .*justfile.*regular file/i);
+      assert.equal((await lstat(rootJustfile)).isSymbolicLink(), true);
+      assert.equal(await readFile(join(outside, "justfile"), "utf8"), "default:\n  @echo keep\n");
+      assert.equal(
+        await readFile(join(installed, "quality.just"), "utf8"),
+        "old generated content\n",
+      );
+    } finally {
+      await rm(blueprints, { recursive: true, force: true });
+      await rm(project, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  },
+);
 
 test("update removes obsolete Just Modules and imports when the shipped catalog is empty", async () => {
   const blueprints = await makeTempDir("spindle-update-empty-just-blueprints-");

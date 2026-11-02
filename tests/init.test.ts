@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
@@ -306,12 +306,17 @@ test("init reports missing template Variables before changing managed module fil
   const blueprints = await makeTempDir("spindle-init-just-missing-variable-blueprints-");
   const project = await makeTempDir();
   try {
-    const source = join(blueprints, "just", "quality");
-    await mkdir(source, { recursive: true });
-    await writeFile(join(source, "JUSTMODULE.just"), "{{ variables.missing_value }}\n");
+    const validSource = join(blueprints, "just", "alpha");
+    const invalidSource = join(blueprints, "just", "zeta");
+    await mkdir(validSource, { recursive: true });
+    await mkdir(invalidSource, { recursive: true });
+    await writeFile(join(validSource, "JUSTMODULE.just"), "new generated content\n");
+    await writeFile(join(invalidSource, "JUSTMODULE.just"), "{{ variables.missing_value }}\n");
     const moduleOutput = join(project, ".github/scripts/just-modules");
     await mkdir(moduleOutput, { recursive: true });
-    await writeFile(join(moduleOutput, "quality.just"), "keep existing module\n");
+    await writeFile(join(moduleOutput, "alpha.just"), "keep existing alpha\n");
+    await writeFile(join(moduleOutput, "zeta.just"), "keep existing zeta\n");
+    await writeFile(join(moduleOutput, "obsolete.just"), "keep obsolete module\n");
     const justfile = "default:\n  @echo keep\n";
     await writeFile(join(project, "justfile"), justfile);
 
@@ -324,9 +329,11 @@ test("init reports missing template Variables before changing managed module fil
 
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /missing_value|undefined|null/i);
+    assert.equal(await readFile(join(moduleOutput, "alpha.just"), "utf8"), "keep existing alpha\n");
+    assert.equal(await readFile(join(moduleOutput, "zeta.just"), "utf8"), "keep existing zeta\n");
     assert.equal(
-      await readFile(join(moduleOutput, "quality.just"), "utf8"),
-      "keep existing module\n",
+      await readFile(join(moduleOutput, "obsolete.just"), "utf8"),
+      "keep obsolete module\n",
     );
     assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
     await assert.rejects(readFile(join(project, ".github/spindle.json")));
@@ -335,6 +342,186 @@ test("init reports missing template Variables before changing managed module fil
     await rm(project, { recursive: true, force: true });
   }
 });
+
+test("init reports staging failures without changing generated modules or the root justfile", async () => {
+  const blueprints = await makeTempDir("spindle-init-just-staging-blueprints-");
+  const project = await makeTempDir();
+  const installed = join(project, ".github/scripts/just-modules");
+  const justfile = "ready:\n  @echo keep\n";
+  try {
+    for (const [name, content] of [
+      ["alpha", "new alpha\n"],
+      ["beta", "new beta\n"],
+    ]) {
+      const source = join(blueprints, "just", name);
+      await mkdir(source, { recursive: true });
+      await writeFile(join(source, "JUSTMODULE.just"), content);
+    }
+    await mkdir(installed, { recursive: true });
+    await writeFile(join(installed, "alpha.just"), "old alpha\n");
+    await writeFile(join(installed, "beta.just"), "old beta\n");
+    await writeFile(join(installed, "obsolete.just"), "obsolete\n");
+    await writeFile(join(project, "justfile"), justfile);
+
+    await chmod(project, 0o555);
+    let result: ReturnType<typeof runCli>;
+    try {
+      result = runCli(
+        project,
+        ["init", "--stack", "python", "--no-interactive"],
+        pathWith(justDirectory),
+        { SPINDLE_BLUEPRINTS_DIR: blueprints },
+      );
+    } finally {
+      await chmod(project, 0o755);
+    }
+
+    assert.notEqual(result.status, 0, result.stderr);
+    assert.match(result.stderr, /Failed to stage Just Module changes/i);
+    assert.equal(await readFile(join(installed, "alpha.just"), "utf8"), "old alpha\n");
+    assert.equal(await readFile(join(installed, "beta.just"), "utf8"), "old beta\n");
+    assert.equal(await readFile(join(installed, "obsolete.just"), "utf8"), "obsolete\n");
+    assert.equal(await readFile(join(project, "justfile"), "utf8"), justfile);
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+  } finally {
+    await chmod(project, 0o755);
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test(
+  "init refuses unsafe Just Module filesystem targets without following or replacing them",
+  { skip: process.platform === "win32" },
+  async () => {
+    const cases = [
+      "root justfile symlink",
+      "root justfile directory",
+      "module directory symlink",
+      "module directory file",
+      "generated module symlink",
+      "generated module directory",
+    ] as const;
+
+    for (const unsafeTarget of cases) {
+      const blueprints = await makeTempDir("spindle-init-just-unsafe-blueprints-");
+      const project = await makeTempDir();
+      const outside = await makeTempDir("spindle-init-just-unsafe-outside-");
+      const modules = join(project, ".github/scripts/just-modules");
+      const rootJustfile = join(project, "justfile");
+      const rootContent = "ready:\n  @echo keep\n";
+      try {
+        const source = join(blueprints, "just", "quality");
+        await mkdir(source, { recursive: true });
+        await writeFile(join(source, "JUSTMODULE.just"), "new generated content\n");
+        await mkdir(join(project, ".github/scripts"), { recursive: true });
+
+        if (
+          unsafeTarget !== "root justfile symlink" &&
+          unsafeTarget !== "root justfile directory"
+        ) {
+          await writeFile(rootJustfile, rootContent);
+        }
+        if (
+          unsafeTarget !== "module directory symlink" &&
+          unsafeTarget !== "module directory file"
+        ) {
+          await mkdir(modules, { recursive: true });
+        }
+        if (
+          unsafeTarget !== "generated module symlink" &&
+          unsafeTarget !== "generated module directory" &&
+          unsafeTarget !== "module directory symlink" &&
+          unsafeTarget !== "module directory file"
+        ) {
+          await writeFile(join(modules, "quality.just"), "old generated content\n");
+        }
+
+        switch (unsafeTarget) {
+          case "root justfile symlink":
+            await writeFile(join(outside, "justfile"), rootContent);
+            await symlink(join(outside, "justfile"), rootJustfile);
+            break;
+          case "root justfile directory":
+            await mkdir(rootJustfile);
+            await writeFile(join(rootJustfile, "sentinel"), "keep\n");
+            break;
+          case "module directory symlink":
+            await mkdir(outside, { recursive: true });
+            await writeFile(join(outside, "sentinel"), "keep\n");
+            await symlink(outside, modules, "dir");
+            break;
+          case "module directory file":
+            await writeFile(modules, "keep module directory path\n");
+            break;
+          case "generated module symlink":
+            await writeFile(join(outside, "module.just"), "keep external target\n");
+            await symlink(join(outside, "module.just"), join(modules, "quality.just"));
+            break;
+          case "generated module directory":
+            await mkdir(join(modules, "quality.just"));
+            await writeFile(join(modules, "quality.just", "sentinel"), "keep\n");
+            break;
+        }
+
+        const result = runCli(
+          project,
+          ["init", "--stack", "python", "--no-interactive"],
+          pathWith(justDirectory),
+          { SPINDLE_BLUEPRINTS_DIR: blueprints },
+        );
+        assert.notEqual(result.status, 0, `${unsafeTarget}: ${result.stderr}`);
+        assert.match(result.stderr, /Refusing to (?:replace|use)/i);
+
+        switch (unsafeTarget) {
+          case "root justfile symlink":
+            assert.equal((await lstat(rootJustfile)).isSymbolicLink(), true);
+            assert.equal(await readFile(join(outside, "justfile"), "utf8"), rootContent);
+            assert.equal(
+              await readFile(join(modules, "quality.just"), "utf8"),
+              "old generated content\n",
+            );
+            break;
+          case "root justfile directory":
+            assert.equal(await readFile(join(rootJustfile, "sentinel"), "utf8"), "keep\n");
+            assert.equal(
+              await readFile(join(modules, "quality.just"), "utf8"),
+              "old generated content\n",
+            );
+            break;
+          case "module directory symlink":
+            assert.equal((await lstat(modules)).isSymbolicLink(), true);
+            assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep\n");
+            assert.equal(await readFile(rootJustfile, "utf8"), rootContent);
+            break;
+          case "module directory file":
+            assert.equal(await readFile(modules, "utf8"), "keep module directory path\n");
+            assert.equal(await readFile(rootJustfile, "utf8"), rootContent);
+            break;
+          case "generated module symlink":
+            assert.equal((await lstat(join(modules, "quality.just"))).isSymbolicLink(), true);
+            assert.equal(
+              await readFile(join(outside, "module.just"), "utf8"),
+              "keep external target\n",
+            );
+            assert.equal(await readFile(rootJustfile, "utf8"), rootContent);
+            break;
+          case "generated module directory":
+            assert.equal(
+              await readFile(join(modules, "quality.just", "sentinel"), "utf8"),
+              "keep\n",
+            );
+            assert.equal(await readFile(rootJustfile, "utf8"), rootContent);
+            break;
+        }
+      } finally {
+        await rm(blueprints, { recursive: true, force: true });
+        await rm(project, { recursive: true, force: true });
+        await rm(outside, { recursive: true, force: true });
+      }
+    }
+  },
+);
 
 test(
   "init uses an interactively prompted Variable when rendering Just Modules",
