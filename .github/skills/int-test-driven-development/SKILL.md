@@ -1,10 +1,10 @@
 ---
 name: int-test-driven-development
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 # Test-Driven Development
@@ -24,9 +24,9 @@ A **seam** is the public boundary where a test observes behavior. Reuse user-con
 ```mermaid
 flowchart TD
     A{Observable behavior changes?}
-    A -- Yes --> B[RED: verify intended test failure]
-    B --> C[Implement minimally; verify GREEN]
-    C --> D{More behaviors?}
+    A -- Yes --> B[RED: verify intended failures for slice tests together]
+    B --> C[Implement slice; verify GREEN together]
+    C --> D{More behavior slices?}
     D -- Yes --> B
     D -- No --> E[Handoff]
     A -- No: pure refactor --> F[Start from passing relevant tests]
@@ -36,12 +36,16 @@ flowchart TD
 
 ### Behavior change: one slice at a time
 
-1. **Write one focused test** for one behavior at the agreed seam.
-2. **Verify RED.** Run it and confirm an intended behavioral failure. Repair setup errors before evaluating RED. If it passes, investigate existing behavior or an insensitive test; never delete working code to manufacture failure.
-3. **Implement minimally.** Change only what satisfies that behavior.
-4. **Verify GREEN.** Rerun the focused test; correct failures before the next slice.
+A **behavior slice** is one cohesive observable outcome at the agreed seam, including its closely related cases and edge conditions. Group criteria that describe that outcome; acceptance bullets, assertions, and individual test cases do not each require a separate cycle. Keep independent outcomes in separate slices, even when they share files.
 
-**Complete when:** each requested behavior has coverage and relevant tests pass on the final implementation. Write tests and implementation in vertical slices, not all ticket tests followed by all code.
+1. **Write focused tests for the slice together.** Cover its relevant cases before changing implementation; one test is sufficient when it covers the slice.
+2. **Verify RED together.** Run the slice tests in one focused invocation that executes every selected case. Confirm each test requiring changed behavior fails for its intended behavioral reason; existing passing coverage may remain green. Repair setup errors and investigate unexpected passes before proceeding; never delete working code to manufacture failure.
+3. **Implement the slice.** Make the coherent set of changes needed to satisfy its tests before running GREEN, rather than testing after each edit.
+4. **Verify GREEN together.** Rerun the slice tests together, including relevant existing regression coverage. Correct failures and rerun affected tests before the next slice.
+
+Use one RED and one GREEN invocation per slice when they provide the required evidence; additional runs serve failure diagnosis or changed coverage, not individual assertions or edits. A ticket may use a single cycle when it is one cohesive slice.
+
+**Complete when:** each requested behavior has coverage and relevant tests pass on the final implementation. Work in vertical slices rather than batching independent ticket behaviors into one test-writing and implementation phase.
 
 ### Pure refactor: preserve behavior
 

@@ -1,10 +1,10 @@
 ---
 name: int-subagent-driven-dev
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.1.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 # Subagent-Driven Development
@@ -97,20 +97,12 @@ flowchart TD
 
 Dispatch code review, code-slop review, and task review in parallel against the same frozen snapshot and verification evidence using the assigned agents above. Give each reviewer a distinct report path and the prior findings and rulings available at dispatch. For same-batch review reports that do not yet exist, explicitly state `NONE — parallel review pending`; no reviewer waits for another reviewer's output. Wait for all three reports, reconcile findings and controller rulings, and only then evaluate acceptance or dispatch fixes. A failed or unavailable review blocks the gate; it does not permit edits while other reviewers are still running. For full-spec delivery, run aggregate code and code-slop reviews in parallel with the same snapshot, separate reports, and wait-for-all barrier.
 
-Preflight: read tickets/comments, spec, instructions, glossary, and ADRs; map criteria to observable outcomes and confirm seams; ensure the graph is acyclic and dependencies integrated; preserve checkout; confirm baseline, permissions, tracker, and dated `.scratch` reports.
-
-## Resolve report destinations
-
-Resolve each worker's durable report destinations directly through Spindle:
+Preflight: read tickets/comments, spec, instructions, glossary, and ADRs; map criteria to observable outcomes and confirm seams; ensure the graph is acyclic and dependencies integrated; preserve checkout; confirm baseline, permissions, tracker, and dated `.scratch` reports. For example:
 
 ```sh
-spindle sdd workspace --workspace /absolute/checkout \
+just sdd::workspace --workspace /absolute/checkout \
   --reports-dir .scratch/YYYY-MM-DD-feature/reports --ticket 03
 ```
-
-Add `--round <R>` for a corrective review. The JSON result provides the checkout, reports directory, and absolute and checkout-relative destinations for implementation, code review, task review, optional scoped review, final review, and final fix review. This command is read-only: it does not create directories or reports, overwrite existing report contents, or change Git state. Preserve report history and coordinate shared-file edits when writing to the resolved paths.
-
-Spindle workflow commands are invoked directly, not through Just wrappers. The CLI retains its global Just prerequisite, including for help, so `just` must be installed and on `PATH`.
 
 Missing or stale checks block acceptance. Integrate only when verification and review match the snapshot. Cap corrective dispatches at five per ticket across reviews; persist each round and never dispatch round six. Full-spec delivery allows one final-fix dispatch and scoped re-review.
 
