@@ -5,8 +5,11 @@ A CLI that scaffolds and maintains a project's `.github` directory from Blueprin
 ## Language
 
 **Blueprint**:
-A definition for a kind of spindle-managed content, such as a Skill, Instruction, or Agent. A Blueprint may include guidance tailored to one or more Stacks.
+A definition for a kind of spindle-managed content, such as a Skill, Instruction, Agent, or Just Module. A Blueprint may include guidance tailored to one or more Stacks.
 _Avoid_: Stub
+
+**Just Module**:
+A file of Just recipes imported by a project's root `justfile`.
 
 **Skill**:
 A rendered directory under `.github/skills/` in the user's repo, led by a `SKILL.md` that carries a `version`.
