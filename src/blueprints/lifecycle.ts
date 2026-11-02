@@ -323,12 +323,17 @@ export async function reconcileBlueprints(
   for (const handler of handlers) {
     const sourceDirectory = handler.sourceDirectory();
     const blueprintNames = await listBlueprints(sourceDirectory);
-    if (blueprintNames.length === 0) continue;
+    if (
+      blueprintNames.length === 0 &&
+      (options.mode !== "update" ||
+        handler.initialize === undefined ||
+        !(await exists(sourceDirectory)))
+    ) {
+      continue;
+    }
     if (handler.initialize !== undefined) {
-      if (options.mode === "init") {
-        hasBlueprints = true;
-        initializers.push(handler);
-      }
+      hasBlueprints = true;
+      initializers.push(handler);
       continue;
     }
     hasBlueprints = true;
@@ -367,9 +372,10 @@ export async function reconcileBlueprints(
     plans.push(await planReconciliation(handler, options, names, files, resolveContext));
   }
   const installing = plans.find((plan) => plan.willInstall);
-  const context = installing ? await resolveContext() : options.context;
-  if (installing && !context) {
-    throw new Error(`Cannot install ${installing.handler.kind}s without resolved Variables.`);
+  const needsContext = installing !== undefined || initializers.length > 0;
+  const context = needsContext ? await resolveContext() : options.context;
+  if (needsContext && !context) {
+    throw new Error("Cannot install Blueprints without resolved Variables.");
   }
   for (const plan of plans) {
     const targetPath = (name: string) =>

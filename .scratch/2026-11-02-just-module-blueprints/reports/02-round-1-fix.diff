@@ -1,0 +1,66 @@
+--- src/blueprints/lifecycle.ts
++++ src/blueprints/lifecycle.ts
+@@
+-    if (blueprintNames.length === 0) continue;
++    if (
++      blueprintNames.length === 0 &&
++      (options.mode !== "update" ||
++        handler.initialize === undefined ||
++        !(await exists(sourceDirectory)))
++    ) {
++      continue;
++    }
++
+--- tests/update.test.ts
++++ tests/update.test.ts
+@@
++test("update removes obsolete Just Modules and imports when the shipped catalog is empty", async () => {
++  const blueprints = await makeTempDir("spindle-update-empty-just-blueprints-");
++  const project = await makeTempDir();
++  const installed = join(project, ".github/scripts/just-modules");
++  const unrelatedJustfile = [
++    "# User-owned header",
++    "mod local '.github/other.just'",
++    "",
++    "ready:",
++    "  @echo ready",
++  ].join("\r\n");
++  try {
++    await mkdir(join(blueprints, "just"));
++    await mkdir(join(installed, "nested"), { recursive: true });
++    await writeFile(join(installed, "retired.just"), "obsolete\n");
++    await writeFile(join(installed, "old.just"), "also obsolete\n");
++    await writeFile(join(installed, "notes.txt"), "preserve non-module file\n");
++    await writeFile(join(installed, "nested", "retired.just"), "preserve nested file\n");
++    await writeFile(join(project, ".github/spindle.json"), JSON.stringify(goodConfig));
++    await writeFile(
++      join(project, "justfile"),
++      [
++        "mod retired '.github/scripts/just-modules/retired.just'",
++        "mod old '.github/scripts/just-modules/old.just'",
++        unrelatedJustfile,
++      ].join("\r\n"),
++    );
++
++    const result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
++      SPINDLE_BLUEPRINTS_DIR: blueprints,
++    });
++
++    assert.equal(result.status, 0, result.stderr);
++    await assert.rejects(readFile(join(installed, "retired.just")), { code: "ENOENT" });
++    await assert.rejects(readFile(join(installed, "old.just")), { code: "ENOENT" });
++    assert.equal(await readFile(join(project, "justfile"), "utf8"), unrelatedJustfile);
++    assert.equal(
++      await readFile(join(installed, "notes.txt"), "utf8"),
++      "preserve non-module file\n",
++    );
++    assert.equal(
++      await readFile(join(installed, "nested", "retired.just"), "utf8"),
++      "preserve nested file\n",
++    );
++  } finally {
++    await rm(blueprints, { recursive: true, force: true });
++    await rm(project, { recursive: true, force: true });
++  }
++});
++
