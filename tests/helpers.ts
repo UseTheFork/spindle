@@ -6,7 +6,7 @@ const cli = resolve(process.cwd(), "src/index.ts");
 const tsxLoader = import.meta.resolve("tsx");
 
 export async function makeTempDir(prefix = "spindle-cli-") {
-  const parent = join(process.cwd(), ".scratch");
+  const parent = join(process.cwd(), "tests", ".generated");
   await mkdir(parent, { recursive: true });
   return mkdtemp(join(parent, prefix));
 }
