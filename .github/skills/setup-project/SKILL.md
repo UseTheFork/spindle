@@ -2,7 +2,7 @@
 name: setup-project
 meta:
   spindle:
-    version: 1.0.0
+    version: 1.1.0
 description: "Use when configuring a project's local Markdown issues, triage-role mapping, domain documentation, or Just-based agent tooling instructions."
 disable-model-invocation: false
 user-invocable: true
@@ -10,7 +10,7 @@ user-invocable: true
 
 # Setup Project
 
-Configure the repository conventions that its engineering skills assume. The issue tracker is always local Markdown under `.scratch/`, and `triage` and Just are always installed. Project commands are proxied through Just, which selects their working directories.
+Configure the repository conventions that its engineering skills assume. The issue tracker is always local Markdown under `.scratch/`, and `triage` and Just are always installed. Build, test, lint, and formatting commands are proxied through Just; invoke Spindle workflow commands directly through the CLI.
 
 Always configure the Markdown issue-tracker instructions, both category-role values, and the five triage-state mappings. For local Markdown, `Category:` records `bug` or `enhancement`, `Status:` records the triage state, and `Execution:` remains delivery progress.
 
@@ -18,13 +18,13 @@ Always configure the Markdown issue-tracker instructions, both category-role val
 
 ### 1. Bootstrap
 
-First run the non-destructive setup script against the absolute project root:
+First run the non-destructive Spindle setup command against the absolute project root:
 
 ```sh
-just setup-project::setup-project --workspace /absolute/project/root
+spindle setup-project --workspace /absolute/project/root
 ```
 
-The script creates `docs/adr/`, `.scratch/`, and `docs/agents/`, then copies missing defaults from `templates/`: `domain.md` to `docs/agents/domain.md`, `issue-tracker-local.md` to `docs/agents/issue-tracker.md`, `triage-labels.md` to `docs/agents/triage-labels.md`, and `tooling.md` to `docs/agents/tooling.md`. Existing regular files are preserved unchanged; symlinked destinations and file/directory conflicts fail explicitly. It neither creates glossary content nor edits Copilot instructions.
+The Spindle CLI creates `docs/adr/`, `.scratch/`, and `docs/agents/`, then supplies its bundled defaults for `docs/agents/domain.md`, `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and `docs/agents/tooling.md`. Existing regular files are preserved unchanged; symlinked destinations and file/directory conflicts fail explicitly. It neither creates glossary content nor edits Copilot instructions.
 
 Read the JSON `workspace`, `created`, and `preserved` fields. On a nonzero exit, report the error and stop; partial setup may remain, so resolve the conflict and rerun safely.
 
@@ -52,9 +52,9 @@ Lead each question with the recommended answer so the user can accept it in a wo
 
 **Section A: Issue tracker (fixed convention).**
 
-Always record local Markdown tracking under `.scratch/YYYY-MM-DD-<feature-slug>/` in `docs/agents/issue-tracker.md`, using [issue-tracker-local.md](./templates/issue-tracker-local.md). Include the creation-date and stable-directory rules from that template, and use the dated path format in the `### Issue tracker` navigation summary. A GitHub or GitLab remote does not change this convention.
+Always record local Markdown tracking under `.scratch/YYYY-MM-DD-<feature-slug>/` in `docs/agents/issue-tracker.md`. Use the Spindle-provided default as a starting point, include the creation-date and stable-directory rules, and use the dated path format in the `### Issue tracker` navigation summary. A GitHub or GitLab remote does not change this convention.
 
-**Section B: Triage-role mappings.** `triage` is always installed, so always configure both category roles and all five state roles in `docs/agents/triage-labels.md`, using [triage-labels.md](./templates/triage-labels.md). For the local Markdown tracker, map categories to `Category:` values and states to `Status:` values.
+**Section B: Triage-role mappings.** `triage` is always installed, so always configure both category roles and all five state roles in `docs/agents/triage-labels.md`, using the Spindle-provided default as a starting point. For the local Markdown tracker, map categories to `Category:` values and states to `Status:` values.
 
 Ask exactly one question:
 
@@ -66,7 +66,7 @@ The five default state labels are the state roles, each label string equal to it
 
 Offer **multi-context** (a root `GLOSSARY-MAP.md` pointing to per-context `GLOSSARY.md` files) only when exploration found monorepo signals. Then confirm which layout they want.
 
-**Section D: Project tooling (discovered configuration).** Use [tooling.md](./templates/tooling.md) as the starting structure for `docs/agents/tooling.md`. Keep the mandatory Just policy and the Linting, Formatting, Type checking, Tooling and Testing sections. Retain only available, verified recipes; add other relevant public project commands to the appropriate section using their actual qualified names and argument syntax. Describe `*args` as forwarded arguments, not literal input. Mark a section with no available recipe explicitly rather than inventing a command. Include focused/suite examples only when the configured runner supports the flags and those suites exist; adapt non-Pest selectors. Optional modules absent from the project do not make their commands available. Preserve existing project-specific tooling guidance and reconcile differences in the draft rather than replacing it with defaults.
+**Section D: Project tooling (discovered configuration).** Use the Spindle-provided default as a starting structure for `docs/agents/tooling.md`. Keep the mandatory Just policy and the Linting, Formatting, Type checking, Tooling and Testing sections. Retain only available, verified recipes; add other relevant public project commands to the appropriate section using their actual qualified names and argument syntax. Describe `*args` as forwarded arguments, not literal input. Mark a section with no available recipe explicitly rather than inventing a command. Include focused/suite examples only when the configured runner supports the flags and those suites exist; adapt non-Pest selectors. Optional modules absent from the project do not make their commands available. Preserve existing project-specific tooling guidance and reconcile differences in the draft rather than replacing it with defaults.
 
 ### 4. Confirm and edit
 
@@ -119,12 +119,7 @@ You MUST use the JUST commands over the regular commands. Before running project
 
 Update an existing tooling section in place; after approval, move its command details into `docs/agents/tooling.md` without losing custom guidance. Keep one authoritative command list and one pointer, preserving unrelated instructions.
 
-Update the bootstrapped docs with the approved configuration, preserving existing project-specific content. The seed templates live under `templates/`:
-
-- [issue-tracker-local.md](./templates/issue-tracker-local.md): local-markdown issue tracker
-- [triage-labels.md](./templates/triage-labels.md): mapping for all five triage roles
-- [domain.md](./templates/domain.md): domain doc consumer rules + layout
-- [tooling.md](./templates/tooling.md): Just command policy and section structure, tailored to the discovered project recipes
+Update the bootstrapped docs with the approved configuration, preserving existing project-specific content. Spindle supplies the default issue-tracker, triage-label, domain, and tooling documentation through its CLI; those defaults are not package-internal Skill assets.
 
 ### 6. Verify and finish
 

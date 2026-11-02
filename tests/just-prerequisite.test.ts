@@ -13,6 +13,8 @@ const cases: [string, string[]][] = [
   ["SDD command", ["sdd", "workspace"]],
   ["SDD help", ["sdd", "--help"]],
   ["SDD workspace help", ["sdd", "workspace", "--help"]],
+  ["setup-project command", ["setup-project", "--workspace", "/tmp/project"]],
+  ["setup-project help", ["setup-project", "--help"]],
   ["top-level help", ["--help"]],
 ];
 

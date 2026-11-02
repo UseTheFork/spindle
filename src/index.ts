@@ -16,6 +16,7 @@ import {
   type ConflictPolicy,
 } from "./install.js";
 import { promptConflict, promptStacks, promptVariable } from "./prompts.js";
+import { setupProject } from "./setup-project/setup.js";
 import { resolveWorkspace } from "./subagent-driven-dev/workspace.js";
 import { update } from "./update.js";
 import { loadVariableDefinitions, parseVariableFlags } from "./variables.js";
@@ -103,7 +104,7 @@ ${chalk.bold("Options:")}
 
 Fails if .github/spindle.json already exists; use \`spindle update\` instead.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`).
+Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`), setup-project (see \`spindle setup-project --help\`).
 `;
 
 const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
@@ -145,6 +146,15 @@ ${chalk.bold("Options:")}
   --ticket <id>            Positive ticket identifier, for example 03
   --round <number>         Optional positive review round
   --help                   Show this help
+`;
+
+const setupProjectHelpText = `${chalk.bold("Usage:")} spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT
+
+Create the project documentation directories and missing Spindle defaults without overwriting existing files.
+
+${chalk.bold("Options:")}
+  --workspace <path>  Existing absolute project directory (Git and Spindle initialization are not required)
+  --help              Show this help
 `;
 
 function runSdd(args: string[]) {
@@ -205,12 +215,60 @@ function runSdd(args: string[]) {
   console.log(JSON.stringify(resolution, null, 2));
 }
 
+function runSetupProject(args: string[]) {
+  if (args.length === 1 && args[0] === "--help") {
+    console.log(setupProjectHelpText);
+    return;
+  }
+
+  const optionNames = new Set(["--workspace", "--help"]);
+  const seenOptions = new Set<string>();
+  for (const argument of args) {
+    const option = argument.split("=", 1)[0];
+    if (!optionNames.has(option)) continue;
+    if (seenOptions.has(option)) {
+      throw new Error(`Option '${option}' may only be provided once.`);
+    }
+    seenOptions.add(option);
+  }
+
+  const { values, positionals } = parseArgs({
+    args,
+    options: {
+      workspace: { type: "string" },
+      help: { type: "boolean" },
+    },
+    allowPositionals: true,
+    strict: true,
+  });
+
+  if (values.help) {
+    if (args.length !== 1 || positionals.length) {
+      throw new Error("`--help` must be used alone for `spindle setup-project`.");
+    }
+    console.log(setupProjectHelpText);
+    return;
+  }
+  if (positionals.length) {
+    throw new Error("`spindle setup-project` does not accept positional arguments.");
+  }
+  if (!values.workspace) {
+    throw new Error("Usage: spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT.");
+  }
+
+  console.log(JSON.stringify(setupProject({ workspacePath: values.workspace }), null, 2));
+}
+
 async function main() {
   await requireJust();
 
   const args = process.argv.slice(2);
   if (args[0] === "sdd") {
     runSdd(args.slice(1));
+    return;
+  }
+  if (args[0] === "setup-project") {
+    runSetupProject(args.slice(1));
     return;
   }
 

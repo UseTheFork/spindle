@@ -3,6 +3,7 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: integrated
 
 **What to build:** Allow project owners to run `spindle setup-project` against
 an existing absolute project directory, preserving customization and receiving
