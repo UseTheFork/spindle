@@ -16,6 +16,7 @@ import {
   type ConflictPolicy,
 } from "./install.js";
 import { promptConflict, promptStacks, promptVariable } from "./prompts.js";
+import { resolveWorkspace } from "./subagent-driven-dev/workspace.js";
 import { update } from "./update.js";
 import { loadVariableDefinitions, parseVariableFlags } from "./variables.js";
 
@@ -102,7 +103,7 @@ ${chalk.bold("Options:")}
 
 Fails if .github/spindle.json already exists; use \`spindle update\` instead.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`).
+Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`).
 `;
 
 const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
@@ -124,11 +125,97 @@ Requires .github/spindle.json; run \`spindle init\` first.
 Installed Blueprints with a missing or non-semver version are skipped with a warning.
 `;
 
+const sddHelpText = `${chalk.bold("Usage:")} spindle sdd <command>
+
+Subagent-driven development workflow commands.
+
+${chalk.bold("Commands:")}
+  workspace             Resolve durable report destinations
+
+Run \`spindle sdd workspace --help\` for workspace options.
+`;
+
+const sddWorkspaceHelpText = `${chalk.bold("Usage:")} spindle sdd workspace --workspace CHECKOUT_ROOT --reports-dir .scratch/FEATURE/reports --ticket NN [--round R]
+
+Resolve durable report destinations in an existing Git checkout. This command does not create files or modify the checkout.
+
+${chalk.bold("Options:")}
+  --workspace <path>       Absolute Git checkout root
+  --reports-dir <path>     Report directory inside .scratch
+  --ticket <id>            Positive ticket identifier, for example 03
+  --round <number>         Optional positive review round
+  --help                   Show this help
+`;
+
+function runSdd(args: string[]) {
+  if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
+    console.log(sddHelpText);
+    return;
+  }
+  if (args[0] !== "workspace") {
+    throw new Error("Usage: spindle sdd workspace [options]. See `spindle sdd --help`.");
+  }
+
+  const optionNames = new Set(["--workspace", "--reports-dir", "--ticket", "--round", "--help"]);
+  const seenOptions = new Set<string>();
+  for (const argument of args.slice(1)) {
+    const option = argument.split("=", 1)[0];
+    if (!optionNames.has(option)) continue;
+    if (seenOptions.has(option)) {
+      throw new Error(`Option '${option}' may only be provided once.`);
+    }
+    seenOptions.add(option);
+  }
+
+  const { values, positionals } = parseArgs({
+    args: args.slice(1),
+    options: {
+      workspace: { type: "string" },
+      "reports-dir": { type: "string" },
+      ticket: { type: "string" },
+      round: { type: "string" },
+      help: { type: "boolean" },
+    },
+    allowPositionals: true,
+    strict: true,
+  });
+
+  if (values.help) {
+    if (positionals.length || args.length !== 2) {
+      throw new Error("`--help` must be used alone for `spindle sdd workspace`.");
+    }
+    console.log(sddWorkspaceHelpText);
+    return;
+  }
+  if (positionals.length) {
+    throw new Error("`spindle sdd workspace` does not accept positional arguments.");
+  }
+  if (!values.workspace || !values["reports-dir"] || !values.ticket) {
+    throw new Error(
+      "Usage: spindle sdd workspace --workspace CHECKOUT_ROOT --reports-dir .scratch/FEATURE/reports --ticket NN [--round R].",
+    );
+  }
+
+  const resolution = resolveWorkspace({
+    workspacePath: values.workspace,
+    reportsDirectory: values["reports-dir"],
+    ticket: values.ticket,
+    round: values.round,
+  });
+  console.log(JSON.stringify(resolution, null, 2));
+}
+
 async function main() {
   await requireJust();
 
+  const args = process.argv.slice(2);
+  if (args[0] === "sdd") {
+    runSdd(args.slice(1));
+    return;
+  }
+
   const { positionals, values } = parseArgs({
-    args: process.argv.slice(2),
+    args,
     options: {
       stack: { type: "string", multiple: true },
       var: { type: "string", multiple: true },

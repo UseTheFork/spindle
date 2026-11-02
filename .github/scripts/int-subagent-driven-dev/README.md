@@ -1,12 +1,10 @@
-# SDD helper
+# SDD workspace resolver
 
-`sdd::workspace` resolves durable report filenames in the current checkout's `.scratch` directory. It does not create files, change the checkout, or write reports.
+This helper documentation is now part of the active [SDD Skill](../../skills/int-subagent-driven-dev/SKILL.md), under "Resolve report destinations". The CLI entry point is:
 
 ```sh
-just sdd::workspace --workspace /absolute/checkout \
+spindle sdd workspace --workspace /absolute/checkout \
   --reports-dir .scratch/2026-10-23-feature/reports --ticket 03 [--round 2]
 ```
 
-The JSON output contains the checkout path, reports directory, and absolute and repository-relative paths for implementation, code review, task review, optional scoped review, final review, and final fix review. Assigned agents may save reports directly at these paths, preserving prior history and coordinating shared-file edits.
-
-Use `just sdd::test-workspace` to test the path resolver with disposable Git repositories.
+The resolver is read-only and returns checkout-relative and absolute destinations for the report kinds listed in the Skill. Invoke it directly rather than using a Just wrapper.

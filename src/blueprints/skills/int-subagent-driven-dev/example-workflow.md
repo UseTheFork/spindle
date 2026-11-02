@@ -13,7 +13,7 @@ On resume, restore the ledger, snapshot, checks, findings, rulings, and round co
 The controller resolves report destinations, assigning a separate path to each worker:
 
 ```sh
-just sdd::workspace --workspace /repo \
+spindle sdd workspace --workspace /repo \
   --reports-dir .scratch/2026-10-23-dataset-foundation/reports --ticket 01
 ```
 

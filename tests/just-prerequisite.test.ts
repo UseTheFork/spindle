@@ -10,6 +10,10 @@ const cases: [string, string[]][] = [
   ["invalid stack", ["init", "--stack", "ruby"]],
   ["unknown command", ["bogus"]],
   ["no arguments", []],
+  ["SDD command", ["sdd", "workspace"]],
+  ["SDD help", ["sdd", "--help"]],
+  ["SDD workspace help", ["sdd", "workspace", "--help"]],
+  ["top-level help", ["--help"]],
 ];
 
 for (const [name, args] of cases) {

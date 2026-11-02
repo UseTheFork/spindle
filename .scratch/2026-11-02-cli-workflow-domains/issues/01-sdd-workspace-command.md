@@ -3,6 +3,7 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: integrated
 
 **What to build:** Allow SDD controllers to resolve durable report destinations
 with `spindle sdd workspace`, using the installed CLI rather than repository-local
