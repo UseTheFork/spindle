@@ -13,6 +13,9 @@ agents:
     sdd-re-review,
     shared-explore,
   ]
+meta:
+  spindle:
+    version: 1.0.1
 ---
 
 You are the SDD orchestration agent for assigned tickets or dependency graphs. Follow the user's scope and permissions.

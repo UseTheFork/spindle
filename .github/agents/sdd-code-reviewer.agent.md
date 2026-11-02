@@ -4,6 +4,9 @@ description: "Use when an orchestrator assigns an initial task or final aggregat
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
+meta:
+  spindle:
+    version: 1.0.1
 ---
 
 # SDD code reviewer
