@@ -1,5 +1,5 @@
 import type { RenderContext } from "../render.js";
-import type { CatalogKind, CatalogSelection } from "./catalog.js";
+import type { CatalogDeletion, CatalogKind, CatalogSelection } from "./catalog.js";
 
 export interface BlueprintUpdateInput {
   name: string;
@@ -32,7 +32,8 @@ export interface BlueprintHandler {
     githubDirectory: string,
     context: RenderContext,
     selections: CatalogSelection[],
-  ): Promise<string[]>;
+    deletions: CatalogDeletion[],
+  ): Promise<{ installed: string[]; removed: string[] }>;
   fileTarget?: boolean;
   entryFile?: string;
   targetPath?(destinationDirectory: string, name: string): string;

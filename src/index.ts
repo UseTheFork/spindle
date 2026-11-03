@@ -68,6 +68,9 @@ async function init(
     conflictPolicy: policy,
     chooseConflict: interactive ? promptConflict : undefined,
   });
+  for (const outcome of outcomes.filter((item) => item.status === "removed")) {
+    console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
+  }
   const kinds = [...new Set(outcomes.map((outcome) => outcome.kind))];
   const counts = (status: "installed" | "skipped") =>
     kinds

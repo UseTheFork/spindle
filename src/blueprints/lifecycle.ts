@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -14,14 +14,29 @@ import {
 } from "../install.js";
 import type { RenderContext } from "../render.js";
 import { readBlueprintVersion } from "../version.js";
-import { expandBlueprintCatalog, readBlueprintCatalog, type CatalogSelection } from "./catalog.js";
+import {
+  planBlueprintCatalog,
+  readBlueprintCatalog,
+  type CatalogDeletion,
+  type CatalogSelection,
+} from "./catalog.js";
 import type { BlueprintHandler, BlueprintUpdatePlan } from "./types.js";
 
 export interface BlueprintOutcome {
   kind: string;
   name: string;
-  status: "installed" | "updated" | "skipped" | "up-to-date";
+  status: "installed" | "updated" | "skipped" | "up-to-date" | "removed";
   warning?: string;
+}
+
+export interface PlannedBlueprintDeletion {
+  kind: string;
+  catalogKind: string;
+  key: string;
+  path: string;
+  target: string;
+  directory: boolean;
+  reason: CatalogDeletion["reason"];
 }
 
 interface ReconcileCommon {
@@ -69,7 +84,66 @@ interface ReconciliationPlan {
   plan: PlannedBlueprint[];
   selectedNewBlueprints: Set<string>;
   decisions: Map<string, ConflictPolicy>;
+  deletions: PlannedBlueprintDeletion[];
   willInstall: boolean;
+}
+
+interface PlannedDeletionOperation {
+  handler: BlueprintHandler;
+  deletion: CatalogDeletion;
+  plan: PlannedBlueprintDeletion;
+}
+
+export interface BlueprintHandlerCatalogPlan {
+  handler: BlueprintHandler;
+  selections: CatalogSelection[];
+  catalogDeletions: CatalogDeletion[];
+  deletions: PlannedBlueprintDeletion[];
+}
+
+export interface BlueprintCatalogReconciliationPlan {
+  handlers: BlueprintHandlerCatalogPlan[];
+  deletions: PlannedBlueprintDeletion[];
+}
+
+// Ticket-level coordinators can consume target paths and deletion reasons before applying changes.
+export async function planBlueprintCatalogReconciliation(
+  handlers: readonly BlueprintHandler[],
+  githubDirectory: string,
+  selectedStacks: string[],
+): Promise<BlueprintCatalogReconciliationPlan> {
+  const catalog = await readBlueprintCatalog(blueprintsRoot());
+  const handlerPlans: BlueprintHandlerCatalogPlan[] = [];
+  for (const handler of handlers) {
+    const expansion = await planBlueprintCatalog(
+      catalog,
+      handler.catalogKind,
+      handler.sourceDirectory(),
+      selectedStacks,
+    );
+    const destinationDirectory = handler.destinationDirectory(githubDirectory);
+    const deletions = expansion.deletions.map((deletion) => ({
+      kind: handler.kind,
+      catalogKind: handler.catalogKind,
+      key: deletion.entry.key,
+      path: deletion.path,
+      target:
+        handler.targetPath?.(destinationDirectory, deletion.path) ??
+        join(destinationDirectory, deletion.path),
+      directory: deletion.entry.directory,
+      reason: deletion.reason,
+    }));
+    handlerPlans.push({
+      handler,
+      selections: expansion.selections,
+      catalogDeletions: expansion.deletions,
+      deletions,
+    });
+  }
+  return {
+    handlers: handlerPlans,
+    deletions: handlerPlans.flatMap((handlerPlan) => handlerPlan.deletions),
+  };
 }
 
 function willInstallBlueprint(
@@ -143,6 +217,7 @@ async function planReconciliation(
   options: ReconcileOptions,
   blueprintNames: string[],
   sourceFilesByName: Map<string, PlannedBlueprintFile[]>,
+  deletions: PlannedBlueprintDeletion[],
   resolveContext: () => Promise<RenderContext | undefined>,
 ): Promise<ReconciliationPlan> {
   const { mode, githubDirectory } = options;
@@ -223,6 +298,7 @@ async function planReconciliation(
     plan,
     selectedNewBlueprints,
     decisions,
+    deletions,
     willInstall,
   };
 }
@@ -314,6 +390,68 @@ async function applyReconciliation(
   return outcomes;
 }
 
+async function validateDeletionTarget(
+  githubDirectory: string,
+  operation: PlannedDeletionOperation,
+): Promise<boolean> {
+  const { handler, deletion, plan } = operation;
+  const destinationDirectory = handler.destinationDirectory(githubDirectory);
+  const targetPath = (name: string) =>
+    handler.targetPath?.(destinationDirectory, name) ?? join(destinationDirectory, name);
+  await assertSafeInstallPaths(githubDirectory, [deletion.path], destinationDirectory, targetPath);
+  try {
+    const stat = await lstat(plan.target);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Refusing to remove '${plan.target}': symbolic-link targets are unsafe.`);
+    }
+    if (deletion.entry.directory ? !stat.isDirectory() : !stat.isFile()) {
+      const expected = deletion.entry.directory ? "a directory" : "a regular file";
+      throw new Error(`Refusing to remove '${plan.target}': expected ${expected}.`);
+    }
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function applyCatalogDeletions(
+  githubDirectory: string,
+  operations: PlannedDeletionOperation[],
+): Promise<BlueprintOutcome[]> {
+  const outcomes: BlueprintOutcome[] = [];
+  const completed: string[] = [];
+  for (const operation of operations) {
+    let targetExists: boolean;
+    try {
+      targetExists = await validateDeletionTarget(githubDirectory, operation);
+    } catch (error) {
+      throw new Error(
+        `Failed to validate removal of ${operation.handler.kind} '${operation.deletion.path}' at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed removals: ${completed.join(", ")}.` : ""}`,
+        { cause: error },
+      );
+    }
+    if (!targetExists) continue;
+    try {
+      await rm(operation.plan.target, {
+        recursive: operation.deletion.entry.directory,
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to remove ${operation.handler.kind} '${operation.deletion.path}' at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed removals: ${completed.join(", ")}.` : ""}`,
+        { cause: error },
+      );
+    }
+    completed.push(`${operation.handler.kind} '${operation.deletion.path}'`);
+    outcomes.push({
+      kind: operation.handler.kind,
+      name: operation.deletion.path,
+      status: "removed",
+    });
+  }
+  return outcomes;
+}
+
 export async function reconcileBlueprints(
   handlers: readonly BlueprintHandler[],
   options: ReconcileOptions,
@@ -325,22 +463,32 @@ export async function reconcileBlueprints(
     handler: BlueprintHandler;
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
+    deletions: PlannedBlueprintDeletion[];
   }[] = [];
-  const initializers: { handler: BlueprintHandler; selections: CatalogSelection[] }[] = [];
+  const initializers: {
+    handler: BlueprintHandler;
+    selections: CatalogSelection[];
+    deletions: CatalogDeletion[];
+  }[] = [];
+  const deletionOperations: PlannedDeletionOperation[] = [];
   await assertSafeInstallPaths(options.githubDirectory, [], options.githubDirectory);
-  const catalog = await readBlueprintCatalog(blueprintsRoot());
-  for (const handler of handlers) {
-    const sourceDirectory = handler.sourceDirectory();
-    const selections = await expandBlueprintCatalog(
-      catalog,
-      handler.catalogKind,
-      sourceDirectory,
-      stacks,
-    );
+  const catalogPlan = await planBlueprintCatalogReconciliation(
+    handlers,
+    options.githubDirectory,
+    stacks,
+  );
+  for (const handlerPlan of catalogPlan.handlers) {
+    const { handler, selections, catalogDeletions } = handlerPlan;
+    const destinationDirectory = handler.destinationDirectory(options.githubDirectory);
+    const deletions = handlerPlan.deletions;
+    catalogDeletions.forEach((deletion, index) => {
+      deletionOperations.push({ handler, deletion, plan: deletions[index] });
+    });
+    if (deletions.length > 0) hasBlueprints = true;
     if (handler.initialize !== undefined) {
-      if (selections.length > 0) {
+      if (selections.length > 0 || catalogDeletions.length > 0) {
         hasBlueprints = true;
-        initializers.push({ handler, selections });
+        initializers.push({ handler, selections, deletions: catalogDeletions });
       }
       continue;
     }
@@ -351,14 +499,16 @@ export async function reconcileBlueprints(
     const names = [...files.keys()];
     if (names.length === 0) continue;
     hasBlueprints = true;
-    const destinationDirectory = handler.destinationDirectory(options.githubDirectory);
     const targetPath = (name: string) =>
       handler.targetPath?.(destinationDirectory, name) ?? join(destinationDirectory, name);
     await assertSafeInstallPaths(options.githubDirectory, names, destinationDirectory, targetPath);
     if (handler.entryFile !== undefined || handler.fileTarget) {
       for (const name of names) await assertSingleFileDestination(targetPath(name));
     }
-    collections.push({ handler, names, files });
+    collections.push({ handler, names, files, deletions });
+  }
+  for (const operation of deletionOperations) {
+    await validateDeletionTarget(options.githubDirectory, operation);
   }
   if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
   let resolvedContext = options.context;
@@ -367,11 +517,13 @@ export async function reconcileBlueprints(
     return resolvedContext;
   };
   const plans: ReconciliationPlan[] = [];
-  for (const { handler, names, files } of collections) {
-    plans.push(await planReconciliation(handler, options, names, files, resolveContext));
+  for (const { handler, names, files, deletions } of collections) {
+    plans.push(await planReconciliation(handler, options, names, files, deletions, resolveContext));
   }
   const installing = plans.find((plan) => plan.willInstall);
-  const needsContext = installing !== undefined || initializers.length > 0;
+  const needsContext =
+    installing !== undefined ||
+    initializers.some((initializer) => initializer.selections.length > 0);
   const context = needsContext ? await resolveContext() : options.context;
   if (needsContext && !context) {
     throw new Error("Cannot install Blueprints without resolved Variables.");
@@ -456,11 +608,26 @@ export async function reconcileBlueprints(
   for (const plan of plans) {
     outcomes.push(...(await applyReconciliation(plan, context, preparedFilesByPlan.get(plan))));
   }
-  for (const { handler, selections } of initializers) {
-    for (const name of await handler.initialize!(options.githubDirectory, context!, selections)) {
+  for (const { handler, selections, deletions } of initializers) {
+    const initialized = await handler.initialize!(
+      options.githubDirectory,
+      context ?? { stacks, variables: {} },
+      selections,
+      deletions,
+    );
+    for (const name of initialized.installed) {
       outcomes.push({ kind: handler.kind, name, status: "installed" });
     }
+    for (const name of initialized.removed) {
+      outcomes.push({ kind: handler.kind, name, status: "removed" });
+    }
   }
+  outcomes.push(
+    ...(await applyCatalogDeletions(
+      options.githubDirectory,
+      deletionOperations.filter((operation) => operation.handler.initialize === undefined),
+    )),
+  );
   if (options.mode === "init") {
     await mkdir(options.githubDirectory, { recursive: true });
     await writeFile(

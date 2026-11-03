@@ -125,6 +125,9 @@ export async function update(
       console.error(chalk.yellow(outcome.warning));
     }
   }
+  for (const outcome of outcomes.filter((item) => item.status === "removed")) {
+    console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
+  }
   if (outcomes.length === 0) {
     console.log(`${chalk.green("✔")} No Blueprints apply to the selected stacks`);
   }

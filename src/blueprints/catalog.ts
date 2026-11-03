@@ -22,6 +22,17 @@ export interface CatalogSelection {
   files: { sourcePath: string; outputPath: string }[];
 }
 
+export interface CatalogDeletion {
+  entry: CatalogEntry;
+  path: string;
+  reason: "removed" | "stack-inapplicable";
+}
+
+export interface CatalogExpansionPlan {
+  selections: CatalogSelection[];
+  deletions: CatalogDeletion[];
+}
+
 export type BlueprintCatalog = Record<CatalogKind, CatalogEntry[]>;
 
 const catalogKinds: CatalogKind[] = ["agents", "just", "instructions", "skills"];
@@ -185,15 +196,19 @@ async function collectDirectoryFiles(source: string, root: string, result: strin
   }
 }
 
-export async function expandBlueprintCatalog(
+export async function planBlueprintCatalog(
   catalog: BlueprintCatalog,
   kind: CatalogKind,
   sourceRoot: string,
   selectedStacks: string[],
-): Promise<CatalogSelection[]> {
+): Promise<CatalogExpansionPlan> {
   const selections: CatalogSelection[] = [];
+  const deletions: CatalogDeletion[] = [];
   for (const entry of catalog[kind]) {
-    if (entry.status !== "active") continue;
+    if (entry.status === "removed") {
+      deletions.push({ entry, path: entry.path, reason: "removed" });
+      continue;
+    }
     await assertNoSymlinkPath(sourceRoot, entry.path);
     const sourcePath = join(sourceRoot, ...entry.path.split("/"));
     let stat;
@@ -241,6 +256,7 @@ export async function expandBlueprintCatalog(
     }
 
     if (entry.stacks.length > 0 && !entry.stacks.some((stack) => selectedStacks.includes(stack))) {
+      deletions.push({ entry, path: entry.path, reason: "stack-inapplicable" });
       continue;
     }
 
@@ -275,7 +291,16 @@ export async function expandBlueprintCatalog(
       });
     }
   }
-  return selections;
+  return { selections, deletions };
+}
+
+export async function expandBlueprintCatalog(
+  catalog: BlueprintCatalog,
+  kind: CatalogKind,
+  sourceRoot: string,
+  selectedStacks: string[],
+): Promise<CatalogSelection[]> {
+  return (await planBlueprintCatalog(catalog, kind, sourceRoot, selectedStacks)).selections;
 }
 
 export async function readBlueprintCatalog(root: string): Promise<BlueprintCatalog> {

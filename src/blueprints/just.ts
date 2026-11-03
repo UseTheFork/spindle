@@ -3,7 +3,7 @@ import { dirname, extname, join, resolve } from "node:path";
 
 import { blueprintsRoot } from "../install.js";
 import { renderText, type RenderContext } from "../render.js";
-import type { CatalogSelection } from "./catalog.js";
+import type { CatalogDeletion, CatalogSelection } from "./catalog.js";
 import type { BlueprintHandler } from "./types.js";
 
 async function exists(path: string) {
@@ -41,9 +41,14 @@ function requiredModuleImport(name: string) {
   return `mod ${name} '.github/scripts/just-modules/${name}.just'`;
 }
 
-async function reconcileJustfile(projectDirectory: string, moduleNames: string[]) {
+async function reconcileJustfile(
+  projectDirectory: string,
+  moduleNames: string[],
+  removedModulePaths: string[],
+) {
   const justfilePath = join(projectDirectory, "justfile");
   const modulesDirectory = join(projectDirectory, ".github/scripts/just-modules");
+  const removedTargets = new Set(removedModulePaths.map((path) => resolve(modulesDirectory, path)));
   const expected = new Map(
     moduleNames.map((name) => [name, `.github/scripts/just-modules/${name}.just`]),
   );
@@ -64,6 +69,7 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
   if (hadFinalNewline) lines.pop();
 
   const remaining: string[] = [];
+  const removedImportTargets = new Set<string>();
   for (const line of lines) {
     const declaration = /^\s*mod(\?)?\s+([A-Za-z_][A-Za-z0-9_-]*)\s+'([^']+)'\s*$/.exec(line);
     if (declaration === null) {
@@ -80,6 +86,10 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
       throw new Error(
         `Just Module import conflict for '${name}': expected '${expectedPath}', found '${importPath}'.`,
       );
+    }
+    if (managedPath && removedTargets.has(resolve(projectDirectory, importPath))) {
+      removedImportTargets.add(resolve(projectDirectory, importPath));
+      continue;
     }
     if (managedPath && expectedPath !== undefined && optional === undefined) {
       continue;
@@ -113,7 +123,15 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
       throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
     }
   }
-  return { path: justfilePath, content: output, mode };
+  return {
+    path: justfilePath,
+    content: output,
+    mode,
+    shouldWrite:
+      (original === undefined && (imports.length > 0 || removedImportTargets.size > 0)) ||
+      (original !== undefined && output !== original),
+    removedImportTargets: [...removedImportTargets],
+  };
 }
 
 async function prepareModules(context: RenderContext, selections: CatalogSelection[]) {
@@ -133,13 +151,16 @@ async function installModules(
   githubDirectory: string,
   context: RenderContext,
   selections: CatalogSelection[],
+  deletions: CatalogDeletion[],
 ) {
   const projectDirectory = dirname(githubDirectory);
   const modulesDirectory = join(githubDirectory, "scripts", "just-modules");
   const prepared = await prepareModules(context, selections);
+  const removedModulePaths = deletions.map((deletion) => deletion.path);
   const imports = await reconcileJustfile(
     projectDirectory,
     prepared.map((module) => module.name),
+    removedModulePaths,
   );
 
   const moduleDirectoryExists = await exists(modulesDirectory);
@@ -175,9 +196,11 @@ async function installModules(
       const mode = moduleModes.get(module.name);
       if (mode !== undefined) await chmod(stagedPath, mode);
     }
-    const stagedJustfile = join(stagingDirectory, "justfile");
-    await writeFile(stagedJustfile, imports.content);
-    if (imports.mode !== undefined) await chmod(stagedJustfile, imports.mode);
+    if (imports.shouldWrite) {
+      const stagedJustfile = join(stagingDirectory, "justfile");
+      await writeFile(stagedJustfile, imports.content);
+      if (imports.mode !== undefined) await chmod(stagedJustfile, imports.mode);
+    }
   } catch (error) {
     if (typeof stagingDirectory !== "undefined") {
       await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
@@ -187,13 +210,16 @@ async function installModules(
     });
   }
 
+  const completed: string[] = [];
   try {
-    if (!(await exists(modulesDirectory))) {
+    if (prepared.length > 0 && !(await exists(modulesDirectory))) {
       await mkdir(modulesDirectory, { recursive: true });
     }
-    const directoryStat = await lstat(modulesDirectory);
-    if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
-      throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
+    if (await exists(modulesDirectory)) {
+      const directoryStat = await lstat(modulesDirectory);
+      if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+        throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
+      }
     }
 
     for (const module of prepared) {
@@ -205,22 +231,50 @@ async function installModules(
         }
       }
       await rename(join(stagingDirectory, "modules", `${module.name}.just`), target);
+      completed.push(`installed Just Module '${module.name}.just'`);
     }
-    if (await exists(imports.path)) {
+
+    const removed = new Set<string>();
+    for (const path of removedModulePaths) {
+      const target = join(modulesDirectory, path);
+      if (!(await exists(target))) continue;
+      const stat = await lstat(target);
+      if (stat.isSymbolicLink() || !stat.isFile()) {
+        throw new Error(`Refusing to remove '${target}': expected a regular file.`);
+      }
+      await rm(target);
+      removed.add(path);
+      completed.push(`removed Just Module '${path}'`);
+    }
+
+    if (imports.shouldWrite && (await exists(imports.path))) {
       const stat = await lstat(imports.path);
       if (stat.isSymbolicLink() || !stat.isFile()) {
         throw new Error(`Refusing to replace '${imports.path}': expected a regular file.`);
       }
     }
-    await rename(join(stagingDirectory, "justfile"), imports.path);
+    if (imports.shouldWrite) {
+      await rename(join(stagingDirectory, "justfile"), imports.path);
+      completed.push("reconciled managed imports in the root justfile");
+    }
+    for (const target of imports.removedImportTargets) {
+      const path = removedModulePaths.find(
+        (candidate) => resolve(modulesDirectory, candidate) === target,
+      );
+      if (path !== undefined) removed.add(path);
+    }
+    return {
+      installed: prepared.map((module) => module.name),
+      removed: [...removed],
+    };
   } catch (error) {
-    throw new Error(`Failed to apply staged Just Module changes: ${formatFilesystemError(error)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to apply staged Just Module changes: ${formatFilesystemError(error)}${completed.length > 0 ? ` Completed changes: ${completed.join(", ")}.` : ""}`,
+      { cause: error },
+    );
   } finally {
     await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
   }
-  return prepared.map((module) => module.name);
 }
 
 export const justModuleHandler: BlueprintHandler = {

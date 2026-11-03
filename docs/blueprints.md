@@ -9,7 +9,19 @@ Stack, and a nonempty list applies when any listed Stack is selected.
 The catalog has exactly four sections: `agents`, `just`, `instructions`, and
 `skills`. Empty sections are valid. Active entries must name existing sources,
 including entries that do not match the current Stack selection. Removed entries
-may retain a source-less path as a future cleanup record.
+may retain a source-less path as a cleanup record.
+
+In both `init` and `update`, a `removed` entry deletes its installed target even
+when its source is gone. An active entry that does not match any selected Stack
+also deletes its installed target. A file path removes only that file; a
+directory path removes the complete destination subtree, including local edits
+and additions. These explicit deletions do not prompt and are not suppressed by
+conflict-skip or new-content options. Missing targets are harmless no-ops.
+Removed or inapplicable Just Modules also lose their managed root imports.
+
+Cleanup is driven only by catalog entries: removing an entry from the catalog or
+changing its path does not infer a deletion of its previous destination. Keep an
+explicit `removed` entry for any old target that needs cleanup.
 
 Paths are relative to the corresponding kind directory under
 `src/blueprints/`. A path ending in `/` selects a directory recursively; its

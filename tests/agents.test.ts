@@ -433,12 +433,13 @@ test("production init installs the versioned shared-r Agent matching the local c
 });
 
 test(
-  "update omits a Stack-inapplicable catalog Agent without touching its destination",
+  "update rejects a symlinked destination for a Stack-inapplicable catalog Agent",
   { skip: process.platform === "win32" },
   async () => {
     const blueprints = await makeTempDir("spindle-agent-omitted-blueprints-");
     const project = await makeTempDir("spindle-agent-omitted-project-");
     const outside = join(project, "outside.md");
+    const target = join(project, ".github", "agents", "optional.agent.md");
     try {
       await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
       await writeFile(
@@ -485,10 +486,10 @@ test(
         SPINDLE_BLUEPRINTS_DIR: blueprints,
       });
 
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout, /up to date 1 skill\(s\)/);
-      assert.doesNotMatch(result.stdout, /agent\(s\)/);
+      assert.notEqual(result.status, 0, result.stdout);
+      assert.match(result.stderr, /symbolic link/i);
       assert.equal(await readFile(outside, "utf8"), "outside remains untouched\n");
+      assert.equal((await lstat(target)).isSymbolicLink(), true);
     } finally {
       await rm(blueprints, { recursive: true, force: true });
       await rm(project, { recursive: true, force: true });
