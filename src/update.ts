@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
@@ -106,20 +106,21 @@ export async function update(
       prompted = resolved.prompted;
       return resolved.context;
     },
+    prepareConfigWrite: () =>
+      Object.keys(prompted).length === 0
+        ? undefined
+        : {
+            path: configPath,
+            content: `${JSON.stringify(
+              {
+                ...config.config,
+                variables: { ...config.variables, ...prompted },
+              },
+              null,
+              2,
+            )}\n`,
+          },
   });
-  if (Object.keys(prompted).length > 0) {
-    await writeFile(
-      configPath,
-      `${JSON.stringify(
-        {
-          ...config.config,
-          variables: { ...config.variables, ...prompted },
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  }
   for (const outcome of outcomes) {
     if (outcome.warning) {
       console.error(chalk.yellow(outcome.warning));

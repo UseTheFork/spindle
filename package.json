@@ -10,8 +10,7 @@
   },
   "files": [
     "build",
-    "assets",
-    "src/blueprints"
+    "assets"
   ],
   "type": "module",
   "scripts": {

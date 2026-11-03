@@ -517,7 +517,7 @@ skills: {}
     assert.notEqual(result.status, 0, result.stdout);
     assert.match(result.stderr, /Failed to remove Agent 'second\.agent\.md'/);
     assert.match(result.stderr, /forced removal failure/);
-    assert.match(result.stderr, /Completed removals: Agent 'first\.agent\.md'/);
+    assert.match(result.stderr, /Completed changes: removed Agent 'first\.agent\.md'/);
     await assertMissing(firstTarget);
     assert.equal(await readFile(secondTarget, "utf8"), "second target\n");
   } finally {

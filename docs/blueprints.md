@@ -51,3 +51,13 @@ managed import identifiers come from the filename stem, not the catalog key.
 
 Unlisted source files are not installed. Keep all four catalog sections and
 validate catalog changes through the real CLI tests.
+
+Before changing a project, Spindle validates the catalog and prepares the
+selected rendered writes, Config content, managed Just imports, deletions, and
+directory-membership cleanup. Preparation failures leave the project unchanged.
+An application-time filesystem failure stops reconciliation and reports completed
+changes; application is not transactional and does not roll back earlier writes.
+
+The package build bundles the catalog and Blueprint tree under `build/blueprints`.
+Published packages use that bundled tree and do not include a separate
+`src/blueprints` fallback.

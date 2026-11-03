@@ -23,17 +23,21 @@ export interface BlueprintUpdatePlan {
   };
 }
 
+export type ApplyPreparedBlueprintInitialization = (
+  recordAppliedChange: (description: string) => void,
+) => Promise<{ installed: string[]; removed: string[] }>;
+
 export interface BlueprintHandler {
   kind: string;
   catalogKind: CatalogKind;
   sourceDirectory(): string;
   destinationDirectory(githubDirectory: string): string;
-  initialize?(
+  prepareInitialize?(
     githubDirectory: string,
     context: RenderContext,
     selections: CatalogSelection[],
     deletions: CatalogDeletion[],
-  ): Promise<{ installed: string[]; removed: string[] }>;
+  ): Promise<ApplyPreparedBlueprintInitialization>;
   fileTarget?: boolean;
   entryFile?: string;
   targetPath?(destinationDirectory: string, name: string): string;

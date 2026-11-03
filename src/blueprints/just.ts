@@ -4,7 +4,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { blueprintsRoot } from "../install.js";
 import { renderText, type RenderContext } from "../render.js";
 import type { CatalogDeletion, CatalogSelection } from "./catalog.js";
-import type { BlueprintHandler } from "./types.js";
+import type { ApplyPreparedBlueprintInitialization, BlueprintHandler } from "./types.js";
 
 async function exists(path: string) {
   try {
@@ -147,12 +147,12 @@ async function prepareModules(context: RenderContext, selections: CatalogSelecti
   return prepared;
 }
 
-async function installModules(
+async function prepareJustModuleChanges(
   githubDirectory: string,
   context: RenderContext,
   selections: CatalogSelection[],
   deletions: CatalogDeletion[],
-) {
+): Promise<ApplyPreparedBlueprintInitialization> {
   const projectDirectory = dirname(githubDirectory);
   const modulesDirectory = join(githubDirectory, "scripts", "just-modules");
   const prepared = await prepareModules(context, selections);
@@ -210,71 +210,71 @@ async function installModules(
     });
   }
 
-  const completed: string[] = [];
-  try {
-    if (prepared.length > 0 && !(await exists(modulesDirectory))) {
-      await mkdir(modulesDirectory, { recursive: true });
-    }
-    if (await exists(modulesDirectory)) {
-      const directoryStat = await lstat(modulesDirectory);
-      if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
-        throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
+  return async (recordAppliedChange) => {
+    try {
+      if (prepared.length > 0 && !(await exists(modulesDirectory))) {
+        await mkdir(modulesDirectory, { recursive: true });
       }
-    }
-
-    for (const module of prepared) {
-      const target = join(modulesDirectory, `${module.name}.just`);
-      if (await exists(target)) {
-        const stat = await lstat(target);
-        if (stat.isSymbolicLink() || !stat.isFile()) {
-          throw new Error(`Refusing to replace '${target}': expected a regular file.`);
+      if (await exists(modulesDirectory)) {
+        const directoryStat = await lstat(modulesDirectory);
+        if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+          throw new Error(`Refusing to use '${modulesDirectory}': expected a directory.`);
         }
       }
-      await rename(join(stagingDirectory, "modules", `${module.name}.just`), target);
-      completed.push(`installed Just Module '${module.name}.just'`);
-    }
 
-    const removed = new Set<string>();
-    for (const path of removedModulePaths) {
-      const target = join(modulesDirectory, path);
-      if (!(await exists(target))) continue;
-      const stat = await lstat(target);
-      if (stat.isSymbolicLink() || !stat.isFile()) {
-        throw new Error(`Refusing to remove '${target}': expected a regular file.`);
+      for (const module of prepared) {
+        const target = join(modulesDirectory, `${module.name}.just`);
+        if (await exists(target)) {
+          const stat = await lstat(target);
+          if (stat.isSymbolicLink() || !stat.isFile()) {
+            throw new Error(`Refusing to replace '${target}': expected a regular file.`);
+          }
+        }
+        await rename(join(stagingDirectory, "modules", `${module.name}.just`), target);
+        recordAppliedChange(`installed Just Module '${module.name}.just'`);
       }
-      await rm(target);
-      removed.add(path);
-      completed.push(`removed Just Module '${path}'`);
-    }
 
-    if (imports.shouldWrite && (await exists(imports.path))) {
-      const stat = await lstat(imports.path);
-      if (stat.isSymbolicLink() || !stat.isFile()) {
-        throw new Error(`Refusing to replace '${imports.path}': expected a regular file.`);
+      const removed = new Set<string>();
+      for (const path of removedModulePaths) {
+        const target = join(modulesDirectory, path);
+        if (!(await exists(target))) continue;
+        const stat = await lstat(target);
+        if (stat.isSymbolicLink() || !stat.isFile()) {
+          throw new Error(`Refusing to remove '${target}': expected a regular file.`);
+        }
+        await rm(target);
+        removed.add(path);
+        recordAppliedChange(`removed Just Module '${path}'`);
       }
-    }
-    if (imports.shouldWrite) {
-      await rename(join(stagingDirectory, "justfile"), imports.path);
-      completed.push("reconciled managed imports in the root justfile");
-    }
-    for (const target of imports.removedImportTargets) {
-      const path = removedModulePaths.find(
-        (candidate) => resolve(modulesDirectory, candidate) === target,
+      if (imports.shouldWrite && (await exists(imports.path))) {
+        const stat = await lstat(imports.path);
+        if (stat.isSymbolicLink() || !stat.isFile()) {
+          throw new Error(`Refusing to replace '${imports.path}': expected a regular file.`);
+        }
+      }
+      if (imports.shouldWrite) {
+        await rename(join(stagingDirectory, "justfile"), imports.path);
+        recordAppliedChange("reconciled managed imports in the root justfile");
+      }
+      for (const target of imports.removedImportTargets) {
+        const path = removedModulePaths.find(
+          (candidate) => resolve(modulesDirectory, candidate) === target,
+        );
+        if (path !== undefined) removed.add(path);
+      }
+      return {
+        installed: prepared.map((module) => module.name),
+        removed: [...removed],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to apply staged Just Module changes: ${formatFilesystemError(error)}`,
+        { cause: error },
       );
-      if (path !== undefined) removed.add(path);
+    } finally {
+      await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
     }
-    return {
-      installed: prepared.map((module) => module.name),
-      removed: [...removed],
-    };
-  } catch (error) {
-    throw new Error(
-      `Failed to apply staged Just Module changes: ${formatFilesystemError(error)}${completed.length > 0 ? ` Completed changes: ${completed.join(", ")}.` : ""}`,
-      { cause: error },
-    );
-  } finally {
-    await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
-  }
+  };
 }
 
 export const justModuleHandler: BlueprintHandler = {
@@ -282,5 +282,5 @@ export const justModuleHandler: BlueprintHandler = {
   catalogKind: "just",
   sourceDirectory: () => join(blueprintsRoot(), "just"),
   destinationDirectory: (githubDirectory) => join(githubDirectory, "scripts", "just-modules"),
-  initialize: installModules,
+  prepareInitialize: prepareJustModuleChanges,
 };

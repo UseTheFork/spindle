@@ -194,14 +194,28 @@ export async function installPlannedBlueprintFiles(
   entryFile?: string,
   replace = false,
   atTarget = false,
+  onFileApplied?: (file: PreparedBlueprintFile, destinationPath: string) => void,
 ) {
   for (const file of files) {
-    await installFile(
-      file,
-      atTarget ? target : entryFile === undefined ? join(target, file.outputPath) : target,
-      replace,
-      entryFile !== undefined || (atTarget && file.outputPath.toLowerCase().endsWith(".md")),
-    );
+    const destinationPath = atTarget
+      ? target
+      : entryFile === undefined
+        ? join(target, file.outputPath)
+        : target;
+    try {
+      await installFile(
+        file,
+        destinationPath,
+        replace,
+        entryFile !== undefined || (atTarget && file.outputPath.toLowerCase().endsWith(".md")),
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to apply file '${file.outputPath}' at '${destinationPath}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+    onFileApplied?.(file, destinationPath);
   }
 }
 

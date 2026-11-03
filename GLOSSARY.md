@@ -13,6 +13,11 @@ The inventory of named Blueprint selections, their lifecycle status, and the
 Stacks they apply to. A selection can contain multiple independently updated
 Blueprints.
 
+**Selected directory membership**:
+The files present in a catalog-selected source directory. Its installed
+destination subtree is authoritative: files absent from the source, including
+local additions, are removed during reconciliation.
+
 **Just Module**:
 A file of Just recipes imported by a project's root `justfile`.
 

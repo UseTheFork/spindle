@@ -20,7 +20,11 @@ import {
   type CatalogDeletion,
   type CatalogSelection,
 } from "./catalog.js";
-import type { BlueprintHandler, BlueprintUpdatePlan } from "./types.js";
+import type {
+  ApplyPreparedBlueprintInitialization,
+  BlueprintHandler,
+  BlueprintUpdatePlan,
+} from "./types.js";
 
 export interface BlueprintOutcome {
   kind: string;
@@ -53,6 +57,11 @@ interface ReconcileCommon {
   ) => Promise<ConflictPolicy>;
 }
 
+interface PlannedConfigWrite {
+  path: string;
+  content: string;
+}
+
 type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "init";
@@ -63,6 +72,7 @@ type ReconcileOptions =
       mode: "update";
       config?: { stacks: string[]; variables: Record<string, string> };
       includeNew?: boolean;
+      prepareConfigWrite?: () => PlannedConfigWrite | undefined;
     });
 
 interface PlannedBlueprint {
@@ -109,7 +119,6 @@ interface RemovalOperation extends RemovalTargetValidation {
   recursive: boolean;
   validationDescription: string;
   removalDescription: string;
-  completedLabel: "removals" | "cleanups";
   completedName: string;
 }
 
@@ -398,16 +407,15 @@ async function planReconciliation(
 
 async function applyReconciliation(
   prepared: ReconciliationPlan,
-  context: RenderContext | undefined,
-  preparedFilesByName?: Map<string, PreparedBlueprintFile[]>,
-  membershipCleanupOperations: PlannedMembershipCleanupOperation[] = [],
+  preparedFilesByName: Map<string, PreparedBlueprintFile[]>,
+  membershipCleanupOperations: PlannedMembershipCleanupOperation[],
+  recordAppliedChange: (description: string) => void,
 ): Promise<BlueprintOutcome[]> {
   const {
     handler,
     mode,
     githubDirectory,
     destinationDirectory,
-    sourceFilesByName,
     plan,
     selectedNewBlueprints,
     decisions,
@@ -450,56 +458,66 @@ async function applyReconciliation(
     );
     const replacing = blueprint.status === "conflict" || blueprint.status === "update";
     const replacedMembershipPaths: PlannedBlueprintDeletion[] = [];
-    if (replacing && handler.entryFile === undefined && !handler.fileTarget) {
-      for (const operation of membershipCleanupOperations) {
-        if (operation.handler !== handler) continue;
-        const pathWithinTarget = relative(target, operation.plan.target);
-        if (
-          pathWithinTarget === "" ||
-          pathWithinTarget === ".." ||
-          pathWithinTarget.startsWith(`..${sep}`)
-        ) {
-          continue;
+    try {
+      if (replacing && handler.entryFile === undefined && !handler.fileTarget) {
+        for (const operation of membershipCleanupOperations) {
+          if (operation.handler !== handler) continue;
+          const pathWithinTarget = relative(target, operation.plan.target);
+          if (
+            pathWithinTarget === "" ||
+            pathWithinTarget === ".." ||
+            pathWithinTarget.startsWith(`..${sep}`)
+          ) {
+            continue;
+          }
+          if (
+            await validateRemovalTarget(githubDirectory, {
+              ...operation,
+              expectedTarget: "file",
+            })
+          ) {
+            replacedMembershipPaths.push(operation.plan);
+          }
         }
-        if (
-          await validateRemovalTarget(githubDirectory, {
-            ...operation,
-            expectedTarget: "file",
-          })
-        ) {
-          replacedMembershipPaths.push(operation.plan);
+        await rm(target, { recursive: true, force: true });
+        recordAppliedChange(
+          `removed existing ${handler.kind} '${blueprint.name}' before replacement`,
+        );
+        for (const removed of replacedMembershipPaths) {
+          recordAppliedChange(`removed destination-only ${handler.kind} file '${removed.path}'`);
         }
       }
-      await rm(target, { recursive: true, force: true });
-    }
-    outcomes.push(
-      ...replacedMembershipPaths.map((removed) => ({
-        kind: handler.kind,
-        name: removed.path,
-        status: "removed" as const,
-      })),
-    );
-    await mkdir(destinationDirectory, { recursive: true });
-    const preparedFiles = preparedFilesByName?.get(blueprint.name);
-    if (preparedFiles !== undefined) {
+      outcomes.push(
+        ...replacedMembershipPaths.map((removed) => ({
+          kind: handler.kind,
+          name: removed.path,
+          status: "removed" as const,
+        })),
+      );
+      await mkdir(destinationDirectory, { recursive: true });
+      const preparedFiles = preparedFilesByName.get(blueprint.name);
+      if (preparedFiles === undefined) {
+        throw new Error(`No prepared files are available for ${handler.kind} '${blueprint.name}'.`);
+      }
       await installPlannedBlueprintFiles(
         preparedFiles,
         target,
         handler.entryFile,
         replacing && (handler.entryFile !== undefined || handler.fileTarget === true),
         handler.fileTarget,
+        (file) => {
+          if (handler.kind === "Skill") {
+            recordAppliedChange(`applied Skill file '${blueprint.name}/${file.outputPath}'`);
+          }
+        },
       );
-    } else {
-      for (const file of sourceFilesByName.get(blueprint.name)!) {
-        const files = await prepareFiles([file], context!, handler, blueprint.renderedEntry);
-        await installPlannedBlueprintFiles(
-          files,
-          target,
-          handler.entryFile,
-          false,
-          handler.fileTarget,
-        );
-      }
+      const status = mode === "init" || blueprint.status === "new" ? "installed" : "updated";
+      recordAppliedChange(`${status} ${handler.kind} '${blueprint.name}'`);
+    } catch (error) {
+      throw new Error(
+        `Failed to apply ${handler.kind} '${blueprint.name}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
     }
     outcomes.push({
       kind: handler.kind,
@@ -546,7 +564,6 @@ function catalogRemovalOperation(operation: PlannedDeletionOperation): RemovalOp
     recursive: deletion.entry.directory,
     validationDescription: `removal of ${name}`,
     removalDescription: name,
-    completedLabel: "removals",
     completedName: name,
   };
 }
@@ -563,7 +580,6 @@ function membershipRemovalOperation(
     recursive: false,
     validationDescription: `directory-membership cleanup of ${name}`,
     removalDescription: `destination-only ${handler.kind} file '${plan.path}'`,
-    completedLabel: "cleanups",
     completedName: name,
   };
 }
@@ -571,16 +587,16 @@ function membershipRemovalOperation(
 async function applyRemovalOperations(
   githubDirectory: string,
   operations: RemovalOperation[],
+  recordAppliedChange: (description: string) => void,
 ): Promise<BlueprintOutcome[]> {
   const outcomes: BlueprintOutcome[] = [];
-  const completed: string[] = [];
   for (const operation of operations) {
     let targetExists: boolean;
     try {
       targetExists = await validateRemovalTarget(githubDirectory, operation);
     } catch (error) {
       throw new Error(
-        `Failed to validate ${operation.validationDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed ${operation.completedLabel}: ${completed.join(", ")}.` : ""}`,
+        `Failed to validate ${operation.validationDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
@@ -589,11 +605,11 @@ async function applyRemovalOperations(
       await rm(operation.plan.target, { recursive: operation.recursive });
     } catch (error) {
       throw new Error(
-        `Failed to remove ${operation.removalDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed ${operation.completedLabel}: ${completed.join(", ")}.` : ""}`,
+        `Failed to remove ${operation.removalDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
-    completed.push(operation.completedName);
+    recordAppliedChange(`removed ${operation.completedName}`);
     outcomes.push({
       kind: operation.handler.kind,
       name: operation.plan.path,
@@ -640,7 +656,7 @@ export async function reconcileBlueprints(
       deletionOperations.push({ handler, deletion, plan: deletions[index] });
     });
     if (deletions.length > 0 || handlerPlan.membershipCleanup.length > 0) hasBlueprints = true;
-    if (handler.initialize !== undefined) {
+    if (handler.prepareInitialize !== undefined) {
       if (selections.length > 0 || catalogDeletions.length > 0) {
         hasBlueprints = true;
         initializers.push({ handler, selections, deletions: catalogDeletions });
@@ -711,103 +727,130 @@ export async function reconcileBlueprints(
       }
     }
   }
-  const hasReplacement = plans.some((plan) =>
-    plan.plan.some(
-      (blueprint) =>
-        (blueprint.status === "conflict" || blueprint.status === "update") &&
-        plan.decisions.get(blueprint.name) === "overwrite",
-    ),
-  );
   const preparedFilesByPlan = new Map<ReconciliationPlan, Map<string, PreparedBlueprintFile[]>>();
-  if (hasReplacement) {
-    // Capture every selected versioned entry before any supporting template can
-    // mutate the shared context, and confirm the planned version still matches.
-    for (const plan of plans) {
-      for (const blueprint of plan.plan) {
-        if (
-          blueprint.status !== "update" ||
-          !willInstallBlueprint(blueprint, plan.selectedNewBlueprints, plan.decisions) ||
-          blueprint.renderedEntry !== undefined ||
-          blueprint.versionedEntry === undefined
-        ) {
-          continue;
-        }
-        const { sourcePath, outputPath } = blueprint.versionedEntry;
-        let renderedEntry: BlueprintUpdatePlan["renderedEntry"];
-        const actual = await readBlueprintVersion(sourcePath, context!, {
-          onRendered: (sourceText, renderedText) => {
-            renderedEntry = { sourcePath, outputPath, sourceText, renderedText };
-          },
-        });
-        if (actual !== blueprint.availableVersion || renderedEntry === undefined) {
-          throw new Error(
-            `${plan.handler.kind} '${blueprint.name}' version changed while planning; run again.`,
-          );
-        }
-        blueprint.renderedEntry = renderedEntry;
+  // Capture every selected versioned entry before any supporting template can
+  // mutate the shared context, and confirm the planned version still matches.
+  for (const plan of plans) {
+    for (const blueprint of plan.plan) {
+      if (
+        blueprint.status !== "update" ||
+        !willInstallBlueprint(blueprint, plan.selectedNewBlueprints, plan.decisions) ||
+        blueprint.renderedEntry !== undefined ||
+        blueprint.versionedEntry === undefined
+      ) {
+        continue;
       }
-    }
-    for (const plan of plans) {
-      const preparedFilesByName = new Map<string, PreparedBlueprintFile[]>();
-      for (const blueprint of plan.plan) {
-        if (!willInstallBlueprint(blueprint, plan.selectedNewBlueprints, plan.decisions)) continue;
-        preparedFilesByName.set(
-          blueprint.name,
-          await prepareFiles(
-            plan.sourceFilesByName.get(blueprint.name)!,
-            context!,
-            plan.handler,
-            blueprint.renderedEntry,
-          ),
+      const { sourcePath, outputPath } = blueprint.versionedEntry;
+      let renderedEntry: BlueprintUpdatePlan["renderedEntry"];
+      const actual = await readBlueprintVersion(sourcePath, context!, {
+        onRendered: (sourceText, renderedText) => {
+          renderedEntry = { sourcePath, outputPath, sourceText, renderedText };
+        },
+      });
+      if (actual !== blueprint.availableVersion || renderedEntry === undefined) {
+        throw new Error(
+          `${plan.handler.kind} '${blueprint.name}' version changed while planning; run again.`,
         );
       }
-      preparedFilesByPlan.set(plan, preparedFilesByName);
+      blueprint.renderedEntry = renderedEntry;
     }
   }
   for (const plan of plans) {
+    const preparedFilesByName = new Map<string, PreparedBlueprintFile[]>();
+    for (const blueprint of plan.plan) {
+      if (!willInstallBlueprint(blueprint, plan.selectedNewBlueprints, plan.decisions)) continue;
+      preparedFilesByName.set(
+        blueprint.name,
+        await prepareFiles(
+          plan.sourceFilesByName.get(blueprint.name)!,
+          context!,
+          plan.handler,
+          blueprint.renderedEntry,
+        ),
+      );
+    }
+    preparedFilesByPlan.set(plan, preparedFilesByName);
+  }
+  const configWrite =
+    options.mode === "init"
+      ? {
+          path: join(options.githubDirectory, "spindle.json"),
+          content: `${JSON.stringify(options.config, null, 2)}\n`,
+        }
+      : options.prepareConfigWrite?.();
+  const preparedInitializers: {
+    handler: BlueprintHandler;
+    apply: ApplyPreparedBlueprintInitialization;
+  }[] = [];
+  for (const { handler, selections, deletions } of initializers) {
+    preparedInitializers.push({
+      handler,
+      apply: await handler.prepareInitialize!(
+        options.githubDirectory,
+        context ?? { stacks, variables: {} },
+        selections,
+        deletions,
+      ),
+    });
+  }
+
+  const completedChanges: string[] = [];
+  const recordAppliedChange = (description: string) => completedChanges.push(description);
+  try {
+    for (const plan of plans) {
+      outcomes.push(
+        ...(await applyReconciliation(
+          plan,
+          preparedFilesByPlan.get(plan)!,
+          membershipCleanupOperations,
+          recordAppliedChange,
+        )),
+      );
+    }
+    for (const { handler, apply } of preparedInitializers) {
+      const initialized = await apply(recordAppliedChange);
+      for (const name of initialized.installed) {
+        outcomes.push({ kind: handler.kind, name, status: "installed" });
+      }
+      for (const name of initialized.removed) {
+        outcomes.push({ kind: handler.kind, name, status: "removed" });
+      }
+    }
     outcomes.push(
-      ...(await applyReconciliation(
-        plan,
-        context,
-        preparedFilesByPlan.get(plan),
-        membershipCleanupOperations,
+      ...(await applyRemovalOperations(
+        options.githubDirectory,
+        deletionOperations
+          .filter((operation) => operation.handler.prepareInitialize === undefined)
+          .map(catalogRemovalOperation),
+        recordAppliedChange,
       )),
     );
-  }
-  for (const { handler, selections, deletions } of initializers) {
-    const initialized = await handler.initialize!(
-      options.githubDirectory,
-      context ?? { stacks, variables: {} },
-      selections,
-      deletions,
+    outcomes.push(
+      ...(await applyRemovalOperations(
+        options.githubDirectory,
+        membershipCleanupOperations.map(membershipRemovalOperation),
+        recordAppliedChange,
+      )),
     );
-    for (const name of initialized.installed) {
-      outcomes.push({ kind: handler.kind, name, status: "installed" });
+    if (configWrite !== undefined) {
+      try {
+        await mkdir(options.githubDirectory, { recursive: true });
+        await writeFile(configWrite.path, configWrite.content);
+        recordAppliedChange("wrote Config '.github/spindle.json'");
+      } catch (error) {
+        throw new Error(
+          `Failed to write Config '${configWrite.path}': ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        );
+      }
     }
-    for (const name of initialized.removed) {
-      outcomes.push({ kind: handler.kind, name, status: "removed" });
-    }
-  }
-  outcomes.push(
-    ...(await applyRemovalOperations(
-      options.githubDirectory,
-      deletionOperations
-        .filter((operation) => operation.handler.initialize === undefined)
-        .map(catalogRemovalOperation),
-    )),
-  );
-  outcomes.push(
-    ...(await applyRemovalOperations(
-      options.githubDirectory,
-      membershipCleanupOperations.map(membershipRemovalOperation),
-    )),
-  );
-  if (options.mode === "init") {
-    await mkdir(options.githubDirectory, { recursive: true });
-    await writeFile(
-      join(options.githubDirectory, "spindle.json"),
-      `${JSON.stringify(options.config, null, 2)}\n`,
-    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const progress =
+      completedChanges.length > 0 ? ` Completed changes: ${completedChanges.join(", ")}.` : "";
+    throw new Error(`${message}${progress} Application stopped; rollback was not attempted.`, {
+      cause: error,
+    });
   }
   return outcomes;
 }
