@@ -125,9 +125,10 @@ test("--on-conflict skip leaves existing skills untouched and installs new ones"
       assert.equal(result.status, 0, result.stderr);
       const alpha = join(project, ".github/skills/alpha");
       assert.equal(await readFile(join(alpha, "SKILL.md"), "utf8"), "mine\n");
-      assert.equal(await readFile(join(alpha, "stale.md"), "utf8"), "stale\n");
-      assert.equal(await readFile(join(alpha, "nested/old.md"), "utf8"), "old\n");
-      assert.deepEqual((await readdir(alpha)).sort(), ["SKILL.md", "nested", "stale.md"]);
+      await assert.rejects(readFile(join(alpha, "stale.md")));
+      await assert.rejects(readFile(join(alpha, "nested/old.md")));
+      assert.deepEqual((await readdir(alpha)).sort(), ["SKILL.md", "nested"]);
+      assert.deepEqual(await readdir(join(alpha, "nested")), []);
       assert.equal(
         await readFile(join(project, ".github/skills/beta/SKILL.md"), "utf8"),
         "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nfresh beta\n",

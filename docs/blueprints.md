@@ -29,6 +29,17 @@ filenames and relative structure are preserved. A path without a trailing slash
 selects one file. Do not use glob patterns or internal Stack overlays. A nested
 directory named `stacks/` is ordinary content.
 
+For an active, matching directory selection, the installed subtree is
+authoritative for file membership. During both `init` and `update`, files absent
+from the selected source directory are removed, including nested local additions
+and files that disappeared upstream. This membership cleanup also runs when a
+Skill is current or its update is skipped. It does not replace surviving files
+or install source-only files: Agents and Instructions retain their per-file
+version and new-content decisions, and Skills still require a version bump for
+content additions or changes. A file selection owns only that file and never
+authorizes cleanup of neighboring files. Symbolic links and unsafe cleanup
+targets are rejected; no installed-content inventory is maintained.
+
 Agents and Instructions are named Markdown files with their own version
 metadata. They can be grouped in catalog-selected directories, but each file is
 updated independently and keeps its source path. Skills remain directories led

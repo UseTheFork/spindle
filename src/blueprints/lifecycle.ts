@@ -1,5 +1,5 @@
-import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
 
 import {
   assertSafeInstallPaths,
@@ -36,7 +36,7 @@ export interface PlannedBlueprintDeletion {
   path: string;
   target: string;
   directory: boolean;
-  reason: CatalogDeletion["reason"];
+  reason: CatalogDeletion["reason"] | "directory-membership";
 }
 
 interface ReconcileCommon {
@@ -94,16 +94,77 @@ interface PlannedDeletionOperation {
   plan: PlannedBlueprintDeletion;
 }
 
+interface PlannedMembershipCleanupOperation {
+  handler: BlueprintHandler;
+  plan: PlannedBlueprintDeletion;
+}
+
+interface RemovalTargetValidation {
+  handler: BlueprintHandler;
+  plan: PlannedBlueprintDeletion;
+  expectedTarget: "file" | "directory";
+}
+
+interface RemovalOperation extends RemovalTargetValidation {
+  recursive: boolean;
+  validationDescription: string;
+  removalDescription: string;
+  completedLabel: "removals" | "cleanups";
+  completedName: string;
+}
+
 export interface BlueprintHandlerCatalogPlan {
   handler: BlueprintHandler;
   selections: CatalogSelection[];
   catalogDeletions: CatalogDeletion[];
   deletions: PlannedBlueprintDeletion[];
+  membershipCleanup: PlannedBlueprintDeletion[];
 }
 
 export interface BlueprintCatalogReconciliationPlan {
   handlers: BlueprintHandlerCatalogPlan[];
   deletions: PlannedBlueprintDeletion[];
+  membershipCleanup: PlannedBlueprintDeletion[];
+}
+
+async function collectDestinationFiles(directory: string, result: string[] = []) {
+  let directoryStat;
+  try {
+    directoryStat = await lstat(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return result;
+    throw error;
+  }
+  if (directoryStat.isSymbolicLink()) {
+    throw new Error(
+      `Refusing to reconcile selected directory '${directory}': symbolic-link traversal is unsafe.`,
+    );
+  }
+  if (!directoryStat.isDirectory()) {
+    throw new Error(
+      `Refusing to reconcile selected directory '${directory}': expected a directory.`,
+    );
+  }
+
+  for (const entry of (await readdir(directory)).sort()) {
+    const path = join(directory, entry);
+    const stat = await lstat(path);
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Refusing to reconcile selected directory '${directory}': symbolic link '${path}' is unsafe.`,
+      );
+    }
+    if (stat.isDirectory()) {
+      await collectDestinationFiles(path, result);
+    } else if (stat.isFile()) {
+      result.push(path);
+    } else {
+      throw new Error(
+        `Refusing to reconcile selected directory '${directory}': '${path}' is not a regular file or directory.`,
+      );
+    }
+  }
+  return result;
 }
 
 // Ticket-level coordinators can consume target paths and deletion reasons before applying changes.
@@ -133,16 +194,48 @@ export async function planBlueprintCatalogReconciliation(
       directory: deletion.entry.directory,
       reason: deletion.reason,
     }));
+    const membershipCleanup: PlannedBlueprintDeletion[] = [];
+    for (const directory of expansion.directories) {
+      const directoryTarget =
+        handler.targetPath?.(destinationDirectory, directory.path) ??
+        join(destinationDirectory, directory.path);
+      await assertSafeInstallPaths(
+        githubDirectory,
+        [directory.path],
+        destinationDirectory,
+        (name) =>
+          handler.targetPath?.(destinationDirectory, name) ?? join(destinationDirectory, name),
+      );
+      const sourceFiles = new Set(directory.sourceFiles);
+      const installedFiles = await collectDestinationFiles(directoryTarget);
+      for (const installedFile of installedFiles) {
+        const relativePath = relative(directoryTarget, installedFile).split(sep).join("/");
+        if (sourceFiles.has(relativePath)) continue;
+        const path = `${directory.path}/${relativePath}`;
+        membershipCleanup.push({
+          kind: handler.kind,
+          catalogKind: handler.catalogKind,
+          key: directory.entry.key,
+          path,
+          target:
+            handler.targetPath?.(destinationDirectory, path) ?? join(destinationDirectory, path),
+          directory: false,
+          reason: "directory-membership",
+        });
+      }
+    }
     handlerPlans.push({
       handler,
       selections: expansion.selections,
       catalogDeletions: expansion.deletions,
       deletions,
+      membershipCleanup,
     });
   }
   return {
     handlers: handlerPlans,
     deletions: handlerPlans.flatMap((handlerPlan) => handlerPlan.deletions),
+    membershipCleanup: handlerPlans.flatMap((handlerPlan) => handlerPlan.membershipCleanup),
   };
 }
 
@@ -307,6 +400,7 @@ async function applyReconciliation(
   prepared: ReconciliationPlan,
   context: RenderContext | undefined,
   preparedFilesByName?: Map<string, PreparedBlueprintFile[]>,
+  membershipCleanupOperations: PlannedMembershipCleanupOperation[] = [],
 ): Promise<BlueprintOutcome[]> {
   const {
     handler,
@@ -355,9 +449,36 @@ async function applyReconciliation(
       targetPath,
     );
     const replacing = blueprint.status === "conflict" || blueprint.status === "update";
+    const replacedMembershipPaths: PlannedBlueprintDeletion[] = [];
     if (replacing && handler.entryFile === undefined && !handler.fileTarget) {
+      for (const operation of membershipCleanupOperations) {
+        if (operation.handler !== handler) continue;
+        const pathWithinTarget = relative(target, operation.plan.target);
+        if (
+          pathWithinTarget === "" ||
+          pathWithinTarget === ".." ||
+          pathWithinTarget.startsWith(`..${sep}`)
+        ) {
+          continue;
+        }
+        if (
+          await validateRemovalTarget(githubDirectory, {
+            ...operation,
+            expectedTarget: "file",
+          })
+        ) {
+          replacedMembershipPaths.push(operation.plan);
+        }
+      }
       await rm(target, { recursive: true, force: true });
     }
+    outcomes.push(
+      ...replacedMembershipPaths.map((removed) => ({
+        kind: handler.kind,
+        name: removed.path,
+        status: "removed" as const,
+      })),
+    );
     await mkdir(destinationDirectory, { recursive: true });
     const preparedFiles = preparedFilesByName?.get(blueprint.name);
     if (preparedFiles !== undefined) {
@@ -390,22 +511,22 @@ async function applyReconciliation(
   return outcomes;
 }
 
-async function validateDeletionTarget(
+async function validateRemovalTarget(
   githubDirectory: string,
-  operation: PlannedDeletionOperation,
+  operation: RemovalTargetValidation,
 ): Promise<boolean> {
-  const { handler, deletion, plan } = operation;
+  const { handler, plan, expectedTarget } = operation;
   const destinationDirectory = handler.destinationDirectory(githubDirectory);
   const targetPath = (name: string) =>
     handler.targetPath?.(destinationDirectory, name) ?? join(destinationDirectory, name);
-  await assertSafeInstallPaths(githubDirectory, [deletion.path], destinationDirectory, targetPath);
+  await assertSafeInstallPaths(githubDirectory, [plan.path], destinationDirectory, targetPath);
   try {
     const stat = await lstat(plan.target);
     if (stat.isSymbolicLink()) {
       throw new Error(`Refusing to remove '${plan.target}': symbolic-link targets are unsafe.`);
     }
-    if (deletion.entry.directory ? !stat.isDirectory() : !stat.isFile()) {
-      const expected = deletion.entry.directory ? "a directory" : "a regular file";
+    if (expectedTarget === "directory" ? !stat.isDirectory() : !stat.isFile()) {
+      const expected = expectedTarget === "directory" ? "a directory" : "a regular file";
       throw new Error(`Refusing to remove '${plan.target}': expected ${expected}.`);
     }
     return true;
@@ -415,37 +536,67 @@ async function validateDeletionTarget(
   }
 }
 
-async function applyCatalogDeletions(
+function catalogRemovalOperation(operation: PlannedDeletionOperation): RemovalOperation {
+  const { handler, deletion, plan } = operation;
+  const name = `${handler.kind} '${deletion.path}'`;
+  return {
+    handler,
+    plan,
+    expectedTarget: deletion.entry.directory ? "directory" : "file",
+    recursive: deletion.entry.directory,
+    validationDescription: `removal of ${name}`,
+    removalDescription: name,
+    completedLabel: "removals",
+    completedName: name,
+  };
+}
+
+function membershipRemovalOperation(
+  operation: PlannedMembershipCleanupOperation,
+): RemovalOperation {
+  const { handler, plan } = operation;
+  const name = `${handler.kind} '${plan.path}'`;
+  return {
+    handler,
+    plan,
+    expectedTarget: "file",
+    recursive: false,
+    validationDescription: `directory-membership cleanup of ${name}`,
+    removalDescription: `destination-only ${handler.kind} file '${plan.path}'`,
+    completedLabel: "cleanups",
+    completedName: name,
+  };
+}
+
+async function applyRemovalOperations(
   githubDirectory: string,
-  operations: PlannedDeletionOperation[],
+  operations: RemovalOperation[],
 ): Promise<BlueprintOutcome[]> {
   const outcomes: BlueprintOutcome[] = [];
   const completed: string[] = [];
   for (const operation of operations) {
     let targetExists: boolean;
     try {
-      targetExists = await validateDeletionTarget(githubDirectory, operation);
+      targetExists = await validateRemovalTarget(githubDirectory, operation);
     } catch (error) {
       throw new Error(
-        `Failed to validate removal of ${operation.handler.kind} '${operation.deletion.path}' at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed removals: ${completed.join(", ")}.` : ""}`,
+        `Failed to validate ${operation.validationDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed ${operation.completedLabel}: ${completed.join(", ")}.` : ""}`,
         { cause: error },
       );
     }
     if (!targetExists) continue;
     try {
-      await rm(operation.plan.target, {
-        recursive: operation.deletion.entry.directory,
-      });
+      await rm(operation.plan.target, { recursive: operation.recursive });
     } catch (error) {
       throw new Error(
-        `Failed to remove ${operation.handler.kind} '${operation.deletion.path}' at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed removals: ${completed.join(", ")}.` : ""}`,
+        `Failed to remove ${operation.removalDescription} at '${operation.plan.target}': ${error instanceof Error ? error.message : String(error)}${completed.length > 0 ? ` Completed ${operation.completedLabel}: ${completed.join(", ")}.` : ""}`,
         { cause: error },
       );
     }
-    completed.push(`${operation.handler.kind} '${operation.deletion.path}'`);
+    completed.push(operation.completedName);
     outcomes.push({
       kind: operation.handler.kind,
-      name: operation.deletion.path,
+      name: operation.plan.path,
       status: "removed",
     });
   }
@@ -471,6 +622,7 @@ export async function reconcileBlueprints(
     deletions: CatalogDeletion[];
   }[] = [];
   const deletionOperations: PlannedDeletionOperation[] = [];
+  const membershipCleanupOperations: PlannedMembershipCleanupOperation[] = [];
   await assertSafeInstallPaths(options.githubDirectory, [], options.githubDirectory);
   const catalogPlan = await planBlueprintCatalogReconciliation(
     handlers,
@@ -481,10 +633,13 @@ export async function reconcileBlueprints(
     const { handler, selections, catalogDeletions } = handlerPlan;
     const destinationDirectory = handler.destinationDirectory(options.githubDirectory);
     const deletions = handlerPlan.deletions;
+    membershipCleanupOperations.push(
+      ...handlerPlan.membershipCleanup.map((plan) => ({ handler, plan })),
+    );
     catalogDeletions.forEach((deletion, index) => {
       deletionOperations.push({ handler, deletion, plan: deletions[index] });
     });
-    if (deletions.length > 0) hasBlueprints = true;
+    if (deletions.length > 0 || handlerPlan.membershipCleanup.length > 0) hasBlueprints = true;
     if (handler.initialize !== undefined) {
       if (selections.length > 0 || catalogDeletions.length > 0) {
         hasBlueprints = true;
@@ -507,8 +662,12 @@ export async function reconcileBlueprints(
     }
     collections.push({ handler, names, files, deletions });
   }
-  for (const operation of deletionOperations) {
-    await validateDeletionTarget(options.githubDirectory, operation);
+  const plannedRemovals = [
+    ...deletionOperations.map(catalogRemovalOperation),
+    ...membershipCleanupOperations.map(membershipRemovalOperation),
+  ];
+  for (const operation of plannedRemovals) {
+    await validateRemovalTarget(options.githubDirectory, operation);
   }
   if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
   let resolvedContext = options.context;
@@ -606,7 +765,14 @@ export async function reconcileBlueprints(
     }
   }
   for (const plan of plans) {
-    outcomes.push(...(await applyReconciliation(plan, context, preparedFilesByPlan.get(plan))));
+    outcomes.push(
+      ...(await applyReconciliation(
+        plan,
+        context,
+        preparedFilesByPlan.get(plan),
+        membershipCleanupOperations,
+      )),
+    );
   }
   for (const { handler, selections, deletions } of initializers) {
     const initialized = await handler.initialize!(
@@ -623,9 +789,17 @@ export async function reconcileBlueprints(
     }
   }
   outcomes.push(
-    ...(await applyCatalogDeletions(
+    ...(await applyRemovalOperations(
       options.githubDirectory,
-      deletionOperations.filter((operation) => operation.handler.initialize === undefined),
+      deletionOperations
+        .filter((operation) => operation.handler.initialize === undefined)
+        .map(catalogRemovalOperation),
+    )),
+  );
+  outcomes.push(
+    ...(await applyRemovalOperations(
+      options.githubDirectory,
+      membershipCleanupOperations.map(membershipRemovalOperation),
     )),
   );
   if (options.mode === "init") {

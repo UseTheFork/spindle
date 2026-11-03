@@ -28,9 +28,16 @@ export interface CatalogDeletion {
   reason: "removed" | "stack-inapplicable";
 }
 
+export interface CatalogDirectorySelection {
+  entry: CatalogEntry;
+  path: string;
+  sourceFiles: string[];
+}
+
 export interface CatalogExpansionPlan {
   selections: CatalogSelection[];
   deletions: CatalogDeletion[];
+  directories: CatalogDirectorySelection[];
 }
 
 export type BlueprintCatalog = Record<CatalogKind, CatalogEntry[]>;
@@ -204,6 +211,7 @@ export async function planBlueprintCatalog(
 ): Promise<CatalogExpansionPlan> {
   const selections: CatalogSelection[] = [];
   const deletions: CatalogDeletion[] = [];
+  const directories: CatalogDirectorySelection[] = [];
   for (const entry of catalog[kind]) {
     if (entry.status === "removed") {
       deletions.push({ entry, path: entry.path, reason: "removed" });
@@ -262,6 +270,11 @@ export async function planBlueprintCatalog(
 
     const files: { sourcePath: string; outputPath: string }[] = [];
     if (entry.directory) {
+      directories.push({
+        entry,
+        path: entry.path,
+        sourceFiles: directoryFiles!.map((file) => relative(sourcePath, file).split(sep).join("/")),
+      });
       for (const file of directoryFiles!) {
         files.push({
           sourcePath: file,
@@ -291,7 +304,7 @@ export async function planBlueprintCatalog(
       });
     }
   }
-  return { selections, deletions };
+  return { selections, deletions, directories };
 }
 
 export async function expandBlueprintCatalog(
