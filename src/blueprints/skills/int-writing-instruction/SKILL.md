@@ -52,6 +52,6 @@ Keep the body short and self-contained. State one actionable expectation per bul
 
 ## Validate
 
-Try a representative task that should use the guidance. Check the response's References to confirm the instruction was included, then inspect the work and tool activity for adherence. Discovery alone does not show that the guidance shaped the result.
+For behavior-shaping changes, use `int-testing-agent-guidance` to establish a baseline and try the same representative task with the revised guidance. Check the response's References to confirm the instruction was included, then inspect the work and tool activity for adherence. Discovery alone does not show that the guidance shaped the result.
 
 For current VS Code behavior and frontmatter details, consult [Use custom instructions in VS Code](https://code.visualstudio.com/docs/agent-customization/custom-instructions).

@@ -1,6 +1,6 @@
 ---
-name: shared-orchestrator
-description: A general orchestration agent for answering questions and carrying out implementation tasks.
+name: General
+description: A general agent for answering questions and carrying out implementation tasks.
 user-invocable: true
 tools:
   [

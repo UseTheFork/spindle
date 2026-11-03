@@ -59,7 +59,7 @@ Stop after covering the supplied paths or reporting the blocker.
 
 ### 4. Validate
 
-Check location, YAML syntax, field names, references, tools, and agent identifiers. Exercise a representative task; inspect output and tool use. Distinguish static checks from untested runtime discovery or invocation.
+Check location, YAML syntax, field names, references, tools, and agent identifiers. For behavior-shaping changes, use the `int-testing-agent-guidance` skill to establish a baseline and exercise a representative task; inspect output and tool use. Distinguish static checks from untested runtime discovery or invocation.
 
 **Complete when:** evidence supports claims; unverified runtime requirements are explicit.
 

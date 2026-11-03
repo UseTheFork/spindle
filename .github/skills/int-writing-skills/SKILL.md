@@ -1,10 +1,10 @@
 ---
 name: int-writing-skills
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 meta:
   spindle:
     version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 # Writing Skills
@@ -13,9 +13,9 @@ user-invocable: false
 
 Treat skill writing as TDD for process documentation: test the existing guidance, make the smallest revision that addresses an observed gap, then test again. A skill is a reusable technique, pattern, or reference—not a narrative about one task.
 
-**NO SKILL WITHOUT A FAILING TEST FIRST.** This applies to new skills and edits. If you draft before RED, discard the draft and restart; do not keep it as "reference" or adapt it while testing. The positive path is baseline, minimal change, and re-test.
+**NO SKILL WITHOUT A FAILING TEST FIRST.** This applies to new skills and edits. If you draft before RED, discard the draft and restart; do not keep it as "reference" or adapt it while testing. The core path is a focused baseline, minimal change, and re-test. Expanded pressure testing is available through `author-skill`'s `--test` option or when specifically requested.
 
-**REQUIRED BACKGROUND:** Use the `int-test-driven-development` skill for RED–GREEN and reusing the same tests after behavior-preserving refactoring.
+**REQUIRED SUB-SKILL:** Use `int-testing-agent-guidance` for scenario selection, baseline, focused retest, and expanded testing when requested.
 
 **REQUIRED SUB-SKILL:** Use `int-writing-for-agents` skill when creating or editing a skill. Consult its `SKILL-MECHANICS.md` reference when choosing invocation behavior or designing a router skill.
 
@@ -39,9 +39,7 @@ Choose invocation deliberately:
 
 ### 2. RED: establish the baseline before editing
 
-Write concrete application or retrieval scenarios before changing the skill. For discipline-enforcing guidance, use at least three scenarios, each combining at least three pressures such as deadline, sunk cost, authority, exhaustion, or social consequences. Make the agent choose and act; record choices and rationalizations verbatim.
-
-For a new skill, run scenarios without the proposed guidance. For an edit, use the current version as the control. Test the actual gap: whether agents violate a rule, produce the wrong shape, omit a requirement, or miss a conditional branch. For a structural rewrite, test whether a fresh agent can find the first action and its completion criterion.
+Use the core workflow in `int-testing-agent-guidance`. For skills, choose an application or retrieval scenario that exercises the skill's intended use; for a structural rewrite, test whether an agent can find the first action and its completion criterion.
 
 Classify the failure before choosing the fix:
 
@@ -54,7 +52,7 @@ Classify the failure before choosing the fix:
 
 If the control already meets the target, stop changing that behavior; do not invent a failure to justify guidance. A failed test identifies a gap, not permission for unrelated additions.
 
-**Complete when:** fixed prompts, observable success criteria, and baseline results identify a specific gap and the matching guidance form.
+**Complete when:** the scenario, observable criterion, and baseline result identify a specific gap and the matching guidance form.
 
 ### 3. GREEN: write the smallest effective skill
 
@@ -104,21 +102,13 @@ For agent-facing documents, apply the writing principles in `int-writing-for-age
 
 ### 4. Verify the wording and revised skill
 
-For behavior-shaping wording, run micro-tests before the full pressure scenarios:
+Rerun the same focused scenario with the revised skill, following `int-testing-agent-guidance`. If it fails or reveals a new rationalization, revise and re-test.
 
-1. Use fresh context for each sample and include the full skill or prompt context.
-2. Include a no-guidance control; if it does not show the target failure, stop changing that behavior.
-3. Run at least five samples per variant.
-4. Manually inspect every flagged result; quoted examples and counter-examples are not compliance.
-5. Treat variance as evidence: tighten wording when interpretations diverge.
-
-Micro-tests do not replace pressure scenarios for discipline-enforcing skills. Re-run the same baseline scenarios with the revised skill. The agent should choose the required behavior, cite the relevant guidance, and acknowledge any addressed temptation. If a new rationalization appears, close that specific loophole and re-test.
-
-**Complete when:** micro-test results support the wording and the same full scenarios demonstrate the required behavior after revision.
+**Complete when:** the revised skill passes the same focused scenario against its observable criterion, with no unresolved failure or rationalization.
 
 ### 5. Refactor and deploy
 
-Review new rationalizations against the baseline. Add explicit counters only for observed discipline failures; keep wrong-shape fixes as recipes and omission fixes in the structure. Re-run the scenarios after every refactor. A passing first run is not the stopping condition: stop when the targeted failures are resolved and no new rationalization appears in the tested scenarios.
+Review new rationalizations against the baseline. Add explicit counters only for observed discipline failures; keep wrong-shape fixes as recipes and omission fixes in the structure. Re-run the focused scenario after every refactor. Stop when the targeted failure is resolved and no new rationalization appears.
 
 Finish the quality and deployment checklist below before moving to another skill. Commit or push only when explicitly requested; consider a PR when the work is broadly useful and the repository workflow supports it.
 
@@ -126,14 +116,14 @@ Finish the quality and deployment checklist below before moving to another skill
 
 ## Testing by skill type
 
-| Skill type                               | Test                                                               | Success criterion                                   |
-| ---------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------- |
-| Discipline-enforcing (TDD, verification) | Academic questions plus pressure scenarios with combined pressures | The agent follows the rule under pressure           |
-| Technique (waiting, debugging)           | Application, variation, and missing-information scenarios          | The agent applies the technique to new cases        |
-| Pattern (complexity, information hiding) | Recognition, application, and counter-example scenarios            | The agent recognizes when and when not to apply it  |
-| Reference (API, syntax)                  | Retrieval, application, and gap scenarios                          | The agent finds and correctly uses the needed facts |
+| Skill type                               | Focused core scenario                          | Core success criterion                                       |
+| ---------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| Discipline-enforcing (TDD, verification) | One realistic choice involving the target rule | The agent chooses the required action                        |
+| Technique (waiting, debugging)           | Apply the technique to one concrete case       | The agent applies it correctly                               |
+| Pattern (complexity, information hiding) | One recognition or counter-example case        | The agent recognizes when the pattern does and doesn't apply |
+| Reference (API, syntax)                  | Retrieve and apply one relevant fact           | The agent finds and correctly uses the fact                  |
 
-Use [`testing-skills-with-subagents`](testing-skills-with-subagents.md) for pressure-scenario design, subagent setup, and systematic loophole testing. Use [`persuasion-principles`](persuasion-principles.md) when designing discipline-enforcing guidance; apply authority and commitment sparingly, and avoid liking or reciprocity as compliance tools.
+Use [`int-testing-agent-guidance`](../int-testing-agent-guidance/SKILL.md) for the shared testing procedure. Use [`persuasion-principles`](persuasion-principles.md) when designing discipline-enforcing guidance; apply authority and commitment sparingly, and avoid liking or reciprocity as compliance tools.
 
 ## Common rationalizations and red flags
 
@@ -151,7 +141,7 @@ Create a todo for every applicable item.
 
 ### RED
 
-- [ ] Create pressure or application scenarios before editing.
+- [ ] Create at least one focused application or retrieval scenario before editing.
 - [ ] Run the current-version or no-guidance baseline; capture behavior verbatim.
 - [ ] Identify a specific failure and select the matching guidance form.
 
@@ -163,14 +153,14 @@ Create a todo for every applicable item.
 - [ ] Put ordered steps and completion criteria before branch-specific reference.
 - [ ] Co-locate related material; disclose heavy or branch-specific reference.
 - [ ] Keep one useful example; omit narrative and multi-language dilution.
-- [ ] Micro-test behavior-shaping wording against a no-guidance control (five or more samples per variant).
-- [ ] Run the same scenarios with the revised skill.
+- [ ] Rerun the focused scenario with the revised skill.
+- [ ] When `--test` is requested, complete the expanded testing workflow in `int-testing-agent-guidance`.
 
 ### REFACTOR
 
 - [ ] Capture new rationalizations from testing.
 - [ ] Add specific counters and red flags for observed discipline failures.
-- [ ] Re-test after each refactor until the target behavior holds.
+- [ ] Re-test the focused scenario after each refactor until the target behavior holds.
 
 ### Quality and deployment
 

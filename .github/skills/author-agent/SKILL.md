@@ -4,25 +4,23 @@ meta:
   spindle:
     version: 1.0.0
 description: Create or revise a workspace custom agent from requirements.
-argument-hint: "[agent idea or requirements]"
+argument-hint: "[--test] <agent idea or requirements>"
 disable-model-invocation: true
 user-invocable: true
 ---
 
-Create or revise a custom agent based on these requirements:
+Create or update a project agent in `.github/agents/<agent-name>.agent.md` based on the user's requirements.
 
-```
-${input:requirements:Describe the agent role or changes to make}
-```
+## Required skills
 
-Before drafting, load and follow each required skill:
+Before drafting or editing, read:
 
 - **REQUIRED:** `int-writing-agents`
 - **REQUIRED:** `int-writing-for-agents`
-- **REQUIRED:** `int-verification-before-completion`
+- **REQUIRED:** `int-testing-agent-guidance`
 
-Treat their requirements as mandatory. Follow `int-writing-agents` for the complete authoring workflow, including role definition, file structure, tool restrictions, invocation behavior, and validation.
+These skills define the complete authoring workflow. Every agent change requires the baseline and focused validation specified by `int-testing-agent-guidance`; `--test` does not disable or replace them.
 
-Create the agent in `.github/agents/<agent-name>.agent.md`, or revise the requested existing agent, following repository conventions and the requested scope. Complete the task rather than returning only a plan. Do not modify unrelated files.
+When `--test` is present, also run the expanded testing workflow in `int-testing-agent-guidance`.
 
-Run fresh, relevant verification before making completion claims. Report any check that could not be performed accurately; do not claim it passed. Finish with a concise summary of the agent created or revised, verification performed, and any blockers or unverified runtime behavior.
+Do not modify unrelated files. Report the skill changed and validation performed, including any blockers or unverified requirements.
