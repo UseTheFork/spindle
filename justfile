@@ -5,5 +5,6 @@ default:
 
 mod format '.github/scripts/just-modules/format.just'
 mod lint '.github/scripts/just-modules/lint.just'
+mod spindle '.github/scripts/just-modules/spindle.just'
 mod test '.github/scripts/just-modules/test.just'
 mod tool '.github/scripts/just-modules/tool.just'
