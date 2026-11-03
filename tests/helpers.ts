@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 
@@ -33,6 +34,58 @@ export function runCli(
     encoding: "utf8",
     env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
   });
+}
+
+// Build an explicit catalog for the source files authored by legacy CLI fixture
+// helpers. This is test setup only: the production CLI never discovers content
+// from filenames or directory layouts.
+function writeFixtureCatalog(blueprints: string) {
+  const catalogPath = join(blueprints, "catalog.yaml");
+  if (existsSync(catalogPath)) return;
+
+  const filesUnder = (root: string, predicate: (path: string) => boolean): string[] => {
+    const files: string[] = [];
+    const visit = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) visit(path);
+        else if (entry.isFile() && predicate(path)) files.push(path.slice(root.length + 1));
+      }
+    };
+    if (existsSync(root)) visit(root);
+    return files.sort();
+  };
+  const entries = (paths: string[]) =>
+    Object.fromEntries(paths.map((path) => [path, { path, status: "active", stacks: [] }]));
+  const skillPaths = existsSync(join(blueprints, "skills"))
+    ? readdirSync(join(blueprints, "skills"), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => join(entry.name, ""))
+        .filter((path) => existsSync(join(blueprints, "skills", path, "SKILL.md")))
+        .map((path) => `${path.replaceAll("\\", "/").replace(/\/?$/, "/")}`)
+    : [];
+  const catalog = {
+    agents: entries(filesUnder(join(blueprints, "agents"), (path) => path.endsWith(".agent.md"))),
+    just: entries(filesUnder(join(blueprints, "just"), (path) => path.endsWith(".just"))),
+    instructions: entries(
+      filesUnder(join(blueprints, "instructions"), (path) => path.endsWith(".instructions.md")),
+    ),
+    skills: Object.fromEntries(
+      skillPaths.map((path) => [path, { path, status: "active", stacks: [] }]),
+    ),
+  };
+  writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
+}
+
+export function runCliWithFixtureCatalog(
+  project: string,
+  args: string[],
+  searchPath: string,
+  env: Record<string, string> = {},
+) {
+  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  if (blueprints) writeFixtureCatalog(blueprints);
+  return runCli(project, args, searchPath, env);
 }
 
 export function runCliInteractive(
@@ -96,6 +149,18 @@ export function runCliInteractive(
       });
     },
   );
+}
+
+export function runCliInteractiveWithFixtureCatalog(
+  project: string,
+  args: string[],
+  searchPath: string,
+  responses: { trigger: string; input: string; beforeInput?: () => void }[],
+  env: Record<string, string> = {},
+) {
+  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  if (blueprints) writeFixtureCatalog(blueprints);
+  return runCliInteractive(project, args, searchPath, responses, env);
 }
 
 export function pathWith(directory: string) {

@@ -6,12 +6,11 @@ import {
   mkdir,
   mkdtemp,
   readFile,
-  readdir,
   rename,
   rm,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, extname, join, normalize, relative, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderText, type RenderContext } from "./render.js";
@@ -64,6 +63,7 @@ export async function assertSafeInstallPaths(
   destinationDirectory = join(githubDirectory, "skills"),
   targetPath = (name: string) => join(destinationDirectory, name),
 ) {
+  const installRoot = resolve(githubDirectory);
   const paths = [
     githubDirectory,
     destinationDirectory,
@@ -72,6 +72,25 @@ export async function assertSafeInstallPaths(
   ];
 
   for (const path of paths) {
+    const absolutePath = resolve(path);
+    const pathFromRoot = relative(installRoot, absolutePath);
+    if (pathFromRoot === ".." || pathFromRoot.startsWith(`..${sep}`) || isAbsolute(pathFromRoot)) {
+      throw new Error(`Refusing to write '${path}': target is outside .github.`);
+    }
+    let current = installRoot;
+    for (const segment of pathFromRoot === "" ? [] : pathFromRoot.split(sep)) {
+      current = join(current, segment);
+      try {
+        if ((await lstat(current)).isSymbolicLink()) {
+          throw new Error(
+            `Refusing to write through symbolic link '${current}'. Spindle writes only inside .github.`,
+          );
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") break;
+        throw error;
+      }
+    }
     try {
       if ((await lstat(path)).isSymbolicLink()) {
         throw new Error(
@@ -83,19 +102,6 @@ export async function assertSafeInstallPaths(
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-  }
-}
-
-export async function listBlueprints(sourceDirectory: string) {
-  try {
-    const entries = await readdir(sourceDirectory, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .sort();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
   }
 }
 
@@ -128,7 +134,7 @@ export async function preparePlannedBlueprintFiles(
   files: PlannedBlueprintFile[],
   context: RenderContext,
   validateRenderedFile?: (relativePath: string, renderedText: string) => void,
-  requireText = false,
+  requireText: boolean | ((file: PlannedBlueprintFile) => boolean) = false,
 ) {
   const prepared: PreparedBlueprintFile[] = [];
   for (const file of files) {
@@ -142,7 +148,7 @@ export async function preparePlannedBlueprintFiles(
       }
     }
 
-    if (text === null && requireText) {
+    if (text === null && (typeof requireText === "function" ? requireText(file) : requireText)) {
       throw new Error(`Blueprint entry '${file.outputPath}' must be valid UTF-8 text.`);
     }
     const renderedText = text === null ? null : renderText(text, context);
@@ -182,85 +188,19 @@ async function installFile(
   }
 }
 
-async function collectFiles(directory: string, outputRoot: string, files: PlannedBlueprintFile[]) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const sourcePath = join(directory, entry.name);
-    if (entry.isDirectory()) {
-      await collectFiles(sourcePath, outputRoot, files);
-    } else if (entry.isFile()) {
-      files.push({
-        sourcePath,
-        outputPath: relative(outputRoot, sourcePath),
-      });
-    }
-  }
-}
-
-export async function planBlueprintFiles(source: string, stacks: string[]) {
-  const files: PlannedBlueprintFile[] = [];
-
-  for (const entry of await readdir(source, { withFileTypes: true })) {
-    if (entry.name === "stacks") continue;
-    const sourcePath = join(source, entry.name);
-    if (entry.isDirectory()) {
-      await collectFiles(sourcePath, source, files);
-    } else if (entry.isFile()) {
-      files.push({ sourcePath, outputPath: entry.name });
-    }
-  }
-
-  for (const stack of stacks) {
-    const overlay = join(source, "stacks", stack);
-    try {
-      if ((await lstat(overlay)).isDirectory()) {
-        await collectFiles(overlay, overlay, files);
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-  }
-
-  const sourcesByOutputPath = new Map<string, string>();
-  for (const file of files) {
-    const outputPath = normalize(file.outputPath);
-    const previousSource = sourcesByOutputPath.get(outputPath);
-    if (previousSource !== undefined) {
-      throw new Error(
-        `Duplicate Blueprint output path '${outputPath}' from '${previousSource}' and '${file.sourcePath}'.`,
-      );
-    }
-    sourcesByOutputPath.set(outputPath, file.sourcePath);
-  }
-
-  for (const file of files) {
-    const outputPath = normalize(file.outputPath);
-    const segments = outputPath.split(sep);
-    for (let length = 1; length < segments.length; length += 1) {
-      const ancestorPath = segments.slice(0, length).join(sep);
-      const ancestorSource = sourcesByOutputPath.get(ancestorPath);
-      if (ancestorSource !== undefined) {
-        throw new Error(
-          `File/directory prefix conflict between output paths '${ancestorPath}' ('${ancestorSource}') and '${outputPath}' ('${file.sourcePath}').`,
-        );
-      }
-    }
-  }
-
-  return files;
-}
-
 export async function installPlannedBlueprintFiles(
   files: PreparedBlueprintFile[],
   target: string,
   entryFile?: string,
   replace = false,
+  atTarget = false,
 ) {
   for (const file of files) {
     await installFile(
       file,
-      entryFile === undefined ? join(target, file.outputPath) : target,
+      atTarget ? target : entryFile === undefined ? join(target, file.outputPath) : target,
       replace,
-      entryFile !== undefined,
+      entryFile !== undefined || (atTarget && file.outputPath.toLowerCase().endsWith(".md")),
     );
   }
 }

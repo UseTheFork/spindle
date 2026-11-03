@@ -3,7 +3,12 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import {
+  makeJustStubDir,
+  makeTempDir,
+  pathWith,
+  runCliWithFixtureCatalog as runCli,
+} from "./helpers.ts";
 
 let justDirectory: string;
 
@@ -19,7 +24,11 @@ const instruction = (name: string, version: string | null, body: string) =>
   `---\nname: ${name}\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
 
 async function writeInstruction(blueprints: string, path: string, text: string) {
-  const file = join(blueprints, "instructions", path, "INSTRUCTION.md");
+  const file = join(
+    blueprints,
+    "instructions",
+    path.endsWith(".instructions.md") ? path : `${path}.instructions.md`,
+  );
   await mkdir(join(file, ".."), { recursive: true });
   await writeFile(file, text);
 }
@@ -40,8 +49,8 @@ test("init and update install selected Instructions as single versioned files", 
       ),
     );
     await writeInstruction(blueprints, "invalid", instruction("invalid", "1.0.0", "shipped"));
-    await writeInstruction(blueprints, "py/stacks/python", instruction("py", "1.0.0", "py only"));
-    await writeInstruction(blueprints, "ts/stacks/typescript", instruction("ts", "1.0.0", "ts"));
+    await writeInstruction(blueprints, "py.instructions.md", instruction("py", "1.0.0", "py"));
+    await writeInstruction(blueprints, "ts.instructions.md", instruction("ts", "1.0.0", "ts"));
     await writeInstruction(blueprints, "local", instruction("local", "1.0.0", "shipped"));
     await mkdir(installed, { recursive: true });
     await writeFile(join(installed, "local.instructions.md"), instruction("local", null, "mine"));
@@ -56,13 +65,14 @@ test("init and update install selected Instructions as single versioned files", 
     assert.equal(init.status, 0, init.stderr);
     assert.equal(
       init.stdout,
-      "✔ Installed 3 instruction(s) for python. Skipped 1 existing instruction(s)\n",
+      "✔ Installed 4 instruction(s) for python. Skipped 1 existing instruction(s)\n",
     );
     assert.deepEqual(await readdir(installed), [
       "invalid.instructions.md",
       "local.instructions.md",
       "py.instructions.md",
       "style.instructions.md",
+      "ts.instructions.md",
     ]);
     assert.equal(
       await readFile(join(installed, "style.instructions.md"), "utf8"),
@@ -94,9 +104,9 @@ test("init and update install selected Instructions as single versioned files", 
       instruction("local", null, "mine"),
     );
     assert.equal(await readFile(invalidInstalled, "utf8"), invalidLocal);
-    assert.match(update.stderr, /Instruction 'local'.*no version/);
-    assert.match(update.stderr, /Instruction 'invalid'.*non-semver version 'v1'/);
-    assert.equal(update.stdout, "✔ Added 0, updated 1, skipped 2, up to date 1 instruction(s)\n");
+    assert.match(update.stderr, /Instruction 'local\.instructions\.md'.*no version/);
+    assert.match(update.stderr, /Instruction 'invalid\.instructions\.md'.*non-semver version 'v1'/);
+    assert.equal(update.stdout, "✔ Added 0, updated 1, skipped 2, up to date 2 instruction(s)\n");
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -120,7 +130,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
       env,
     );
     assert.notEqual(invalid.status, 0);
-    assert.match(invalid.stderr, /Invalid Instruction metadata in 'INSTRUCTION\.md'/);
+    assert.match(invalid.stderr, /Invalid Instruction metadata in 'style\.instructions\.md'/);
     assert.equal(await readFile(target, "utf8"), "local\n");
 
     await writeInstruction(blueprints, "style", instruction("style", "1.0.0", "shipped"));
@@ -131,7 +141,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
       env,
     );
     assert.notEqual(conflict.status, 0);
-    assert.match(conflict.stderr, /Instruction 'style' already exists/);
+    assert.match(conflict.stderr, /Instruction 'style\.instructions\.md' already exists/);
     assert.equal(await readFile(target, "utf8"), "local\n");
 
     const overwrite = runCli(

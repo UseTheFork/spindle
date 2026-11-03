@@ -6,12 +6,20 @@ import { planVersionedUpdate, validateVersionedMetadata } from "../versioned.js"
 
 export const agentHandler: BlueprintHandler = {
   kind: "Agent",
+  catalogKind: "agents",
   sourceDirectory: () => join(blueprintsRoot(), "agents"),
   destinationDirectory: (githubDirectory) => join(githubDirectory, "agents"),
-  entryFile: "AGENT.md",
-  targetPath: (destinationDirectory, name) => join(destinationDirectory, `${name}.agent.md`),
-  validateMetadata: (relativePath, renderedText) =>
-    validateVersionedMetadata("Agent", "AGENT.md", relativePath, renderedText),
-  planUpdate: (input) =>
-    planVersionedUpdate(input, "Agent", "AGENT.md", (target) => target, "warning"),
+  fileTarget: true,
+  targetPath: (destinationDirectory, name) => join(destinationDirectory, name),
+  validateMetadata: (relativePath, renderedText) => {
+    if (relativePath.toLowerCase().endsWith(".md")) {
+      validateVersionedMetadata("Agent", relativePath, relativePath, renderedText);
+    }
+  },
+  planUpdate: (input) => {
+    const entry = input.sourceFiles[0].outputPath;
+    return entry.toLowerCase().endsWith(".md")
+      ? planVersionedUpdate(input, "Agent", entry, (target) => target, "warning")
+      : Promise.resolve({ status: input.installed ? "conflict" : "new" });
+  },
 };

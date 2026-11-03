@@ -5,7 +5,13 @@ import { after, before, test } from "node:test";
 
 import { Chalk } from "chalk";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli, runCliInteractive } from "./helpers.ts";
+import {
+  makeJustStubDir,
+  makeTempDir,
+  pathWith,
+  runCliWithFixtureCatalog as runCli,
+  runCliInteractiveWithFixtureCatalog as runCliInteractive,
+} from "./helpers.ts";
 
 let justDirectory: string;
 let stubsDirectory: string;
@@ -101,24 +107,15 @@ test("init installs its configured skill and records repeatable stack flags", as
   }
 });
 
-test("init renders and composes independently named Just Modules and creates required imports", async () => {
+test("init renders standalone Just Modules and creates their filename-based imports", async () => {
   const blueprints = await makeTempDir("spindle-init-just-blueprints-");
   const project = await makeTempDir();
-  const moduleDirectory = join(blueprints, "just", "quality");
+  const moduleDirectory = join(blueprints, "just");
   try {
-    await mkdir(join(moduleDirectory, "stacks", "typescript"), { recursive: true });
-    await mkdir(join(moduleDirectory, "stacks", "python"), { recursive: true });
-    await mkdir(join(moduleDirectory, "stacks", "php-laravel"), { recursive: true });
-    await writeFile(join(moduleDirectory, "JUSTMODULE.just"), "shared={{ variables.owner }}\n");
-    await writeFile(
-      join(moduleDirectory, "stacks", "typescript", "JUSTMODULE.just"),
-      "typescript\n",
-    );
-    await writeFile(join(moduleDirectory, "stacks", "python", "JUSTMODULE.just"), "python\n");
-    await writeFile(
-      join(moduleDirectory, "stacks", "php-laravel", "JUSTMODULE.just"),
-      "php-laravel\n",
-    );
+    await mkdir(moduleDirectory, { recursive: true });
+    await writeFile(join(moduleDirectory, "quality.just"), "shared={{ variables.owner }}\n");
+    await writeFile(join(moduleDirectory, "quality-python.just"), "python\n");
+    await writeFile(join(moduleDirectory, "quality-typescript.just"), "typescript\n");
 
     const result = runCli(
       project,
@@ -139,11 +136,24 @@ test("init renders and composes independently named Just Modules and creates req
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
       await readFile(join(project, ".github/scripts/just-modules/quality.just"), "utf8"),
-      "shared=team\n\n" + "typescript\n\n" + "python\n",
+      "shared=team\n",
     );
     assert.equal(
       await readFile(join(project, "justfile"), "utf8"),
-      "mod quality '.github/scripts/just-modules/quality.just'\n",
+      [
+        "mod quality '.github/scripts/just-modules/quality.just'",
+        "mod quality-python '.github/scripts/just-modules/quality-python.just'",
+        "mod quality-typescript '.github/scripts/just-modules/quality-typescript.just'",
+        "",
+      ].join("\n"),
+    );
+    assert.equal(
+      await readFile(join(project, ".github/scripts/just-modules/quality-python.just"), "utf8"),
+      "python\n",
+    );
+    assert.equal(
+      await readFile(join(project, ".github/scripts/just-modules/quality-typescript.just"), "utf8"),
+      "typescript\n",
     );
   } finally {
     await rm(blueprints, { recursive: true, force: true });
@@ -159,9 +169,9 @@ test("init replaces generated modules and reconciles managed imports without cha
       ["zeta", "new zeta\n"],
       ["alpha", "new alpha\n"],
     ]) {
-      const source = join(blueprints, "just", name);
-      await mkdir(source, { recursive: true });
-      await writeFile(join(source, "JUSTMODULE.just"), content);
+      const source = join(blueprints, "just", `${name}.just`);
+      await mkdir(join(source, ".."), { recursive: true });
+      await writeFile(source, content);
     }
 
     const moduleOutput = join(project, ".github/scripts/just-modules");
@@ -192,7 +202,7 @@ test("init replaces generated modules and reconciles managed imports without cha
     assert.equal(result.status, 0, result.stderr);
     assert.equal(await readFile(join(moduleOutput, "zeta.just"), "utf8"), "new zeta\n");
     assert.equal(await readFile(join(moduleOutput, "alpha.just"), "utf8"), "new alpha\n");
-    await assert.rejects(readFile(join(moduleOutput, "obsolete.just")));
+    assert.equal(await readFile(join(moduleOutput, "obsolete.just"), "utf8"), "obsolete\n");
     assert.equal(
       await readFile(join(project, "justfile"), "utf8"),
       [
@@ -218,9 +228,9 @@ test("init reports Just Module import conflicts before replacing generated files
   const blueprints = await makeTempDir("spindle-init-just-conflict-blueprints-");
   const project = await makeTempDir();
   try {
-    const source = join(blueprints, "just", "quality");
-    await mkdir(source, { recursive: true });
-    await writeFile(join(source, "JUSTMODULE.just"), "new generated content\n");
+    const source = join(blueprints, "just", "quality.just");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "new generated content\n");
     const moduleOutput = join(project, ".github/scripts/just-modules");
     await mkdir(moduleOutput, { recursive: true });
     await writeFile(join(moduleOutput, "quality.just"), "keep existing generated content\n");
@@ -252,35 +262,9 @@ test("init rejects invalid Just Module names without creating managed files", as
   const blueprints = await makeTempDir("spindle-init-just-invalid-name-blueprints-");
   const project = await makeTempDir();
   try {
-    const source = join(blueprints, "just", "not.valid");
-    await mkdir(source, { recursive: true });
-    await writeFile(join(source, "JUSTMODULE.just"), "invalid module\n");
-
-    const result = runCli(
-      project,
-      ["init", "--stack", "python", "--no-interactive"],
-      pathWith(justDirectory),
-      { SPINDLE_BLUEPRINTS_DIR: blueprints },
-    );
-
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Invalid Just Module name 'not\.valid'/);
-    await assert.rejects(readFile(join(project, ".github/scripts/just-modules/not.valid.just")));
-    await assert.rejects(readFile(join(project, "justfile")));
-    await assert.rejects(readFile(join(project, ".github/spindle.json")));
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
-  }
-});
-
-test("init rejects Just Module Blueprints without their required shared entry", async () => {
-  const blueprints = await makeTempDir("spindle-init-just-missing-entry-blueprints-");
-  const project = await makeTempDir();
-  try {
-    const overlay = join(blueprints, "just", "quality", "stacks", "python");
-    await mkdir(overlay, { recursive: true });
-    await writeFile(join(overlay, "JUSTMODULE.just"), "stack-only module\n");
+    const source = join(blueprints, "just", "not.valid.just");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "invalid module\n");
 
     const result = runCli(
       project,
@@ -292,10 +276,11 @@ test("init rejects Just Module Blueprints without their required shared entry", 
     assert.notEqual(result.status, 0);
     assert.match(
       result.stderr,
-      /Just Module 'quality' must contain a regular shared 'JUSTMODULE\.just'/,
+      /Blueprint Catalog Just Module path 'just\.not\.valid\.just' must be a root-level \.just file with a valid Just module identifier/,
     );
-    await assert.rejects(readFile(join(project, ".github/scripts/just-modules/quality.just")));
+    await assert.rejects(readFile(join(project, ".github/scripts/just-modules/not.valid.just")));
     await assert.rejects(readFile(join(project, "justfile")));
+    await assert.rejects(readFile(join(project, ".github/spindle.json")));
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -306,12 +291,11 @@ test("init reports missing template Variables before changing managed module fil
   const blueprints = await makeTempDir("spindle-init-just-missing-variable-blueprints-");
   const project = await makeTempDir();
   try {
-    const validSource = join(blueprints, "just", "alpha");
-    const invalidSource = join(blueprints, "just", "zeta");
-    await mkdir(validSource, { recursive: true });
-    await mkdir(invalidSource, { recursive: true });
-    await writeFile(join(validSource, "JUSTMODULE.just"), "new generated content\n");
-    await writeFile(join(invalidSource, "JUSTMODULE.just"), "{{ variables.missing_value }}\n");
+    const validSource = join(blueprints, "just", "alpha.just");
+    const invalidSource = join(blueprints, "just", "zeta.just");
+    await mkdir(join(validSource, ".."), { recursive: true });
+    await writeFile(validSource, "new generated content\n");
+    await writeFile(invalidSource, "{{ variables.missing_value }}\n");
     const moduleOutput = join(project, ".github/scripts/just-modules");
     await mkdir(moduleOutput, { recursive: true });
     await writeFile(join(moduleOutput, "alpha.just"), "keep existing alpha\n");
@@ -353,9 +337,9 @@ test("init reports staging failures without changing generated modules or the ro
       ["alpha", "new alpha\n"],
       ["beta", "new beta\n"],
     ]) {
-      const source = join(blueprints, "just", name);
-      await mkdir(source, { recursive: true });
-      await writeFile(join(source, "JUSTMODULE.just"), content);
+      const source = join(blueprints, "just", `${name}.just`);
+      await mkdir(join(source, ".."), { recursive: true });
+      await writeFile(source, content);
     }
     await mkdir(installed, { recursive: true });
     await writeFile(join(installed, "alpha.just"), "old alpha\n");
@@ -411,9 +395,9 @@ test(
       const rootJustfile = join(project, "justfile");
       const rootContent = "ready:\n  @echo keep\n";
       try {
-        const source = join(blueprints, "just", "quality");
-        await mkdir(source, { recursive: true });
-        await writeFile(join(source, "JUSTMODULE.just"), "new generated content\n");
+        const source = join(blueprints, "just", "quality.just");
+        await mkdir(join(source, ".."), { recursive: true });
+        await writeFile(source, "new generated content\n");
         await mkdir(join(project, ".github/scripts"), { recursive: true });
 
         if (
@@ -530,9 +514,9 @@ test(
     const blueprints = await makeTempDir("spindle-init-just-prompt-blueprints-");
     const project = await makeTempDir();
     try {
-      const source = join(blueprints, "just", "quality");
-      await mkdir(source, { recursive: true });
-      await writeFile(join(source, "JUSTMODULE.just"), "owner={{ variables.owner }}\n");
+      const source = join(blueprints, "just", "quality.just");
+      await mkdir(join(source, ".."), { recursive: true });
+      await writeFile(source, "owner={{ variables.owner }}\n");
 
       const result = await runCliInteractive(
         project,
@@ -646,90 +630,6 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
       "Owner=team; stack=python\n",
     );
     assert.deepEqual(await readFile(join(project, ".github/skills/demo/assets.bin")), binaryAsset);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
-  }
-});
-
-test("init combines shared files and all selected Stack overlays only", async () => {
-  const blueprints = await makeTempDir("spindle-init-overlay-blueprints-");
-  const project = await makeTempDir();
-  const skillDirectory = join(blueprints, "skills", "demo");
-  try {
-    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
-    await mkdir(join(skillDirectory, "stacks", "python", "guidance"), { recursive: true });
-    await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
-    await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
-    await writeFile(
-      join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\n---\n# shared\n",
-    );
-    await writeFile(join(skillDirectory, "shared.txt"), "shared content\n");
-    await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python content\n");
-    await writeFile(
-      join(skillDirectory, "stacks", "python", "guidance", "python.md"),
-      "nested python content\n",
-    );
-    await writeFile(
-      join(skillDirectory, "stacks", "typescript", "typescript.txt"),
-      "typescript content\n",
-    );
-    await writeFile(join(skillDirectory, "stacks", "php-laravel", "php.txt"), "php content\n");
-
-    const result = runCli(
-      project,
-      ["init", "--stack", "python", "--stack", "typescript"],
-      pathWith(justDirectory),
-      { SPINDLE_BLUEPRINTS_DIR: blueprints },
-    );
-
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/shared.txt"), "utf8"),
-      "shared content\n",
-    );
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/python.txt"), "utf8"),
-      "python content\n",
-    );
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/guidance/python.md"), "utf8"),
-      "nested python content\n",
-    );
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/typescript.txt"), "utf8"),
-      "typescript content\n",
-    );
-    await assert.rejects(readFile(join(project, ".github/skills/demo/php.txt")));
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
-  }
-});
-
-test("init rejects a shared file colliding with a selected Stack overlay before writing", async () => {
-  const blueprints = await makeTempDir("spindle-init-collision-blueprints-");
-  const project = await makeTempDir();
-  const skillDirectory = join(blueprints, "skills", "demo");
-  try {
-    await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
-    await writeFile(
-      join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nmeta:\n  spindle:\n    version: 1.0.0\n---\n# shared\n",
-    );
-    await writeFile(join(skillDirectory, "guide.md"), "shared guide\n");
-    await writeFile(join(skillDirectory, "stacks", "python", "guide.md"), "python guide\n");
-
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), {
-      SPINDLE_BLUEPRINTS_DIR: blueprints,
-    });
-
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /duplicate blueprint output path 'guide\.md'/i);
-    assert.match(result.stderr, /guide\.md.*stacks[\\/]python[\\/]guide\.md/i);
-    await assert.rejects(readFile(join(project, ".github/skills/demo/guide.md")));
-    await assert.rejects(readFile(join(project, ".github/spindle.json")));
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });

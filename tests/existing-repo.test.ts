@@ -3,7 +3,12 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import {
+  makeJustStubDir,
+  makeTempDir,
+  pathWith,
+  runCliWithFixtureCatalog as runCli,
+} from "./helpers.ts";
 
 let justDirectory: string;
 let stubsDirectory: string;

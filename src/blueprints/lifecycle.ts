@@ -6,15 +6,15 @@ import {
   assertSingleFileDestination,
   exists,
   installPlannedBlueprintFiles,
-  listBlueprints,
-  planBlueprintFiles,
   preparePlannedBlueprintFiles,
+  blueprintsRoot,
   type ConflictPolicy,
   type PlannedBlueprintFile,
   type PreparedBlueprintFile,
 } from "../install.js";
 import type { RenderContext } from "../render.js";
 import { readBlueprintVersion } from "../version.js";
+import { expandBlueprintCatalog, readBlueprintCatalog, type CatalogSelection } from "./catalog.js";
 import type { BlueprintHandler, BlueprintUpdatePlan } from "./types.js";
 
 export interface BlueprintOutcome {
@@ -91,13 +91,14 @@ async function prepareFiles(
   handler: BlueprintHandler,
   renderedEntry?: BlueprintUpdatePlan["renderedEntry"],
 ): Promise<PreparedBlueprintFile[]> {
+  const requireText =
+    handler.entryFile !== undefined
+      ? true
+      : handler.fileTarget
+        ? (file: PlannedBlueprintFile) => file.outputPath.toLowerCase().endsWith(".md")
+        : false;
   if (renderedEntry === undefined) {
-    return preparePlannedBlueprintFiles(
-      files,
-      context,
-      handler.validateMetadata,
-      handler.entryFile !== undefined,
-    );
+    return preparePlannedBlueprintFiles(files, context, handler.validateMetadata, requireText);
   }
   const prepared: PreparedBlueprintFile[] = [];
   for (const file of files) {
@@ -110,7 +111,7 @@ async function prepareFiles(
           [file],
           context,
           handler.validateMetadata,
-          handler.entryFile !== undefined,
+          requireText,
         )),
       );
       continue;
@@ -126,7 +127,7 @@ async function prepareFiles(
           [file],
           context,
           handler.validateMetadata,
-          handler.entryFile !== undefined,
+          requireText,
         )),
       );
       continue;
@@ -278,7 +279,7 @@ async function applyReconciliation(
       targetPath,
     );
     const replacing = blueprint.status === "conflict" || blueprint.status === "update";
-    if (replacing && handler.entryFile === undefined) {
+    if (replacing && handler.entryFile === undefined && !handler.fileTarget) {
       await rm(target, { recursive: true, force: true });
     }
     await mkdir(destinationDirectory, { recursive: true });
@@ -288,12 +289,19 @@ async function applyReconciliation(
         preparedFiles,
         target,
         handler.entryFile,
-        replacing && handler.entryFile !== undefined,
+        replacing && (handler.entryFile !== undefined || handler.fileTarget === true),
+        handler.fileTarget,
       );
     } else {
       for (const file of sourceFilesByName.get(blueprint.name)!) {
         const files = await prepareFiles([file], context!, handler, blueprint.renderedEntry);
-        await installPlannedBlueprintFiles(files, target, handler.entryFile);
+        await installPlannedBlueprintFiles(
+          files,
+          target,
+          handler.entryFile,
+          false,
+          handler.fileTarget,
+        );
       }
     }
     outcomes.push({
@@ -318,45 +326,36 @@ export async function reconcileBlueprints(
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
   }[] = [];
-  const initializers: BlueprintHandler[] = [];
+  const initializers: { handler: BlueprintHandler; selections: CatalogSelection[] }[] = [];
   await assertSafeInstallPaths(options.githubDirectory, [], options.githubDirectory);
+  const catalog = await readBlueprintCatalog(blueprintsRoot());
   for (const handler of handlers) {
     const sourceDirectory = handler.sourceDirectory();
-    const blueprintNames = await listBlueprints(sourceDirectory);
-    if (
-      blueprintNames.length === 0 &&
-      (options.mode !== "update" ||
-        handler.initialize === undefined ||
-        !(await exists(sourceDirectory)))
-    ) {
-      continue;
-    }
+    const selections = await expandBlueprintCatalog(
+      catalog,
+      handler.catalogKind,
+      sourceDirectory,
+      stacks,
+    );
     if (handler.initialize !== undefined) {
-      hasBlueprints = true;
-      initializers.push(handler);
+      if (selections.length > 0) {
+        hasBlueprints = true;
+        initializers.push({ handler, selections });
+      }
       continue;
     }
-    hasBlueprints = true;
     const files = new Map<string, PlannedBlueprintFile[]>();
-    for (const name of blueprintNames) {
-      const planned = await planBlueprintFiles(join(sourceDirectory, name), stacks);
-      if (handler.entryFile !== undefined) {
-        if (planned.length === 0) continue;
-        if (planned.length !== 1 || planned[0].outputPath !== handler.entryFile) {
-          throw new Error(
-            `${handler.kind} Blueprint '${name}' must contain exactly '${handler.entryFile}'; planned: ${planned.map((file) => `'${file.outputPath}'`).join(", ")}.`,
-          );
-        }
-      }
-      files.set(name, planned);
+    for (const selection of selections) {
+      files.set(selection.name, selection.files);
     }
     const names = [...files.keys()];
     if (names.length === 0) continue;
+    hasBlueprints = true;
     const destinationDirectory = handler.destinationDirectory(options.githubDirectory);
     const targetPath = (name: string) =>
       handler.targetPath?.(destinationDirectory, name) ?? join(destinationDirectory, name);
     await assertSafeInstallPaths(options.githubDirectory, names, destinationDirectory, targetPath);
-    if (handler.entryFile !== undefined) {
+    if (handler.entryFile !== undefined || handler.fileTarget) {
       for (const name of names) await assertSingleFileDestination(targetPath(name));
     }
     collections.push({ handler, names, files });
@@ -388,7 +387,7 @@ export async function reconcileBlueprints(
       targetPath,
     );
     for (const blueprint of plan.plan) {
-      if (plan.handler.entryFile !== undefined) {
+      if (plan.handler.entryFile !== undefined || plan.handler.fileTarget) {
         await assertSingleFileDestination(targetPath(blueprint.name));
       }
       const selectedNew =
@@ -457,8 +456,8 @@ export async function reconcileBlueprints(
   for (const plan of plans) {
     outcomes.push(...(await applyReconciliation(plan, context, preparedFilesByPlan.get(plan))));
   }
-  for (const handler of initializers) {
-    for (const name of await handler.initialize!(options.githubDirectory, context!)) {
+  for (const { handler, selections } of initializers) {
+    for (const name of await handler.initialize!(options.githubDirectory, context!, selections)) {
       outcomes.push({ kind: handler.kind, name, status: "installed" });
     }
   }

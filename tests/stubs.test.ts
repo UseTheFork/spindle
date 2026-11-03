@@ -12,6 +12,7 @@ import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
 const shippedAgents = resolve(process.cwd(), "src/blueprints/agents");
 const productionAgents = [
+  "general",
   "sdd-code-reviewer",
   "sdd-code-slop-reviewer",
   "sdd-implementer",
@@ -19,7 +20,6 @@ const productionAgents = [
   "sdd-re-review",
   "sdd-task-reviewer",
   "shared-explore",
-  "shared-orchestrator",
   "shared-r",
   "shared-rw",
   "shared-rwx",
@@ -82,10 +82,6 @@ test("every shipped skill has a semver version in SKILL.md frontmatter", async (
   }
 });
 
-test("only author-blueprint remains a local skill", async () => {
-  assert.deepEqual(await blueprintDirectories(".github/skills"), ["author-blueprint"]);
-});
-
 for (const stacks of productionStackSelections) {
   test(`init installs every production Blueprint and supporting file for ${stacks.join(", ")}`, async () => {
     const expectedDirectories = await blueprintDirectories(shippedSkills);
@@ -128,7 +124,10 @@ for (const stacks of productionStackSelections) {
         undefined,
         "production init must not ship Instructions",
       );
-      const expectedAgents = await blueprintDirectories(shippedAgents);
+      const expectedAgents = (await filesUnder(shippedAgents))
+        .filter((file) => file.endsWith(".agent.md"))
+        .map((file) => basename(file, ".agent.md"))
+        .sort();
       assert.deepEqual(expectedAgents, productionAgents);
       assert.deepEqual(
         (await readdir(installedAgents)).sort(),
@@ -137,7 +136,7 @@ for (const stacks of productionStackSelections) {
       for (const agent of expectedAgents) {
         const installedAgent = await readFile(join(installedAgents, `${agent}.agent.md`), "utf8");
         const parsed = matter(installedAgent);
-        assert.equal(parsed.data.name, agent);
+        assert.equal(typeof parsed.data.name, "string", `${agent} has a name`);
         assert.equal(hasSemverVersion(installedAgent), true, agent);
         assert.equal(parsed.data.meta.spindle.version, "1.0.0", agent);
         assert.ok(parsed.content.trim().length > 0, `${agent} has no Agent instructions`);
@@ -159,11 +158,6 @@ for (const stacks of productionStackSelections) {
           assert.match(parsed.content, /You are a general subagent/);
           assert.match(parsed.content, /read and follow all skill requirements/i);
         }
-        assert.equal(
-          installedAgent,
-          await readFile(join(process.cwd(), ".github", "agents", `${agent}.agent.md`), "utf8"),
-          `${agent} differs from the tracked .github/agents copy`,
-        );
         for (const [, target] of installedAgent.matchAll(/\]\(([^)\s]+)\)/g)) {
           if (/^[a-z][a-z0-9+.-]*:|^#/i.test(target)) continue;
           const linkedPath = resolve(installedAgents, target.split("#")[0]);

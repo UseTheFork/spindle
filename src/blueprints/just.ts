@@ -1,22 +1,10 @@
-import {
-  chmod,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 
 import { blueprintsRoot } from "../install.js";
 import { renderText, type RenderContext } from "../render.js";
+import type { CatalogSelection } from "./catalog.js";
 import type { BlueprintHandler } from "./types.js";
-
-const moduleNamePattern = /^[A-Za-z_][A-Za-z0-9_-]*$/;
-const entryFile = "JUSTMODULE.just";
 
 async function exists(path: string) {
   try {
@@ -93,7 +81,7 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
         `Just Module import conflict for '${name}': expected '${expectedPath}', found '${importPath}'.`,
       );
     }
-    if (managedPath && optional === undefined) {
+    if (managedPath && expectedPath !== undefined && optional === undefined) {
       continue;
     }
     if (expectedPath !== undefined && optional !== undefined) {
@@ -128,46 +116,27 @@ async function reconcileJustfile(projectDirectory: string, moduleNames: string[]
   return { path: justfilePath, content: output, mode };
 }
 
-async function prepareModules(context: RenderContext) {
-  const sourceDirectory = join(blueprintsRoot(), "just");
-  const names = (await readdir(sourceDirectory, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
+async function prepareModules(context: RenderContext, selections: CatalogSelection[]) {
   const prepared: { name: string; content: string }[] = [];
-  for (const name of names) {
-    if (!moduleNamePattern.test(name)) {
-      throw new Error(
-        `Invalid Just Module name '${name}': expected a valid Just module identifier.`,
-      );
+  for (const selection of selections) {
+    const name = selection.name;
+    if (selection.files.length !== 1 || !selection.files[0].sourcePath.endsWith(".just")) {
+      throw new Error(`Just Module '${name}' must select exactly one standalone .just file.`);
     }
-    const source = join(sourceDirectory, name);
-    const sharedEntry = join(source, entryFile);
-    if (!(await exists(sharedEntry)) || !(await lstat(sharedEntry)).isFile()) {
-      throw new Error(`Just Module '${name}' must contain a regular shared '${entryFile}' entry.`);
-    }
-    const contributions = [await readRenderedModule(sharedEntry, context)];
-    for (const stack of context.stacks) {
-      const overlay = join(source, "stacks", stack, entryFile);
-      if (!(await exists(overlay))) continue;
-      if (!(await lstat(overlay)).isFile()) {
-        throw new Error(`Just Module Stack entry '${overlay}' must be a regular file.`);
-      }
-      contributions.push(await readRenderedModule(overlay, context));
-    }
-    const hasFinalNewline = /(?:\r\n|\n|\r)$/.test(contributions.at(-1)!);
-    const content = contributions
-      .map((contribution) => contribution.replace(/(?:\r\n|\n|\r)+$/, ""))
-      .join("\n\n");
-    prepared.push({ name, content: `${content}${hasFinalNewline ? "\n" : ""}` });
+    const content = await readRenderedModule(selection.files[0].sourcePath, context);
+    prepared.push({ name, content });
   }
   return prepared;
 }
 
-async function installModules(githubDirectory: string, context: RenderContext) {
+async function installModules(
+  githubDirectory: string,
+  context: RenderContext,
+  selections: CatalogSelection[],
+) {
   const projectDirectory = dirname(githubDirectory);
   const modulesDirectory = join(githubDirectory, "scripts", "just-modules");
-  const prepared = await prepareModules(context);
+  const prepared = await prepareModules(context, selections);
   const imports = await reconcileJustfile(
     projectDirectory,
     prepared.map((module) => module.name),
@@ -181,8 +150,6 @@ async function installModules(githubDirectory: string, context: RenderContext) {
     }
   }
 
-  const shipped = new Set(prepared.map((module) => `${module.name}.just`));
-  const obsolete: string[] = [];
   const moduleModes = new Map<string, number>();
   if (moduleDirectoryExists) {
     for (const module of prepared) {
@@ -193,11 +160,6 @@ async function installModules(githubDirectory: string, context: RenderContext) {
           throw new Error(`Refusing to replace '${target}': expected a regular file.`);
         }
         moduleModes.set(module.name, stat.mode & 0o777);
-      }
-    }
-    for (const entry of await readdir(modulesDirectory, { withFileTypes: true })) {
-      if (entry.isFile() && extname(entry.name) === ".just" && !shipped.has(entry.name)) {
-        obsolete.push(entry.name);
       }
     }
   }
@@ -251,9 +213,6 @@ async function installModules(githubDirectory: string, context: RenderContext) {
       }
     }
     await rename(join(stagingDirectory, "justfile"), imports.path);
-    for (const name of obsolete) {
-      await rm(join(modulesDirectory, name));
-    }
   } catch (error) {
     throw new Error(`Failed to apply staged Just Module changes: ${formatFilesystemError(error)}`, {
       cause: error,
@@ -266,6 +225,7 @@ async function installModules(githubDirectory: string, context: RenderContext) {
 
 export const justModuleHandler: BlueprintHandler = {
   kind: "Just Module",
+  catalogKind: "just",
   sourceDirectory: () => join(blueprintsRoot(), "just"),
   destinationDirectory: (githubDirectory) => join(githubDirectory, "scripts", "just-modules"),
   initialize: installModules,

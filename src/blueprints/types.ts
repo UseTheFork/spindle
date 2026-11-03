@@ -1,4 +1,5 @@
 import type { RenderContext } from "../render.js";
+import type { CatalogKind, CatalogSelection } from "./catalog.js";
 
 export interface BlueprintUpdateInput {
   name: string;
@@ -9,7 +10,7 @@ export interface BlueprintUpdateInput {
 }
 
 export interface BlueprintUpdatePlan {
-  status: "new" | "update" | "warning" | "up-to-date";
+  status: "new" | "conflict" | "update" | "warning" | "up-to-date";
   warning?: string;
   installedVersion?: string;
   availableVersion?: string;
@@ -24,9 +25,15 @@ export interface BlueprintUpdatePlan {
 
 export interface BlueprintHandler {
   kind: string;
+  catalogKind: CatalogKind;
   sourceDirectory(): string;
   destinationDirectory(githubDirectory: string): string;
-  initialize?(githubDirectory: string, context: RenderContext): Promise<string[]>;
+  initialize?(
+    githubDirectory: string,
+    context: RenderContext,
+    selections: CatalogSelection[],
+  ): Promise<string[]>;
+  fileTarget?: boolean;
   entryFile?: string;
   targetPath?(destinationDirectory: string, name: string): string;
   validateMetadata?(relativePath: string, renderedText: string): void;

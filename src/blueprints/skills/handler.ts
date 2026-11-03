@@ -6,6 +6,7 @@ import { planVersionedUpdate, validateVersionedMetadata } from "../versioned.js"
 
 export const skillHandler: BlueprintHandler = {
   kind: "Skill",
+  catalogKind: "skills",
   sourceDirectory: () => join(blueprintsRoot(), "skills"),
   destinationDirectory: (githubDirectory) => join(githubDirectory, "skills"),
   validateMetadata: (relativePath, renderedText) =>
