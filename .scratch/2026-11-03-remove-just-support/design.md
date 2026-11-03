@@ -17,8 +17,16 @@ Success means:
   entries are removed.
 - Just-specific tests and fixtures are removed. Do not add replacement tests
   for removed behavior; retain unrelated tests.
+- Existing project files under `.github/scripts/just-modules/` and imports in
+  the project's root `justfile` are left untouched. Do not add tests for this
+  preservation behavior.
 - User-facing documentation no longer describes Just Modules or Just as a
   Spindle requirement.
+- Historical documents dedicated to Spindle's Just support are removed, and
+  Just-specific material is removed from mixed historical documents while
+  preserving their unrelated content. This cleanup covers ADRs and design
+  documents, but not historical specs, issues, or implementation/review
+  reports in `.scratch/`.
 - The repository's root `justfile`, developer recipes, and Just-based
   development workflow remain unchanged.
 
@@ -32,7 +40,9 @@ Update directly related docs and catalog guidance.
 Do not remove the root developer `justfile`, `.github/scripts/just-modules/`,
 or Just recipes used to develop this repository. Do not remove unrelated
 tests, add backward compatibility, or introduce a replacement workflow for
-Just modules. No package dependency on Just is declared; the current product
+Just modules. Existing project-installed module files and imports are not
+cleaned up or reconciled after Spindle support is removed; this behavior is
+not tested. No package dependency on Just is declared; the current product
 dependency is the CLI prerequisite check.
 
 ## Considered approaches
@@ -51,12 +61,18 @@ Use approach 1, as confirmed by the user. Remove Just support completely from
 Spindle without a compatibility layer. Preserve the repository's own Just
 development workflow and all non-Just Blueprint kinds. Interpret “no tests”
 as removing Just-specific tests and fixtures without adding replacement tests;
-preserve unrelated test coverage.
+preserve unrelated test coverage. Existing user-project modules and imports
+remain untouched, without a dedicated test. Catalog parsing has no Just-
+specific compatibility path or check: a leftover `just` key fails through the
+catalog's generic unknown-kind validation.
 
 ## Decisions left to implementation
 
 - Remove only test code and fixtures whose purpose is Just prerequisite or
   Just Blueprint behavior. Update shared test catalog fixtures as needed to
   reflect the remaining catalog kinds, without dropping unrelated assertions.
-- Keep `just` references that describe this repository's developer workflow;
+-   Keep `just` references that describe this repository's developer workflow;
   remove product-facing references to Just Modules and the prerequisite.
+  - Whether historical Just-only design documents under `.scratch/` are included
+    in the cleanup remains open; specs, issues, and implementation/review reports
+    there are preserved.
