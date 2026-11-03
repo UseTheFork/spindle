@@ -8,6 +8,11 @@ A CLI that scaffolds and maintains a project's `.github` directory from Blueprin
 A definition for a kind of spindle-managed content, such as a Skill, Instruction, Agent, or Just Module. A Blueprint may include guidance tailored to one or more Stacks.
 _Avoid_: Stub
 
+**Blueprint Catalog**:
+The inventory of named Blueprint selections, their lifecycle status, and the
+Stacks they apply to. A selection can contain multiple independently updated
+Blueprints.
+
 **Just Module**:
 A file of Just recipes imported by a project's root `justfile`.
 
