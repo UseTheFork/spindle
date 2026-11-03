@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
-  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -13,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 
 const checkout = resolve(process.cwd());
@@ -45,11 +44,11 @@ function packagedCli(t: TestContext) {
 
   return {
     root: packageRoot,
-    run(project: string, args: string[], path: string, env: Record<string, string> = {}) {
+    run(project: string, args: string[], env: Record<string, string> = {}) {
       return spawnSync(process.execPath, [join(packageRoot, "build", "index.js"), ...args], {
         cwd: project,
         encoding: "utf8",
-        env: { ...process.env, ...env, FORCE_COLOR: "0", PATH: path, Path: path },
+        env: { ...process.env, ...env, FORCE_COLOR: "0" },
       });
     },
   };
@@ -59,18 +58,6 @@ function tempDirectory(t: TestContext, prefix: string) {
   const directory = mkdtempSync(join(tmpdir(), prefix));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return directory;
-}
-
-function justDirectory(t: TestContext) {
-  const directory = tempDirectory(t, "spindle-packaged-just-");
-  const executable = join(directory, process.platform === "win32" ? "just.exe" : "just");
-  writeFileSync(executable, "#!/bin/sh\nexit 0\n");
-  chmodSync(executable, 0o755);
-  return directory;
-}
-
-function pathWithJust(directory: string) {
-  return `${directory}${delimiter}${process.env.PATH ?? ""}`;
 }
 
 function makeGitWorkspace(directory: string) {
@@ -106,7 +93,6 @@ function sddArgs(workspace: string, reportsRelative: string) {
 
 test("packaged workflows use bundled defaults and preserve exact SDD behavior outside the checkout", (t) => {
   const cli = packagedCli(t);
-  const justPath = pathWithJust(justDirectory(t));
   const gitWorkspace = tempDirectory(t, "spindle-packaged-git-");
   const { git, reportsDirectory, reportsRelative } = makeGitWorkspace(gitWorkspace);
   const originalReport = readFileSync(join(reportsDirectory, "03-implementation.md"));
@@ -115,7 +101,7 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
   for (const round of [undefined, "2"]) {
     const args = sddArgs(gitWorkspace, reportsRelative);
     if (round) args.push("--round", round);
-    const result = cli.run(gitWorkspace, args, justPath);
+    const result = cli.run(gitWorkspace, args);
     assert.equal(result.status, 0, result.stderr);
 
     const reports: Record<string, { relative: string; absolute: string }> = {
@@ -162,7 +148,7 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
   const setupWorkspace = tempDirectory(t, "spindle-packaged-setup-");
   assert.equal(existsSync(join(setupWorkspace, ".git")), false);
   assert.equal(existsSync(join(setupWorkspace, ".github", "spindle.json")), false);
-  const setup = cli.run(setupWorkspace, ["setup-project", "--workspace", setupWorkspace], justPath);
+  const setup = cli.run(setupWorkspace, ["setup-project", "--workspace", setupWorkspace]);
   assert.equal(setup.status, 0, setup.stderr);
 
   const expectedSetup = {
@@ -192,11 +178,7 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
 
   const customDomain = Buffer.from("custom setup guidance\r\n");
   writeFileSync(join(setupWorkspace, "docs/agents/domain.md"), customDomain);
-  const repeated = cli.run(
-    setupWorkspace,
-    ["setup-project", "--workspace", setupWorkspace],
-    justPath,
-  );
+  const repeated = cli.run(setupWorkspace, ["setup-project", "--workspace", setupWorkspace]);
   assert.equal(repeated.status, 0, repeated.stderr);
   assert.deepEqual(JSON.parse(repeated.stdout), {
     workspace: setupWorkspace,
@@ -215,13 +197,9 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
   assert.deepEqual(readFileSync(join(setupWorkspace, "docs/agents/domain.md")), customDomain);
 });
 
-test("packaged command discovery and help honor the Just prerequisite", (t) => {
+test("packaged command discovery and help remain intact", (t) => {
   const cli = packagedCli(t);
-  const justPath = pathWithJust(justDirectory(t));
-  const gitWorkspace = tempDirectory(t, "spindle-packaged-help-git-");
-  const { git, reportsRelative } = makeGitWorkspace(gitWorkspace);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-help-setup-");
-  const cleanStatus = git("status", "--porcelain=v1");
 
   for (const [args, expected] of [
     [["--help"], /sdd \(see `spindle sdd --help`\).*setup-project/s],
@@ -232,37 +210,15 @@ test("packaged command discovery and help honor the Just prerequisite", (t) => {
       /Usage:.*spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT/s,
     ],
   ] as const) {
-    const result = cli.run(setupWorkspace, args, justPath);
+    const result = cli.run(setupWorkspace, args);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, expected);
     assert.equal(result.stderr, "");
-  }
-
-  const withoutJust = [
-    [sddArgs(gitWorkspace, reportsRelative), gitWorkspace],
-    [["sdd", "--help"], gitWorkspace],
-    [["sdd", "workspace", "--help"], gitWorkspace],
-    [["setup-project", "--workspace", setupWorkspace], setupWorkspace],
-    [["setup-project", "--help"], setupWorkspace],
-    [["--help"], setupWorkspace],
-  ] as const;
-  for (const [args, workingDirectory] of withoutJust) {
-    const result = cli.run(workingDirectory, [...args], "");
-    assert.notEqual(result.status, 0, args.join(" "));
-    assert.equal(result.stdout, "", args.join(" "));
-    assert.match(
-      result.stderr,
-      /spindle:.*install it from https:\/\/just\.systems\/man\/(?:en\/)?installation\.html/,
-      args.join(" "),
-    );
-    assert.equal(readdirSync(setupWorkspace).length, 0);
-    assert.equal(git("status", "--porcelain=v1"), cleanStatus);
   }
 });
 
 test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", (t) => {
   const cli = packagedCli(t);
-  const justPath = pathWithJust(justDirectory(t));
   const gitWorkspace = tempDirectory(t, "spindle-packaged-invalid-git-");
   const { git, reportsRelative } = makeGitWorkspace(gitWorkspace);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-invalid-setup-");
@@ -293,7 +249,7 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
   ];
 
   for (const [args, workingDirectory] of invalidCases) {
-    const result = cli.run(workingDirectory, args, justPath);
+    const result = cli.run(workingDirectory, args);
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
     assert.match(result.stderr, /^spindle:/, args.join(" "));
@@ -304,7 +260,6 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
 
 test("packaged init and update use bundled catalog, recursive assets, and Just imports outside checkout", (t) => {
   const cli = packagedCli(t);
-  const justPath = pathWithJust(justDirectory(t));
   const project = tempDirectory(t, "spindle-packaged-blueprints-");
   const bundledCatalog = join(cli.root, "build", "blueprints", "catalog.yaml");
   const bundledAgent = join(cli.root, "build", "blueprints", "agents", "general.agent.md");
@@ -343,7 +298,6 @@ test("packaged init and update use bundled catalog, recursive assets, and Just i
   const initialized = cli.run(
     project,
     ["init", "--stack", "python", "--no-interactive"],
-    justPath,
     noSourceFallback,
   );
   assert.equal(initialized.status, 0, initialized.stderr);
@@ -362,7 +316,6 @@ test("packaged init and update use bundled catalog, recursive assets, and Just i
   const updated = cli.run(
     project,
     ["update", "--no-interactive", "--on-conflict", "overwrite"],
-    justPath,
     noSourceFallback,
   );
 

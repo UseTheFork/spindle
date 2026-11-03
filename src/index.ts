@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import { constants } from "node:fs";
-import { access } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import chalk from "chalk";
@@ -20,37 +18,6 @@ import { setupProject } from "./setup-project/setup.js";
 import { resolveWorkspace } from "./subagent-driven-dev/workspace.js";
 import { update } from "./update.js";
 import { loadVariableDefinitions, parseVariableFlags } from "./variables.js";
-
-const justInstallUrl = "https://just.systems/man/en/installation.html";
-
-async function isExecutable(path: string) {
-  try {
-    await access(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function requireJust() {
-  const extensions =
-    process.platform === "win32"
-      ? ["", ...(process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)]
-      : [""];
-  const searchPath = process.env.PATH ?? process.env.Path ?? "";
-
-  for (const directory of searchPath.split(delimiter).filter(Boolean)) {
-    for (const extension of extensions) {
-      if (await isExecutable(join(directory, `just${extension}`))) {
-        return;
-      }
-    }
-  }
-
-  throw new Error(
-    `\`just\` is not installed or not on PATH. spindle requires it; install it from ${justInstallUrl}`,
-  );
-}
 
 async function init(
   stacks: string[],
@@ -263,8 +230,6 @@ function runSetupProject(args: string[]) {
 }
 
 async function main() {
-  await requireJust();
-
   const args = process.argv.slice(2);
   if (args[0] === "sdd") {
     runSdd(args.slice(1));
