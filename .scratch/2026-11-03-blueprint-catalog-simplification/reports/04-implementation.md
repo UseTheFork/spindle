@@ -124,3 +124,61 @@ recipe targets an absent directory:
 
 The temporary Justfile is a session artifact only and is not part of the
 repository change.
+
+## Final corrective round — FINAL-01, FINAL-02, FINAL-SLOP-01..03
+
+Status: `DONE`
+
+### Snapshot and scope
+
+- Checkout: `/home/sincore/source/spindle`
+- Starting revision: `4f8608253ba8c1701794214ae5d9e02f8e6eb0db`
+- Final revision: `4f8608253ba8c1701794214ae5d9e02f8e6eb0db` (no commit authorized or created).
+- Starting tree: controller-owned modification to issue 04 and untracked aggregate reports `reports/final-review.md` and `reports/final-code-slop-review.md`; preserved. No assigned source/test changes were present at start.
+- Final implementation/test changes: `src/blueprints/just.ts`, `src/blueprints/lifecycle.ts`, `src/blueprints/types.ts`, `src/blueprints/catalog.ts`, `tests/coordinated-preparation.test.ts`, and `tests/removals.test.ts`. This report was appended. No staging or commit performed.
+- Final tree still includes the preserved controller-owned issue modification and the two untracked aggregate reports.
+- Exact tested snapshot: the final uncommitted changes in the six implementation/test files listed above on HEAD `4f8608253ba8c1701794214ae5d9e02f8e6eb0db`. Both final verification commands below ran after the last source/test edit.
+
+### Findings, corrections, and covering evidence
+
+- **FINAL-01:** Prepared initializer resources now expose `apply` and `dispose`. The lifecycle disposes all earlier prepared initializers if a later initializer preparation fails, and disposes resources in `finally` after application succeeds or aborts. Just application retains its own cleanup on failure. A real-CLI test injects an earlier Agent write failure while a Just Module is selected; it asserts the explicit failing operation/error and non-rollback diagnostic, absence of every `.spindle-just-modules-*` directory, and that the Just module/root import were not applied.
+- **FINAL-02:** Reconciliation recognizes selected managed imports by resolved target path independently of alias, removes those lines, and emits the canonical filename-stem import. A real-CLI test starts with `mod tools '.github/scripts/just-modules/format.just'` and confirms exactly one canonical import, retained unrelated root justfile content, and installed module bytes.
+- **FINAL-SLOP-01:** Removed unread `ReconciliationPlan.deletions`, its planner parameter, and call-site plumbing; deletion operations remain separate.
+- **FINAL-SLOP-02:** Removed unused `expandBlueprintCatalog`.
+- **FINAL-SLOP-03:** Removed duplicate Just filename validation from planning; parser validation remains for active and removed entries.
+
+### RED/GREEN and pure-refactor evidence
+
+- `RED` — `just test::test tests/removals.test.ts tests/coordinated-preparation.test.ts`: after correcting the initial Agent fixture (which first failed metadata preparation), both new tests failed for their intended symptoms: the Agent application failure left a `.spindle-just-modules-*` directory, and the Just root file contained both alias and canonical imports.
+- `GREEN` — the same command after behavior implementation: **18/18 passed**.
+- Before pure refactors, `just test::test tests/catalog.test.ts tests/removals.test.ts tests/coordinated-preparation.test.ts`: **26/26 passed**.
+- After pure refactors and the return-type correction, the same command: **26/26 passed**.
+- Final `just test::types`: **passed** (exit 0). An earlier run exposed a stale initializer return-type annotation; it was corrected before the final successful run.
+
+### Self-review and pending controller checks
+
+- Self-review confirmed behavior changes are exercised at the real CLI seam, active imports are reconciled by managed target path, and deletion handling remains outside `ReconciliationPlan`.
+- No unresolved implementation concern found. No unrelated source, tests, ticket state, comments, or aggregate review artifacts were changed.
+- Not run by this implementer: formatting, lint, and ticket-wide/full regression checks. These remain pending with the controller and are not implementer failures or evidence of ticket acceptance.
+- No commit identifiers; commit authorization was denied.
+
+### Hand-back
+
+All five assigned final-round findings are addressed in the shared checkout. The controller can proceed with formatting, lint, and ticket-wide checks. This addendum is evidence for implementation only; it does not assert ticket acceptance.
+
+## Controller final integration gate
+
+The scoped final-fix re-review passed all five aggregate findings with no new
+Critical or Important breakage; see
+`final-fix-review.md`. Fresh controller verification on the reviewed snapshot:
+
+- `just test::test` — **198/198 passed**.
+- `just test::types` — **passed**.
+- Scoped `just format::check` and `just lint::check` on the six changed
+  implementation/test files — **passed**.
+- `just tool::git diff --check HEAD` — **passed**.
+- Fresh package build through a temporary Just recipe — **passed**.
+- `just test::test tests/packaged-cli.test.ts` — **4/4 passed** against the
+  fresh build.
+
+Ticket 04 is integrated. Design and ADR approval labels remain unchanged.

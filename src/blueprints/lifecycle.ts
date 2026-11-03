@@ -21,9 +21,9 @@ import {
   type CatalogSelection,
 } from "./catalog.js";
 import type {
-  ApplyPreparedBlueprintInitialization,
   BlueprintHandler,
   BlueprintUpdatePlan,
+  PreparedBlueprintInitialization,
 } from "./types.js";
 
 export interface BlueprintOutcome {
@@ -94,7 +94,6 @@ interface ReconciliationPlan {
   plan: PlannedBlueprint[];
   selectedNewBlueprints: Set<string>;
   decisions: Map<string, ConflictPolicy>;
-  deletions: PlannedBlueprintDeletion[];
   willInstall: boolean;
 }
 
@@ -319,7 +318,6 @@ async function planReconciliation(
   options: ReconcileOptions,
   blueprintNames: string[],
   sourceFilesByName: Map<string, PlannedBlueprintFile[]>,
-  deletions: PlannedBlueprintDeletion[],
   resolveContext: () => Promise<RenderContext | undefined>,
 ): Promise<ReconciliationPlan> {
   const { mode, githubDirectory } = options;
@@ -400,7 +398,6 @@ async function planReconciliation(
     plan,
     selectedNewBlueprints,
     decisions,
-    deletions,
     willInstall,
   };
 }
@@ -692,8 +689,8 @@ export async function reconcileBlueprints(
     return resolvedContext;
   };
   const plans: ReconciliationPlan[] = [];
-  for (const { handler, names, files, deletions } of collections) {
-    plans.push(await planReconciliation(handler, options, names, files, deletions, resolveContext));
+  for (const { handler, names, files } of collections) {
+    plans.push(await planReconciliation(handler, options, names, files, resolveContext));
   }
   const installing = plans.find((plan) => plan.willInstall);
   const needsContext =
@@ -780,18 +777,27 @@ export async function reconcileBlueprints(
       : options.prepareConfigWrite?.();
   const preparedInitializers: {
     handler: BlueprintHandler;
-    apply: ApplyPreparedBlueprintInitialization;
+    initialization: PreparedBlueprintInitialization;
   }[] = [];
-  for (const { handler, selections, deletions } of initializers) {
-    preparedInitializers.push({
-      handler,
-      apply: await handler.prepareInitialize!(
-        options.githubDirectory,
-        context ?? { stacks, variables: {} },
-        selections,
-        deletions,
+  try {
+    for (const { handler, selections, deletions } of initializers) {
+      preparedInitializers.push({
+        handler,
+        initialization: await handler.prepareInitialize!(
+          options.githubDirectory,
+          context ?? { stacks, variables: {} },
+          selections,
+          deletions,
+        ),
+      });
+    }
+  } catch (error) {
+    await Promise.all(
+      preparedInitializers.map(({ initialization }) =>
+        initialization.dispose().catch(() => undefined),
       ),
-    });
+    );
+    throw error;
   }
 
   const completedChanges: string[] = [];
@@ -807,8 +813,8 @@ export async function reconcileBlueprints(
         )),
       );
     }
-    for (const { handler, apply } of preparedInitializers) {
-      const initialized = await apply(recordAppliedChange);
+    for (const { handler, initialization } of preparedInitializers) {
+      const initialized = await initialization.apply(recordAppliedChange);
       for (const name of initialized.installed) {
         outcomes.push({ kind: handler.kind, name, status: "installed" });
       }
@@ -851,6 +857,12 @@ export async function reconcileBlueprints(
     throw new Error(`${message}${progress} Application stopped; rollback was not attempted.`, {
       cause: error,
     });
+  } finally {
+    await Promise.all(
+      preparedInitializers.map(({ initialization }) =>
+        initialization.dispose().catch(() => undefined),
+      ),
+    );
   }
   return outcomes;
 }

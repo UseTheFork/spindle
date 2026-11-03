@@ -27,6 +27,11 @@ export type ApplyPreparedBlueprintInitialization = (
   recordAppliedChange: (description: string) => void,
 ) => Promise<{ installed: string[]; removed: string[] }>;
 
+export interface PreparedBlueprintInitialization {
+  apply: ApplyPreparedBlueprintInitialization;
+  dispose(): Promise<void>;
+}
+
 export interface BlueprintHandler {
   kind: string;
   catalogKind: CatalogKind;
@@ -37,7 +42,7 @@ export interface BlueprintHandler {
     context: RenderContext,
     selections: CatalogSelection[],
     deletions: CatalogDeletion[],
-  ): Promise<ApplyPreparedBlueprintInitialization>;
+  ): Promise<PreparedBlueprintInitialization>;
   fileTarget?: boolean;
   entryFile?: string;
   targetPath?(destinationDirectory: string, name: string): string;

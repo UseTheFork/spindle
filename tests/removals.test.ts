@@ -94,6 +94,62 @@ async function assertMissing(path: string) {
   await assert.rejects(lstat(path), { code: "ENOENT" });
 }
 
+test("selected aliased Just Module import is normalized without changing root content", async () => {
+  const blueprints = await makeTempDir("spindle-normalize-alias-blueprints-");
+  const project = await makeTempDir("spindle-normalize-alias-project-");
+  const github = join(project, ".github");
+  const modules = join(github, "scripts", "just-modules");
+  try {
+    await writeFile(
+      join(blueprints, "catalog.yaml"),
+      `agents: {}
+just:
+  format:
+    path: format.just
+    status: active
+    stacks: []
+instructions: {}
+skills: {}
+`,
+    );
+    await writeFile(join(blueprints, "just", "format.just"), "format:\n  @echo ready\n");
+    await writeFile(join(modules, "format.just"), "existing module\n");
+    await writeFile(
+      join(project, "justfile"),
+      [
+        "# User-owned root content",
+        "mod tools '.github/scripts/just-modules/format.just'",
+        "ready:",
+        "  @echo keep",
+        "",
+      ].join("\n"),
+    );
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+
+    assert.equal(result.status, 0, result.stderr);
+    const justfile = await readFile(join(project, "justfile"), "utf8");
+    assert.equal(
+      (justfile.match(/\.github\/scripts\/just-modules\/format\.just/g) ?? []).length,
+      1,
+      justfile,
+    );
+    assert.match(justfile, /^mod format '\.github\/scripts\/just-modules\/format\.just'$/m);
+    assert.doesNotMatch(justfile, /^mod tools /m);
+    assert.match(justfile, /# User-owned root content/);
+    assert.match(justfile, /ready:\n  @echo keep/);
+    assert.equal(await readFile(join(modules, "format.just"), "utf8"), "format:\n  @echo ready\n");
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 for (const mode of ["init", "update"] as const) {
   test(`${mode} removes retired and Stack-inapplicable catalog targets across all kinds`, async () => {
     const blueprints = await makeTempDir(`spindle-${mode}-removal-blueprints-`);

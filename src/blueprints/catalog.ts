@@ -257,12 +257,6 @@ export async function planBlueprintCatalog(
         throw error;
       }
     }
-    if (kind === "just" && !/^[A-Za-z_][A-Za-z0-9_-]*\.just$/.test(entry.path)) {
-      throw new Error(
-        `Invalid Just Module filename '${entry.path}': expected a valid Just module identifier.`,
-      );
-    }
-
     if (entry.stacks.length > 0 && !entry.stacks.some((stack) => selectedStacks.includes(stack))) {
       deletions.push({ entry, path: entry.path, reason: "stack-inapplicable" });
       continue;
@@ -305,15 +299,6 @@ export async function planBlueprintCatalog(
     }
   }
   return { selections, deletions, directories };
-}
-
-export async function expandBlueprintCatalog(
-  catalog: BlueprintCatalog,
-  kind: CatalogKind,
-  sourceRoot: string,
-  selectedStacks: string[],
-): Promise<CatalogSelection[]> {
-  return (await planBlueprintCatalog(catalog, kind, sourceRoot, selectedStacks)).selections;
 }
 
 export async function readBlueprintCatalog(root: string): Promise<BlueprintCatalog> {

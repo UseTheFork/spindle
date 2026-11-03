@@ -4,7 +4,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { blueprintsRoot } from "../install.js";
 import { renderText, type RenderContext } from "../render.js";
 import type { CatalogDeletion, CatalogSelection } from "./catalog.js";
-import type { ApplyPreparedBlueprintInitialization, BlueprintHandler } from "./types.js";
+import type { BlueprintHandler, PreparedBlueprintInitialization } from "./types.js";
 
 async function exists(path: string) {
   try {
@@ -52,6 +52,9 @@ async function reconcileJustfile(
   const expected = new Map(
     moduleNames.map((name) => [name, `.github/scripts/just-modules/${name}.just`]),
   );
+  const activeModulesByTarget = new Map(
+    moduleNames.map((name) => [resolve(projectDirectory, expected.get(name)!), name]),
+  );
   let original: string | undefined;
   let mode: number | undefined;
   if (await exists(justfilePath)) {
@@ -79,6 +82,17 @@ async function reconcileJustfile(
     const [, optional, name, importPath] = declaration;
     const expectedPath = expected.get(name);
     const managedPath = isManagedImportPath(importPath, projectDirectory);
+    const activeModuleName = managedPath
+      ? activeModulesByTarget.get(resolve(projectDirectory, importPath))
+      : undefined;
+    if (activeModuleName !== undefined) {
+      if (optional !== undefined) {
+        throw new Error(
+          `Optional Just Module import for '${activeModuleName}' is not supported; use a required mod import.`,
+        );
+      }
+      continue;
+    }
     if (
       expectedPath !== undefined &&
       resolve(projectDirectory, importPath) !== resolve(projectDirectory, expectedPath)
@@ -152,7 +166,7 @@ async function prepareJustModuleChanges(
   context: RenderContext,
   selections: CatalogSelection[],
   deletions: CatalogDeletion[],
-): Promise<ApplyPreparedBlueprintInitialization> {
+): Promise<PreparedBlueprintInitialization> {
   const projectDirectory = dirname(githubDirectory);
   const modulesDirectory = join(githubDirectory, "scripts", "just-modules");
   const prepared = await prepareModules(context, selections);
@@ -210,7 +224,14 @@ async function prepareJustModuleChanges(
     });
   }
 
-  return async (recordAppliedChange) => {
+  const stagedDirectory = stagingDirectory;
+  if (stagedDirectory === undefined) {
+    throw new Error("Failed to stage Just Module changes: staging directory was not created.");
+  }
+  const dispose = async () => {
+    await rm(stagedDirectory, { recursive: true, force: true }).catch(() => undefined);
+  };
+  const apply: PreparedBlueprintInitialization["apply"] = async (recordAppliedChange) => {
     try {
       if (prepared.length > 0 && !(await exists(modulesDirectory))) {
         await mkdir(modulesDirectory, { recursive: true });
@@ -230,7 +251,7 @@ async function prepareJustModuleChanges(
             throw new Error(`Refusing to replace '${target}': expected a regular file.`);
           }
         }
-        await rename(join(stagingDirectory, "modules", `${module.name}.just`), target);
+        await rename(join(stagedDirectory, "modules", `${module.name}.just`), target);
         recordAppliedChange(`installed Just Module '${module.name}.just'`);
       }
 
@@ -253,7 +274,7 @@ async function prepareJustModuleChanges(
         }
       }
       if (imports.shouldWrite) {
-        await rename(join(stagingDirectory, "justfile"), imports.path);
+        await rename(join(stagedDirectory, "justfile"), imports.path);
         recordAppliedChange("reconciled managed imports in the root justfile");
       }
       for (const target of imports.removedImportTargets) {
@@ -272,9 +293,10 @@ async function prepareJustModuleChanges(
         { cause: error },
       );
     } finally {
-      await rm(stagingDirectory, { recursive: true, force: true }).catch(() => undefined);
+      await dispose();
     }
   };
+  return { apply, dispose };
 }
 
 export const justModuleHandler: BlueprintHandler = {

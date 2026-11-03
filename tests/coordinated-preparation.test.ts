@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
@@ -324,6 +324,63 @@ skills:
     assert.equal(await readFile(skillPath, "utf8"), versioned("2.0.0", "updated Skill"));
     assert.deepEqual(await readFile(agentPath), originalAgent);
     assert.deepEqual(await readFile(configPath), configBytes);
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+    await rm(justDirectory, { recursive: true, force: true });
+  }
+});
+
+test("earlier application failure disposes prepared Just Module staging files", async () => {
+  const blueprints = await makeTempDir("spindle-just-stage-cleanup-blueprints-");
+  const project = await makeTempDir("spindle-just-stage-cleanup-project-");
+  const justDirectory = await makeJustStubDir();
+  const github = join(project, ".github");
+  const agents = join(github, "agents");
+  const justfilePath = join(project, "justfile");
+  try {
+    await put(
+      join(blueprints, "catalog.yaml"),
+      `agents:
+  write:
+    path: write.agent.md
+    status: active
+    stacks: []
+just:
+  quality:
+    path: quality.just
+    status: active
+    stacks: []
+instructions: {}
+skills: {}
+`,
+    );
+    await put(join(blueprints, "agents", "write.agent.md"), versioned("1.0.0", "new Agent"));
+    await put(join(blueprints, "just", "quality.just"), "quality:\n  @echo ready\n");
+
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--no-interactive"],
+      pathWith(justDirectory),
+      {
+        SPINDLE_BLUEPRINTS_DIR: blueprints,
+        SPINDLE_TEST_FAIL_WRITE_DIR: agents,
+        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-agent-write.mjs")}`,
+      },
+    );
+
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(result.stderr, /Failed to apply Agent 'write\.agent\.md'/);
+    assert.match(result.stderr, /Injected ENOSPC while writing Agent/);
+    assert.match(result.stderr, /Application stopped; rollback was not attempted/);
+    assert.deepEqual(
+      (await readdir(project)).filter((name) => name.startsWith(".spindle-just-modules-")),
+      [],
+    );
+    await assert.rejects(readFile(justfilePath), { code: "ENOENT" });
+    await assert.rejects(readFile(join(github, "scripts", "just-modules", "quality.just")), {
+      code: "ENOENT",
+    });
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
