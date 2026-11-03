@@ -90,8 +90,6 @@ unchanged.
 - Providing a migration path or backward compatibility for the removed
   Blueprint kind.
 - Adding replacement tests for removed Just behavior.
-- Editing historical files under `.scratch/`. The user authorized creation of
-  this spec only; all other existing `.scratch/` content remains unchanged.
 
 ## Further Notes
 
