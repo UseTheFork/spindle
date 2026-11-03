@@ -196,7 +196,6 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
   });
   assert.deepEqual(readFileSync(join(setupWorkspace, "docs/agents/domain.md")), customDomain);
 });
-
 test("packaged command discovery and help remain intact", (t) => {
   const cli = packagedCli(t);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-help-setup-");
@@ -255,79 +254,5 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
     assert.match(result.stderr, /^spindle:/, args.join(" "));
     assert.equal(readdirSync(setupWorkspace).length, 0);
     assert.equal(git("status", "--porcelain=v1"), beforeStatus);
-  }
-});
-
-test("packaged init and update use bundled catalog, recursive assets, and Just imports outside checkout", (t) => {
-  const cli = packagedCli(t);
-  const project = tempDirectory(t, "spindle-packaged-blueprints-");
-  const bundledCatalog = join(cli.root, "build", "blueprints", "catalog.yaml");
-  const bundledAgent = join(cli.root, "build", "blueprints", "agents", "general.agent.md");
-  const bundledAsset = join(
-    cli.root,
-    "build",
-    "blueprints",
-    "skills",
-    "int-test-driven-development",
-    "tests.md",
-  );
-  const agentTarget = join(project, ".github", "agents", "general.agent.md");
-  const installedAsset = join(
-    project,
-    ".github",
-    "skills",
-    "int-test-driven-development",
-    "tests.md",
-  );
-  const importNames = ["format", "lint", "test", "tool"];
-  const expectedJustfile = `${importNames
-    .map((name) => `mod ${name} '.github/scripts/just-modules/${name}.just'`)
-    .join("\n")}\n`;
-  const noSourceFallback = { SPINDLE_BLUEPRINTS_DIR: "" };
-  const packageFiles = (
-    JSON.parse(readFileSync(join(cli.root, "package.json"), "utf8")) as { files: string[] }
-  ).files;
-
-  assert.equal(existsSync(join(cli.root, "src")), false);
-  assert.ok(packageFiles.includes("build"));
-  assert.equal(packageFiles.includes("src/blueprints"), false);
-  assert.equal(existsSync(bundledCatalog), true);
-  assert.equal(existsSync(bundledAgent), true);
-  assert.equal(existsSync(bundledAsset), true);
-
-  const initialized = cli.run(
-    project,
-    ["init", "--stack", "python", "--no-interactive"],
-    noSourceFallback,
-  );
-  assert.equal(initialized.status, 0, initialized.stderr);
-  assert.deepEqual(readdirSync(join(project, ".github", "scripts", "just-modules")), [
-    "format.just",
-    "lint.just",
-    "test.just",
-    "tool.just",
-  ]);
-  assert.equal(readFileSync(join(project, "justfile"), "utf8"), expectedJustfile);
-  assert.deepEqual(readFileSync(installedAsset), readFileSync(bundledAsset));
-  assert.match(readFileSync(agentTarget, "utf8"), /version: 1\.0\.0/);
-
-  const oldAgent = readFileSync(agentTarget, "utf8").replace("version: 1.0.0", "version: 0.1.0");
-  writeFileSync(agentTarget, oldAgent);
-  const updated = cli.run(
-    project,
-    ["update", "--no-interactive", "--on-conflict", "overwrite"],
-    noSourceFallback,
-  );
-
-  assert.equal(updated.status, 0, updated.stderr);
-  assert.match(updated.stdout, /updated 1, skipped 0, up to date 10 agent\(s\)/);
-  assert.match(readFileSync(agentTarget, "utf8"), /version: 1\.0\.0/);
-  assert.doesNotMatch(readFileSync(agentTarget, "utf8"), /version: 0\.1\.0/);
-  assert.equal(readFileSync(join(project, "justfile"), "utf8"), expectedJustfile);
-  for (const name of importNames) {
-    assert.equal(
-      existsSync(join(project, ".github", "scripts", "just-modules", `${name}.just`)),
-      true,
-    );
   }
 });

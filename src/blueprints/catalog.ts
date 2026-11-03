@@ -5,7 +5,7 @@ import matter from "gray-matter";
 
 import { supportedStacks } from "../install.js";
 
-export type CatalogKind = "agents" | "just" | "instructions" | "skills";
+export type CatalogKind = "agents" | "instructions" | "skills";
 export type CatalogStatus = "active" | "removed";
 
 export interface CatalogEntry {
@@ -42,10 +42,9 @@ export interface CatalogExpansionPlan {
 
 export type BlueprintCatalog = Record<CatalogKind, CatalogEntry[]>;
 
-const catalogKinds: CatalogKind[] = ["agents", "just", "instructions", "skills"];
+const catalogKinds: CatalogKind[] = ["agents", "instructions", "skills"];
 const allowedEntryFields = new Set(["path", "status", "stacks"]);
 const globCharacters = /[*?[\]{}]/;
-const justModulePathPattern = /^[A-Za-z_][A-Za-z0-9_-]*\.just$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -141,11 +140,6 @@ export function parseBlueprintCatalog(source: string): BlueprintCatalog {
       }
       if (kind === "skills" && !directory) {
         throw new Error(`Blueprint Catalog Skill path '${kind}.${key}' must select a directory.`);
-      }
-      if (kind === "just" && (directory || !justModulePathPattern.test(path))) {
-        throw new Error(
-          `Blueprint Catalog Just Module path '${kind}.${key}' must be a root-level .just file with a valid Just module identifier.`,
-        );
       }
       entries.push({ key, path, directory, status: rawEntry.status, stacks: rawEntry.stacks });
     }
@@ -293,7 +287,7 @@ export async function planBlueprintCatalog(
     } else {
       selections.push({
         entry,
-        name: kind === "just" ? entry.path.slice(0, -".just".length) : entry.path,
+        name: entry.path,
         files,
       });
     }

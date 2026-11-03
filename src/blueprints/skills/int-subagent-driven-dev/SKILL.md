@@ -110,7 +110,7 @@ spindle sdd workspace --workspace /absolute/checkout \
 
 Add `--round <R>` for a corrective review. The JSON result provides the checkout, reports directory, and absolute and checkout-relative destinations for implementation, code review, task review, optional scoped review, final review, and final fix review. This command is read-only: it does not create directories or reports, overwrite existing report contents, or change Git state. Preserve report history and coordinate shared-file edits when writing to the resolved paths.
 
-Spindle workflow commands are invoked directly, not through Just wrappers. The CLI retains its global Just prerequisite, including for help, so `just` must be installed and on `PATH`.
+Spindle workflow commands are invoked directly, not through Just wrappers.
 
 Missing or stale checks block acceptance. Integrate only when verification and review match the snapshot. Cap corrective dispatches at five per ticket across reviews; persist each round and never dispatch round six. Full-spec delivery allows one final-fix dispatch and scoped re-review.
 

@@ -3,16 +3,16 @@ import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises
 import { dirname, join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
-let justDirectory: string;
+let searchPathPrefix: string;
 
 before(async () => {
-  justDirectory = await makeJustStubDir();
+  searchPathPrefix = await makeSearchPathPrefix();
 });
 
 after(async () => {
-  await rm(justDirectory, { recursive: true, force: true });
+  await rm(searchPathPrefix, { recursive: true, force: true });
 });
 
 const versioned = (version: string, body: string) =>
@@ -23,7 +23,6 @@ const catalog = `agents:
     path: grouped/
     status: active
     stacks: []
-just: {}
 instructions:
   grouped:
     path: grouped/
@@ -144,7 +143,7 @@ test("update cleans selected directory membership without changing version decis
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -228,7 +227,7 @@ test("update cleans selected directory membership without changing version decis
     const acceptedUpdate = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
     assert.equal(acceptedUpdate.status, 0, acceptedUpdate.stderr);
@@ -268,7 +267,7 @@ test("update cleans selected directory membership without changing version decis
     const includeNew = runCli(
       project,
       ["update", "--no-interactive", "--include-new", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
     assert.equal(includeNew.status, 0, includeNew.stderr);
@@ -300,7 +299,6 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
     path: selected.agent.md
     status: active
     stacks: []
-just: {}
 instructions: {}
 skills: {}
 `,
@@ -315,7 +313,7 @@ skills: {}
     );
     await put(join(github, "agents/neighbor.agent.md"), "user-owned neighbor\n");
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -358,7 +356,7 @@ test("init removes destination-only files within selected directories only", asy
     const result = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -401,7 +399,7 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 

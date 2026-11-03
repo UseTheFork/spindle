@@ -6,7 +6,7 @@ catalog entry has a logical key, a source `path`, a `status` (`active` or
 they do not rename installed content. An empty Stack list applies to every
 Stack, and a nonempty list applies when any listed Stack is selected.
 
-The catalog has exactly four sections: `agents`, `just`, `instructions`, and
+The catalog has exactly three sections: `agents`, `instructions`, and
 `skills`. Empty sections are valid. Active entries must name existing sources,
 including entries that do not match the current Stack selection. Removed entries
 may retain a source-less path as a cleanup record.
@@ -17,8 +17,6 @@ also deletes its installed target. A file path removes only that file; a
 directory path removes the complete destination subtree, including local edits
 and additions. These explicit deletions do not prompt and are not suppressed by
 conflict-skip or new-content options. Missing targets are harmless no-ops.
-Removed or inapplicable Just Modules also lose their managed root imports.
-
 Cleanup is driven only by catalog entries: removing an entry from the catalog or
 changing its path does not infer a deletion of its previous destination. Keep an
 explicit `removed` entry for any old target that needs cleanup.
@@ -45,18 +43,14 @@ metadata. They can be grouped in catalog-selected directories, but each file is
 updated independently and keeps its source path. Skills remain directories led
 by `SKILL.md`; changes and additions require a Skill version bump.
 
-Just Modules are standalone root-level `.just` files. Stack-specific variants
-are separate catalog entries and are installed as separate modules. Their
-managed import identifiers come from the filename stem, not the catalog key.
-
-Unlisted source files are not installed. Keep all four catalog sections and
+Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.
 
 Before changing a project, Spindle validates the catalog and prepares the
-selected rendered writes, Config content, managed Just imports, deletions, and
-directory-membership cleanup. Preparation failures leave the project unchanged.
-An application-time filesystem failure stops reconciliation and reports completed
-changes; application is not transactional and does not roll back earlier writes.
+selected rendered writes, Config content, deletions, and directory-membership
+cleanup. Preparation failures leave the project unchanged. An application-time
+filesystem failure stops reconciliation and reports completed changes;
+application is not transactional and does not roll back earlier writes.
 
 The package build bundles the catalog and Blueprint tree under `build/blueprints`.
 Published packages use that bundled tree and do not include a separate

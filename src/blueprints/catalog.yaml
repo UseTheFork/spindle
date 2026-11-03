@@ -44,24 +44,6 @@ agents:
     status: active
     stacks: []
 
-just:
-  format:
-    path: format.just
-    status: active
-    stacks: []
-  lint:
-    path: lint.just
-    status: active
-    stacks: []
-  test:
-    path: test.just
-    status: active
-    stacks: []
-  tool:
-    path: tool.just
-    status: active
-    stacks: []
-
 instructions: {}
 
 skills:

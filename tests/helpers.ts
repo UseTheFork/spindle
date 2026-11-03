@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { delimiter, join, resolve } from "node:path";
 
 const cli = resolve(process.cwd(), "src/index.ts");
@@ -12,13 +12,9 @@ export async function makeTempDir(prefix = "spindle-cli-") {
   return mkdtemp(join(parent, prefix));
 }
 
-// A directory holding a stub executable `just`, so the prerequisite check passes.
-export async function makeJustStubDir() {
-  const directory = await makeTempDir("spindle-just-");
-  const name = process.platform === "win32" ? "just.exe" : "just";
-  await writeFile(join(directory, name), "#!/bin/sh\nexit 0\n");
-  await chmod(join(directory, name), 0o755);
-  return directory;
+// A temporary PATH prefix for test subprocesses.
+export async function makeSearchPathPrefix() {
+  return makeTempDir("spindle-path-");
 }
 
 // Runs the real CLI in `project`; node and tsx are addressed by absolute path so `searchPath` is free to exclude them.
@@ -66,7 +62,6 @@ function writeFixtureCatalog(blueprints: string) {
     : [];
   const catalog = {
     agents: entries(filesUnder(join(blueprints, "agents"), (path) => path.endsWith(".agent.md"))),
-    just: entries(filesUnder(join(blueprints, "just"), (path) => path.endsWith(".just"))),
     instructions: entries(
       filesUnder(join(blueprints, "instructions"), (path) => path.endsWith(".instructions.md")),
     ),

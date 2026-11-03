@@ -7,7 +7,7 @@ import matter from "gray-matter";
 
 import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
 const shippedAgents = resolve(process.cwd(), "src/blueprints/agents");
@@ -30,14 +30,14 @@ const productionStackSelections = supportedStacks
     [[]],
   )
   .slice(1);
-let justDirectory: string;
+let searchPathPrefix: string;
 
 before(async () => {
-  justDirectory = await makeJustStubDir();
+  searchPathPrefix = await makeSearchPathPrefix();
 });
 
 after(async () => {
-  await rm(justDirectory, { recursive: true, force: true });
+  await rm(searchPathPrefix, { recursive: true, force: true });
 });
 
 async function blueprintDirectories(directory: string) {
@@ -90,7 +90,7 @@ for (const stacks of productionStackSelections) {
       const result = runCli(
         project,
         ["init", ...stacks.flatMap((stack) => ["--stack", stack])],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
       );
       assert.equal(result.status, 0, result.stderr);
 

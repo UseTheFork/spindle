@@ -8,21 +8,21 @@ import { after, before, test } from "node:test";
 import matter from "gray-matter";
 
 import {
-  makeJustStubDir,
+  makeSearchPathPrefix,
   makeTempDir,
   pathWith,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
 } from "./helpers.ts";
 
-let justDirectory: string;
+let searchPathPrefix: string;
 
 before(async () => {
-  justDirectory = await makeJustStubDir();
+  searchPathPrefix = await makeSearchPathPrefix();
 });
 
 after(async () => {
-  await rm(justDirectory, { recursive: true, force: true });
+  await rm(searchPathPrefix, { recursive: true, force: true });
 });
 
 test("init installs and reports a rendered Agent alongside a same-named Skill", async () => {
@@ -53,7 +53,7 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
     const result = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=team"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -110,7 +110,7 @@ test("update replaces only older versioned Agents and warns about unknown versio
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -170,7 +170,7 @@ test("init ignores unlisted Agent sources while installing the catalog-selected 
     const result = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -206,7 +206,7 @@ test("init checks Agent conflicts before installing other Blueprint kinds", asyn
     const result = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -240,7 +240,7 @@ test(
       const result = await runCliInteractive(
         project,
         ["init", "--stack", "python", "--var", "owner=team", "--var", "lint_command=just lint"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         [{ trigger: "What should happen?", input: "\r" }],
         { SPINDLE_BLUEPRINTS_DIR: blueprints },
       );
@@ -285,7 +285,7 @@ test(
       const result = await runCliInteractive(
         project,
         ["update"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         [
           { trigger: "Enter: confirm", input: "\r" },
           { trigger: "What should happen?", input: "\r" },
@@ -331,7 +331,7 @@ test("init preserves an existing Agent when rendered version metadata is invalid
     const result = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -361,7 +361,7 @@ test("init rejects a non-text Agent entry without replacing its destination", as
     const result = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -378,8 +378,8 @@ test("init rejects a non-text Agent entry without replacing its destination", as
 test("init and update help describe Blueprint kinds and generic policies", async () => {
   const project = await makeTempDir("spindle-agent-help-project-");
   try {
-    const init = runCli(project, ["init", "--help"], pathWith(justDirectory));
-    const update = runCli(project, ["update", "--help"], pathWith(justDirectory));
+    const init = runCli(project, ["init", "--help"], pathWith(searchPathPrefix));
+    const update = runCli(project, ["update", "--help"], pathWith(searchPathPrefix));
 
     assert.equal(init.status, 0, init.stderr);
     assert.match(init.stdout, /Blueprints.*Skills, Agents, and Instructions/i);
@@ -396,7 +396,7 @@ test("init and update help describe Blueprint kinds and generic policies", async
 test("production init installs the versioned shared-r Agent matching the local copy", async () => {
   const project = await makeTempDir("spindle-agent-production-project-");
   try {
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory));
+    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix));
 
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /[1-9]\d* agent\(s\)/);
@@ -459,7 +459,6 @@ test(
           "    path: optional.agent.md",
           "    status: active",
           "    stacks: [python]",
-          "just: {}",
           "instructions: {}",
           "skills:",
           "  demo:",
@@ -482,7 +481,7 @@ test(
       await writeFile(outside, "outside remains untouched\n");
       await symlink(outside, join(project, ".github", "agents", "optional.agent.md"));
 
-      const result = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), {
+      const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
       });
 
@@ -530,7 +529,7 @@ test(
       const result = await runCliInteractive(
         project,
         ["update"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         [
           {
             trigger: "Enter: confirm",
@@ -577,7 +576,7 @@ test(
       const result = await runCliInteractive(
         project,
         ["update"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         [
           {
             trigger: "Enter: confirm",
@@ -615,7 +614,6 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
         "    path: python-only.agent.md",
         "    status: active",
         "    stacks: [python]",
-        "just: {}",
         "instructions: {}",
         "skills:",
         "  baseline:",
@@ -631,7 +629,12 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
       "---\nname: baseline\nmeta:\n  spindle:\n    version: 1.0.0\n---\nBaseline\n",
     );
     const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
-    const init = runCli(project, ["init", "--stack", "typescript"], pathWith(justDirectory), env);
+    const init = runCli(
+      project,
+      ["init", "--stack", "typescript"],
+      pathWith(searchPathPrefix),
+      env,
+    );
 
     assert.equal(init.status, 0, init.stderr);
     assert.equal(init.stdout, "✔ Installed 1 skill(s) for typescript\n");
@@ -640,7 +643,7 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
     const update = runCli(
       project,
       ["update", "--no-interactive", "--include-new"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(update.status, 0, update.stderr);
@@ -674,7 +677,7 @@ test("update warns and preserves an Agent with unreadable version frontmatter", 
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -720,7 +723,7 @@ test("update renders a block-templated Agent version before comparing it", async
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -763,7 +766,7 @@ test("update compares large numeric SemVer identifiers without losing precision"
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -797,7 +800,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
     const init = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=team"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(init.status, 0, init.stderr);
@@ -811,7 +814,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
     const update = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(update.status, 0, update.stderr);
@@ -832,7 +835,7 @@ test("init and update fail clearly when all registered kinds are empty or missin
   try {
     await mkdir(join(blueprints, "skills"), { recursive: true });
     const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), env);
+    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
     assert.notEqual(init.status, 0);
     assert.match(init.stderr, /No Blueprints are available/i);
     await assert.rejects(readFile(join(project, ".github", "spindle.json")));
@@ -840,7 +843,7 @@ test("init and update fail clearly when all registered kinds are empty or missin
     await mkdir(join(project, ".github"), { recursive: true });
     const config = JSON.stringify({ stacks: ["python"], variables: {} });
     await writeFile(join(project, ".github", "spindle.json"), config);
-    const update = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), env);
+    const update = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), env);
     assert.notEqual(update.status, 0);
     assert.match(update.stderr, /No Blueprints are available/i);
     assert.equal(await readFile(join(project, ".github", "spindle.json"), "utf8"), config);
@@ -889,7 +892,7 @@ test(
             command === "init"
               ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
               : ["update", "--no-interactive", "--on-conflict", "overwrite"];
-          const result = runCli(project, args, pathWith(justDirectory), {
+          const result = runCli(project, args, pathWith(searchPathPrefix), {
             SPINDLE_BLUEPRINTS_DIR: blueprints,
           });
 
@@ -929,7 +932,7 @@ test("init applies skip and overwrite policies to the Agent file only", async ()
     const skip = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(skip.status, 0, skip.stderr);
@@ -940,7 +943,7 @@ test("init applies skip and overwrite policies to the Agent file only", async ()
     const overwrite = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(overwrite.status, 0, overwrite.stderr);
@@ -972,7 +975,7 @@ test("non-interactive update skips or includes same-named new Blueprints by kind
       JSON.stringify({ stacks: ["python"], variables: {} }),
     );
     const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
-    const skip = runCli(project, ["update", "--no-interactive"], pathWith(justDirectory), env);
+    const skip = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), env);
     assert.equal(skip.status, 0, skip.stderr);
     assert.match(skip.stdout, /skipped 1, up to date 0 skill\(s\)/);
     assert.match(skip.stdout, /skipped 1, up to date 0 agent\(s\)/);
@@ -982,7 +985,7 @@ test("non-interactive update skips or includes same-named new Blueprints by kind
     const include = runCli(
       project,
       ["update", "--no-interactive", "--include-new"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(include.status, 0, include.stderr);
@@ -1032,7 +1035,7 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
       const result = runCli(
         project,
         ["update", "--no-interactive", "--on-conflict", "overwrite"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         { SPINDLE_BLUEPRINTS_DIR: blueprints },
       );
 
@@ -1076,7 +1079,7 @@ test(
       const result = await runCliInteractive(
         project,
         ["update"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         [
           { trigger: "Which new Skills should be installed?", input: "\r" },
           { trigger: "Which new Agents should be installed?", input: " \r" },
@@ -1122,7 +1125,7 @@ test("update skip policy preserves an outdated Agent", async () => {
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -1158,7 +1161,7 @@ for (const command of ["init", "update"] as const) {
         command === "init"
           ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
           : ["update", "--no-interactive", "--on-conflict", "overwrite"];
-      const result = runCli(project, args, pathWith(justDirectory), {
+      const result = runCli(project, args, pathWith(searchPathPrefix), {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
         NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-agent-write.mjs")}`,
@@ -1200,7 +1203,7 @@ for (const command of ["init", "update"] as const) {
         command === "init"
           ? ["init", "--stack", "python"]
           : ["update", "--no-interactive", "--include-new"];
-      const result = runCli(project, args, pathWith(justDirectory), {
+      const result = runCli(project, args, pathWith(searchPathPrefix), {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_RACE_AGENT_PATH: agentPath,
         NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "race-agent-create.mjs")}`,
@@ -1252,7 +1255,7 @@ for (const destinationType of ["directory", "socket"] as const) {
         const result = runCli(
           project,
           ["init", "--stack", "python", "--on-conflict", "overwrite"],
-          pathWith(justDirectory),
+          pathWith(searchPathPrefix),
           { SPINDLE_BLUEPRINTS_DIR: blueprints },
         );
 
@@ -1303,7 +1306,7 @@ for (const command of ["init", "update"] as const) {
         command === "init"
           ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
           : ["update", "--no-interactive", "--on-conflict", "overwrite"];
-      const result = runCli(project, args, pathWith(justDirectory), {
+      const result = runCli(project, args, pathWith(searchPathPrefix), {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
       });
 
@@ -1352,7 +1355,7 @@ for (const invalidKind of ["Skill", "Agent"] as const) {
       const result = runCli(
         project,
         ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
-        pathWith(justDirectory),
+        pathWith(searchPathPrefix),
         { SPINDLE_BLUEPRINTS_DIR: blueprints },
       );
 
@@ -1398,7 +1401,7 @@ test("init preflights a new invalid Agent before replacing an existing Skill", a
     const result = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -1431,7 +1434,7 @@ test("init renders Skill supporting Markdown without validating it as an entry f
     const result = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=team"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -1475,7 +1478,7 @@ test("update preflights Agent rendering before replacing a Skill", async () => {
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -1532,7 +1535,7 @@ test("update keeps a nested Agent version stable when a Skill supporting templat
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 

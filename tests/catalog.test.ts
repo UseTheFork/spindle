@@ -3,19 +3,19 @@ import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promis
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import { makeJustStubDir, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
 
-let justDirectory: string;
+let searchPathPrefix: string;
 
 before(async () => {
-  justDirectory = await makeJustStubDir();
+  searchPathPrefix = await makeSearchPathPrefix();
 });
 
 after(async () => {
-  await rm(justDirectory, { recursive: true, force: true });
+  await rm(searchPathPrefix, { recursive: true, force: true });
 });
 
-test("init selects catalog entries across all kinds and preserves their source paths", async () => {
+test("init selects supported catalog entries and preserves their source paths", async () => {
   const blueprints = await makeTempDir("spindle-catalog-blueprints-");
   const project = await makeTempDir("spindle-catalog-project-");
   const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
@@ -54,11 +54,6 @@ test("init selects catalog entries across all kinds and preserves their source p
         "    path: retired.agent.md",
         "    status: removed",
         "    stacks: []",
-        "just:",
-        "  shared:",
-        "    path: lint-python.just",
-        "    status: active",
-        "    stacks: [python]",
         "instructions:",
         "  shared:",
         "    path: grouped/",
@@ -106,31 +101,10 @@ test("init selects catalog entries across all kinds and preserves their source p
       join(blueprints, "skills", "unlisted", "SKILL.md"),
       "---\nname: unlisted\nmeta:\n  spindle:\n    version: 1.0.0\n---\nNot selected\n",
     );
-    await mkdir(join(blueprints, "just"), { recursive: true });
-    await writeFile(
-      join(blueprints, "just", "lint-python.just"),
-      "lint:\n  echo {{ variables.owner }}\n",
-    );
-    const installedModules = join(project, ".github", "scripts", "just-modules");
-    await mkdir(installedModules, { recursive: true });
-    await writeFile(join(installedModules, "retained.just"), "user module\n");
-    await writeFile(
-      join(project, "justfile"),
-      [
-        "# User configuration",
-        "mod local '.github/other.just'",
-        "mod retained '.github/scripts/just-modules/retained.just'",
-        "",
-        "ready:",
-        "  @echo ready",
-        "",
-      ].join("\n"),
-    );
-
     const result = runCli(
       project,
       ["init", "--stack", "python", "--stack", "typescript"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
 
@@ -165,28 +139,6 @@ test("init selects catalog entries across all kinds and preserves their source p
     );
     assert.deepEqual(await readdir(join(project, ".github", "skills")), ["authoring"]);
     await assert.rejects(readFile(join(project, ".github", "agents", "retired.agent.md")));
-    assert.equal(
-      await readFile(
-        join(project, ".github", "scripts", "just-modules", "lint-python.just"),
-        "utf8",
-      ),
-      "lint:\n  echo nobody\n",
-    );
-    assert.deepEqual(
-      await readFile(join(project, "justfile"), "utf8"),
-      [
-        "# User configuration",
-        "mod local '.github/other.just'",
-        "mod retained '.github/scripts/just-modules/retained.just'",
-        "",
-        "ready:",
-        "  @echo ready",
-        "",
-        "mod lint-python '.github/scripts/just-modules/lint-python.just'",
-        "",
-      ].join("\n"),
-    );
-    assert.equal(await readFile(join(installedModules, "retained.just"), "utf8"), "user module\n");
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -212,7 +164,6 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
         "    path: python.agent.md",
         "    status: active",
         "    stacks: [python]",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
         "",
@@ -225,7 +176,7 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
     const result = runCli(
       project,
       ["init", "--stack", "php-laravel"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
 
@@ -251,7 +202,6 @@ test("init validates symlinks in active nonmatching catalog directories before p
       join(blueprints, "catalog.yaml"),
       [
         "agents: {}",
-        "just: {}",
         "instructions: {}",
         "skills:",
         "  collection:",
@@ -272,7 +222,7 @@ test("init validates symlinks in active nonmatching catalog directories before p
       join(blueprints, "skills", "collection", "linked.txt"),
     );
 
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), env);
+    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
 
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /symbolic link/i);
@@ -304,7 +254,6 @@ test("update applies version decisions independently to grouped Agents and Instr
         "    path: group/",
         "    status: active",
         "    stacks: []",
-        "just: {}",
         "instructions:",
         "  instruction-group:",
         "    path: group/",
@@ -327,7 +276,7 @@ test("update applies version decisions independently to grouped Agents and Instr
       versioned("second instruction", "1.0.0", "original instruction two"),
     );
 
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), env);
+    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
     assert.equal(init.status, 0, init.stderr);
 
     await writeVersioned("agents", "first.agent.md", versioned("first", "2.0.0", "updated one"));
@@ -356,7 +305,7 @@ test("update applies version decisions independently to grouped Agents and Instr
     const update = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite", "--include-new"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
 
@@ -414,7 +363,6 @@ test("init rejects a nested destination symlink before writing outside the GitHu
         "    path: group/agent.agent.md",
         "    status: active",
         "    stacks: []",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
         "",
@@ -428,7 +376,7 @@ test("init rejects a nested destination symlink before writing outside the GitHu
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await symlink(outside, join(project, ".github", "agents", "group"));
 
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), {
+    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -453,7 +401,6 @@ test("a current Skill receives new supporting content only after its version inc
       join(blueprints, "catalog.yaml"),
       [
         "agents: {}",
-        "just: {}",
         "instructions: {}",
         "skills:",
         "  authoring-key:",
@@ -467,14 +414,14 @@ test("a current Skill receives new supporting content only after its version inc
     await writeFile(join(blueprints, "skills", "authoring", "SKILL.md"), skill("1.0.0"));
     await writeFile(join(blueprints, "skills", "authoring", "existing.txt"), "existing\n");
 
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), env);
+    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
     assert.equal(init.status, 0, init.stderr);
 
     await writeFile(join(blueprints, "skills", "authoring", "new.txt"), "new after bump\n");
     const current = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(current.status, 0, current.stderr);
@@ -484,7 +431,7 @@ test("a current Skill receives new supporting content only after its version inc
     const bumped = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(justDirectory),
+      pathWith(searchPathPrefix),
       env,
     );
     assert.equal(bumped.status, 0, bumped.stderr);
@@ -518,7 +465,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         "    status: active",
         "    stacks: []",
         "    extra: true",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
       ].join("\n"),
@@ -532,7 +478,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         "    path: ../selected.agent.md",
         "    status: active",
         "    stacks: []",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
       ].join("\n"),
@@ -546,7 +491,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         "    path: '*.agent.md'",
         "    status: active",
         "    stacks: []",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
       ].join("\n"),
@@ -564,7 +508,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         "    path: group/nested.agent.md",
         "    status: active",
         "    stacks: []",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
       ].join("\n"),
@@ -578,61 +521,10 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         "    path: missing.agent.md",
         "    status: active",
         "    stacks: [typescript]",
-        "just: {}",
         "instructions: {}",
         "skills: {}",
       ].join("\n"),
       diagnostic: /missing source 'missing.agent.md'/,
-    },
-    {
-      label: "nested source-less removed Just Module",
-      source: [
-        "agents: {}",
-        "just:",
-        "  selected:",
-        "    path: selected.just",
-        "    status: active",
-        "    stacks: []",
-        "  retired:",
-        "    path: nested/retired.just",
-        "    status: removed",
-        "    stacks: []",
-        "instructions: {}",
-        "skills: {}",
-      ].join("\n"),
-      diagnostic: /root-level .just file/i,
-    },
-    {
-      label: "invalid source-less removed Just Module identifier",
-      source: [
-        "agents: {}",
-        "just:",
-        "  selected:",
-        "    path: selected.just",
-        "    status: active",
-        "    stacks: []",
-        "  retired:",
-        "    path: invalid name.just",
-        "    status: removed",
-        "    stacks: []",
-        "instructions: {}",
-        "skills: {}",
-      ].join("\n"),
-      diagnostic: /valid Just module identifier/i,
-    },
-    {
-      label: "invalid active Just Module path",
-      source: [
-        "agents: {}",
-        "just:",
-        "  selected:",
-        "    path: nested/module.just",
-        "    status: active",
-        "    stacks: []",
-        "instructions: {}",
-        "skills: {}",
-      ].join("\n"),
-      diagnostic: /root-level .just file/i,
     },
   ];
 
@@ -641,18 +533,7 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
     const project = await makeTempDir("spindle-catalog-invalid-project-");
     try {
       await writeFile(join(blueprints, "catalog.yaml"), source);
-      if (label.includes("source-less removed")) {
-        await mkdir(join(blueprints, "just"), { recursive: true });
-        await writeFile(join(blueprints, "just", "selected.just"), "ready:\n  @echo ready\n");
-      }
-      if (label === "invalid active Just Module path") {
-        await mkdir(join(blueprints, "just", "nested"), { recursive: true });
-        await writeFile(
-          join(blueprints, "just", "nested", "module.just"),
-          "ready:\n  @echo ready\n",
-        );
-      }
-      const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory), {
+      const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
       });
       assert.notEqual(result.status, 0, label);
@@ -668,7 +549,7 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
 test("the shipped Blueprint collection installs its flattened catalog sources", async () => {
   const project = await makeTempDir("spindle-catalog-shipped-project-");
   try {
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(justDirectory));
+    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix));
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(await readdir(join(project, ".github", "agents")), [
       "general.agent.md",
@@ -683,14 +564,6 @@ test("the shipped Blueprint collection installs its flattened catalog sources", 
       "shared-rw.agent.md",
       "shared-rwx.agent.md",
     ]);
-    assert.deepEqual(await readdir(join(project, ".github", "scripts", "just-modules")), [
-      "format.just",
-      "lint.just",
-      "test.just",
-      "tool.just",
-    ]);
-    assert.match(await readFile(join(project, "justfile"), "utf8"), /mod format /);
-    assert.match(await readFile(join(project, "justfile"), "utf8"), /mod test /);
     assert.equal((await readdir(join(project, ".github", "skills"))).length, 30);
   } finally {
     await rm(project, { recursive: true, force: true });
