@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp } from "node:fs/promises";
-import { delimiter, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 
 const cli = resolve(process.cwd(), "src/index.ts");
 const tsxLoader = import.meta.resolve("tsx");
@@ -12,12 +12,7 @@ export async function makeTempDir(prefix = "spindle-cli-") {
   return mkdtemp(join(parent, prefix));
 }
 
-// A temporary PATH prefix for test subprocesses.
-export async function makeSearchPathPrefix() {
-  return makeTempDir("spindle-path-");
-}
-
-// Runs the real CLI in `project`; node and tsx are addressed by absolute path so `searchPath` is free to exclude them.
+// Runs the real CLI in `project`; node and tsx use absolute paths, and callers supply the desired PATH.
 // Colors are off unless a test opts in, so output assertions stay independent of the parent's terminal.
 export function runCli(
   project: string,
@@ -156,8 +151,4 @@ export function runCliInteractiveWithFixtureCatalog(
   const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliInteractive(project, args, searchPath, responses, env);
-}
-
-export function pathWith(directory: string) {
-  return `${directory}${delimiter}${process.env.PATH ?? ""}`;
 }

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, rm, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
-import { after, before, test } from "node:test";
+import { before, test } from "node:test";
 
 import matter from "gray-matter";
 
 import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
-import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeTempDir, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");
 const shippedAgents = resolve(process.cwd(), "src/blueprints/agents");
@@ -30,15 +30,8 @@ const productionStackSelections = supportedStacks
     [[]],
   )
   .slice(1);
-let searchPathPrefix: string;
 
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
+before(async () => {});
 
 async function blueprintDirectories(directory: string) {
   return (await readdir(directory, { withFileTypes: true }))
@@ -90,7 +83,7 @@ for (const stacks of productionStackSelections) {
       const result = runCli(
         project,
         ["init", ...stacks.flatMap((stack) => ["--stack", stack])],
-        pathWith(searchPathPrefix),
+        process.env.PATH ?? "",
       );
       assert.equal(result.status, 0, result.stderr);
 

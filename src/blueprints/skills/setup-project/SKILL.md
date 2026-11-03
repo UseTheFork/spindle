@@ -1,6 +1,6 @@
 ---
 name: setup-project
-description: "Use when configuring a project's local Markdown issues, triage-role mapping, domain documentation, or Just-based agent tooling instructions."
+description: "Use when configuring a project's local Markdown issues, triage-role mapping, domain documentation, or project tooling instructions."
 disable-model-invocation: false
 user-invocable: true
 meta:
@@ -10,7 +10,7 @@ meta:
 
 # Setup Project
 
-Configure the repository conventions that its engineering skills assume. The issue tracker is always local Markdown under `.scratch/`, and `triage` and Just are always installed. Build, test, lint, and formatting commands are proxied through Just; invoke Spindle workflow commands directly through the CLI.
+Configure the repository conventions that its engineering skills assume. The issue tracker is always local Markdown under `.scratch/`, and `triage` is always installed. Project tooling varies by repository; document the tools and commands that are actually available. Invoke Spindle workflow commands directly through the CLI.
 
 Always configure the Markdown issue-tracker instructions, both category-role values, and the five triage-state mappings. For local Markdown, `Category:` records `bug` or `enhancement`, `Status:` records the triage state, and `Execution:` remains delivery progress.
 
@@ -39,10 +39,10 @@ Look at the current repo to understand its starting state. Read whatever exists;
 - `docs/adr/` and any `src/*/docs/adr/` directories
 - `docs/agents/`: use the bootstrap result to distinguish copied defaults from preserved project customizations.
 - `.scratch/` and existing issue-tracker docs: reuse any local Markdown conventions already present.
-- The root `justfile` and its imported/included recipe files: follow module aliases, recipe parameters and working-directory settings. From that root run `just --list --list-submodules` and use `just --show <qualified-recipe>` as needed to confirm available public commands and their forwarding behavior. Read the backing runner configuration to verify example flags and test-suite names; recipe existence alone does not validate arguments. Do not execute setup, installs, tests or other mutating recipes merely to discover them.
+- If the project has a root `justfile`, inspect it and its imported/included recipe files: follow module aliases, recipe parameters and working-directory settings. From that root run `just --list --list-submodules` and use `just --show <qualified-recipe>` as needed to confirm available public commands and their forwarding behavior. Read the backing runner configuration to verify example flags and test-suite names; recipe existence alone does not validate arguments. Do not execute setup, installs, tests or other mutating recipes merely to discover them. If there is no `justfile`, inspect the project's other tooling configuration and continue without treating Just as required.
 - Monorepo signals: a `pnpm-workspace.yaml`, a `workspaces` field in `package.json`, or a populated `packages/*` with its own `src/`. These are present only in a genuinely large multi-package repo; their absence means single-context, which is almost every repo.
 
-**Complete when:** existing configuration and available Just commands are accounted for, including aliases, supported arguments and runner-specific test selectors. A missing Justfile, unresolved import or failed listing is a reported tooling blocker, not permission to present template commands as available. Continue only once resolved; do not claim completed setup with an unverified tooling inventory.
+**Complete when:** existing configuration and available project commands are accounted for, including supported arguments and runner-specific test selectors. If a `justfile` exists, resolve its imports and verify the available Just commands; an unresolved import or failed Just listing is a tooling blocker. If no `justfile` exists, continue with the other discovered tooling and mark unavailable commands explicitly rather than presenting template commands as available.
 
 ### 3. Present findings and ask
 
@@ -66,7 +66,7 @@ The five default state labels are the state roles, each label string equal to it
 
 Offer **multi-context** (a root `GLOSSARY-MAP.md` pointing to per-context `GLOSSARY.md` files) only when exploration found monorepo signals. Then confirm which layout they want.
 
-**Section D: Project tooling (discovered configuration).** Use the Spindle-provided default as a starting structure for `docs/agents/tooling.md`. Keep the mandatory Just policy and the Linting, Formatting, Type checking, Tooling and Testing sections. Retain only available, verified recipes; add other relevant public project commands to the appropriate section using their actual qualified names and argument syntax. Describe `*args` as forwarded arguments, not literal input. Mark a section with no available recipe explicitly rather than inventing a command. Include focused/suite examples only when the configured runner supports the flags and those suites exist; adapt non-Pest selectors. Optional modules absent from the project do not make their commands available. Preserve existing project-specific tooling guidance and reconcile differences in the draft rather than replacing it with defaults.
+**Section D: Project tooling (discovered configuration).** Use the Spindle-provided default as a starting structure for `docs/agents/tooling.md`. Keep the Linting, Formatting, Type checking, Tooling and Testing sections. Document Just only when the project has and intentionally uses it; retain only available, verified recipes. Add other relevant public project commands to the appropriate section using their actual names and argument syntax. Describe `*args` as forwarded arguments, not literal input. Mark a section with no available recipe explicitly rather than inventing a command. Include focused/suite examples only when the configured runner supports the flags and those suites exist; adapt non-Pest selectors. Optional modules absent from the project do not make their commands available. Preserve existing project-specific tooling guidance and reconcile differences in the draft rather than replacing it with defaults.
 
 ### 4. Confirm and edit
 
@@ -74,7 +74,7 @@ Show the user a draft of:
 
 - The `## Agent skills` block to add to whichever of `.github/copilot-instructions.md` is being edited (see step 5 for selection rules)
 - The contents of `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and `docs/agents/domain.md`, including the `Reporter:`, `Category:`, `Status:`, and comment author/timestamp conventions
-- `docs/agents/tooling.md`, with commands tailored to the verified Just inventory, and an `## Project Tooling` pointer in Copilot instructions. If inline tooling instructions already exist, show how their project-specific content is retained in the tooling doc and replaced by the pointer after approval, avoiding competing command lists.
+- `docs/agents/tooling.md`, with commands tailored to the verified project-tooling inventory, and an `## Project Tooling` pointer in Copilot instructions. If inline tooling instructions already exist, show how their project-specific content is retained in the tooling doc and replaced by the pointer after approval, avoiding competing command lists.
 
 Let them edit before applying configuration changes beyond the bootstrap defaults. Preserve unrelated existing customizations.
 

@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
+import { makeTempDir, runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmeta:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
@@ -81,7 +81,7 @@ skills:
     const result = runCli(
       project,
       ["update", "--no-interactive", "--include-new", "--on-conflict", "skip"],
-      pathWith(""),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -142,7 +142,7 @@ skills:
     const result = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive"],
-      pathWith(""),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -161,7 +161,6 @@ skills:
 test("application Config failure reports completed Blueprint installs", async () => {
   const blueprints = await makeTempDir("spindle-config-progress-blueprints-");
   const project = await makeTempDir("spindle-config-progress-project-");
-  const searchPathPrefix = await makeSearchPathPrefix();
   const github = join(project, ".github");
   const configPath = join(github, "spindle.json");
   const agentPath = join(github, "agents", "new.agent.md");
@@ -186,7 +185,7 @@ skills: {}
     const result = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-config-write.mjs")}`,
@@ -203,14 +202,12 @@ skills: {}
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
-    await rm(searchPathPrefix, { recursive: true, force: true });
   }
 });
 
 test("application write failure reports earlier cross-kind changes without claiming rollback", async () => {
   const blueprints = await makeTempDir("spindle-write-progress-blueprints-");
   const project = await makeTempDir("spindle-write-progress-project-");
-  const searchPathPrefix = await makeSearchPathPrefix();
   const github = join(project, ".github");
   const agents = join(github, "agents");
   const agentPath = join(agents, "write.agent.md");
@@ -249,7 +246,7 @@ skills:
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
@@ -271,14 +268,12 @@ skills:
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
-    await rm(searchPathPrefix, { recursive: true, force: true });
   }
 });
 
 test("partial Skill application reports each applied file and the exact later failure", async () => {
   const blueprints = await makeTempDir("spindle-skill-file-progress-blueprints-");
   const project = await makeTempDir("spindle-skill-file-progress-project-");
-  const searchPathPrefix = await makeSearchPathPrefix();
   const github = join(project, ".github");
   const skill = join(github, "skills", "demo");
   const skillEntry = join(skill, "SKILL.md");
@@ -312,7 +307,7 @@ skills:
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_FILE: failingFile,
@@ -337,14 +332,12 @@ skills:
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
-    await rm(searchPathPrefix, { recursive: true, force: true });
   }
 });
 
 test("application deletion failure reports all earlier cross-kind changes", async () => {
   const blueprints = await makeTempDir("spindle-delete-progress-blueprints-");
   const project = await makeTempDir("spindle-delete-progress-project-");
-  const searchPathPrefix = await makeSearchPathPrefix();
   const github = join(project, ".github");
   const newAgent = join(github, "agents", "new.agent.md");
   const firstRemoval = join(github, "agents", "first.agent.md");
@@ -381,7 +374,7 @@ skills: {}
     const result = runCli(
       project,
       ["update", "--no-interactive", "--include-new"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_REMOVE_TARGET: secondRemoval,
@@ -403,14 +396,12 @@ skills: {}
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
-    await rm(searchPathPrefix, { recursive: true, force: true });
   }
 });
 
 test("mixed reconciliation reports exact Blueprint writes, removals, and repeated-run results", async () => {
   const blueprints = await makeTempDir("spindle-mixed-reconciliation-blueprints-");
   const project = await makeTempDir("spindle-mixed-reconciliation-project-");
-  const searchPathPrefix = await makeSearchPathPrefix();
   const github = join(project, ".github");
   const agentPath = join(github, "agents", "new.agent.md");
   const instructionPath = join(github, "instructions", "testing", "testing.instructions.md");
@@ -467,7 +458,7 @@ skills:
     const first = runCli(
       project,
       ["update", "--no-interactive", "--include-new"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -491,7 +482,7 @@ skills:
     const second = runCli(
       project,
       ["update", "--no-interactive", "--include-new"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -504,6 +495,5 @@ skills:
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
-    await rm(searchPathPrefix, { recursive: true, force: true });
   }
 });

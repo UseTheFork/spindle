@@ -1,24 +1,9 @@
 import assert from "node:assert/strict";
 import { lstat, mkdir, readFile, rm, symlink, writeFile as fsWriteFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
-import {
-  makeSearchPathPrefix,
-  makeTempDir,
-  pathWith,
-  runCliWithFixtureCatalog as runCli,
-} from "./helpers.ts";
-
-let searchPathPrefix: string;
-
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
+import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
 const versioned = (name: string, body: string) =>
   `---\nname: ${name}\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
@@ -163,7 +148,7 @@ for (const mode of ["init", "update"] as const) {
           ? ["init", "--stack", "python", "--no-interactive", "--on-conflict", "skip"]
           : ["update", "--no-interactive", "--on-conflict", "skip", "--include-new"];
       const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
-      const result = runCli(project, args, pathWith(searchPathPrefix), env);
+      const result = runCli(project, args, process.env.PATH ?? "", env);
 
       assert.equal(result.status, 0, result.stderr);
       for (const path of [
@@ -184,7 +169,7 @@ for (const mode of ["init", "update"] as const) {
       assert.equal((result.stdout.match(/Removed /g) ?? []).length, 6, result.stdout);
       assert.equal(result.stdout.includes("absent.agent.md"), false);
       if (mode === "update") {
-        const repeated = runCli(project, args, pathWith(searchPathPrefix), env);
+        const repeated = runCli(project, args, process.env.PATH ?? "", env);
         assert.equal(repeated.status, 0, repeated.stderr);
         assert.doesNotMatch(repeated.stdout, /Removed /);
       }
@@ -234,7 +219,7 @@ skills: {}
 
     const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
     const args = ["update", "--no-interactive", "--on-conflict", "skip"];
-    const pythonResult = runCli(project, args, pathWith(searchPathPrefix), env);
+    const pythonResult = runCli(project, args, process.env.PATH ?? "", env);
     assert.equal(pythonResult.status, 0, pythonResult.stderr);
     assert.equal(
       await readFile(join(github, "agents", "python-only.agent.md"), "utf8"),
@@ -242,7 +227,7 @@ skills: {}
     );
 
     await writeFile(configPath, JSON.stringify({ stacks: ["typescript"], variables: {} }));
-    const typescriptResult = runCli(project, args, pathWith(searchPathPrefix), env);
+    const typescriptResult = runCli(project, args, process.env.PATH ?? "", env);
     assert.equal(typescriptResult.status, 0, typescriptResult.stderr);
     await assertMissing(join(github, "agents", "python-only.agent.md"));
     assert.equal(
@@ -296,7 +281,7 @@ skills: {}
       JSON.stringify({ stacks: ["python"], variables: {} }),
     );
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -341,7 +326,7 @@ skills: {}
       JSON.stringify({ stacks: ["python"], variables: {} }),
     );
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -384,7 +369,7 @@ skills: {}
       JSON.stringify({ stacks: ["python"], variables: {} }),
     );
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
       NODE_OPTIONS: `--import=${resolve(process.cwd(), "tests/fail-removal.mjs")}`,
       SPINDLE_TEST_FAIL_REMOVE_TARGET: secondTarget,

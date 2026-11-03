@@ -1,19 +1,9 @@
 import assert from "node:assert/strict";
 import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
-import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
-
-let searchPathPrefix: string;
-
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
+import { makeTempDir, runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmeta:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
@@ -143,7 +133,7 @@ test("update cleans selected directory membership without changing version decis
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -227,7 +217,7 @@ test("update cleans selected directory membership without changing version decis
     const acceptedUpdate = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
     assert.equal(acceptedUpdate.status, 0, acceptedUpdate.stderr);
@@ -267,7 +257,7 @@ test("update cleans selected directory membership without changing version decis
     const includeNew = runCli(
       project,
       ["update", "--no-interactive", "--include-new", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
     assert.equal(includeNew.status, 0, includeNew.stderr);
@@ -313,7 +303,7 @@ skills: {}
     );
     await put(join(github, "agents/neighbor.agent.md"), "user-owned neighbor\n");
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -356,7 +346,7 @@ test("init removes destination-only files within selected directories only", asy
     const result = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -399,7 +389,7 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
     const result = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 

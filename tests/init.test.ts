@@ -5,14 +5,8 @@ import { after, before, test } from "node:test";
 
 import { Chalk } from "chalk";
 
-import {
-  makeSearchPathPrefix,
-  makeTempDir,
-  pathWith,
-  runCliWithFixtureCatalog as runCli,
-} from "./helpers.ts";
+import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
-let searchPathPrefix: string;
 let stubsDirectory: string;
 const fixtureVariables = {
   lint_command: "just lint",
@@ -20,7 +14,6 @@ const fixtureVariables = {
 };
 
 before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
   stubsDirectory = await makeTempDir("spindle-init-stubs-");
   await mkdir(join(stubsDirectory, "skills", "demo"), { recursive: true });
   await writeFile(
@@ -30,7 +23,6 @@ before(async () => {
 });
 
 after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
   await rm(stubsDirectory, { recursive: true, force: true });
 });
 
@@ -39,7 +31,7 @@ async function runInit(args: string[], env: Record<string, string> = {}) {
   try {
     return {
       project,
-      result: runCli(project, ["init", ...args], pathWith(searchPathPrefix), {
+      result: runCli(project, ["init", ...args], process.env.PATH ?? "", {
         SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         ...env,
       }),
@@ -137,7 +129,7 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
     const result = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=team"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
@@ -172,7 +164,7 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
     const project = await runCli(
       projectRoot,
       ["init", "--stack", "typescript", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
@@ -205,7 +197,7 @@ test("init overwrite policy removes files that are no longer in the Stub", async
     const result = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
@@ -254,7 +246,7 @@ test(
       const result = runCli(
         project,
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
-        pathWith(searchPathPrefix),
+        process.env.PATH ?? "",
         {
           SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },
@@ -284,7 +276,7 @@ test(
       const result = runCli(
         project,
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
-        pathWith(searchPathPrefix),
+        process.env.PATH ?? "",
         {
           SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },
@@ -317,7 +309,7 @@ test(
       const result = runCli(
         project,
         ["init", "--stack", "python", "--on-conflict", "overwrite"],
-        pathWith(searchPathPrefix),
+        process.env.PATH ?? "",
         {
           SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
         },

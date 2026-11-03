@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 
-import { makeSearchPathPrefix, pathWith, runCli } from "./helpers.ts";
+import { makeTempDir, runCli } from "./helpers.ts";
 
 function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "sdd-workspace-test-"));
@@ -45,8 +45,6 @@ function reportArgs(repo: string, reportsDirectory = ".scratch/2026-10-23-demo/r
 }
 
 test("workspace resolves durable report paths without changing the checkout", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { repo, git } = fixture(t);
   const reportsDirectory = ".scratch/2026-10-23-demo/reports";
   const absoluteReportsDirectory = join(repo, reportsDirectory);
@@ -55,7 +53,7 @@ test("workspace resolves durable report paths without changing the checkout", as
   writeFileSync(implementation, "Existing report\n");
   const before = git("status", "--porcelain=v1");
 
-  const result = runCli(repo, [...reportArgs(repo), "--round", "2"], pathWith(searchPathPrefix));
+  const result = runCli(repo, [...reportArgs(repo), "--round", "2"], process.env.PATH ?? "");
 
   assert.equal(result.status, 0, result.stderr);
   const data = JSON.parse(result.stdout);
@@ -105,14 +103,12 @@ test("workspace resolves durable report paths without changing the checkout", as
 });
 
 test("workspace rejects a dangling report symlink as a non-regular target", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { repo } = fixture(t);
   const reportsDirectory = join(repo, ".scratch/2026-10-23-demo/reports");
   mkdirSync(reportsDirectory, { recursive: true });
   symlinkSync(join(repo, "missing-report-target"), join(reportsDirectory, "03-implementation.md"));
 
-  const result = runCli(repo, reportArgs(repo), pathWith(searchPathPrefix));
+  const result = runCli(repo, reportArgs(repo), process.env.PATH ?? "");
 
   assert.notEqual(result.status, 0);
   assert.equal(result.stdout, "");
@@ -120,12 +116,10 @@ test("workspace rejects a dangling report symlink as a non-regular target", asyn
 });
 
 test("workspace omits scoped review without a round and does not create report directories", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { repo, git } = fixture(t);
   const before = git("status", "--porcelain=v1");
 
-  const result = runCli(repo, reportArgs(repo), pathWith(searchPathPrefix));
+  const result = runCli(repo, reportArgs(repo), process.env.PATH ?? "");
 
   assert.equal(result.status, 0, result.stderr);
   const data = JSON.parse(result.stdout);
@@ -142,8 +136,6 @@ test("workspace omits scoped review without a round and does not create report d
 });
 
 test("workspace rejects path traversal, escaping links, ignored paths, and invalid identifiers", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { directory, repo } = fixture(t);
   mkdirSync(join(repo, ".scratch"));
   symlinkSync(directory, join(repo, ".scratch/escape"));
@@ -157,7 +149,7 @@ test("workspace rejects path traversal, escaping links, ignored paths, and inval
     ".scratch/escape/reports",
     ".scratch/ignored/reports",
   ]) {
-    const result = runCli(repo, reportArgs(repo, reportsDirectory), pathWith(searchPathPrefix));
+    const result = runCli(repo, reportArgs(repo, reportsDirectory), process.env.PATH ?? "");
     assert.notEqual(result.status, 0, reportsDirectory);
     assert.equal(result.stdout, "", reportsDirectory);
     assert.match(result.stderr, /spindle:/, reportsDirectory);
@@ -171,7 +163,7 @@ test("workspace rejects path traversal, escaping links, ignored paths, and inval
     const args = reportArgs(repo);
     if (flag === "--ticket") args[args.length - 1] = value;
     else args.push(flag, value);
-    const result = runCli(repo, args, pathWith(searchPathPrefix));
+    const result = runCli(repo, args, process.env.PATH ?? "");
     assert.notEqual(result.status, 0, `${flag} ${value}`);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /spindle:/);
@@ -179,29 +171,25 @@ test("workspace rejects path traversal, escaping links, ignored paths, and inval
 });
 
 test("workspace rejects ignored destinations and existing non-regular targets", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { repo } = fixture(t);
   const reportsDirectory = join(repo, ".scratch/2026-10-23-demo/reports");
   mkdirSync(reportsDirectory, { recursive: true });
 
   writeFileSync(join(repo, ".gitignore"), ".scratch/2026-10-23-demo/reports/03-code-review.md\n");
-  const ignored = runCli(repo, reportArgs(repo), pathWith(searchPathPrefix));
+  const ignored = runCli(repo, reportArgs(repo), process.env.PATH ?? "");
   assert.notEqual(ignored.status, 0);
   assert.equal(ignored.stdout, "");
   assert.match(ignored.stderr, /spindle:.*Report destination is ignored/);
 
   rmSync(join(repo, ".gitignore"));
   mkdirSync(join(reportsDirectory, "03-implementation.md"));
-  const directoryTarget = runCli(repo, reportArgs(repo), pathWith(searchPathPrefix));
+  const directoryTarget = runCli(repo, reportArgs(repo), process.env.PATH ?? "");
   assert.notEqual(directoryTarget.status, 0);
   assert.equal(directoryTarget.stdout, "");
   assert.match(directoryTarget.stderr, /spindle:.*not a regular file/);
 });
 
 test("workspace requires an absolute checkout root with a valid HEAD", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { directory, repo } = fixture(t);
   const nested = join(repo, "nested");
   mkdirSync(nested);
@@ -210,28 +198,26 @@ test("workspace requires an absolute checkout root with a valid HEAD", async (t)
     [directory, "checkout"],
     [repo, nested],
   ]) {
-    const result = runCli(project, reportArgs(workspace), pathWith(searchPathPrefix));
+    const result = runCli(project, reportArgs(workspace), process.env.PATH ?? "");
     assert.notEqual(result.status, 0);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /spindle:/);
   }
 
-  const invalidHead = await makeSearchPathPrefix();
+  const invalidHead = await makeTempDir("spindle-invalid-head-");
   t.after(() => rmSync(invalidHead, { recursive: true, force: true }));
   const emptyRepository = join(invalidHead, "empty-repository");
   mkdirSync(emptyRepository);
   execFileSync("git", ["init", "-q"], { cwd: emptyRepository });
-  const result = runCli(emptyRepository, reportArgs(emptyRepository), pathWith(searchPathPrefix));
+  const result = runCli(emptyRepository, reportArgs(emptyRepository), process.env.PATH ?? "");
   assert.notEqual(result.status, 0);
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /spindle:/);
 });
 
 test("SDD help discovers workspace and rejects malformed or inapplicable arguments", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const { repo } = fixture(t);
-  const searchPath = pathWith(searchPathPrefix);
+  const searchPath = process.env.PATH ?? "";
 
   for (const [args, expected] of [
     [["sdd", "--help"], /workspace/],

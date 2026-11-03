@@ -3,18 +3,11 @@ import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
-import {
-  makeSearchPathPrefix,
-  makeTempDir,
-  pathWith,
-  runCliWithFixtureCatalog as runCli,
-} from "./helpers.ts";
+import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
-let searchPathPrefix: string;
 let stubsDirectory: string;
 
 before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
   stubsDirectory = await makeTempDir("spindle-existing-stubs-");
   for (const name of ["alpha", "beta"]) {
     await mkdir(join(stubsDirectory, "skills", name, "nested"), { recursive: true });
@@ -30,7 +23,6 @@ before(async () => {
 });
 
 after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
   await rm(stubsDirectory, { recursive: true, force: true });
 });
 
@@ -42,7 +34,7 @@ async function withProject(
   const project = await makeTempDir();
   try {
     await setup(project);
-    const result = runCli(project, ["init", ...args], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["init", ...args], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
     });
     await check(project, result);

@@ -1,25 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
 import {
-  makeSearchPathPrefix,
   makeTempDir,
-  pathWith,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
 } from "./helpers.ts";
-
-let searchPathPrefix: string;
-
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
 
 interface Definition {
   name: string;
@@ -50,7 +38,7 @@ async function withManifest(
       join(stubs, "skills", "demo", "SKILL.md"),
       `---\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n")}\n`,
     );
-    const result = await runner(project, ["init", ...args], pathWith(searchPathPrefix), {
+    const result = await runner(project, ["init", ...args], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubs,
     });
     await check(result, project);
@@ -190,7 +178,7 @@ test("help documents every flag and exits 0", async () => {
   const project = await makeTempDir();
   try {
     for (const args of [["--help"], ["init", "--help"]]) {
-      const result = runCli(project, args, pathWith(searchPathPrefix));
+      const result = runCli(project, args, process.env.PATH ?? "");
       assert.equal(result.status, 0, result.stderr);
       for (const flag of ["--stack", "--var", "--no-interactive", "--help"]) {
         assert.match(result.stdout, new RegExp(flag));

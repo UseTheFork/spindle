@@ -5,18 +5,14 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 import {
-  makeSearchPathPrefix,
   makeTempDir,
-  pathWith,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
 } from "./helpers.ts";
 
-let searchPathPrefix: string;
 let stubs: string;
 
 before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
   stubs = await makeTempDir("spindle-update-stubs-");
   const stubSkills: Record<string, string> = {
     newer: "2.0.0",
@@ -36,7 +32,6 @@ before(async () => {
 });
 
 after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
   await rm(stubs, { recursive: true, force: true });
 });
 
@@ -80,7 +75,7 @@ async function withProject(
       await writeFile(join(project, ".github/skills", name, "SKILL.md"), content);
       await writeFile(join(project, ".github/skills", name, "extra.txt"), "stale");
     }
-    const result = await runner(project, ["update", ...args], pathWith(searchPathPrefix), {
+    const result = await runner(project, ["update", ...args], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubsDir,
     });
     await check(project, result);
@@ -337,7 +332,7 @@ test("update renders a complete static Skill entry before checking an equal vers
     await writeFile(installed, original);
     await writeFile(join(project, ".github", "spindle.json"), configText);
 
-    const result = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -371,7 +366,7 @@ test("update refuses to install a Skill entry changed after version planning", a
     const result = await runCliInteractive(
       project,
       ["update"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       [
         {
           trigger: "What should happen?",
@@ -944,7 +939,7 @@ test(
         const result = runCli(
           project,
           ["update", "--no-interactive", "--on-conflict", "overwrite"],
-          pathWith(searchPathPrefix),
+          process.env.PATH ?? "",
           {
             SPINDLE_BLUEPRINTS_DIR: stubs,
           },

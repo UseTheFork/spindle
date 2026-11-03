@@ -1,19 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
-import { makeSearchPathPrefix, makeTempDir, pathWith, runCli } from "./helpers.ts";
-
-let searchPathPrefix: string;
-
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
+import { makeTempDir, runCli } from "./helpers.ts";
 
 test("init selects supported catalog entries and preserves their source paths", async () => {
   const blueprints = await makeTempDir("spindle-catalog-blueprints-");
@@ -104,7 +94,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     const result = runCli(
       project,
       ["init", "--stack", "python", "--stack", "typescript"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
 
@@ -173,12 +163,7 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
     await writeFile(join(blueprints, "agents", "laravel.agent.md"), agent("laravel"));
     await writeFile(join(blueprints, "agents", "python.agent.md"), agent("python"));
 
-    const result = runCli(
-      project,
-      ["init", "--stack", "php-laravel"],
-      pathWith(searchPathPrefix),
-      env,
-    );
+    const result = runCli(project, ["init", "--stack", "php-laravel"], process.env.PATH ?? "", env);
 
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
@@ -222,7 +207,7 @@ test("init validates symlinks in active nonmatching catalog directories before p
       join(blueprints, "skills", "collection", "linked.txt"),
     );
 
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
+    const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
 
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /symbolic link/i);
@@ -276,7 +261,7 @@ test("update applies version decisions independently to grouped Agents and Instr
       versioned("second instruction", "1.0.0", "original instruction two"),
     );
 
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
+    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     assert.equal(init.status, 0, init.stderr);
 
     await writeVersioned("agents", "first.agent.md", versioned("first", "2.0.0", "updated one"));
@@ -305,7 +290,7 @@ test("update applies version decisions independently to grouped Agents and Instr
     const update = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite", "--include-new"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
 
@@ -376,7 +361,7 @@ test("init rejects a nested destination symlink before writing outside the GitHu
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await symlink(outside, join(project, ".github", "agents", "group"));
 
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), {
+    const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -414,14 +399,14 @@ test("a current Skill receives new supporting content only after its version inc
     await writeFile(join(blueprints, "skills", "authoring", "SKILL.md"), skill("1.0.0"));
     await writeFile(join(blueprints, "skills", "authoring", "existing.txt"), "existing\n");
 
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), env);
+    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     assert.equal(init.status, 0, init.stderr);
 
     await writeFile(join(blueprints, "skills", "authoring", "new.txt"), "new after bump\n");
     const current = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
     assert.equal(current.status, 0, current.stderr);
@@ -431,7 +416,7 @@ test("a current Skill receives new supporting content only after its version inc
     const bumped = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
     assert.equal(bumped.status, 0, bumped.stderr);
@@ -533,7 +518,7 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
     const project = await makeTempDir("spindle-catalog-invalid-project-");
     try {
       await writeFile(join(blueprints, "catalog.yaml"), source);
-      const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix), {
+      const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", {
         SPINDLE_BLUEPRINTS_DIR: blueprints,
       });
       assert.notEqual(result.status, 0, label);
@@ -549,7 +534,7 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
 test("the shipped Blueprint collection installs its flattened catalog sources", async () => {
   const project = await makeTempDir("spindle-catalog-shipped-project-");
   try {
-    const result = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix));
+    const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(await readdir(join(project, ".github", "agents")), [
       "general.agent.md",

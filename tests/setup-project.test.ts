@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 
-import { makeSearchPathPrefix, pathWith, runCli } from "./helpers.ts";
+import { runCli } from "./helpers.ts";
 
 const copies = [
   ["domain.md", "docs/agents/domain.md"],
@@ -30,14 +30,12 @@ function fixture(t: TestContext) {
 }
 
 test("setup-project creates the required directories and exact defaults", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
 
   const result = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
 
   assert.equal(result.status, 0, result.stderr);
@@ -71,8 +69,6 @@ test("setup-project creates the required directories and exact defaults", async 
 });
 
 test("setup-project preserves custom files byte-for-byte on repeated runs", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
   mkdirSync(join(workspace, "docs/agents"), { recursive: true });
   const customDomain = Buffer.from([0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x00, 0xff]);
@@ -83,7 +79,7 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
   const first = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
   assert.equal(first.status, 0, first.stderr);
   const firstResult = JSON.parse(first.stdout);
@@ -104,7 +100,7 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
   const second = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
   assert.equal(second.status, 0, second.stderr);
   const secondResult = JSON.parse(second.stdout);
@@ -128,8 +124,6 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
 });
 
 test("setup-project rejects directory and dangling file symlink destinations", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
   const outside = join(workspace, "outside");
   mkdirSync(outside);
@@ -138,7 +132,7 @@ test("setup-project rejects directory and dangling file symlink destinations", a
   const directoryLink = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
   assert.notEqual(directoryLink.status, 0);
   assert.equal(directoryLink.stdout, "");
@@ -152,7 +146,7 @@ test("setup-project rejects directory and dangling file symlink destinations", a
   const fileLink = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
   assert.notEqual(fileLink.status, 0);
   assert.equal(fileLink.stdout, "");
@@ -161,15 +155,13 @@ test("setup-project rejects directory and dangling file symlink destinations", a
 });
 
 test("setup-project retains partial setup when a later default conflicts with a directory", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
   mkdirSync(join(workspace, "docs/agents/triage-labels.md"), { recursive: true });
 
   const result = runCli(
     workspace,
     ["setup-project", "--workspace", workspace],
-    pathWith(searchPathPrefix),
+    process.env.PATH ?? "",
   );
 
   assert.notEqual(result.status, 0);
@@ -183,8 +175,6 @@ test("setup-project retains partial setup when a later default conflicts with a 
 });
 
 test("setup-project rejects malformed CLI arguments and workspace conflicts", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
   const missing = join(workspace, "missing");
   const file = join(workspace, "project-file");
@@ -210,7 +200,7 @@ test("setup-project rejects malformed CLI arguments and workspace conflicts", as
   ];
 
   for (const args of invalidCases) {
-    const result = runCli(workspace, args, pathWith(searchPathPrefix));
+    const result = runCli(workspace, args, process.env.PATH ?? "");
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
     assert.match(result.stderr, /spindle:/, args.join(" "));
@@ -220,11 +210,9 @@ test("setup-project rejects malformed CLI arguments and workspace conflicts", as
 });
 
 test("setup-project and top-level help describe the public command", async (t) => {
-  const searchPathPrefix = await makeSearchPathPrefix();
-  t.after(() => rmSync(searchPathPrefix, { recursive: true, force: true }));
   const workspace = fixture(t);
 
-  const commandHelp = runCli(workspace, ["setup-project", "--help"], pathWith(searchPathPrefix));
+  const commandHelp = runCli(workspace, ["setup-project", "--help"], process.env.PATH ?? "");
   assert.equal(commandHelp.status, 0, commandHelp.stderr);
   assert.match(
     commandHelp.stdout,
@@ -232,7 +220,7 @@ test("setup-project and top-level help describe the public command", async (t) =
   );
   assert.match(commandHelp.stdout, /--workspace <path>/);
 
-  const topLevelHelp = runCli(workspace, ["--help"], pathWith(searchPathPrefix));
+  const topLevelHelp = runCli(workspace, ["--help"], process.env.PATH ?? "");
   assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
   assert.match(topLevelHelp.stdout, /setup-project \(see `spindle setup-project --help`\)/);
 });

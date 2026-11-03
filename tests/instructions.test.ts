@@ -1,24 +1,9 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+import { test } from "node:test";
 
-import {
-  makeSearchPathPrefix,
-  makeTempDir,
-  pathWith,
-  runCliWithFixtureCatalog as runCli,
-} from "./helpers.ts";
-
-let searchPathPrefix: string;
-
-before(async () => {
-  searchPathPrefix = await makeSearchPathPrefix();
-});
-
-after(async () => {
-  await rm(searchPathPrefix, { recursive: true, force: true });
-});
+import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
 const instruction = (name: string, version: string | null, body: string) =>
   `---\nname: ${name}\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
@@ -58,7 +43,7 @@ test("init and update install selected Instructions as single versioned files", 
     const init = runCli(
       project,
       ["init", "--stack", "python", "--var", "owner=team", "--on-conflict", "skip"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
 
@@ -90,7 +75,7 @@ test("init and update install selected Instructions as single versioned files", 
     const update = runCli(
       project,
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
 
@@ -126,7 +111,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
     const invalid = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
     assert.notEqual(invalid.status, 0);
@@ -137,7 +122,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
     const conflict = runCli(
       project,
       ["init", "--stack", "python", "--no-interactive"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
     assert.notEqual(conflict.status, 0);
@@ -147,7 +132,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
     const overwrite = runCli(
       project,
       ["init", "--stack", "python", "--on-conflict", "overwrite"],
-      pathWith(searchPathPrefix),
+      process.env.PATH ?? "",
       env,
     );
     assert.equal(overwrite.status, 0, overwrite.stderr);
@@ -161,13 +146,13 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
 test("production init and update omit the empty Instructions kind", async () => {
   const project = await makeTempDir("spindle-instruction-production-project-");
   try {
-    const init = runCli(project, ["init", "--stack", "python"], pathWith(searchPathPrefix));
+    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     assert.equal(init.status, 0, init.stderr);
     assert.match(init.stdout, /skill\(s\), [1-9]\d* agent\(s\) for python/);
     assert.doesNotMatch(init.stdout, /instruction/i);
     await assert.rejects(readdir(join(project, ".github", "instructions")));
 
-    const update = runCli(project, ["update", "--no-interactive"], pathWith(searchPathPrefix));
+    const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "");
     assert.equal(update.status, 0, update.stderr);
     assert.doesNotMatch(update.stdout, /instruction/i);
   } finally {
