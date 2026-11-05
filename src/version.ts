@@ -63,7 +63,11 @@ export async function readBlueprintVersion(
     return null;
   }
   const rendered = context
-    ? renderText(content, { stacks: [...context.stacks], variables: { ...context.variables } })
+    ? renderText(content, {
+        stacks: [...context.stacks],
+        variables: { ...context.variables },
+        computed: { ...context.computed },
+      })
     : content;
   if (context) options.onRendered?.(content, rendered);
   try {

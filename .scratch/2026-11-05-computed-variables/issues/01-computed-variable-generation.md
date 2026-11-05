@@ -3,6 +3,9 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: integrated
+
+Base: `/home/sincore/source/spindle` at `32d9990474201df337ebdab1d1550cd05cb4772b`.
 
 **What to build:** Blueprint authors can print named, developer-defined Computed
 Variables during initialization and updates using the separate `computed`
@@ -70,3 +73,24 @@ Checklist key: `- [ ]` Not started; `- [X]` Complete; `- [-]` In progress;
 `- [S]` Skipped.
 
 ## Comments
+
+**2026-11-05T18:01:32Z - @unknown**
+Set `Execution: claimed` at base `32d9990474201df337ebdab1d1550cd05cb4772b` in the existing checkout to begin ticket 01 delivery.
+
+**2026-11-05T18:01:32Z - @unknown**
+Set `Execution: implementing` at base `32d9990474201df337ebdab1d1550cd05cb4772b`; dispatched ticket 01 implementation.
+
+**2026-11-05T18:30:00Z - @unknown**
+Set `Execution: in-code-review` on the uncommitted ticket 01 implementation snapshot after controller formatting, lint, type-check, build, diff validation, and 175/175 tests passed. Review reports are pending.
+
+**2026-11-05T18:45:00Z - @unknown**
+Set `Execution: changes-requested` on the frozen ticket 01 review snapshot. Code and code-slop reviews passed; task review reported blocking finding CV-01: quoted bracket computed references with punctuation are valid but the diagnostic extractor fails to identify their names. Starting corrective round 1 of 5.
+
+**2026-11-05T19:00:00Z - @unknown**
+Set `Execution: in-review` on the corrected uncommitted ticket 01 snapshot after controller formatting, lint, type-check, build, diff validation, and 176/176 tests passed. CV-01 scoped re-review is pending.
+
+**2026-11-05T19:05:00Z - @unknown**
+Set `Execution: accepted` on the corrected ticket 01 snapshot. Initial code, code-slop, and Spec/Quality reviews completed; CV-01 was addressed in round 1 and passed scoped re-review.
+
+**2026-11-05T19:05:00Z - @unknown**
+Set `Execution: integrated` on the existing checkout at `32d9990474201df337ebdab1d1550cd05cb4772b` plus the uncommitted ticket 01 diff. Fresh controller verification passed formatting, lint, type checking, build, diff validation, and 176/176 tests. Controller is committing all pending ticket delivery and report files before claiming the dependent ticket.

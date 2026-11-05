@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 
+import matter from "gray-matter";
+
 const checkout = resolve(process.cwd());
 const setupTemplates = [
   ["domain.md", "docs/agents/domain.md"],
@@ -214,6 +216,44 @@ test("packaged command discovery and help remain intact", (t) => {
     assert.match(result.stdout, expected);
     assert.equal(result.stderr, "");
   }
+});
+
+test("packaged CLI renders a computed Internal Skill description outside the checkout", (t) => {
+  const cli = packagedCli(t);
+  const project = tempDirectory(t, "spindle-packaged-computed-project-");
+  const blueprintRoot = tempDirectory(t, "spindle-packaged-computed-blueprints-");
+  const packagedBlueprints = join(blueprintRoot, "blueprints");
+  cpSync(join(cli.root, "build", "blueprints"), packagedBlueprints, { recursive: true });
+
+  const shippedSkill = join(
+    packagedBlueprints,
+    "skills",
+    "int-test-driven-development",
+    "SKILL.md",
+  );
+  const source = readFileSync(shippedSkill, "utf8");
+  const literal =
+    'description: "This is an internal skill do not load it unless explicitly required by the user or another skill."';
+  assert.ok(source.includes(literal));
+  writeFileSync(
+    shippedSkill,
+    source.replace(literal, 'description: "{{ computed.internal_skill_description }}"'),
+  );
+
+  const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"], {
+    SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
+  });
+  assert.equal(result.status, 0, result.stderr);
+
+  const installed = readFileSync(
+    join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
+    "utf8",
+  );
+  assert.equal(
+    matter(installed).data.description,
+    "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+  );
+  assert.doesNotMatch(installed, /{{|}}/);
 });
 
 test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", (t) => {

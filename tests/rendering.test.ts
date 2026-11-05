@@ -5,7 +5,11 @@ import { test } from "node:test";
 import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
 
-const context = { stacks: ["python", "typescript"], variables: { name: "Spindle" } };
+const context = {
+  stacks: ["python", "typescript"],
+  variables: { name: "Spindle" },
+  computed: {},
+};
 
 function assertNestedTestabilityExamples(rendered: string, languages: string[]) {
   const section = rendered.split("## Designing for testability\n")[1]?.split("## Relationships")[0];
@@ -64,6 +68,19 @@ test("undefined values remain errors", () => {
   assert.throws(() => renderText("{{ variables.missing }}", context), /undefined/i);
 });
 
+test("missing computed outputs name the reference in CRLF templates", () => {
+  assert.throws(
+    () => renderText("Frontmatter\r\n{{ computed.not_registered }}", context),
+    /computed\.not_registered/,
+  );
+});
+
+test("missing computed outputs name quoted bracket keys containing punctuation", () => {
+  for (const source of ['{{ computed["missing-name"] }}', "{{ computed['missing-name'] }}"]) {
+    assert.throws(() => renderText(source, context), /Unknown computed output .*missing-name/);
+  }
+});
+
 test("legacy custom delimiters are literal text rather than template syntax", () => {
   const source = "<%= variables.name %> <% if true %>body<% endif %> <# note #>";
 
@@ -78,7 +95,7 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
       new URL("../src/blueprints/skills/int-codebase-design/SKILL.md", import.meta.url),
       "utf8",
     );
-    const rendered = renderText(source, { stacks, variables: {} });
+    const rendered = renderText(source, { stacks, variables: {}, computed: {} });
     const section = rendered
       .split("## Designing for testability\n")[1]
       ?.split("## Relationships")[0];

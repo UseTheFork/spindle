@@ -1,6 +1,7 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
+import { createComputedContextResolver } from "../computed.js";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,
@@ -683,11 +684,9 @@ export async function reconcileBlueprints(
     await validateRemovalTarget(options.githubDirectory, operation);
   }
   if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
-  let resolvedContext = options.context;
-  const resolveContext = async () => {
-    resolvedContext ??= await options.resolveContext?.();
-    return resolvedContext;
-  };
+  const resolveContext = createComputedContextResolver(
+    async () => options.context ?? (await options.resolveContext?.()),
+  );
   const plans: ReconciliationPlan[] = [];
   for (const { handler, names, files } of collections) {
     plans.push(await planReconciliation(handler, options, names, files, resolveContext));
