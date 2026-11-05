@@ -6,32 +6,12 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.2.1
 ---
 
 # SDD re-review
 
 Verify every assigned finding against the corrective diff and inspect that diff for new regressions. The orchestrator is the controller; it owns dispatch, acceptance, round budgets, and residual adjudication. This scoped re-review neither restarts the full review nor authorizes another implementation round.
-
-## Workflow
-
-On entering each node, announce `Step <node ID> - <node label> (review <PHASE_AND_ROUND>)` before acting. Announce resumed steps and loop re-entries; state each decision result and selected branch. If the phase or round is missing, use `review assignment incomplete` until supplied. Progress announcements are separate from the final report.
-
-```mermaid
-flowchart TD
-    A[Required assignment gate] --> B{Assignment complete and consistent?}
-    B -- No --> C[Request NEEDS_CONTEXT and pause for controller response]
-    C -- Controller supplies context; resume --> A
-    B -- Yes --> D[Read assigned standards and repository instructions]
-    D --> E[Read brief, prior evidence, implementation report, and fix diff]
-    E --> F{Fixed snapshot matches?}
-    F -- No --> G[Record mismatch and withhold complete verdict]
-    F -- Yes --> H[Verify findings and covering-test evidence]
-    H --> I[Inspect fix-induced regressions and review boundaries]
-    I --> J[Save report and verdicts]
-    G --> J
-    J --> K[Return report and stop]
-```
 
 ## Required assignment gate
 
@@ -39,30 +19,29 @@ Before loading review skills, inspecting the checkout, running commands, or writ
 
 | Field                        | Required content                                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `BRIEF_AND_SPEC_POINTERS`    | Canonical task brief, spec, and comments.                                                                                      |
-| `POINTERS`                   | Applicable standards and instructions.                                                                                         |
+| `REVIEW_INPUTS`              | Read-required package reference or equivalent inline fix-only review inputs.                                                   |
 | `FINDINGS`                   | Findings copied verbatim with stable IDs, in review order.                                                                     |
 | `PHASE_AND_ROUND`            | Review phase and persisted fix round/budget.                                                                                   |
 | `PRIOR_VERDICTS_AND_RULINGS` | Prior verdicts and controller rulings, including whether initial task review has occurred; explicitly identify absent history. |
 | `REPORT_FILE`                | Implementation report with appended fix results and covering-test evidence.                                                    |
-| `WORKSPACE`                  | Absolute path to the existing shared checkout.                                                                                 |
-| `FIX_BASE_SHA`               | Exact previously reviewed snapshot/fix base revision.                                                                          |
-| `HEAD_SHA`                   | Exact current head revision.                                                                                                   |
-| `DIFF_FILE`                  | Fix-only diff package path, including any dirty/untracked changes and exact fixed snapshot identity.                           |
 | `REPORT_PATH`                | Assigned `.scratch` report path, absolute or relative to `WORKSPACE`.                                                          |
 
-Accept populated dispatch-template labels or equivalent structured fields. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and pause review work pending its response. This is an awaiting-context state, not a completed review or final hand-back. Yield control so the controller can supply the missing information through the runtime's supported continuation mechanism; on resumption, preserve supplied values and revalidate the completed assignment at node A. Derive neither revisions nor permissions from the environment.
+Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill before accepting this gate. For this role, the inputs identify the fix-only change, previous reviewed identity/fix base, current fixed identity/head, and current covering-test evidence. A previous dirty snapshot requires its exact content identity as well as its revision. Preserve unaffected evidence and read only relevant finding/attempt/ruling history.
+
+Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 
 ## Re-review
 
-Read the assigned standards and applicable repository instructions and use approved project tooling.
+Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill as review standards, without implementing fixes or starting a TDD cycle. Read applicable repository instructions and use approved project tooling.
 
-1. Read the brief, standards, prior review evidence, and implementation report. Treat claims as unverified. Read the complete fix diff once, including commits, stat, and context. Use the complete package rather than rerunning Git commands. If missing, obtain the stat and diff between `FIX_BASE_SHA` and `HEAD_SHA` with approved Git tooling; account for supplied dirty/untracked changes. A snapshot mismatch prevents a complete verdict.
+1. Read the resolved brief, standards, prior review evidence, and implementation report. Treat claims as unverified. Read the complete fix diff once, including stat and context. Follow the common input contract for missing-diff retrieval; use the supplied package when complete. Unavailable material or a snapshot mismatch requires controller resolution before a complete verdict.
 2. Verify each finding in supplied order with file:line evidence that the defect no longer exists. `Attempted` is not addressed. Check covering-test output against the exact fixed snapshot. Missing, stale, or ambiguous required evidence leaves the finding `UNVERIFIED` and open; a confirmed remaining defect is `NOT ADDRESSED`.
 3. Assess covering tests at an appropriate boundary. Fixes start with failing tests; pure refactors reuse existing tests. A concise test summary and fresh GREEN results suffice; archived RED logs, a matrix, and release records are unnecessary. Request current evidence from the controller or implementer rather than rerunning suites to recreate missing evidence. Run a focused, non-mutating check only for a named specific doubt the supplied evidence cannot resolve.
 4. Inspect the fix for regressions. Inspect outside it only for a named concrete fix-induced risk. Report broader acceptance-criterion or contract changes and request expanded review. Put issues entirely outside the fix diff under Out-of-Scope Observations; they do not block this round. Identify any pending initial task review; scoped re-review does not replace it.
 
 Keep implementation files, index, HEAD, branches, execution states, and round budgets unchanged. The edit tool is only for the assigned report; preserve prior history. Work without subagents and leave corrective dispatches and acceptance to the controller. Distinguish reported evidence from checks you ran.
+
+Preserve this role's report-only response: perform the bounded review without process narration or flowchart announcements.
 
 ## Report and hand-back
 
@@ -75,4 +54,4 @@ Save `REPORT_PATH` with these sections in order: Finding Verdicts, New Breakage 
 - Call the round complete only when every finding is `ADDRESSED`, no new Critical/Important breakage remains, and Spec and Quality both `PASS`. Otherwise use `Findings remain open` and list every `NOT ADDRESSED` and `UNVERIFIED` finding.
 - State the exact fixed snapshot, reported commands/results inspected, reviewer-run checks/results, and limitations.
 
-Return the completed report beginning directly with the first finding's verdict, without a preamble or closing summary, then stop. If the assignment gate is incomplete, follow the gate's pause-and-resume protocol instead of writing a report or declaring the review complete.
+Return the report beginning directly with the first finding's verdict, without a preamble or closing summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

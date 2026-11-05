@@ -4,112 +4,146 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.3.0
 ---
 
 # Subagent-Driven Development
 
-**First action:** Check the available subagent definitions and invocation tools for access to all five required subagents: `sdd-implementer`, `sdd-code-reviewer`, `sdd-code-slop-reviewer`, `sdd-task-reviewer`, and `sdd-re-review`. Their files existing is not proof that they are callable. If any access is unavailable or cannot be confirmed, stop and tell the user exactly which required agents are unavailable or unconfirmed; do not start the controller flow, substitute other agents, or perform their work yourself. Continue only when invocation access to all five is confirmed.
+Controller for assigned tickets or dependency graphs; the brief governs. The controller owns scheduling, execution states, acceptance, snapshot freshness, integration, and hand-back. Workers own role workflows and report contracts; assignment templates carry inputs only.
 
-Controller for assigned tickets or dependency graphs; the brief governs. The controller owns dispatch, state, review, integration, and hand-back.
+**First action:** Confirm invocation access to all five agents below. Files existing is not proof of access. If any access is unavailable or unconfirmed, stop and identify those agents; continue only when all five are callable. Use the assigned agents, not substitutes.
 
-**Every subagent dispatch MUST use its matching assignment template:** read it, fill every field, and send the populated template. Agent definitions own workflows and report contracts; templates carry assignment inputs only.
+| Assignment                   | Agent                    | Required template                                |
+| ---------------------------- | ------------------------ | ------------------------------------------------ |
+| Implementation and fixes     | `sdd-implementer`        | [implementer](./assets/implementer-prompt.md)      |
+| Code review                  | `sdd-code-reviewer`      | [code-review](./assets/code-reviewer-prompt.md)    |
+| Code-slop review             | `sdd-code-slop-reviewer` | [code-slop](./assets/code-slop-reviewer-prompt.md) |
+| Task Spec and Quality review | `sdd-task-reviewer`      | [task-review](./assets/task-reviewer-prompt.md)    |
+| Scoped re-review             | `sdd-re-review`          | [re-review](./assets/re-review-prompt.md)          |
 
-| Assignment                                          | Required agent                                                         | Template                                         |
-| --------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
-| Implementation and all fixes, including final fixes | [sdd-implementer](../../agents/sdd-implementer.agent.md)               | [implementer](implementer-prompt.md)             |
-| Initial and final aggregate code review             | [sdd-code-reviewer](../../agents/sdd-code-reviewer.agent.md)           | [code-review](code-reviewer-prompt.md)           |
-| Initial and final aggregate code-slop review        | [sdd-code-slop-reviewer](../../agents/sdd-code-slop-reviewer.agent.md) | [code-slop-review](code-slop-reviewer-prompt.md) |
-| Task-scoped Spec and Quality review                 | [sdd-task-reviewer](../../agents/sdd-task-reviewer.agent.md)           | [task-review](task-reviewer-prompt.md)           |
-| Scoped corrective-round re-review                   | [sdd-re-review](../../agents/sdd-re-review.agent.md)                   | [re-review](re-review-prompt.md)                 |
-
-**Required skills:** `int-test-driven-development`, `int-verification-before-completion`, and `int-retrospective` for standalone full-spec delivery.
-
-## Operating rules
-
-- Use the existing checkout; preserve user changes. Serialize implementation and fixes; dispatch independent reviews in parallel. Coordinate shared-file ownership and freeze implementation edits until every reviewer has returned.
-- The controller alone changes execution states and decides acceptance. Workers edit only assigned files and preserve report history.
-- On resume, restore the ledger, snapshot, dependencies, checks, findings, rulings, and round counters. Resume at that gate; never reset budgets.
+Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until every dispatched reviewer returns. Only the controller changes execution states.
 
 ## Controller flow
 
-On entering each flowchart node, announce the current step to the user before acting: `Step <node ID> — <node label> (ticket <ID>, when applicable)`. Announce resumed steps and loop re-entries too; include the corrective round when applicable. For decision nodes, state the result and selected branch once evaluated, before moving to the next node. For example: `Step H — Freeze; code review (ticket 03)`.
+Announce `Step <node path> - <label path> (ticket <ID>, when applicable)` before each node, including resumed nodes and loop re-entries. State decision results and selected branches. Disclosed sub-flowcharts extend the parent path with dot-separated IDs and `/`-separated labels; include corrective rounds when applicable.
 
 ```mermaid
 flowchart TD
-    A[Resume ledger/scope] --> B[Preflight]
-    B --> C{Ready?}
-    C -- No --> Z[Triage or blocker]
-    C -- Yes --> D[Claim eligible ticket]
-    D --> E[Set Execution: claimed then implementing]
-    E --> F[Dispatch implementer: sdd-implementer]
-    F --> G{Report/checks current?}
-    G -- No --> Z
-    G -- Yes --> G2[Controller formatting and ticket checks]
-    G2 --> G3{Checks pass/current?}
-    G3 -- No --> Z
-    G3 -- Yes --> H[Freeze snapshot; dispatch parallel reviews]
-    H --> H1[Code review: sdd-code-reviewer]
-    H --> H2[Code-slop review: sdd-code-slop-reviewer]
-    H --> H3[Task review: sdd-task-reviewer]
-    H1 --> H4[Wait for all three reports; reconcile findings]
-    H2 --> H4
-    H3 --> H4
-    H4 --> I{All reviews pass; findings ruled?}
-    I -- No --> J{Under five ticket fix dispatches?}
-    J -- Yes --> K[Persist round; dispatch fix: sdd-implementer]
-    K --> K2[Controller formatting and invalidated checks]
-    K2 --> K3{Checks pass/current?}
-    K3 -- No --> Z
-    K3 -- Yes --> L[Freeze; scoped re-review: sdd-re-review]
-    L --> I
-    J -- No --> M[Adjudicate; incomplete]
-    I -- Yes --> N[Fresh verification]
-    N --> O{Checks pass/current?}
-    O -- No --> Z
-    O -- Yes --> P{Caller-owned ticket?}
-    P -- Yes --> Q[Hand back evidence]
-    P -- No --> R[Set integrated; commit all pending files]
-    R --> R2{Commit succeeded; worktree clean?}
-    R2 -- No --> Z
-    R2 -- Yes --> S{More eligible?}
-    S -- Yes --> D
-    S -- No --> T{Full-spec?}
-    T -- No --> Q
-    T -- Yes --> U[Freeze snapshot; dispatch parallel aggregate reviews]
-    U --> U1[Aggregate code review: sdd-code-reviewer]
-    U --> U2[Aggregate code-slop review: sdd-code-slop-reviewer]
-    U1 --> U3[Wait for both reports; reconcile findings]
-    U2 --> U3
-    U3 --> V{Reviews pass?}
-    V -- Yes --> W[Final verification]
-    W --> BB{Checks pass?}
-    BB -- Yes --> AB[Retrospective]
-    AB --> Q
-    BB -- No --> Z
-    V -- No --> X{Final fix unused?}
-    X -- Yes --> Y[One final fix: sdd-implementer; controller checks; re-review: sdd-re-review]
-    Y --> AA{Blocking issues resolved?}
-    AA -- Yes --> W
-    AA -- No --> M
-    X -- No --> M
+    A[Restore scope and ledger] --> B[Claim eligible ticket]
+    A -- No ticket remains --> K
+    B --> C[Dispatch implementation]
+    C --> D[Controller checks]
+    D --> E[Freeze and review]
+    D -- Non-mechanical fix needed --> G
+    D -- Blocked --> Q
+    C -- Blocked --> Q
+    A -- Blocked --> Q
+    E --> F{Accepted?}
+    E -- Blocked --> Q
+    F -- No --> G[Corrective branch]
+    F -- Coverage missing --> Q
+    G -- Re-reviewed --> F
+    G -- Initial review pending --> E
+    G -- Incomplete or blocked --> Q
+    F -- Yes --> H[Verify coverage]
+    H --> I{Caller-owned?}
+    H -- Blocked --> Q
+    I -- Yes --> Q[Hand back]
+    I -- No --> J[Integrate]
+    J --> K{More eligible?}
+    J -- Blocked --> Q
+    K -- Yes --> B
+    K -- No --> L{Full-spec?}
+    K -- Dependency or triage blocker --> Q
+    L -- Yes --> M[Full-spec branch]
+    L -- No --> Q
+    M --> Q
 ```
 
-Dispatch code review, code-slop review, and task review in parallel against the same frozen snapshot and verification evidence using the assigned agents above. Give each reviewer a distinct report path and the prior findings and rulings available at dispatch. For same-batch review reports that do not yet exist, explicitly state `NONE — parallel review pending`; no reviewer waits for another reviewer's output. Wait for all three reports, reconcile findings and controller rulings, and only then evaluate acceptance or dispatch fixes. A failed or unavailable review blocks the gate; it does not permit edits while other reviewers are still running. For full-spec delivery, run aggregate code and code-slop reviews in parallel with the same snapshot, separate reports, and wait-for-all barrier.
+### A. Restore scope and ledger
 
-Preflight: read tickets/comments, spec, instructions, glossary, and ADRs; map criteria to observable outcomes and confirm seams; ensure the graph is acyclic and dependencies integrated; preserve checkout; confirm baseline, permissions, tracker, and dated `.scratch` reports. For example:
+Read tickets/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and dated `.scratch` destinations. Confirm an acyclic dependency graph. Restore snapshot, checks, findings, rulings, counters, and recorded gate on resume; continue there rather than restarting completed work. If no ticket remains, continue at K.
 
-```sh
-just sdd::workspace --workspace /absolute/checkout \
-  --reports-dir .scratch/YYYY-MM-DD-feature/reports --ticket 03
-```
+**Complete when:** scope and ownership are explicit, the ledger is current, and required inputs/baseline are available. Resume the recorded gate, or select B for new ticket work and K if no ticket remains; unresolved triage or missing inputs select Q.
 
-Missing or stale checks block acceptance. Integrate only when verification and review match the snapshot. Cap corrective dispatches at five per ticket across reviews; persist each round and never dispatch round six. Full-spec delivery allows one final-fix dispatch and scoped re-review.
+### B. Claim eligible ticket
 
-The controller owns the mechanical gate: after implementer handoff, apply project formatting, then run applicable lint, type, and ticket-wide regression checks before freezing the snapshot for review. Record commands, results, and the checked snapshot. Apply safe mechanical fixes directly while no worker is editing; dispatch non-mechanical corrections through the existing fix budget. Complete this gate after every fix, including final fixes, before re-review. Failed or unavailable required checks block review and acceptance. Reuse passing evidence that covers the current snapshot; rerun only invalidated checks or those explicitly required by the check plan. Final verification confirms this coverage, not an unconditional rerun.
+Claim only a ticket whose dependencies are integrated. Set `Execution: claimed`.
 
-Before starting the next ticket, the controller must stage and commit all pending files, including tracked and untracked files and formatting or linting changes outside the completed ticket's scope. Preserve existing file contents when staging; scope alone is not a reason to defer a file. Proceed only after the commit succeeds and the worktree is clean; if already clean, no empty commit is needed. If any pending file cannot safely be committed or the commit fails, stop and report the blocker instead of starting the next ticket. Workers follow assigned commit permissions.
+**Complete when:** one eligible ticket is claimed and its dependencies are integrated; proceed to C.
 
-## Hand-back
+### C. Dispatch implementation
 
-Hand back snapshot, evidence mapping, verdicts/rulings, check results, report paths, ticket states, retrospective, and limitations. Keep blockers explicit; do not publish, close tickets, or delete user work without authorization.
+Set `Execution: implementing`. Resolve report destinations with `spindle sdd workspace --workspace <absolute-checkout> --reports-dir <dated-reports-dir> --ticket <ID>`. This read-only command returns absolute and checkout-relative paths; it does not create reports. Spindle workflow commands are invoked directly, not through Just wrappers.
+
+Populate the implementer assignment in initial mode and dispatch `sdd-implementer`. Wait for its report.
+
+**Complete when:** the implementation report identifies the assigned changes and current focused-test evidence, allowing D. Missing, stale, failing, or unavailable required handoff evidence selects Q with a blocker.
+
+### D. Controller checks
+
+Apply formatting, then applicable lint, type, and ticket-wide regression checks. Record commands, results, and covered snapshot. Apply safe mechanical fixes only while no worker edits; route non-mechanical fixes through G. Repeat this gate after every fix, including final fixes. Reuse passing evidence that covers the current snapshot; rerun invalidated or explicitly scheduled checks.
+
+**Complete when:** all required checks pass and cover the snapshot, selecting E. Non-mechanical fixes select G; other failed/unavailable checks select Q with a blocker.
+
+### E. Freeze and review
+
+Before preparing review assignments, read [review inputs](./references/review-inputs.md). Supply the same frozen change and verification evidence to `sdd-code-reviewer`, `sdd-code-slop-reviewer`, and `sdd-task-reviewer` **in parallel**, with distinct report paths. Existing durable inputs may be referenced rather than copied. For unavailable same-batch reports use `NONE - parallel review pending`; reviewers do not wait for peers.
+
+Wait for all three reports before reconciling findings and controller rulings. Failed/unavailable reviews block this gate while implementation remains frozen.
+
+**Complete when:** every required review has returned for the frozen snapshot and every finding is ruled, selecting F. Failed/unavailable reviews select Q with a blocker only after all dispatched reviewers return.
+
+### F. Accepted?
+
+Compare all required verdicts, findings, and controller rulings with the current snapshot.
+
+**Complete when:** passing reviews and no unresolved blocker select H; remaining findings select G. Missing required review coverage remains blocked rather than accepted.
+
+### G. Corrective branch
+
+When findings or non-mechanical check failures require fixes, read [corrective rounds](./references/corrective-rounds.md) before dispatch.
+
+**Complete when:** the child exits with a checked snapshot requiring initial reviews (E), current scoped verdicts (F), or an incomplete/blocker result (Q). Announce `Step G - Corrective branch` as resumed, then take that exit without restarting child work.
+
+### H. Verify coverage
+
+Confirm required checks and reviews cover the accepted snapshot; freshness means coverage, not unconditional reruns. Missing, stale, failing, or unavailable required evidence blocks acceptance.
+
+**Complete when:** required evidence is current and sufficient, selecting I; otherwise Q records the blocker.
+
+### I. Caller-owned?
+
+Use the ownership established in A.
+
+**Complete when:** caller-owned tickets select Q; controller-owned delivery selects J.
+
+### J. Integrate
+
+Read [integration](./references/integration.md) before changing integration state or committing.
+
+**Complete when:** integration succeeds with a clean worktree, selecting K; unsafe pending files or failed commits select Q with a blocker.
+
+### K. More eligible?
+
+Evaluate the dependency graph and integrated ticket states.
+
+**Complete when:** more eligible tickets select B; a finished graph selects L. Unfinished tickets with no eligible continuation select Q with their dependency or triage blockers.
+
+### L. Full-spec?
+
+Compare the completed delivery with the scope established in A.
+
+**Complete when:** standalone full-spec delivery selects M; other scopes select Q.
+
+### M. Full-spec branch
+
+Read [full-spec delivery](./references/full-spec.md) only after ticket integration.
+
+**Complete when:** the child supplies final evidence and retrospective or an explicit incomplete/blocker result. Announce `Step M - Full-spec branch` as resumed and return to Q without repeating child work.
+
+### Q. Hand back
+
+Return snapshot, criterion-to-evidence mapping, verdicts/rulings, check results, report paths, ticket states, applicable retrospective, and limitations. Preserve checkout and reports; publishing, closing tickets, or deleting user work requires authorization.
+
+**Complete when:** the caller receives current evidence and every unresolved blocker or limitation.

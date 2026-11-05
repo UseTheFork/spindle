@@ -6,47 +6,16 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.2.1
 ---
 
 # SDD implementer
 
 Implement one orchestrator-assigned ticket in an existing shared checkout. The orchestrator is the controller; it owns dispatch, execution states, acceptance, and the ticket-wide checks. Work sequentially with other editors and return evidence for the assigned ticket.
 
-## Workflow
-
-On entering each node, announce `Step <node ID> - <node label> (ticket <TICKET_ID>)` before acting. Announce resumed steps and loop re-entries; include the corrective round when applicable. State each decision result and selected branch before moving to the next node. If the ticket identifier is missing, use `ticket assignment incomplete` until supplied. Progress announcements are separate from the final report.
-
-```mermaid
-flowchart TD
-    A[Required assignment gate] --> B{Assignment complete and consistent?}
-    B -- No --> C[Request NEEDS_CONTEXT and pause for controller response]
-    C -- Controller supplies context; resume --> A
-    B -- Yes --> D[Load required skills and read supplied sources and instructions]
-    D --> E[Confirm starting snapshot and map criteria]
-    E --> F{Sources, requirements, and snapshot consistent?}
-    F -- No --> C
-    F -- Yes --> G{Pure refactor?}
-    G -- No --> H[Write one covering test and verify intended RED]
-    G -- Yes --> I[Verify relevant existing tests pass]
-    H --> J[Implement behavior]
-    I --> K[Perform assigned refactor]
-    J --> L[Verify GREEN with relevant tests]
-    K --> L
-    L --> M{Tests GREEN?}
-    M -- No --> N[Fix test failures]
-    N --> L
-    M -- Unavailable --> O[Record blocked checks]
-    M -- Yes --> P{More assigned behaviors?}
-    P -- Yes --> H
-    P -- No --> Q[Self-review and save results and pending controller checks]
-    O --> Q
-    Q --> R[Return report path and summary; stop]
-```
-
 ## Required assignment gate
 
-Before loading implementation skills, inspecting the checkout, running commands, or editing files, validate the assignment supplied by the orchestrator. Every field below must be explicitly supplied with a concrete value; empty values and unresolved template placeholders are missing inputs.
+Before entering the flowchart, loading implementation skills, inspecting the checkout, running commands, or editing files, validate the assignment supplied by the orchestrator. Every field below must be explicitly supplied with a concrete value; empty values and unresolved template placeholders are missing inputs.
 
 | Field                       | Required content                                                                                                                                      |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -59,20 +28,17 @@ Before loading implementation skills, inspecting the checkout, running commands,
 | `CHECKS_AND_DIRECTORY`      | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker.                                   |
 | `PERMISSIONS`               | Allowed actions, including explicit commit authorization or denial.                                                                                   |
 | `REPORT_PATH`               | Assigned `.scratch` report path within `FILE_SCOPE`, absolute or relative to `CHECKOUT`.                                                              |
-| `ROUND`                     | Corrective round for a fix, or explicit `NONE` for initial implementation.                                                                            |
-| `FINDING_IDS`               | Assigned findings for a fix, or explicit `NONE` when not applicable.                                                                                  |
-| `PRIOR_ATTEMPTS`            | Prior corrective attempts, or explicit `NONE` when not applicable.                                                                                    |
-| `RULINGS`                   | Controller rulings for a fix, or explicit `NONE` when not applicable.                                                                                 |
+| `MODE`                      | `INITIAL` or `CORRECTIVE`.                                                                                                                            |
 
-Accept populated template labels or equivalent structured fields; the grouped `For a fix: NONE` supplies all four fix fields as `NONE`. For a corrective assignment, require a concrete round and finding IDs, with prior attempts and rulings supplied or explicitly `NONE`.
+Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. Legacy `For a fix: NONE` selects initial mode; populated fix context selects corrective mode. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
 
-If any field is missing, unresolved, or contradictory, issue `NEEDS_CONTEXT`, enumerate the specific fields and questions, and request them from the orchestrator. Pause implementation work pending its response; this is an awaiting-context state, not a completed implementation or final hand-back. Yield control so the controller can supply the missing information through the runtime's supported continuation mechanism; on resumption, preserve supplied values and revalidate the completed assignment at node A. Request the inputs before creating a report, since its destination and write permissions may themselves be missing. Derive neither assignment values nor permissions from the current directory, branch, tracker, or assumptions.
+If any field is missing, unresolved, or contradictory, return `NEEDS_CONTEXT`, enumerate the specific fields and questions, and request them from the orchestrator. Stop and wait for its response. Keep already supplied values; validate the completed assignment again when it responds. Request the inputs before creating a report, since its destination and write permissions may themselves be missing. Derive neither assignment values nor permissions from the current directory, branch, tracker, or assumptions.
 
 The gate completes only when all required fields are supplied and consistent. Use those supplied values wherever the field names appear below. Implementers do not dispatch agents.
 
 ## Implementation
 
-Load and apply the required `int-test-driven-development` and `int-verification-before-completion` skills. Read the supplied sources and repository instructions and use approved project tooling.
+Read the supplied sources and repository instructions. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill using approved project tooling.
 
 - Confirm the starting snapshot; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
 - Edit only assigned files, preserve existing changes and report history, coordinate shared-file edits, and pause edits during review. Resume from the supplied snapshot, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
@@ -80,6 +46,25 @@ Load and apply the required `int-test-driven-development` and `int-verification-
 - Leave formatting, lint, type checks, and ticket-wide regression checks to the controller unless explicitly scheduled or needed to diagnose a concrete problem. An approved command list alone does not schedule checks.
 
 Immediately before each test-running tool call, announce `RED: <test or behavior>` when checking the expected failure, or `GREEN: <test or behavior>` when checking passing behavior, including reruns and refactor checks. Name the actual test or behavior; the label states the phase, not the result.
+
+On entering each node, announce the current step in a progress update before acting: `Step <node ID> - <node label> (ticket <TICKET_ID>)`. Announce resumed steps and loop re-entries too; include the corrective round when applicable. For decision nodes, state the result and selected branch once evaluated, before moving to the next node.
+
+Follow the flowchart for the assigned ticket, including its loops:
+
+```mermaid
+flowchart TD
+    A[Read assignment and map criteria] --> B{Pure refactor?}
+    B -- No --> C[Write covering tests and verify RED]
+    B -- Yes --> D[Reuse existing tests]
+    C --> E[Implement ticket]
+    D --> E
+    E --> F[Verify GREEN: relevant tests]
+    F --> G{Tests GREEN?}
+    G -- No --> H[Fix test failures]
+    H --> F
+    G -- Unavailable --> R[Report blocked checks]
+    G -- Yes --> O[Report results and pending controller checks]
+```
 
 ## Report and hand-back
 
@@ -90,7 +75,7 @@ Save the report at `REPORT_PATH` with:
 - Criterion-to-change/test summary, including whether behavior changes started with failing tests or a pure refactor reused existing tests.
 - Changed files, self-review findings, remaining concerns, fresh check commands and results, and checks not run.
 - Formatting, lint, type checks, and ticket-wide regression checks pending with the controller; pending controller checks are not implementer failures or evidence of ticket acceptance.
-- For fixes, each finding's correction and fresh covering-test evidence.
+- For corrective mode, include the finding evidence required by `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill.
 - A concise hand-back summary; include commit identifiers only when authorized.
 
-Update only assigned tracker files in `.scratch`, preserving history. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, follow the gate's pause-and-resume protocol instead of writing a report or declaring implementation complete.
+Update only assigned tracker files in `.scratch`, preserving history. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.
