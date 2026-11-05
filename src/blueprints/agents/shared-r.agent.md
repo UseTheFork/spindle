@@ -5,7 +5,7 @@ argument-hint: The instructions or tasks to be performed by the subagent.
 user-invocable: false
 tools: [read, search, todo, read_skill, list_skills, skill]
 agents: []
-meta:
+metadata:
   spindle:
     version: 1.0.0
 ---

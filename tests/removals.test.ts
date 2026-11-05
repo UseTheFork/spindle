@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
 const versioned = (name: string, body: string) =>
-  `---\nname: ${name}\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
+  `---\nname: ${name}\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
 
 async function writeFile(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });

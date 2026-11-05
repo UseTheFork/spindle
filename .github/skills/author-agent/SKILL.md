@@ -1,6 +1,6 @@
 ---
 name: author-agent
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: Create or revise a workspace custom agent from requirements.

@@ -15,7 +15,7 @@ tools:
     'execute/testFailure'
   ]
 agents: []
-meta:
+metadata:
   spindle:
     version: 1.0.1
 ---

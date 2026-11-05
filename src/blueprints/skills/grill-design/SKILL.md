@@ -4,7 +4,7 @@ description: "Challenge and refine an existing design through an interview, upda
 argument-hint: "[design.md path or feature directory]"
 disable-model-invocation: true
 user-invocable: true
-meta:
+metadata:
   spindle:
     version: 1.0.1
 ---

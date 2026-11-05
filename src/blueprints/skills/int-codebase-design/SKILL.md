@@ -2,7 +2,7 @@
 name: int-codebase-design
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
-meta:
+metadata:
   spindle:
     version: 1.1.0
 ---

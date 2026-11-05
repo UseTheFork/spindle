@@ -12,10 +12,10 @@ export function validateVersionedMetadata(
   renderedText: string,
 ) {
   if (relativePath !== entryFile) return;
-  const version = matter(renderedText).data.meta?.spindle?.version;
+  const version = matter(renderedText).data.metadata?.spindle?.version;
   if (typeof version !== "string" || parseSemver(version) === null) {
     throw new Error(
-      `Invalid ${kind} metadata in '${relativePath}': expected a semver \`meta.spindle.version\` in frontmatter.`,
+      `Invalid ${kind} metadata in '${relativePath}': expected a semver \`metadata.spindle.version\` in frontmatter.`,
     );
   }
 }

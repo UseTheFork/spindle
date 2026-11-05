@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { makeTempDir, runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
-  `---\nmeta:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
+  `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
 
 const catalog = `agents:
   grouped:

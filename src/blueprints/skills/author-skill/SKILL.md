@@ -4,7 +4,7 @@ description: Create or update a project skill from the user's requirements
 argument-hint: "[--test] <skill idea or requirements>"
 disable-model-invocation: true
 user-invocable: true
-meta:
+metadata:
   spindle:
     version: 1.0.0
 ---

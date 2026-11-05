@@ -13,7 +13,7 @@ agents:
     sdd-re-review,
     shared-explore,
   ]
-meta:
+metadata:
   spindle:
     version: 1.0.0
 ---

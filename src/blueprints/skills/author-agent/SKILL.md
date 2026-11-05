@@ -4,7 +4,7 @@ description: Create or revise a workspace custom agent from requirements.
 argument-hint: "[--test] <agent idea or requirements>"
 disable-model-invocation: true
 user-invocable: true
-meta:
+metadata:
   spindle:
     version: 1.0.0
 ---

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { makeTempDir, runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
-  `---\nmeta:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
+  `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
 
 async function put(path: string, content: string | Buffer) {
   await mkdir(dirname(path), { recursive: true });
@@ -165,7 +165,7 @@ test("application Config failure reports completed Blueprint installs", async ()
   const configPath = join(github, "spindle.json");
   const agentPath = join(github, "agents", "new.agent.md");
   const agentBytes = Buffer.from(
-    `---\nname: new\nmeta:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
+    `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
   );
 
   try {
@@ -214,7 +214,7 @@ test("application write failure reports earlier cross-kind changes without claim
   const skillPath = join(github, "skills", "demo", "SKILL.md");
   const configPath = join(github, "spindle.json");
   const originalAgent = Buffer.from(
-    `---\nname: write\nmeta:\n  spindle:\n    version: 1.0.0\n---\ninstalled Agent\n`,
+    `---\nname: write\nmetadata:\n  spindle:\n    version: 1.0.0\n---\ninstalled Agent\n`,
   );
   const configBytes = Buffer.from('{"stacks":["python"],"variables":{}}\n');
 
@@ -236,7 +236,7 @@ skills:
     );
     await put(
       join(blueprints, "agents", "write.agent.md"),
-      `---\nname: write\nmeta:\n  spindle:\n    version: 2.0.0\n---\nshipped Agent\n`,
+      `---\nname: write\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped Agent\n`,
     );
     await put(join(blueprints, "skills", "demo", "SKILL.md"), versioned("2.0.0", "updated Skill"));
     await put(agentPath, originalAgent);
@@ -365,7 +365,7 @@ skills: {}
     );
     await put(
       join(blueprints, "agents", "new.agent.md"),
-      `---\nname: new\nmeta:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
+      `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
     await put(join(github, "spindle.json"), '{"stacks":["python"],"variables":{}}\n');
     await put(firstRemoval, "first installed Agent\n");
@@ -439,7 +439,7 @@ skills:
     );
     await put(
       join(blueprints, "agents", "new.agent.md"),
-      `---\nname: new\nmeta:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
+      `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
     await put(
       join(blueprints, "instructions", "testing", "testing.instructions.md"),
@@ -470,7 +470,7 @@ skills:
     assert.match(first.stdout, /Removed skill 'current\/local\.txt'/);
     assert.equal(
       await readFile(agentPath, "utf8"),
-      `---\nname: new\nmeta:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
+      `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
     assert.equal(await readFile(instructionPath, "utf8"), versioned("1.0.0", "new Instruction"));
     assert.equal(await readFile(join(currentSkill, "SKILL.md"), "utf8"), currentSkillInstall);

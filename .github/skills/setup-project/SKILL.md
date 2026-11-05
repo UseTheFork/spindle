@@ -1,6 +1,6 @@
 ---
 name: setup-project
-meta:
+metadata:
   spindle:
     version: 1.1.0
 description: "Use when configuring a project's local Markdown issues, triage-role mapping, domain documentation, or Just-based agent tooling instructions."

@@ -1,6 +1,6 @@
 ---
 name: retrospective
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: "Conduct a retrospective on a coding session."

@@ -4,7 +4,7 @@ description: Create or revise workspace-scoped Copilot instruction files from th
 argument-hint: "[--test] <instruction requirements>"
 disable-model-invocation: true
 user-invocable: true
-meta:
+metadata:
   spindle:
     version: 1.0.0
 ---

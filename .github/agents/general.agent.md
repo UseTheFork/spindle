@@ -22,7 +22,7 @@ tools:
     skill
   ]
 agents: [shared-r, shared-rw, shared-rwx, shared-explore]
-meta:
+metadata:
   spindle:
     version: 1.0.2
 ---

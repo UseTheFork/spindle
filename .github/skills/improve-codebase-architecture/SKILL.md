@@ -1,6 +1,6 @@
 ---
 name: improve-codebase-architecture
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick.

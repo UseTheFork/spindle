@@ -26,7 +26,7 @@ before(async () => {
     await mkdir(join(stubs, "skills", name), { recursive: true });
     await writeFile(
       join(stubs, "skills", name, "SKILL.md"),
-      `---\nmeta:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+      `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
     );
   }
 });
@@ -36,7 +36,7 @@ after(async () => {
 });
 
 const skill = (version: string | null, body = "old") =>
-  `---\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
+  `---\n${version === null ? "" : `metadata:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
 
 interface Setup {
   config?: string | object;
@@ -98,7 +98,7 @@ test("update copies a Skill's stacks directory as ordinary recursive content", a
     await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
     await writeFile(
       join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nmeta:\n  spindle:\n    version: 2.0.0\n---\n# updated\n",
+      "---\nname: demo\nmetadata:\n  spindle:\n    version: 2.0.0\n---\n# updated\n",
     );
     await writeFile(join(skillDirectory, "shared.txt"), "shared content\n");
     await writeFile(join(skillDirectory, "stacks", "python", "python.txt"), "python content\n");
@@ -169,7 +169,7 @@ test("update preserves paths for duplicate basenames in a Skill's stacks directo
     await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
     await writeFile(
       join(skillDirectory, "SKILL.md"),
-      "---\nname: demo\nmeta:\n  spindle:\n    version: 2.0.0\n---\n# updated\n",
+      "---\nname: demo\nmetadata:\n  spindle:\n    version: 2.0.0\n---\n# updated\n",
     );
     await writeFile(
       join(skillDirectory, "stacks", "python", "shared-path.txt"),
@@ -226,7 +226,7 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
       assert.equal(result.status, 0, result.stderr);
       assert.equal(
         await read(project, "newer"),
-        "---\nmeta:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=core stacks=python;typescript;\n",
+        "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=core stacks=python;typescript;\n",
       );
       assert.equal(await read(project, "equal"), skill("1.0.0"));
       assert.equal(await read(project, "lower"), skill("9.0.0"));
@@ -245,14 +245,14 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
 test("update reads a Nunjucks-rendered nested Skill version", async () => {
   const blueprints = await makeTempDir("spindle-update-nested-templated-version-");
   const skillFile = join(blueprints, "skills", "demo", "SKILL.md");
-  const installed = "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
+  const installed = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
   try {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
       skillFile,
       [
         "---",
-        "meta:",
+        "metadata:",
         "  vendor:",
         "    version: 8.0.0",
         "  spindle:",
@@ -272,7 +272,7 @@ test("update reads a Nunjucks-rendered nested Skill version", async () => {
         assert.equal(result.status, 0, result.stderr);
         assert.equal(
           await read(project, "demo"),
-          "---\nmeta:\n  vendor:\n    version: 8.0.0\n  spindle:\n    version: 2.0.0\n---\nrendered 2.0.0\n",
+          "---\nmetadata:\n  vendor:\n    version: 8.0.0\n  spindle:\n    version: 2.0.0\n---\nrendered 2.0.0\n",
         );
       },
       blueprints,
@@ -299,7 +299,7 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
       blueprints,
     );
 
-    await writeFile(source, "---\nmeta:\n  spindle:\n    version: 2.0.0\n---\nshipped\n");
+    await writeFile(source, "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped\n");
     const legacyInstalled = "---\nversion: 9.0.0\n---\nlocal\n";
     await withProject(
       { config: goodConfig, skills: { demo: legacyInstalled } },
@@ -320,13 +320,13 @@ test("update renders a complete static Skill entry before checking an equal vers
   const blueprints = await makeTempDir("spindle-static-version-");
   const project = await makeTempDir("spindle-static-version-project-");
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");
-  const original = "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
+  const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
   const configText = JSON.stringify({ stacks: ["python"], variables: {} });
   try {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "demo", "SKILL.md"),
-      "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nunused {{ variables.not_supplied }}\n",
+      "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nunused {{ variables.not_supplied }}\n",
     );
     await mkdir(join(installed, ".."), { recursive: true });
     await writeFile(installed, original);
@@ -351,11 +351,12 @@ test("update refuses to install a Skill entry changed after version planning", a
   const project = await makeTempDir("spindle-update-changed-entry-project-");
   const source = join(blueprints, "skills", "demo", "SKILL.md");
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");
-  const original = "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
-  const changedSource = "---\nmeta:\n  spindle:\n    version: 3.0.0\n---\nchanged after planning\n";
+  const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
+  const changedSource =
+    "---\nmetadata:\n  spindle:\n    version: 3.0.0\n---\nchanged after planning\n";
   try {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
-    await writeFile(source, "---\nmeta:\n  spindle:\n    version: 2.0.0\n---\nshipped\n");
+    await writeFile(source, "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped\n");
     await mkdir(join(installed, ".."), { recursive: true });
     await writeFile(installed, original);
     await writeFile(
@@ -389,7 +390,7 @@ test("update refuses to install a Skill entry changed after version planning", a
 test("update aborts on malformed installed Skill YAML before replacing another Skill", async () => {
   const blueprints = await makeTempDir("spindle-malformed-skill-blueprints-");
   const malformed =
-    "---\nname: broken\nmeta:\n  spindle:\n    version: [unterminated\n---\nlocal broken Skill\n";
+    "---\nname: broken\nmetadata:\n  spindle:\n    version: [unterminated\n---\nlocal broken Skill\n";
   const config = JSON.stringify({ stacks: ["python"], variables: {} });
   try {
     for (const name of ["a-outdated", "z-broken"]) {
@@ -634,7 +635,7 @@ test(
     ]) {
       await writeFile(
         join(variableStubs, "skills", name, "SKILL.md"),
-        `---\nmeta:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} lint={{ variables.lint_command }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+        `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} lint={{ variables.lint_command }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
       );
     }
     const projectConfig = {
@@ -705,7 +706,7 @@ test(
       await mkdir(join(failureStubs, "skills", name), { recursive: true });
       await writeFile(
         join(failureStubs, "skills", name, "SKILL.md"),
-        `---\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`,
+        `---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`,
       );
     }
     await rm(join(failureStubs, "catalog.yaml"));

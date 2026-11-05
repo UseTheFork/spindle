@@ -13,7 +13,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     "---",
     "name: reviewer",
     "description: Catalog-selected reviewer",
-    "meta:",
+    "metadata:",
     "  spindle:",
     "    version: 1.0.0",
     "---",
@@ -24,7 +24,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     "---",
     "name: checks",
     "description: Catalog-selected instruction",
-    "meta:",
+    "metadata:",
     "  spindle:",
     "    version: 1.0.0",
     "---",
@@ -77,7 +77,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     await mkdir(join(blueprints, "skills", "authoring", "stacks"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "authoring", "SKILL.md"),
-      "---\nname: authoring\nmeta:\n  spindle:\n    version: 1.0.0\n---\nSkill body\n",
+      "---\nname: authoring\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nSkill body\n",
     );
     await writeFile(
       join(blueprints, "skills", "authoring", "stacks", "notes.txt"),
@@ -89,7 +89,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     await mkdir(join(blueprints, "skills", "unlisted"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "unlisted", "SKILL.md"),
-      "---\nname: unlisted\nmeta:\n  spindle:\n    version: 1.0.0\n---\nNot selected\n",
+      "---\nname: unlisted\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nNot selected\n",
     );
     const result = runCli(
       project,
@@ -140,7 +140,7 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
   const project = await makeTempDir("spindle-catalog-php-laravel-project-");
   const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
   const agent = (name: string) =>
-    `---\nname: ${name}\ndescription: ${name} agent\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${name}\n`;
+    `---\nname: ${name}\ndescription: ${name} agent\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${name}\n`;
   try {
     await writeFile(
       join(blueprints, "catalog.yaml"),
@@ -199,7 +199,7 @@ test("init validates symlinks in active nonmatching catalog directories before p
     await mkdir(join(blueprints, "skills", "collection"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "collection", "SKILL.md"),
-      "---\nname: collection\nmeta:\n  spindle:\n    version: 1.0.0\n---\nSkill\n",
+      "---\nname: collection\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nSkill\n",
     );
     await writeFile(join(outside, "outside.txt"), "outside\n");
     await symlink(
@@ -224,7 +224,7 @@ test("update applies version decisions independently to grouped Agents and Instr
   const project = await makeTempDir("spindle-catalog-versioned-project-");
   const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
   const versioned = (name: string, version: string, body: string) =>
-    `---\nname: ${name}\nmeta:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
+    `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
   const writeVersioned = async (kind: string, file: string, content: string) => {
     const path = join(blueprints, kind, "group", file);
     await mkdir(join(path, ".."), { recursive: true });
@@ -356,7 +356,7 @@ test("init rejects a nested destination symlink before writing outside the GitHu
     await mkdir(join(blueprints, "agents", "group"), { recursive: true });
     await writeFile(
       join(blueprints, "agents", "group", "agent.agent.md"),
-      "---\nname: agent\nmeta:\n  spindle:\n    version: 1.0.0\n---\nAgent\n",
+      "---\nname: agent\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nAgent\n",
     );
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await symlink(outside, join(project, ".github", "agents", "group"));
@@ -380,7 +380,7 @@ test("a current Skill receives new supporting content only after its version inc
   const project = await makeTempDir("spindle-catalog-skill-version-project-");
   const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
   const skill = (version: string) =>
-    `---\nname: authoring\nmeta:\n  spindle:\n    version: ${version}\n---\nSkill ${version}\n`;
+    `---\nname: authoring\nmetadata:\n  spindle:\n    version: ${version}\n---\nSkill ${version}\n`;
   try {
     await writeFile(
       join(blueprints, "catalog.yaml"),

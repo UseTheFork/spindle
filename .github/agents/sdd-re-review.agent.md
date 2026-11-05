@@ -4,7 +4,7 @@ description: "Use when an orchestrator assigns a scoped corrective-round re-revi
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
-meta:
+metadata:
   spindle:
     version: 1.0.1
 ---

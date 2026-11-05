@@ -1,6 +1,6 @@
 ---
 name: int-verification-before-completion
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
 const instruction = (name: string, version: string | null, body: string) =>
-  `---\nname: ${name}\n${version === null ? "" : `meta:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
+  `---\nname: ${name}\n${version === null ? "" : `metadata:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
 
 async function writeInstruction(blueprints: string, path: string, text: string) {
   const file = join(

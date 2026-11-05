@@ -36,7 +36,7 @@ async function withManifest(
     await mkdir(join(stubs, "skills", "demo"), { recursive: true });
     await writeFile(
       join(stubs, "skills", "demo", "SKILL.md"),
-      `---\nmeta:\n  spindle:\n    version: 1.0.0\n---\n${definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n")}\n`,
+      `---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${definitions.map((d) => `${d.name}={{ variables.${d.name} }}`).join("\n")}\n`,
     );
     const result = await runner(project, ["init", ...args], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubs,
@@ -68,7 +68,7 @@ test("flags supply variables and defaults apply when allowed", async () => {
       });
       assert.equal(
         await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
-        "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=core=team\n",
+        "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=core=team\n",
       );
     },
   );
@@ -97,7 +97,7 @@ test("non-interactive init uses product Variable defaults without unrelated flag
     });
     assert.equal(
       await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
-      "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
+      "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
     );
   });
 });
@@ -119,7 +119,7 @@ test(
         });
         assert.equal(
           await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
-          "---\nmeta:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
+          "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlint_command=just lint\nowner=nobody\n",
         );
       },
       (project, args, searchPath, env) =>

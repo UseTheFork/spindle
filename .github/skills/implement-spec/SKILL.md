@@ -1,6 +1,6 @@
 ---
 name: implement-spec
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: "Implement the result of /to-spec and /to-tickets in code."

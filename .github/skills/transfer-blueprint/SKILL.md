@@ -16,11 +16,11 @@ Promote local customization changes into reusable Blueprint source, preserving r
 
 The user must supply an item path or an unambiguous kind and name. If absent or ambiguous, ask and stop before edits; an IDE selection is not a supplied item.
 
-| Source | Blueprint entry |
-| --- | --- |
-| `.github/agents/<name>.agent.md` | `src/blueprints/agents/<name>/AGENT.md` |
-| `.github/skills/<name>/SKILL.md` or its directory | `src/blueprints/skills/<name>/SKILL.md` |
-| `.github/instructions/<name>.instructions.md` | `src/blueprints/instructions/<name>/INSTRUCTION.md` |
+| Source                                            | Blueprint entry                                     |
+| ------------------------------------------------- | --------------------------------------------------- |
+| `.github/agents/<name>.agent.md`                  | `src/blueprints/agents/<name>/AGENT.md`             |
+| `.github/skills/<name>/SKILL.md` or its directory | `src/blueprints/skills/<name>/SKILL.md`             |
+| `.github/instructions/<name>.instructions.md`     | `src/blueprints/instructions/<name>/INSTRUCTION.md` |
 
 Resolve identity from the basename, not the frontmatter display name. Reject unsupported paths explicitly. Read the complete source item, existing Blueprint, relevant handler, and repository instructions. Inspect local changes before editing.
 
@@ -41,7 +41,7 @@ Consult [Blueprint decisions](../../../docs/adr/) and [planning](../../../src/in
 
 ### 3. Bump the item version
 
-Read [version rules](../../../src/version.ts). Set entry frontmatter `meta.spindle.version` to valid SemVer, preserving other metadata. Honor a supplied version or bump, but require the result to exceed both existing Blueprint and installed source versions: equal versions do not update content.
+Read [version rules](../../../src/version.ts). Set entry frontmatter `metadata.spindle.version` to valid SemVer, preserving other metadata. Honor a supplied version or bump, but require the result to exceed both existing Blueprint and installed source versions: equal versions do not update content.
 
 Without an explicit release choice, patch-bump the higher stable version. Ask for a release version when neither version exists or when either existing version is invalid or a prerelease. Bump only the Blueprint entry, not the package or installed source.
 

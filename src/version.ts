@@ -67,7 +67,7 @@ export async function readBlueprintVersion(
     : content;
   if (context) options.onRendered?.(content, rendered);
   try {
-    const version = matter(rendered, {}).data.meta?.spindle?.version;
+    const version = matter(rendered, {}).data.metadata?.spindle?.version;
     return typeof version === "string" || typeof version === "number" ? String(version) : null;
   } catch (error) {
     if (options.rejectMalformed) throw error;

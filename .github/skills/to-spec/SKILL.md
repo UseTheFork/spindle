@@ -1,6 +1,6 @@
 ---
 name: to-spec
-meta:
+metadata:
   spindle:
     version: 1.0.0
 description: "Turn the current conversation or a referenced design file into a spec and publish it to the project issue tracker."
