@@ -94,3 +94,6 @@ Set `Execution: accepted` on the corrected ticket 01 snapshot. Initial code, cod
 
 **2026-11-05T19:05:00Z - @unknown**
 Set `Execution: integrated` on the existing checkout at `32d9990474201df337ebdab1d1550cd05cb4772b` plus the uncommitted ticket 01 diff. Fresh controller verification passed formatting, lint, type checking, build, diff validation, and 176/176 tests. Controller is committing all pending ticket delivery and report files before claiming the dependent ticket.
+
+**2026-11-05T19:10:00Z - @unknown**
+Ticket 01 delivery integrated in commit `eabc2c64685b09c1e5021c0831cb1567897d6c8a`. Post-commit verification on that exact revision passed formatting, lint, `just test::types`, `just build`, and `just test::test` (176 passed, 0 failed); the checkout remained clean.
