@@ -3,7 +3,8 @@ import { lstat, mkdir, readFile, rm, symlink, writeFile as fsWriteFile } from "n
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
+import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
+import { writeCatalogFixture, makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
 
 const versioned = (name: string, body: string) =>
   `---\nname: ${name}\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
@@ -17,50 +18,64 @@ async function assertMissing(path: string) {
   await assert.rejects(lstat(path), { code: "ENOENT" });
 }
 
-const removalCatalog = `agents:
-  baseline:
-    path: baseline.agent.md
-    status: active
-    stacks: []
-  retired:
-    path: retired.agent.md
-    status: removed
-    stacks: []
-  absent:
-    path: absent.agent.md
-    status: removed
-    stacks: []
-  typescript-only:
-    path: typescript.agent.md
-    status: active
-    stacks: [typescript]
-instructions:
-  baseline:
-    path: baseline.instructions.md
-    status: active
-    stacks: []
-  retired:
-    path: retired/
-    status: removed
-    stacks: []
-  typescript-only:
-    path: typescript/
-    status: active
-    stacks: [typescript]
-skills:
-  baseline:
-    path: baseline/
-    status: active
-    stacks: []
-  retired:
-    path: retired/
-    status: removed
-    stacks: []
-  typescript-only:
-    path: typescript/
-    status: active
-    stacks: [typescript]
-`;
+const removalCatalog = {
+  agents: {
+    baseline: {
+      path: "baseline.agent.md",
+      status: "active",
+      stacks: [],
+    },
+    retired: {
+      path: "retired.agent.md",
+      status: "removed",
+      stacks: [],
+    },
+    absent: {
+      path: "absent.agent.md",
+      status: "removed",
+      stacks: [],
+    },
+    "typescript-only": {
+      path: "typescript.agent.md",
+      status: "active",
+      stacks: ["typescript"],
+    },
+  },
+  instructions: {
+    baseline: {
+      path: "baseline.instructions.md",
+      status: "active",
+      stacks: [],
+    },
+    retired: {
+      path: "retired/",
+      status: "removed",
+      stacks: [],
+    },
+    "typescript-only": {
+      path: "typescript/",
+      status: "active",
+      stacks: ["typescript"],
+    },
+  },
+  skills: {
+    baseline: {
+      path: "baseline/",
+      status: "active",
+      stacks: [],
+    },
+    retired: {
+      path: "retired/",
+      status: "removed",
+      stacks: [],
+    },
+    "typescript-only": {
+      path: "typescript/",
+      status: "active",
+      stacks: ["typescript"],
+    },
+  },
+} satisfies BlueprintCatalogDefinition;
 
 for (const mode of ["init", "update"] as const) {
   test(`${mode} removes retired and Stack-inapplicable catalog targets`, async () => {
@@ -69,7 +84,7 @@ for (const mode of ["init", "update"] as const) {
     const github = join(project, ".github");
     const outside = join(project, "unrelated.txt");
     try {
-      await writeFile(join(blueprints, "catalog.yaml"), removalCatalog);
+      writeCatalogFixture(blueprints, removalCatalog);
       await writeFile(
         join(blueprints, "agents", "baseline.agent.md"),
         versioned("baseline", "baseline Agent"),
@@ -184,24 +199,29 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
   const blueprints = await makeTempDir("spindle-stack-transition-blueprints-");
   const project = await makeTempDir("spindle-stack-transition-project-");
   const github = join(project, ".github");
-  const catalogForTransition = `agents:
-  multi:
-    path: multi.agent.md
-    status: active
-    stacks: [python, typescript]
-  python-only:
-    path: python-only.agent.md
-    status: active
-    stacks: [python]
-  renamed:
-    path: new.agent.md
-    status: active
-    stacks: []
-instructions: {}
-skills: {}
-`;
+  const catalogForTransition = {
+    agents: {
+      multi: {
+        path: "multi.agent.md",
+        status: "active",
+        stacks: ["python", "typescript"],
+      },
+      "python-only": {
+        path: "python-only.agent.md",
+        status: "active",
+        stacks: ["python"],
+      },
+      renamed: {
+        path: "new.agent.md",
+        status: "active",
+        stacks: [],
+      },
+    },
+    instructions: {},
+    skills: {},
+  } satisfies BlueprintCatalogDefinition;
   try {
-    await writeFile(join(blueprints, "catalog.yaml"), catalogForTransition);
+    writeCatalogFixture(blueprints, catalogForTransition);
     for (const name of ["multi", "python-only", "new"]) {
       await writeFile(
         join(blueprints, "agents", `${name}.agent.md`),
@@ -258,21 +278,22 @@ test("update rejects unsafe deletion targets before changing any target or outsi
   const firstTarget = join(github, "agents", "first.agent.md");
   const secondTarget = join(github, "agents", "second.agent.md");
   try {
-    await writeFile(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  first:
-    path: first.agent.md
-    status: removed
-    stacks: []
-  second:
-    path: second.agent.md
-    status: removed
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        first: {
+          path: "first.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+        second: {
+          path: "second.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await writeFile(firstTarget, "first target must remain\n");
     await writeFile(outside, "outside target must remain\n");
     await symlink(outside, secondTarget);
@@ -304,21 +325,22 @@ test("update rejects a directory at a file-removal target before deleting other 
   const wrongTarget = join(github, "agents", "second.agent.md");
   const child = join(wrongTarget, "keep.txt");
   try {
-    await writeFile(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  first:
-    path: first.agent.md
-    status: removed
-    stacks: []
-  second:
-    path: second.agent.md
-    status: removed
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        first: {
+          path: "first.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+        second: {
+          path: "second.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await writeFile(firstTarget, "first target must remain\n");
     await writeFile(child, "directory content must remain\n");
     await writeFile(
@@ -347,21 +369,22 @@ test("update reports a failed removal and already completed deletions", async ()
   const firstTarget = join(github, "agents", "first.agent.md");
   const secondTarget = join(github, "agents", "second.agent.md");
   try {
-    await writeFile(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  first:
-    path: first.agent.md
-    status: removed
-    stacks: []
-  second:
-    path: second.agent.md
-    status: removed
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        first: {
+          path: "first.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+        second: {
+          path: "second.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await writeFile(firstTarget, "first target\n");
     await writeFile(secondTarget, "second target\n");
     await writeFile(

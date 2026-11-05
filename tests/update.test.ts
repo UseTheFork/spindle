@@ -709,7 +709,7 @@ test(
         `---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`,
       );
     }
-    await rm(join(failureStubs, "catalog.yaml"));
+    await rm(join(failureStubs, "catalog.fixture.json"));
     const originalConfig = {
       stacks: ["python"],
       variables: { owner: "configured" },

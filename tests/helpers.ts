@@ -3,8 +3,20 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
+import type { BlueprintCatalogDefinition, CatalogSourceEntry } from "../src/blueprints/catalog.ts";
+
 const cli = resolve(process.cwd(), "src/index.ts");
 const tsxLoader = import.meta.resolve("tsx");
+const catalogLoader = resolve(process.cwd(), "tests/load-catalog-fixture.ts");
+
+function nodeArguments(env: Record<string, string>) {
+  return [
+    "--import",
+    tsxLoader,
+    ...(env.SPINDLE_TEST_CATALOG ? ["--import", catalogLoader] : []),
+    cli,
+  ];
+}
 
 export async function makeTempDir(prefix = "spindle-cli-") {
   const parent = join(process.cwd(), "tests", ".generated");
@@ -20,18 +32,35 @@ export function runCli(
   searchPath: string,
   env: Record<string, string> = {},
 ) {
-  return spawnSync(process.execPath, ["--import", tsxLoader, cli, ...args], {
+  return spawnSync(process.execPath, [...nodeArguments(env), ...args], {
     cwd: project,
     encoding: "utf8",
     env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
   });
 }
 
-// Build an explicit catalog for the source files authored by legacy CLI fixture
-// helpers. This is test setup only: the production CLI never discovers content
-// from filenames or directory layouts.
+export function writeCatalogFixture(blueprints: string, catalog: BlueprintCatalogDefinition) {
+  writeFileSync(join(blueprints, "catalog.fixture.json"), JSON.stringify(catalog, null, 2));
+}
+
+export function runCliWithCatalog(
+  project: string,
+  args: string[],
+  searchPath: string,
+  env: Record<string, string> = {},
+) {
+  return runCli(project, args, searchPath, withCatalogFixture(env));
+}
+
+function withCatalogFixture(env: Record<string, string>) {
+  return env.SPINDLE_BLUEPRINTS_DIR
+    ? { ...env, SPINDLE_TEST_CATALOG: join(env.SPINDLE_BLUEPRINTS_DIR, "catalog.fixture.json") }
+    : env;
+}
+
+// Discover legacy test assets only; production always uses the compiled catalog.
 function writeFixtureCatalog(blueprints: string) {
-  const catalogPath = join(blueprints, "catalog.yaml");
+  const catalogPath = join(blueprints, "catalog.fixture.json");
   if (existsSync(catalogPath)) return;
 
   const filesUnder = (root: string, predicate: (path: string) => boolean): string[] => {
@@ -46,7 +75,7 @@ function writeFixtureCatalog(blueprints: string) {
     if (existsSync(root)) visit(root);
     return files.sort();
   };
-  const entries = (paths: string[]) =>
+  const entries = (paths: string[]): Record<string, CatalogSourceEntry> =>
     Object.fromEntries(paths.map((path) => [path, { path, status: "active", stacks: [] }]));
   const skillPaths = existsSync(join(blueprints, "skills"))
     ? readdirSync(join(blueprints, "skills"), { withFileTypes: true })
@@ -55,16 +84,19 @@ function writeFixtureCatalog(blueprints: string) {
         .filter((path) => existsSync(join(blueprints, "skills", path, "SKILL.md")))
         .map((path) => `${path.replaceAll("\\", "/").replace(/\/?$/, "/")}`)
     : [];
-  const catalog = {
+  const catalog: BlueprintCatalogDefinition = {
     agents: entries(filesUnder(join(blueprints, "agents"), (path) => path.endsWith(".agent.md"))),
     instructions: entries(
       filesUnder(join(blueprints, "instructions"), (path) => path.endsWith(".instructions.md")),
     ),
     skills: Object.fromEntries(
-      skillPaths.map((path) => [path, { path, status: "active", stacks: [] }]),
+      skillPaths.map((path) => [
+        path,
+        { path: `${path.replace(/\/$/, "")}/`, status: "active", stacks: [] },
+      ]),
     ),
   };
-  writeFileSync(catalogPath, JSON.stringify(catalog, null, 2));
+  writeCatalogFixture(blueprints, catalog);
 }
 
 export function runCliWithFixtureCatalog(
@@ -75,7 +107,7 @@ export function runCliWithFixtureCatalog(
 ) {
   const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
-  return runCli(project, args, searchPath, env);
+  return runCliWithCatalog(project, args, searchPath, env);
 }
 
 export function runCliInteractive(
@@ -86,7 +118,7 @@ export function runCliInteractive(
   env: Record<string, string> = {},
 ) {
   const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-  const command = `stty cols 100 rows 30; ${[process.execPath, "--import", tsxLoader, cli, ...args]
+  const command = `stty cols 100 rows 30; ${[process.execPath, ...nodeArguments(env), ...args]
     .map(shellQuote)
     .join(" ")}`;
   return new Promise<{ status: number | null; stdout: string; stderr: string }>(
@@ -150,5 +182,5 @@ export function runCliInteractiveWithFixtureCatalog(
 ) {
   const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
-  return runCliInteractive(project, args, searchPath, responses, env);
+  return runCliInteractive(project, args, searchPath, responses, withCatalogFixture(env));
 }

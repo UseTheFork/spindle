@@ -1,12 +1,92 @@
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, sep, win32 } from "node:path";
-
-import matter from "gray-matter";
 
 import { supportedStacks } from "../install.js";
 
 export type CatalogKind = "agents" | "instructions" | "skills";
 export type CatalogStatus = "active" | "removed";
+
+export interface CatalogSourceEntry {
+  path: string;
+  status: CatalogStatus;
+  stacks: readonly (typeof supportedStacks)[number][];
+}
+
+export interface BlueprintCatalogDefinition {
+  agents: Record<string, CatalogSourceEntry>;
+  instructions: Record<string, CatalogSourceEntry>;
+  skills: Record<string, CatalogSourceEntry & { path: `${string}/` }>;
+}
+
+export const blueprintCatalog: BlueprintCatalogDefinition = {
+  agents: {
+    general: { path: "general.agent.md", status: "active", stacks: [] },
+    "sdd-code-reviewer": { path: "sdd-code-reviewer.agent.md", status: "active", stacks: [] },
+    "sdd-code-slop-reviewer": {
+      path: "sdd-code-slop-reviewer.agent.md",
+      status: "active",
+      stacks: [],
+    },
+    "sdd-implementer": { path: "sdd-implementer.agent.md", status: "active", stacks: [] },
+    "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", status: "active", stacks: [] },
+    "sdd-re-review": { path: "sdd-re-review.agent.md", status: "active", stacks: [] },
+    "sdd-task-reviewer": { path: "sdd-task-reviewer.agent.md", status: "active", stacks: [] },
+    "shared-explore": { path: "shared-explore.agent.md", status: "active", stacks: [] },
+    "shared-r": { path: "shared-r.agent.md", status: "active", stacks: [] },
+    "shared-rw": { path: "shared-rw.agent.md", status: "active", stacks: [] },
+    "shared-rwx": { path: "shared-rwx.agent.md", status: "active", stacks: [] },
+  },
+  instructions: {},
+  skills: {
+    "author-agent": { path: "author-agent/", status: "active", stacks: [] },
+    "author-design": { path: "author-design/", status: "active", stacks: [] },
+    "author-instruction": { path: "author-instruction/", status: "active", stacks: [] },
+    "author-skill": { path: "author-skill/", status: "active", stacks: [] },
+    grill: { path: "grill/", status: "active", stacks: [] },
+    "grill-design": { path: "grill-design/", status: "active", stacks: [] },
+    "grill-with-docs": { path: "grill-with-docs/", status: "active", stacks: [] },
+    implement: { path: "implement/", status: "active", stacks: [] },
+    "implement-spec": { path: "implement-spec/", status: "active", stacks: [] },
+    "improve-codebase-architecture": {
+      path: "improve-codebase-architecture/",
+      status: "active",
+      stacks: [],
+    },
+    "int-codebase-design": { path: "int-codebase-design/", status: "active", stacks: [] },
+    "int-code-review": { path: "int-code-review/", status: "active", stacks: [] },
+    "int-code-slop-review": { path: "int-code-slop-review/", status: "active", stacks: [] },
+    "int-domain-modeling": { path: "int-domain-modeling/", status: "active", stacks: [] },
+    "int-grilling": { path: "int-grilling/", status: "removed", stacks: [] },
+    "int-prototype": { path: "int-prototype/", status: "active", stacks: [] },
+    "int-retrospective": { path: "int-retrospective/", status: "active", stacks: [] },
+    "int-subagent-driven-dev": { path: "int-subagent-driven-dev/", status: "active", stacks: [] },
+    "int-test-driven-development": {
+      path: "int-test-driven-development/",
+      status: "active",
+      stacks: [],
+    },
+    "int-testing-agent-guidance": {
+      path: "int-testing-agent-guidance/",
+      status: "active",
+      stacks: [],
+    },
+    "int-verification-before-completion": {
+      path: "int-verification-before-completion/",
+      status: "active",
+      stacks: [],
+    },
+    "int-writing-agents": { path: "int-writing-agents/", status: "active", stacks: [] },
+    "int-writing-for-agents": { path: "int-writing-for-agents/", status: "active", stacks: [] },
+    "int-writing-instruction": { path: "int-writing-instruction/", status: "active", stacks: [] },
+    "int-writing-skills": { path: "int-writing-skills/", status: "active", stacks: [] },
+    retrospective: { path: "retrospective/", status: "active", stacks: [] },
+    "setup-project": { path: "setup-project/", status: "active", stacks: [] },
+    "to-spec": { path: "to-spec/", status: "active", stacks: [] },
+    "to-tickets": { path: "to-tickets/", status: "active", stacks: [] },
+    triage: { path: "triage/", status: "active", stacks: [] },
+    wayfinder: { path: "wayfinder/", status: "active", stacks: [] },
+  },
+};
 
 export interface CatalogEntry {
   key: string;
@@ -72,20 +152,8 @@ function validateCatalogPath(value: unknown, kind: CatalogKind, key: string) {
   return { path: segments.join("/"), directory };
 }
 
-function parseCatalog(source: string): unknown {
-  try {
-    return matter(`---\n${source}\n---\n`).data;
-  } catch (error) {
-    throw new Error(
-      `Invalid Blueprint Catalog YAML: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
-}
-
-export function parseBlueprintCatalog(source: string): BlueprintCatalog {
-  const data = parseCatalog(source);
-  if (!isRecord(data)) throw new Error("Blueprint Catalog must be a YAML mapping.");
+export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
+  if (!isRecord(data)) throw new Error("Blueprint Catalog must be an object.");
 
   for (const key of Object.keys(data)) {
     if (!catalogKinds.includes(key as CatalogKind)) {
@@ -293,17 +361,4 @@ export async function planBlueprintCatalog(
     }
   }
   return { selections, deletions, directories };
-}
-
-export async function readBlueprintCatalog(root: string): Promise<BlueprintCatalog> {
-  let source: string;
-  try {
-    source = await readFile(join(root, "catalog.yaml"), "utf8");
-  } catch (error) {
-    throw new Error(
-      `Cannot load Blueprint Catalog '${join(root, "catalog.yaml")}': ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
-  return parseBlueprintCatalog(source);
 }

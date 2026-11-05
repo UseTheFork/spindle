@@ -7,7 +7,9 @@ import { test } from "node:test";
 
 import matter from "gray-matter";
 
+import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
 import {
+  writeCatalogFixture,
   makeTempDir,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
@@ -439,23 +441,23 @@ test(
         join(blueprints, "agents", "optional.agent.md"),
         "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nPython only\n",
       );
-      await writeFile(
-        join(blueprints, "catalog.yaml"),
-        [
-          "agents:",
-          "  optional:",
-          "    path: optional.agent.md",
-          "    status: active",
-          "    stacks: [python]",
-          "instructions: {}",
-          "skills:",
-          "  demo:",
-          "    path: demo/",
-          "    status: active",
-          "    stacks: []",
-          "",
-        ].join("\n"),
-      );
+      writeCatalogFixture(blueprints, {
+        agents: {
+          optional: {
+            path: "optional.agent.md",
+            status: "active",
+            stacks: ["python"],
+          },
+        },
+        instructions: {},
+        skills: {
+          demo: {
+            path: "demo/",
+            status: "active",
+            stacks: [],
+          },
+        },
+      } satisfies BlueprintCatalogDefinition);
       await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
@@ -594,23 +596,23 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
       join(blueprints, "agents", "python-only.agent.md"),
       "---\nname: python-only\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nPython Agent\n",
     );
-    await writeFile(
-      join(blueprints, "catalog.yaml"),
-      [
-        "agents:",
-        "  python-only:",
-        "    path: python-only.agent.md",
-        "    status: active",
-        "    stacks: [python]",
-        "instructions: {}",
-        "skills:",
-        "  baseline:",
-        "    path: baseline/",
-        "    status: active",
-        "    stacks: []",
-        "",
-      ].join("\n"),
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        "python-only": {
+          path: "python-only.agent.md",
+          status: "active",
+          stacks: ["python"],
+        },
+      },
+      instructions: {},
+      skills: {
+        baseline: {
+          path: "baseline/",
+          status: "active",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await mkdir(join(blueprints, "skills", "baseline"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "baseline", "SKILL.md"),

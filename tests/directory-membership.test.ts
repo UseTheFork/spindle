@@ -3,35 +3,45 @@ import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { makeTempDir, runCli } from "./helpers.ts";
+import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
+import { writeCatalogFixture, makeTempDir, runCliWithCatalog as runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
 
-const catalog = `agents:
-  grouped:
-    path: grouped/
-    status: active
-    stacks: []
-instructions:
-  grouped:
-    path: grouped/
-    status: active
-    stacks: []
-skills:
-  current:
-    path: current/
-    status: active
-    stacks: []
-  skipped:
-    path: skipped/
-    status: active
-    stacks: []
-  accepted:
-    path: accepted/
-    status: active
-    stacks: []
-`;
+const catalog = {
+  agents: {
+    grouped: {
+      path: "grouped/",
+      status: "active",
+      stacks: [],
+    },
+  },
+  instructions: {
+    grouped: {
+      path: "grouped/",
+      status: "active",
+      stacks: [],
+    },
+  },
+  skills: {
+    current: {
+      path: "current/",
+      status: "active",
+      stacks: [],
+    },
+    skipped: {
+      path: "skipped/",
+      status: "active",
+      stacks: [],
+    },
+    accepted: {
+      path: "accepted/",
+      status: "active",
+      stacks: [],
+    },
+  },
+} satisfies BlueprintCatalogDefinition;
 
 async function put(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });
@@ -59,7 +69,7 @@ test("update cleans selected directory membership without changing version decis
   const instructionDir = join(github, "instructions", "grouped");
   const skills = join(github, "skills");
   try {
-    await put(join(blueprints, "catalog.yaml"), catalog);
+    writeCatalogFixture(blueprints, catalog);
 
     await put(join(blueprints, "agents/grouped/current.agent.md"), versioned("1.0.0", "source"));
     await put(join(blueprints, "agents/grouped/outdated.agent.md"), versioned("2.0.0", "source"));
@@ -282,17 +292,17 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
   const project = await makeProject();
   const github = join(project, ".github");
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  selected:
-    path: selected.agent.md
-    status: active
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        selected: {
+          path: "selected.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await put(
       join(blueprints, "agents/selected.agent.md"),
       versioned("1.0.0", "shipped selected file"),
@@ -330,7 +340,7 @@ test("init removes destination-only files within selected directories only", asy
   const target = join(github, "agents", "grouped");
   try {
     await rm(join(github, "spindle.json"));
-    await put(join(blueprints, "catalog.yaml"), catalog);
+    writeCatalogFixture(blueprints, catalog);
     await put(join(blueprints, "agents/grouped/keep.agent.md"), versioned("1.0.0", "source"));
     await put(
       join(blueprints, "instructions/grouped/keep.instructions.md"),
@@ -371,7 +381,7 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
   const target = join(github, "agents", "grouped");
   const outside = join(project, "outside.txt");
   try {
-    await put(join(blueprints, "catalog.yaml"), catalog);
+    writeCatalogFixture(blueprints, catalog);
     await put(join(blueprints, "agents/grouped/current.agent.md"), versioned("1.0.0", "source"));
     await put(
       join(blueprints, "instructions/grouped/current.instructions.md"),

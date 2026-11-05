@@ -4,7 +4,7 @@ Run project build, test, lint, formatting, and Spindle workflow commands through
 
 ## Build
 
-- No build recipe is defined in this checkout. The listed `tool::pnpm` recipe targets the absent `packages/orchestration` directory, so it is not usable here.
+- `just build` — Compile the CLI and bundle Blueprint assets.
 
 ## Linting
 

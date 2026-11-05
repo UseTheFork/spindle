@@ -3,7 +3,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { makeTempDir, runCli } from "./helpers.ts";
+import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
+import { writeCatalogFixture, makeTempDir, runCliWithCatalog as runCli } from "./helpers.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
@@ -32,33 +33,39 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
   const outsideBytes = Buffer.from("outside the managed roots\n");
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  new:
-    path: new.agent.md
-    status: active
-    stacks: []
-instructions:
-  owned:
-    path: owned/
-    status: active
-    stacks: []
-skills:
-  current:
-    path: current/
-    status: active
-    stacks: []
-  skipped:
-    path: skipped/
-    status: active
-    stacks: []
-  retired:
-    path: retired/
-    status: removed
-    stacks: []
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        new: {
+          path: "new.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {
+        owned: {
+          path: "owned/",
+          status: "active",
+          stacks: [],
+        },
+      },
+      skills: {
+        current: {
+          path: "current/",
+          status: "active",
+          stacks: [],
+        },
+        skipped: {
+          path: "skipped/",
+          status: "active",
+          stacks: [],
+        },
+        retired: {
+          path: "retired/",
+          status: "removed",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await put(join(blueprints, "agents", "new.agent.md"), Buffer.from([0x66, 0x80, 0x67, 0x0a]));
     await put(
       join(blueprints, "instructions", "owned", "keep.instructions.md"),
@@ -120,21 +127,23 @@ test("init preparation failure leaves planned Config and target deletion untouch
   const outsideBytes = Buffer.from("outside the managed roots\n");
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  new:
-    path: new.agent.md
-    status: active
-    stacks: []
-instructions: {}
-skills:
-  retired:
-    path: retired/
-    status: removed
-    stacks: []
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        new: {
+          path: "new.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {
+        retired: {
+          path: "retired/",
+          status: "removed",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await put(join(blueprints, "agents", "new.agent.md"), Buffer.from([0x66, 0x80, 0x67, 0x0a]));
     await put(retiredSkill, retiredBytes);
     await put(outsideSentinel, outsideBytes);
@@ -169,17 +178,17 @@ test("application Config failure reports completed Blueprint installs", async ()
   );
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  new:
-    path: new.agent.md
-    status: active
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        new: {
+          path: "new.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await put(join(blueprints, "agents", "new.agent.md"), agentBytes);
 
     const result = runCli(
@@ -219,21 +228,23 @@ test("application write failure reports earlier cross-kind changes without claim
   const configBytes = Buffer.from('{"stacks":["python"],"variables":{}}\n');
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  write:
-    path: write.agent.md
-    status: active
-    stacks: []
-instructions: {}
-skills:
-  demo:
-    path: demo/
-    status: active
-    stacks: []
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        write: {
+          path: "write.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {
+        demo: {
+          path: "demo/",
+          status: "active",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await put(
       join(blueprints, "agents", "write.agent.md"),
       `---\nname: write\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped Agent\n`,
@@ -285,17 +296,17 @@ test("partial Skill application reports each applied file and the exact later fa
   const outsideBytes = Buffer.from("outside managed targets\n");
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents: {}
-instructions: {}
-skills:
-  demo:
-    path: demo/
-    status: active
-    stacks: []
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {},
+      instructions: {},
+      skills: {
+        demo: {
+          path: "demo/",
+          status: "active",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await put(join(blueprints, "skills", "demo", "SKILL.md"), versioned("2.0.0", "new Skill"));
     await put(join(blueprints, "skills", "demo", "a-first.txt"), "first supporting file\n");
     await put(join(blueprints, "skills", "demo", "z-failing.txt"), "later supporting file\n");
@@ -344,25 +355,27 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
   const secondRemoval = join(github, "agents", "second.agent.md");
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  new:
-    path: new.agent.md
-    status: active
-    stacks: []
-  first:
-    path: first.agent.md
-    status: removed
-    stacks: []
-  second:
-    path: second.agent.md
-    status: removed
-    stacks: []
-instructions: {}
-skills: {}
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        new: {
+          path: "new.agent.md",
+          status: "active",
+          stacks: [],
+        },
+        first: {
+          path: "first.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+        second: {
+          path: "second.agent.md",
+          status: "removed",
+          stacks: [],
+        },
+      },
+      instructions: {},
+      skills: {},
+    } satisfies BlueprintCatalogDefinition);
     await put(
       join(blueprints, "agents", "new.agent.md"),
       `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
@@ -414,29 +427,34 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
   const outsideBytes = Buffer.from("outside managed targets\n");
 
   try {
-    await put(
-      join(blueprints, "catalog.yaml"),
-      `agents:
-  new:
-    path: new.agent.md
-    status: active
-    stacks: []
-instructions:
-  testing:
-    path: testing/
-    status: active
-    stacks: []
-skills:
-  current:
-    path: current/
-    status: active
-    stacks: []
-  retired:
-    path: retired/
-    status: removed
-    stacks: []
-`,
-    );
+    writeCatalogFixture(blueprints, {
+      agents: {
+        new: {
+          path: "new.agent.md",
+          status: "active",
+          stacks: [],
+        },
+      },
+      instructions: {
+        testing: {
+          path: "testing/",
+          status: "active",
+          stacks: [],
+        },
+      },
+      skills: {
+        current: {
+          path: "current/",
+          status: "active",
+          stacks: [],
+        },
+        retired: {
+          path: "retired/",
+          status: "removed",
+          stacks: [],
+        },
+      },
+    } satisfies BlueprintCatalogDefinition);
     await put(
       join(blueprints, "agents", "new.agent.md"),
       `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,

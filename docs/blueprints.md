@@ -1,6 +1,9 @@
 # Authoring Blueprints
 
-The shipped collection is controlled by `src/blueprints/catalog.yaml`. Every
+The shipped collection is controlled by the typed `blueprintCatalog` object in
+`src/blueprints/catalog.ts`. Edit this object to add or retire entries, then
+rebuild Spindle. TypeScript checks entry fields, lifecycle statuses, supported
+Stack names, and the trailing slash required for Skill directories. Every
 catalog entry has a logical key, a source `path`, a `status` (`active` or
 `removed`), and a list of supported `stacks`. Logical keys identify entries;
 they do not rename installed content. An empty Stack list applies to every
@@ -52,6 +55,11 @@ cleanup. Preparation failures leave the project unchanged. An application-time
 filesystem failure stops reconciliation and reports completed changes;
 application is not transactional and does not roll back earlier writes.
 
-The package build bundles the catalog and Blueprint tree under `build/blueprints`.
+The package build compiles the catalog and bundles the Blueprint tree under `build/blueprints`.
 Published packages use that bundled tree and do not include a separate
 `src/blueprints` fallback.
+
+`SPINDLE_BLUEPRINTS_DIR` overrides only the Blueprint asset root, not the catalog.
+External YAML catalogs are not loaded; overridden assets must satisfy the same
+compiled catalog. Runtime validation still checks safe, nonoverlapping paths,
+source types and existence, symbolic links, and required `SKILL.md` files.

@@ -11,6 +11,11 @@ Agent/Instruction wrapper directories from ADR-0001 and ADR-0002, avoiding
 parallel discovery and layout conventions while preserving rendering and
 existing update units.
 
+The inventory is a static, typed TypeScript object in
+`src/blueprints/catalog.ts`, compiled with the CLI rather than loaded from YAML.
+Asset-root overrides do not replace this inventory. Runtime validation retains
+path safety and filesystem checks.
+
 Selected directories own destination membership: destination-only files,
 including local additions, are removed even when version updates are skipped.
 Removed or Stack-inapplicable entries delete their complete targets. Catalog

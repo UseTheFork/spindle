@@ -40,7 +40,7 @@ const textExtensions = new Set([
   "",
 ]);
 
-// Tests may provide a Blueprint collection root.
+// Override asset locations only; the catalog is compiled into the CLI.
 export function blueprintsRoot() {
   if (process.env.SPINDLE_BLUEPRINTS_DIR) return process.env.SPINDLE_BLUEPRINTS_DIR;
   const adjacent = fileURLToPath(new URL("./blueprints/", import.meta.url));

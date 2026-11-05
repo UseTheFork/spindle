@@ -7,7 +7,6 @@ import {
   exists,
   installPlannedBlueprintFiles,
   preparePlannedBlueprintFiles,
-  blueprintsRoot,
   type ConflictPolicy,
   type PlannedBlueprintFile,
   type PreparedBlueprintFile,
@@ -16,7 +15,8 @@ import type { RenderContext } from "../render.js";
 import { readBlueprintVersion } from "../version.js";
 import {
   planBlueprintCatalog,
-  readBlueprintCatalog,
+  blueprintCatalog,
+  validateBlueprintCatalog,
   type CatalogDeletion,
   type CatalogSelection,
 } from "./catalog.js";
@@ -181,7 +181,7 @@ export async function planBlueprintCatalogReconciliation(
   githubDirectory: string,
   selectedStacks: string[],
 ): Promise<BlueprintCatalogReconciliationPlan> {
-  const catalog = await readBlueprintCatalog(blueprintsRoot());
+  const catalog = validateBlueprintCatalog(blueprintCatalog);
   const handlerPlans: BlueprintHandlerCatalogPlan[] = [];
   for (const handler of handlers) {
     const expansion = await planBlueprintCatalog(
