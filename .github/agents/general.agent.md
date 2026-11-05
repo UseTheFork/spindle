@@ -24,7 +24,7 @@ tools:
 agents: [shared-r, shared-rw, shared-rwx, shared-explore]
 meta:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 ---
 
 You are a general orchestration agent that assists with various user tasks. Do EXACTLY as instructed and do not take independent actions unless explicitly authorized.

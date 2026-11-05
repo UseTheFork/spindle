@@ -37,11 +37,11 @@
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
     "@types/cors": "^2.8.19",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.6",
     "@types/nunjucks": "^3.2.6",
     "oxfmt": "^0.72.0",
-    "oxlint": "^1.87.0",
-    "tsc-alias": "^1.8.16",
+    "oxlint": "^1.91.0",
+    "tsc-alias": "^1.9.10",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
