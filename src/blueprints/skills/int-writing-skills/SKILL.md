@@ -94,7 +94,7 @@ Keep the common path inline; disclose branch-specific material through condition
 
 ### E. Test revised guidance
 
-Rerun the same frozen scenario in a fresh context using `int-testing-agent-guidance` and the selected criteria in [Testing skills](./references/testing-skills.md).
+Rerun the same frozen scenario in a fresh context using the `int-testing-agent-guidance` skill and the selected criteria in [Testing skills](./references/testing-skills.md).
 
 **Complete when:** revised behavior and any remaining failures are recorded.
 
