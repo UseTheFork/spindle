@@ -17,6 +17,9 @@ tools:
     vscodeGeneral/runTests,
     vscodeGeneral/testFailure,
     todo,
+    read_skill,
+    list_skills,
+    skill
   ]
 agents: [shared-r, shared-rw, shared-rwx, shared-explore]
 meta:
