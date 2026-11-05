@@ -22,10 +22,10 @@ Challenge and refine an existing design through an interview, keeping the select
 
 ## Required skills
 
-Before interviewing, read:
+Before acting, read and understand each required skill:
 
-- **REQUIRED:** `int-grilling` ([guidance](../int-grilling/SKILL.md)).
-- **REQUIRED:** `int-domain-modeling` ([guidance](../int-domain-modeling/SKILL.md)).
+- **REQUIRED:** `grill`
+- **REQUIRED:** `int-domain-modeling`
 
 These skills define the interview and domain-modeling workflows.
 
@@ -35,7 +35,7 @@ Aim for the smallest design that satisfies the agreed goal and success criteria.
 
 Read the selected design and relevant supporting context, including nearby specs when present. Ground the interview in the proposal, verified facts, and unresolved decisions.
 
-As answers settle decisions, update the selected design in place, reconciling affected passages and preserving unrelated content. Keep unresolved questions explicit; recommendations are not accepted decisions. Recording accepted decisions in the design and domain documentation is part of the interview: the shared-understanding confirmation gate in `int-grilling` does not defer these updates.
+As answers settle decisions, update the selected design in place, reconciling affected passages and preserving unrelated content. Keep unresolved questions explicit; recommendations are not accepted decisions. Recording accepted decisions in the design and domain documentation is part of the interview: the shared-understanding confirmation gate in `grill` does not defer these updates.
 
 Once every decision branch within the agreed scope is settled and the design and relevant domain documentation are consistent, summarize the refinements, link the changed documents, and ask the user to confirm shared understanding. Revise and repeat if corrections remain.
 

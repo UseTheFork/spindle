@@ -10,11 +10,5 @@ meta:
 
 Before acting, read and understand each required skill:
 
-- **REQUIRED:** #file:./../int-grilling/SKILL.md
-- **REQUIRED:** #file:./../int-domain-modeling/SKILL.md
-
-## User Input
-
-```text
-${input:requirements:Describe what is required from this plan or design}
-```
+- **REQUIRED:** `grill`
+- **REQUIRED:** `int-domain-modeling`

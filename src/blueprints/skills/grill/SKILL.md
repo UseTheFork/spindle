@@ -1,6 +1,6 @@
 ---
-name: int-grilling
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+name: grill
+description: "Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases."
 user-invocable: false
 meta:
   spindle:
