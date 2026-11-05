@@ -232,12 +232,11 @@ test("packaged CLI renders a computed Internal Skill description outside the che
     "SKILL.md",
   );
   const source = readFileSync(shippedSkill, "utf8");
-  const literal =
-    'description: "This is an internal skill do not load it unless explicitly required by the user or another skill."';
-  assert.ok(source.includes(literal));
-  writeFileSync(
-    shippedSkill,
-    source.replace(literal, 'description: "{{ computed.internal_skill_description }}"'),
+  const sourceFrontmatter = matter(source).data;
+  assert.equal(
+    sourceFrontmatter.description,
+    "{{ computed.internal_skill_description }}",
+    "the packaged shipped asset must contain the migrated description template",
   );
 
   const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"], {
@@ -252,6 +251,10 @@ test("packaged CLI renders a computed Internal Skill description outside the che
   assert.equal(
     matter(installed).data.description,
     "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+  );
+  assert.equal(
+    matter(installed).data.metadata.spindle.version,
+    sourceFrontmatter.metadata.spindle.version,
   );
   assert.doesNotMatch(installed, /{{|}}/);
 });

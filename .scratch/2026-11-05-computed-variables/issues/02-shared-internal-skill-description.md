@@ -3,6 +3,9 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: integrated
+
+Base: `/home/sincore/source/spindle` at `3ae33e8`.
 
 **What to build:** Shipped Internal Skill Blueprint descriptions use
 `computed.internal_skill_description` instead of repeating their shared sentence.
@@ -50,3 +53,15 @@ Checklist key: `- [ ]` Not started; `- [X]` Complete; `- [-]` In progress;
 `- [S]` Skipped.
 
 ## Comments
+
+**2026-11-05T19:12:00Z - @unknown**
+Set `Execution: claimed` at base `3ae33e8` after ticket 01 was integrated and verified in the existing checkout at `eabc2c64685b09c1e5021c0831cb1567897d6c8a`; the worktree was clean before claiming this dependent ticket.
+
+**2026-11-05T19:15:00Z - @unknown**
+Set `Execution: implementing` at base `3ae33e89602369d4bfa4371de20d15a3d4e4d030`; dispatching ticket 02 for migration of shipped Internal Skill frontmatter, shipped-asset init/update and packaged-CLI coverage, and author documentation.
+
+**2026-11-05T19:45:00Z - @unknown**
+Set `Execution: in-code-review` on the frozen ticket 02 snapshot after controller formatting, lint, type-check, build, diff validation, and 177/177 tests passed. Initial code, code-slop, and Spec/Quality reviews are pending.
+
+**2026-11-05T20:00:00Z - @unknown**
+Set `Execution: accepted` on ticket 02 snapshot at HEAD `3ae33e89602369d4bfa4371de20d15a3d4e4d030` plus the uncommitted changes. Initial code review and code-slop review passed with no findings; Spec/Quality review passed. Controller formatting, lint, type-check, build, diff check, and 177/177 tests passed. Integrating ticket and review evidence now.

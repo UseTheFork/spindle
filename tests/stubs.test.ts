@@ -105,6 +105,10 @@ for (const stacks of productionStackSelections) {
             renderText(source, {
               stacks,
               variables: { lint_command: "just lint", owner: "nobody" },
+              computed: {
+                internal_skill_description:
+                  "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+              },
             }),
             `${skill}/${file} differs from rendered source`,
           );

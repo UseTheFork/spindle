@@ -49,6 +49,40 @@ by `SKILL.md`; changes and additions require a Skill version bump.
 Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.
 
+## Computed Variables
+
+Variables and Computed Variables serve different purposes. A Variable is
+user-supplied project input, available through `variables` and stored in the
+project Config. A Computed Variable is a named string supplied by Spindle during
+generation; reference it with standard Nunjucks interpolation through the
+separate `computed` namespace, for example:
+
+```yaml
+description: "{{ computed.internal_skill_description }}"
+```
+
+Computed Variable names are explicit public keys in the typed
+`computedVariableProviders` registry in `src/computed.ts`; they are not inferred
+from class names. To add one, implement a `ComputedVariableProvider` subclass
+and register its class under the desired template name. The provider receives
+the resolved Config in its constructor: the selected Stacks and effective
+Variables after normal resolution, including defaults. The Config is read-only.
+Implement a parameterless synchronous `render(): string` method to return the
+value, and add the provider class to the registry under its chosen name.
+
+Each registered provider is instantiated and rendered once per generation run,
+after Config resolution. Its resolved string is reused throughout that run,
+including across Blueprints and version inspection; a later run resolves it
+again. Computed values are not persisted in Config, prompted for, or directly
+overridable by project Variables or CLI options. They are developer-shipped
+providers, not project plugins. The provider contract does not expose
+machine-wide settings or arbitrary environment inputs.
+
+Errors identify the missing computed name or failing registered provider and are
+reported during preparation, before Spindle applies generated files, Config
+changes, deletions, or membership cleanup. Do not rely on an unresolved or failed
+value being rendered as empty text.
+
 Before changing a project, Spindle validates the catalog and prepares the
 selected rendered writes, Config content, deletions, and directory-membership
 cleanup. Preparation failures leave the project unchanged. An application-time

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import matter from "gray-matter";
 
 import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
+import { blueprintCatalog } from "../src/blueprints/catalog.ts";
 import {
   ComputedVariableProvider,
   createComputedContextResolver,
@@ -17,6 +18,22 @@ import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "./helpers.t
 
 const description =
   "This is an internal skill do not load it unless explicitly required by the user or another skill.";
+const shippedInternalSkills = [
+  "int-testing-agent-guidance",
+  "int-retrospective",
+  "int-prototype",
+  "int-domain-modeling",
+  "int-code-slop-review",
+  "int-code-review",
+  "int-writing-skills",
+  "int-codebase-design",
+  "int-writing-for-agents",
+  "int-writing-instruction",
+  "int-writing-agents",
+  "int-verification-before-completion",
+  "int-test-driven-development",
+  "int-subagent-driven-dev",
+];
 
 async function put(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });
@@ -101,6 +118,84 @@ async function makeBlueprints() {
   writeCatalogFixture(blueprints, fixtureCatalog());
   return blueprints;
 }
+
+test("shipped Internal Skill descriptions render in init and eligible update", async () => {
+  const blueprints = await makeTempDir("spindle-shipped-internal-blueprints-");
+  const project = await makeTempDir("spindle-shipped-internal-project-");
+
+  try {
+    await cp(join(process.cwd(), "src/blueprints"), blueprints, { recursive: true });
+    writeCatalogFixture(blueprints, blueprintCatalog);
+
+    for (const name of shippedInternalSkills) {
+      const source = await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8");
+      assert.equal(
+        matter(source).data.description,
+        "{{ computed.internal_skill_description }}",
+        `${name} frontmatter must use the shared computed description`,
+      );
+    }
+
+    const initialized = runCliWithCatalog(
+      project,
+      ["init", "--stack", "python", "--var", "owner=core", "--no-interactive"],
+      process.env.PATH ?? "",
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+    assert.equal(initialized.status, 0, initialized.stderr);
+
+    const installedPath = (name: string) => join(project, ".github", "skills", name, "SKILL.md");
+    const currentSkill = "int-code-review";
+    const outdatedSkill = "int-test-driven-development";
+    const currentBeforeUpdate = await readFile(installedPath(currentSkill), "utf8");
+    const outdatedBefore = await readFile(installedPath(outdatedSkill), "utf8");
+
+    for (const name of shippedInternalSkills) {
+      const source = matter(await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8"));
+      const generated = await readFile(installedPath(name), "utf8");
+      const parsed = matter(generated);
+      assert.equal(parsed.data.description, description, `${name} generated description`);
+      assert.equal(
+        parsed.data.metadata.spindle.version,
+        source.data.metadata.spindle.version,
+        `${name} retains its Blueprint version`,
+      );
+      assert.doesNotMatch(generated, /{{|}}/, `${name} has no unresolved interpolation`);
+      if (name === "int-writing-skills") {
+        assert.ok(
+          parsed.content.includes(description),
+          "the unrelated Internal visibility guidance in the body remains literal",
+        );
+      }
+    }
+
+    const updatedSourcePath = join(blueprints, "skills", outdatedSkill, "SKILL.md");
+    const updatedSource = matter(await readFile(updatedSourcePath, "utf8"));
+    updatedSource.data.metadata.spindle.version = "2.0.0";
+    await writeFile(updatedSourcePath, matter.stringify(updatedSource.content, updatedSource.data));
+
+    const updated = runCliWithCatalog(
+      project,
+      ["update", "--no-interactive", "--on-conflict", "overwrite"],
+      process.env.PATH ?? "",
+      { SPINDLE_BLUEPRINTS_DIR: blueprints },
+    );
+    assert.equal(updated.status, 0, updated.stderr);
+
+    const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
+    assert.notEqual(refreshed, outdatedBefore, "the outdated Skill is updated");
+    assert.equal(matter(refreshed).data.description, description);
+    assert.equal(matter(refreshed).data.metadata.spindle.version, "2.0.0");
+    assert.equal(
+      await readFile(installedPath(currentSkill), "utf8"),
+      currentBeforeUpdate,
+      "an otherwise-current matching Skill remains byte-identical",
+    );
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
 
 test("init renders the computed namespace throughout Skills, Agents, and Instructions", async () => {
   const blueprints = await makeBlueprints();

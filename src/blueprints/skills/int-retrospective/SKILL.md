@@ -1,6 +1,6 @@
 ---
 name: int-retrospective
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:

@@ -8,7 +8,10 @@ import { renderText } from "../src/render.ts";
 const context = {
   stacks: ["python", "typescript"],
   variables: { name: "Spindle" },
-  computed: {},
+  computed: {
+    internal_skill_description:
+      "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+  },
 };
 
 function assertNestedTestabilityExamples(rendered: string, languages: string[]) {
@@ -95,7 +98,8 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
       new URL("../src/blueprints/skills/int-codebase-design/SKILL.md", import.meta.url),
       "utf8",
     );
-    const rendered = renderText(source, { stacks, variables: {}, computed: {} });
+    const renderContext = { stacks, variables: {}, computed: context.computed };
+    const rendered = renderText(source, renderContext);
     const section = rendered
       .split("## Designing for testability\n")[1]
       ?.split("## Relationships")[0];
@@ -127,7 +131,7 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
     const [before, after] = source.split(
       /## Designing for testability\n[\s\S]*?(?=## Relationships)/,
     );
-    assert.ok(rendered.startsWith(before));
+    assert.ok(rendered.startsWith(renderText(before, renderContext)));
     assert.ok(rendered.endsWith(after));
   });
 }
