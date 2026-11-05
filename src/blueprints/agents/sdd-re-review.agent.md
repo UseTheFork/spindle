@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.0
+    version: 1.2.1
 ---
 
 # SDD re-review
@@ -26,7 +26,7 @@ Before loading review skills, inspecting the checkout, running commands, or writ
 | `REPORT_FILE`                | Implementation report with appended fix results and covering-test evidence.                                                    |
 | `REPORT_PATH`                | Assigned `.scratch` report path, absolute or relative to `WORKSPACE`.                                                          |
 
-Read [review inputs](../skills/int-subagent-driven-dev/references/review-inputs.md) before accepting this gate. For this role, the inputs identify the fix-only change, previous reviewed identity/fix base, current fixed identity/head, and current covering-test evidence. A previous dirty snapshot requires its exact content identity as well as its revision. Preserve unaffected evidence and read only relevant finding/attempt/ruling history.
+Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill before accepting this gate. For this role, the inputs identify the fix-only change, previous reviewed identity/fix base, current fixed identity/head, and current covering-test evidence. A previous dirty snapshot requires its exact content identity as well as its revision. Preserve unaffected evidence and read only relevant finding/attempt/ruling history.
 
 Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 

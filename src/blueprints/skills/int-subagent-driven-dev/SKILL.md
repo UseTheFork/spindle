@@ -15,11 +15,11 @@ Controller for assigned tickets or dependency graphs; the brief governs. The con
 
 | Assignment                   | Agent                    | Required template                                |
 | ---------------------------- | ------------------------ | ------------------------------------------------ |
-| Implementation and fixes     | `sdd-implementer`        | [implementer](assets/implementer-prompt.md)      |
-| Code review                  | `sdd-code-reviewer`      | [code-review](assets/code-reviewer-prompt.md)    |
-| Code-slop review             | `sdd-code-slop-reviewer` | [code-slop](assets/code-slop-reviewer-prompt.md) |
-| Task Spec and Quality review | `sdd-task-reviewer`      | [task-review](assets/task-reviewer-prompt.md)    |
-| Scoped re-review             | `sdd-re-review`          | [re-review](assets/re-review-prompt.md)          |
+| Implementation and fixes     | `sdd-implementer`        | [implementer](./assets/implementer-prompt.md)      |
+| Code review                  | `sdd-code-reviewer`      | [code-review](./assets/code-reviewer-prompt.md)    |
+| Code-slop review             | `sdd-code-slop-reviewer` | [code-slop](./assets/code-slop-reviewer-prompt.md) |
+| Task Spec and Quality review | `sdd-task-reviewer`      | [task-review](./assets/task-reviewer-prompt.md)    |
+| Scoped re-review             | `sdd-re-review`          | [re-review](./assets/re-review-prompt.md)          |
 
 Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until every dispatched reviewer returns. Only the controller changes execution states.
 
@@ -88,7 +88,7 @@ Apply formatting, then applicable lint, type, and ticket-wide regression checks.
 
 ### E. Freeze and review
 
-Before preparing review assignments, read [review inputs](references/review-inputs.md). Supply the same frozen change and verification evidence to `sdd-code-reviewer`, `sdd-code-slop-reviewer`, and `sdd-task-reviewer` **in parallel**, with distinct report paths. Existing durable inputs may be referenced rather than copied. For unavailable same-batch reports use `NONE - parallel review pending`; reviewers do not wait for peers.
+Before preparing review assignments, read [review inputs](./references/review-inputs.md). Supply the same frozen change and verification evidence to `sdd-code-reviewer`, `sdd-code-slop-reviewer`, and `sdd-task-reviewer` **in parallel**, with distinct report paths. Existing durable inputs may be referenced rather than copied. For unavailable same-batch reports use `NONE - parallel review pending`; reviewers do not wait for peers.
 
 Wait for all three reports before reconciling findings and controller rulings. Failed/unavailable reviews block this gate while implementation remains frozen.
 
@@ -102,7 +102,7 @@ Compare all required verdicts, findings, and controller rulings with the current
 
 ### G. Corrective branch
 
-When findings or non-mechanical check failures require fixes, read [corrective rounds](references/corrective-rounds.md) before dispatch.
+When findings or non-mechanical check failures require fixes, read [corrective rounds](./references/corrective-rounds.md) before dispatch.
 
 **Complete when:** the child exits with a checked snapshot requiring initial reviews (E), current scoped verdicts (F), or an incomplete/blocker result (Q). Announce `Step G - Corrective branch` as resumed, then take that exit without restarting child work.
 
@@ -120,7 +120,7 @@ Use the ownership established in A.
 
 ### J. Integrate
 
-Read [integration](references/integration.md) before changing integration state or committing.
+Read [integration](./references/integration.md) before changing integration state or committing.
 
 **Complete when:** integration succeeds with a clean worktree, selecting K; unsafe pending files or failed commits select Q with a blocker.
 
@@ -138,7 +138,7 @@ Compare the completed delivery with the scope established in A.
 
 ### M. Full-spec branch
 
-Read [full-spec delivery](references/full-spec.md) only after ticket integration.
+Read [full-spec delivery](./references/full-spec.md) only after ticket integration.
 
 **Complete when:** the child supplies final evidence and retrospective or an explicit incomplete/blocker result. Announce `Step M - Full-spec branch` as resumed and return to Q without repeating child work.
 

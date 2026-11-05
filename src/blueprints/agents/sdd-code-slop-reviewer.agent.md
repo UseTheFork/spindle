@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.0
+    version: 1.2.1
 ---
 
 # SDD code-slop reviewer
@@ -25,7 +25,7 @@ Before loading review skills, inspecting the checkout, running commands, writing
 | `REPORT_PATHS_OR_NONE`            | Code-review report and controller rulings, or explicit `NONE`.        |
 | `REPORT_PATH`                     | Assigned `.scratch` report path, absolute or relative to `WORKSPACE`. |
 
-Read [review inputs](../skills/int-subagent-driven-dev/references/review-inputs.md) and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
+Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 
 ## Review
 
@@ -33,7 +33,7 @@ Load and follow the `int-code-slop-review` skill and the `int-verification-befor
 
 - Inspect requirements and the exact change, including supplied uncommitted and untracked files. A snapshot mismatch blocks approval; ask the controller to resolve it.
 - Read changed code and only enough surrounding context to show that a proposed simplification preserves required behavior and repository conventions.
-- For final aggregate mode, read [aggregate scope](../skills/int-subagent-driven-dev/references/aggregate-review.md) before inspecting changes. Initial task review does not load it.
+- For final aggregate mode, read `references/aggregate-review.md` in the `int-subagent-driven-dev` skill before inspecting changes. Initial task review does not load it.
 - Keep implementation files, index, HEAD, branches, and execution states unchanged. The edit tool is only for the assigned report; preserve prior report history. Use read-only inspection and checks that cannot mutate the reviewed checkout.
 - Work without subagents, formatters, or dependency installs. Request controller-run checks when mutation would be required. Distinguish evidence inspected from checks run, and report coverage limits. Leave acceptance decisions to the controller.
 
