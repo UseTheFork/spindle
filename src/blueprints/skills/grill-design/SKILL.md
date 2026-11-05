@@ -6,7 +6,7 @@ disable-model-invocation: true
 user-invocable: true
 meta:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 Challenge and refine an existing design through an interview, keeping the selected design as the source of truth.

@@ -63,6 +63,10 @@ skills:
     path: author-skill/
     status: active
     stacks: []
+  grill:
+    path: grill/
+    status: active
+    stacks: []
   grill-design:
     path: grill-design/
     status: active
@@ -101,7 +105,7 @@ skills:
     stacks: []
   int-grilling:
     path: int-grilling/
-    status: active
+    status: removed
     stacks: []
   int-prototype:
     path: int-prototype/
