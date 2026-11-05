@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile, readdir, rm, stat } from "node:fs/promises";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { before, test } from "node:test";
 
 import matter from "gray-matter";
@@ -96,6 +96,13 @@ for (const stacks of productionStackSelections) {
         const sourceFiles = (await filesUnder(sourceDirectory)).sort();
         const installedFiles = (await filesUnder(installedDirectory)).sort();
         assert.deepEqual(installedFiles, sourceFiles, `${skill} installed file set differs`);
+        if (skill === "int-subagent-driven-dev") {
+          assert.deepEqual((await readdir(installedDirectory)).sort(), [
+            "SKILL.md",
+            "assets",
+            "references",
+          ]);
+        }
 
         for (const file of sourceFiles) {
           const source = await readFile(join(sourceDirectory, file), "utf8");
@@ -112,6 +119,25 @@ for (const stacks of productionStackSelections) {
             }),
             `${skill}/${file} differs from rendered source`,
           );
+          if (skill === "int-subagent-driven-dev") {
+            assert.doesNotMatch(installed, /\]\([^)]*(?:SKILL\.md|\.agent\.md)(?:#[^)]*)?\)/);
+            if (dirname(file) === "assets") {
+              assert.match(installed, /^## Assignment$/m);
+              assert.match(installed, /^## (?:Verification and hand-back|Hand-back)$/m);
+              assert.doesNotMatch(installed, /\*\*/);
+            }
+            for (const [, target] of installed.matchAll(/\]\(([^)\s]+)\)/g)) {
+              if (/^[a-z][a-z0-9+.-]*:|^#/i.test(target)) continue;
+              const linkedPath = resolve(
+                dirname(join(installedDirectory, file)),
+                target.split("#")[0],
+              );
+              assert.ok(
+                (await stat(linkedPath).catch(() => undefined))?.isFile(),
+                `${skill}/${file} links to missing ${target}`,
+              );
+            }
+          }
         }
       }
 
@@ -142,6 +168,10 @@ for (const stacks of productionStackSelections) {
           agent,
         );
         assert.ok(parsed.content.trim().length > 0, `${agent} has no Agent instructions`);
+        if (agent.startsWith("sdd-")) {
+          assert.doesNotMatch(installedAgent, /\]\([^)]*SKILL\.md(?:#[^)]*)?\)/);
+          assert.match(installedAgent, /[Ll]oad and follow the `int-[^`]+` skill/);
+        }
         if (agent === "shared-r") {
           assert.equal(
             parsed.data.description,

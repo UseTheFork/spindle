@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.2.0
 ---
 
 # SDD implementer
@@ -28,12 +28,9 @@ Before entering the flowchart, loading implementation skills, inspecting the che
 | `CHECKS_AND_DIRECTORY`      | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker.                                   |
 | `PERMISSIONS`               | Allowed actions, including explicit commit authorization or denial.                                                                                   |
 | `REPORT_PATH`               | Assigned `.scratch` report path within `FILE_SCOPE`, absolute or relative to `CHECKOUT`.                                                              |
-| `ROUND`                     | Corrective round for a fix, or explicit `NONE` for initial implementation.                                                                            |
-| `FINDING_IDS`               | Assigned findings for a fix, or explicit `NONE` when not applicable.                                                                                  |
-| `PRIOR_ATTEMPTS`            | Prior corrective attempts, or explicit `NONE` when not applicable.                                                                                    |
-| `RULINGS`                   | Controller rulings for a fix, or explicit `NONE` when not applicable.                                                                                 |
+| `MODE`                      | `INITIAL` or `CORRECTIVE`.                                                                                                                            |
 
-Accept populated template labels or equivalent structured fields; the grouped `For a fix: NONE` supplies all four fix fields as `NONE`. For a corrective assignment, require a concrete round and finding IDs, with prior attempts and rulings supplied or explicitly `NONE`.
+Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. Legacy `For a fix: NONE` selects initial mode; populated fix context selects corrective mode. For `CORRECTIVE`, read [corrective inputs](../skills/int-subagent-driven-dev/references/implementer-corrections.md) before accepting the gate. Initial assignments need no corrective fields or resource.
 
 If any field is missing, unresolved, or contradictory, return `NEEDS_CONTEXT`, enumerate the specific fields and questions, and request them from the orchestrator. Stop and wait for its response. Keep already supplied values; validate the completed assignment again when it responds. Request the inputs before creating a report, since its destination and write permissions may themselves be missing. Derive neither assignment values nor permissions from the current directory, branch, tracker, or assumptions.
 
@@ -41,7 +38,7 @@ The gate completes only when all required fields are supplied and consistent. Us
 
 ## Implementation
 
-Read the supplied sources and repository instructions, then follow [int-test-driven-development](../skills/int-test-driven-development/SKILL.md) and [int-verification-before-completion](../skills/int-verification-before-completion/SKILL.md) using approved project tooling.
+Read the supplied sources and repository instructions. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill using approved project tooling.
 
 - Confirm the starting snapshot; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
 - Edit only assigned files, preserve existing changes and report history, coordinate shared-file edits, and pause edits during review. Resume from the supplied snapshot, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
@@ -78,7 +75,7 @@ Save the report at `REPORT_PATH` with:
 - Criterion-to-change/test summary, including whether behavior changes started with failing tests or a pure refactor reused existing tests.
 - Changed files, self-review findings, remaining concerns, fresh check commands and results, and checks not run.
 - Formatting, lint, type checks, and ticket-wide regression checks pending with the controller; pending controller checks are not implementer failures or evidence of ticket acceptance.
-- For fixes, each finding's correction and fresh covering-test evidence.
+- For corrective mode, include the finding evidence required by [corrective inputs](../skills/int-subagent-driven-dev/references/implementer-corrections.md).
 - A concise hand-back summary; include commit identifiers only when authorized.
 
 Update only assigned tracker files in `.scratch`, preserving history. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.
