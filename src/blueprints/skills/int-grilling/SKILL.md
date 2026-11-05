@@ -7,28 +7,27 @@ meta:
     version: 1.0.0
 ---
 
-Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
+Stress-test the user's proposal until its decisions are explicit and you share an understanding. Treat dependent decisions as a **design tree**.
 
-Work the tree in **rounds**. The **frontier** is every decision whose prerequisites are already settled: the questions you can ask now without guessing at answers you haven't heard yet.
+## Interview rounds
 
-At the start of each round, identify the frontier and use it as the round's question queue. Deliver the round one question at a time:
+1. Build the round's **frontier**: unresolved decisions whose prerequisites are settled. This is the question queue for the round.
+2. Ask one queued question and wait for its answer. Use an interactive question tool when available, discovering it through tool search if needed; otherwise use chat. Each call or chat turn contains exactly one question.
+3. Apply the answer and continue the queue, revising or skipping questions whose premises changed. Newly unlocked decisions wait for the next round.
+4. When the queue is exhausted, recompute the frontier and start the next round.
 
-- Use the available tool for interactively asking the user questions and collecting their answers, regardless of its name. Discover it through tool search if needed.
-- Submit exactly one question per tool call, then wait for the user's answer.
-- If no such tool is available, ask one question in chat and wait for the user's answer. Never send the whole round at once.
-- Include the question's title, necessary context, and your recommended answer.
-- Wait for the user's answer before asking the next question.
-- Do not send the full queue as a text block or a multi-question tool call.
-- Skip or revise queued questions if earlier answers make them irrelevant
-  or change their premises.
-- Questions newly unlocked by this round's answers belong to the next round.
+Label each question visibly as **Round <R>, Question <Q> - <title>**, in chat or the tool's user-visible title. Start both counters at 1; increment the question number for each question asked and reset it to 1 when the round advances. The first question announces the new round without exposing the remaining queue.
 
-Word confirmation questions so "yes" accepts your recommended answer. For choice questions, clearly identify the recommended option.
+Include the context needed to decide and a recommended answer. Phrase confirmations so "yes" accepts the recommendation; for choices, identify the recommended option.
 
-When all remaining questions in the round have been answered, recompute the frontier and begin the next round.
+Example opening:
 
-Each answer reshapes the design tree, but the round boundary remains: resolve the current round's still-relevant questions before asking newly unlocked questions in the next round. Never ask a question whose prerequisites remain unsettled.
+> **Round 1, Question 1 - Output format**
+>
+> CSV meets the agreed export requirements. I recommend CSV. Shall we use it?
 
-Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it; don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report; ask the rest of the frontier now. The _decisions_ are the user's: put each to them and wait.
+## Facts and completion
 
-The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
+When a question needs an environmental fact, dispatch a lookup sub-agent to find it, then use its findings to frame the user's decision. While that sub-agent runs, continue with ready questions; only dependent questions wait for the result.
+
+Once all decisions in the agreed scope are settled, summarize them and request shared-understanding confirmation. Wait for confirmation before acting on the proposal.
