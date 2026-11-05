@@ -4,13 +4,17 @@ Use this branch when the skill primarily directs the agent through work. Interac
 
 ## Structure and disclosure
 
-For a new skill, load and fill the [Interactive template](./templates/interactive.md). For an existing skill, apply it only to the relevant edit.
+For a new skill, load and fill the [Interactive template](../assets/interactive.md). For an existing skill, apply it only to the relevant edit.
 
 - Put purpose and applicability before ordered actions. End each action with a checkable, exhaustive completion criterion.
 - Keep what every path needs in `SKILL.md`. Put branch-specific guidance behind a pointer beside the action that needs it; name the observable condition that requires loading it.
-- Co-locate a concept's definition, rules, and caveats. Use `int-writing-for-agents` for the shared writing principles rather than restating them.
+- Co-locate a concept's definition, rules, and caveats. Use `int-writing-for-agents` skill for the shared writing principles rather than restating them.
 - Use a small flowchart for a non-obvious branch or loop, with simple action labels and short decision labels. Keep diagram nodes, step headings, branch targets, and completion criteria consistent.
 - Add quick reference and common mistakes only when they serve a distinct need. Aim below 500 words when reliable at that length.
+
+## Optional arguments
+
+Argument support is optional. When the skill accepts arguments from a user or a calling skill, read [Arguments](./arguments.md) and define its contract before workflow actions. For skills without arguments, omit the argument contract and `argument-hint`.
 
 ## Flowchart protocol
 

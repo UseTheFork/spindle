@@ -4,7 +4,7 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 meta:
   spindle:
-    version: 1.1.0
+    version: 1.2.0
 ---
 
 # Writing Skills
@@ -83,12 +83,11 @@ Store skills at `.github/skills/<skill-name>/SKILL.md`, keeping the skill direct
 ```text
 skill-name/
 ├── SKILL.md
-├── scripts/       - executable code
 ├── references/    - documentation loaded when needed
-└── assets/        - files used in output
+└── assets/        - templates and other files used in output
 ```
 
-Keep the common path inline; disclose branch-specific material through conditional pointers. Internal skills are another disclosure boundary when explicitly invoked guidance is appropriate. Invoke scripts through their interpreter.
+Keep the common path inline; disclose branch-specific material through conditional pointers. Internal skills are another disclosure boundary when explicitly invoked guidance is appropriate.
 
 **Complete when:** the selected structure is filled, references resolve, each retained section has a distinct purpose, and no placeholder remains.
 

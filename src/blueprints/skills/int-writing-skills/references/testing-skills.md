@@ -15,6 +15,8 @@ Choose the scenario by primary type, then by the capability it teaches:
 
 For a structural rewrite, exercise finding the first action and its completion criterion, selecting the correct branch, and loading only its required resources. For a flowchart change, exercise decision results, loop re-entry, and any parent/child hand-off.
 
+When arguments are supported, exercise their declared contract: equivalent aliases, omitted optional inputs, required inputs, value validation, conflicting flags, `--`, and task text containing flag-like content. Include explicit caller inputs as well as user invocation when both are supported.
+
 Freeze the prompt and observable criterion before the baseline. Use the current guidance for an edit or no guidance for a new skill. Record behavior verbatim; a statement that the rule is understood is not evidence that it is followed.
 
 ## Diagnose the baseline gap

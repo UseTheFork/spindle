@@ -12,6 +12,10 @@ description: "[description appropriate to visibility and invocation]"
 
 [Purpose, scope, and concrete applicability.]
 
+## [Optional argument contract]
+
+[If this skill accepts arguments, add argument-hint to frontmatter and define accepted inputs using the Arguments reference. Specify required and optional inputs, paired long/short flags, defaults, values, parsing boundaries, validation, and workflow effects. Validate before workflow actions. Otherwise omit this section and argument-hint.]
+
 ## Workflow
 
 [Required guidance for all paths, if any.]

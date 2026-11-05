@@ -4,7 +4,7 @@ Use this branch when the skill primarily supplies knowledge for lookup and appli
 
 ## Structure and disclosure
 
-For a new skill, load and fill the [Reference template](./templates/reference.md). For an existing skill, apply it only to the relevant edit.
+For a new skill, load and fill the [Reference template](../assets/reference.md). For an existing skill, apply it only to the relevant edit.
 
 - State the covered subject, applicability, and version or environment constraints that affect correctness.
 - Organize by the questions the agent needs to answer. Keep each contract, its constraints, and its caveats together.
