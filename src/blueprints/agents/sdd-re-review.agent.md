@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.1
+    version: 1.2.2
 ---
 
 # SDD re-review
@@ -36,7 +36,7 @@ Load and follow the `int-test-driven-development` skill and the `int-verificatio
 
 1. Read the resolved brief, standards, prior review evidence, and implementation report. Treat claims as unverified. Read the complete fix diff once, including stat and context. Follow the common input contract for missing-diff retrieval; use the supplied package when complete. Unavailable material or a snapshot mismatch requires controller resolution before a complete verdict.
 2. Verify each finding in supplied order with file:line evidence that the defect no longer exists. `Attempted` is not addressed. Check covering-test output against the exact fixed snapshot. Missing, stale, or ambiguous required evidence leaves the finding `UNVERIFIED` and open; a confirmed remaining defect is `NOT ADDRESSED`.
-3. Assess covering tests at an appropriate boundary. Fixes start with failing tests; pure refactors reuse existing tests. A concise test summary and fresh GREEN results suffice; archived RED logs, a matrix, and release records are unnecessary. Request current evidence from the controller or implementer rather than rerunning suites to recreate missing evidence. Run a focused, non-mutating check only for a named specific doubt the supplied evidence cannot resolve.
+3. Assess covering tests using the TDD reference's test-quality and review-evidence rules. A matrix and release records are unnecessary. Request current evidence from the controller or implementer rather than rerunning suites to recreate missing evidence. Run a focused, non-mutating check only for a named specific doubt the supplied evidence cannot resolve.
 4. Inspect the fix for regressions. Inspect outside it only for a named concrete fix-induced risk. Report broader acceptance-criterion or contract changes and request expanded review. Put issues entirely outside the fix diff under Out-of-Scope Observations; they do not block this round. Identify any pending initial task review; scoped re-review does not replace it.
 
 Keep implementation files, index, HEAD, branches, execution states, and round budgets unchanged. The edit tool is only for the assigned report; preserve prior history. Work without subagents and leave corrective dispatches and acceptance to the controller. Distinguish reported evidence from checks you ran.

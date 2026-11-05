@@ -10,18 +10,22 @@ Good candidates include a wrong branch, missing validation, incorrect result, or
 
 Prefer a test name that describes the behavior:
 
-```typescript
-test("rejects an expired invitation", () => {
-  // ...
-});
+The examples below are pseudocode.
+
+```text
+TEST "rejects an expired invitation"
+  invitation = expired invitation fixture
+  ASSERT accepting invitation rejects it as expired
+END TEST
 ```
 
 Avoid names that merely describe the code under test:
 
-```typescript
-test("calls validateInvitation", () => {
-  // ...
-});
+```text
+TEST "calls validateInvitation"
+  accept invitation
+  ASSERT validateInvitation was called
+END TEST
 ```
 
 ## Choose an appropriate boundary
@@ -40,9 +44,11 @@ Test behavior owned by this application, not framework mechanics that the framew
 
 Expected values should come from the requirement, a known result, or a hand-checked fixture—not from the code under test or the same logic it uses.
 
-```typescript
-// Good: the expected value is independently known
-expect(calculateTotal([{ price: 10 }, { price: 5 }])).toBe(15);
+```text
+TEST "totals item prices"
+  items = two items priced 10 and 5
+  ASSERT calculateTotal(items) EQUALS 15
+END TEST
 ```
 
 Avoid calculating the expected result with the same algorithm as the implementation. That can let the same mistake appear on both sides of the assertion.

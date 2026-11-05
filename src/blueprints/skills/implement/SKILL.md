@@ -4,7 +4,7 @@ description: "Implement a piece of work based on a spec or set of tickets."
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 Implement the work described by the user in the spec or tickets.
@@ -13,6 +13,8 @@ If the user passes a ticket reference, fetch it from the issue tracker and state
 
 Call the Skill tool with `int-test-driven-development` where possible, at pre-agreed seams.
 
-Once done, call the Skill tool with "int-code-review" to review the work.
+Run applicable project completion checks before review. Call the Skill tool with `int-verification-before-completion` for evidence-backed claims; report required failing or unavailable checks as blockers.
+
+Once done, call the Skill tool with `int-code-review` to review the work.
 
 Commit your work to the current branch.

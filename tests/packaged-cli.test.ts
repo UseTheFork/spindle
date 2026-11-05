@@ -218,7 +218,7 @@ test("packaged command discovery and help remain intact", (t) => {
   }
 });
 
-test("packaged CLI renders a computed Internal Skill description outside the checkout", (t) => {
+test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", (t) => {
   const cli = packagedCli(t);
   const project = tempDirectory(t, "spindle-packaged-computed-project-");
   const blueprintRoot = tempDirectory(t, "spindle-packaged-computed-blueprints-");
@@ -257,6 +257,46 @@ test("packaged CLI renders a computed Internal Skill description outside the che
     sourceFrontmatter.metadata.spindle.version,
   );
   assert.doesNotMatch(installed, /{{|}}/);
+
+  const shippedDirectory = join(packagedBlueprints, "skills", "int-test-driven-development");
+  const installedDirectory = join(project, ".github", "skills", "int-test-driven-development");
+  for (const name of ["tests.md", "mocking.md"]) {
+    const reference = join("references", name);
+    assert.equal(existsSync(join(shippedDirectory, name)), false);
+    assert.equal(existsSync(join(installedDirectory, name)), false);
+    assert.equal(
+      readFileSync(join(installedDirectory, reference), "utf8"),
+      readFileSync(join(shippedDirectory, reference), "utf8"),
+      `the packaged ${reference} must install without changing its content`,
+    );
+    assert.ok(installed.includes(`(./references/${name})`));
+  }
+
+  const legacySkill = matter(installed);
+  legacySkill.data.metadata.spindle.version = "1.0.0";
+  writeFileSync(
+    join(installedDirectory, "SKILL.md"),
+    matter.stringify(legacySkill.content, legacySkill.data),
+  );
+  rmSync(join(installedDirectory, "references"), { recursive: true });
+  for (const name of ["tests.md", "mocking.md"]) {
+    writeFileSync(
+      join(installedDirectory, name),
+      readFileSync(join(shippedDirectory, "references", name), "utf8"),
+    );
+  }
+
+  const updated = cli.run(project, ["update", "--no-interactive", "--on-conflict", "overwrite"], {
+    SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
+  });
+  assert.equal(updated.status, 0, updated.stderr);
+  for (const name of ["tests.md", "mocking.md"]) {
+    assert.equal(existsSync(join(installedDirectory, name)), false);
+    assert.equal(
+      readFileSync(join(installedDirectory, "references", name), "utf8"),
+      readFileSync(join(shippedDirectory, "references", name), "utf8"),
+    );
+  }
 });
 
 test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", (t) => {

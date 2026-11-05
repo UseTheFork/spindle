@@ -4,7 +4,7 @@ Run project build, test, lint, formatting, and Spindle workflow commands through
 
 ## Build
 
-- `just build` — Compile the CLI and bundle Blueprint assets.
+- `just build` — Rebuild the Blueprint bundle from current sources and compile the CLI, removing stale bundled files.
 
 ## Linting
 
