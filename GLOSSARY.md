@@ -45,6 +45,9 @@ _Avoid_: Language, framework
 A named value the user supplies for use in Blueprints.
 _Avoid_: Setting, parameter
 
+**Computed Variable**:
+A named text value derived from Config for use in Blueprints during generation. Unlike a Variable, its value is not supplied by the user, stored in Config, or directly overridden.
+
 **Config**:
 The `.github/spindle.json` file holding the user's selected stacks and variables.
 _Avoid_: Settings file, manifest
