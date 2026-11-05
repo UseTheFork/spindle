@@ -7,11 +7,8 @@ import matter from "gray-matter";
 
 import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
 import { blueprintCatalog } from "../src/blueprints/catalog.ts";
-import {
-  ComputedVariableProvider,
-  createComputedContextResolver,
-  type ResolvedConfig,
-} from "../src/computed.ts";
+import { ComputedVariableProvider, type ResolvedConfig } from "../src/computed/provider.ts";
+import { createComputedContextResolver } from "../src/computed/resolve.ts";
 import { renderText } from "../src/render.ts";
 import { loadVariableDefinitions } from "../src/variables.ts";
 import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "./helpers.ts";

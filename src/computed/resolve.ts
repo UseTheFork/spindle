@@ -1,29 +1,6 @@
-import type { RenderContext } from "./render.js";
-
-export interface ResolvedConfig {
-  readonly stacks: readonly string[];
-  readonly variables: Readonly<Record<string, string>>;
-}
-
-export abstract class ComputedVariableProvider {
-  constructor(readonly config: ResolvedConfig) {}
-
-  abstract render(): string;
-}
-
-type ComputedVariableProviderClass = new (config: ResolvedConfig) => ComputedVariableProvider;
-
-export type ComputedVariableRegistry = Readonly<Record<string, ComputedVariableProviderClass>>;
-
-class InternalSkillDescriptionProvider extends ComputedVariableProvider {
-  render() {
-    return "This is an internal skill do not load it unless explicitly required by the user or another skill.";
-  }
-}
-
-export const computedVariableProviders = {
-  internal_skill_description: InternalSkillDescriptionProvider,
-} satisfies ComputedVariableRegistry;
+import type { RenderContext } from "../render.js";
+import { computedVariableProviders } from "./computed-variable-providers.js";
+import type { ComputedVariableRegistry, ResolvedConfig } from "./provider.js";
 
 export function resolveComputedVariables(
   config: ResolvedConfig,

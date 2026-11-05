@@ -1,7 +1,7 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { createComputedContextResolver } from "../computed.js";
+import { createComputedContextResolver } from "../computed/resolve.js";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,
