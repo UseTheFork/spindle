@@ -272,6 +272,25 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
     assert.ok(installed.includes(`(./references/${name})`));
   }
 
+  const domainShippedDirectory = join(packagedBlueprints, "skills", "int-domain-modeling");
+  const domainInstalledDirectory = join(project, ".github", "skills", "int-domain-modeling");
+  const domainSkill = readFileSync(join(domainInstalledDirectory, "SKILL.md"), "utf8");
+  const domainSourceSkill = readFileSync(join(domainShippedDirectory, "SKILL.md"), "utf8");
+  const domainSourceVersion = matter(domainSourceSkill).data.metadata.spindle.version;
+  assert.equal(domainSourceVersion, "1.0.1");
+  assert.equal(matter(domainSkill).data.metadata.spindle.version, domainSourceVersion);
+  for (const name of ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]) {
+    const reference = join("references", name);
+    assert.equal(existsSync(join(domainShippedDirectory, name)), false);
+    assert.equal(existsSync(join(domainInstalledDirectory, name)), false);
+    assert.equal(
+      readFileSync(join(domainInstalledDirectory, reference), "utf8"),
+      readFileSync(join(domainShippedDirectory, reference), "utf8"),
+      `the packaged ${reference} must install without changing its content`,
+    );
+    assert.ok(domainSkill.includes(`(./references/${name})`));
+  }
+
   const legacySkill = matter(installed);
   legacySkill.data.metadata.spindle.version = "1.0.0";
   writeFileSync(
