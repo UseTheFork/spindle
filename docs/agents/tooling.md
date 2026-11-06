@@ -51,9 +51,7 @@ the invocation repository root.
 The executable bootstrap is the only production code that reads the current
 directory, and only to discover the Git working-tree root. Workspace commands
 require that discovery; help and version do not. Commands and services use the
-immutable workspace and Blueprint source roots supplied to `App`. Preserve
-explicit path arguments: `setup-project` uses its `--workspace` target, while
-`sdd workspace` uses its explicit checkout and reports directory.
+immutable workspace and Blueprint source roots supplied to `App`.
 
 Application-managed commands and services extend `Service` and receive their
 owning `App` in the constructor. Constructors only store the application and

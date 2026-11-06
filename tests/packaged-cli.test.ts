@@ -220,6 +220,38 @@ test("packaged command discovery and help remain intact", (t) => {
   }
 });
 
+test("packaged init from a nested directory targets the Git worktree root", (t) => {
+  const cli = packagedCli(t);
+  const project = tempDirectory(t, "spindle-packaged-git-root-");
+  makeGitWorkspace(project);
+  const nested = join(project, "packages", "nested");
+  mkdirSync(nested, { recursive: true });
+  const args = ["init", "--stack", "python", "--no-interactive"];
+  const env = { SPINDLE_BLUEPRINTS_DIR: join(cli.root, "build", "blueprints") };
+
+  const fromRoot = cli.run(project, args, env);
+  assert.equal(fromRoot.status, 0, fromRoot.stderr);
+  const rootConfig = readFileSync(join(project, ".github", "spindle.json"), "utf8");
+  const rootSkill = readFileSync(
+    join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
+    "utf8",
+  );
+  rmSync(join(project, ".github"), { recursive: true });
+
+  const fromNested = cli.run(nested, args, env);
+  assert.equal(fromNested.status, 0, fromNested.stderr);
+  assert.equal(fromNested.stdout, fromRoot.stdout);
+  assert.equal(readFileSync(join(project, ".github", "spindle.json"), "utf8"), rootConfig);
+  assert.equal(
+    readFileSync(
+      join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
+      "utf8",
+    ),
+    rootSkill,
+  );
+  assert.deepEqual(readdirSync(nested), []);
+});
+
 test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", (t) => {
   const cli = packagedCli(t);
   const project = tempDirectory(t, "spindle-packaged-computed-project-");
