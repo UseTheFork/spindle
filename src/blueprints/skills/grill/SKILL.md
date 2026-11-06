@@ -4,7 +4,7 @@ description: "Grill the user relentlessly about a plan, decision, or idea. Use w
 user-invocable: false
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 ---
 
 Stress-test the user's proposal until its decisions are explicit and you share an understanding. Treat dependent decisions as a **design tree**.
@@ -22,7 +22,7 @@ Include the context needed to decide and a recommended answer. Phrase confirmati
 
 Example opening:
 
-> **Round 1, Question 1 - Output format**
+> **Round 1, Question 1 of 5 - Output format**
 >
 > CSV meets the agreed export requirements. I recommend CSV. Shall we use it?
 
