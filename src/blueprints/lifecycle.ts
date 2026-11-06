@@ -1,7 +1,8 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { createComputedContextResolver } from "../computed/resolve.js";
+import type { App } from "../app.js";
+import { ComputedContextService } from "../computed/computed-context.js";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,
@@ -45,6 +46,7 @@ export interface PlannedBlueprintDeletion {
 }
 
 interface ReconcileCommon {
+  app: App;
   githubDirectory: string;
   blueprintSourceRoot: string;
   context?: RenderContext;
@@ -687,9 +689,13 @@ export async function reconcileBlueprints(
     await validateRemovalTarget(options.githubDirectory, operation);
   }
   if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
-  const resolveContext = createComputedContextResolver(
-    async () => options.context ?? (await options.resolveContext?.()),
-  );
+  let contextService: Promise<ComputedContextService> | undefined;
+  const resolveContext = async () => {
+    contextService ??= options.app.create(ComputedContextService);
+    return (await contextService).resolve(
+      async () => options.context ?? (await options.resolveContext?.()),
+    );
+  };
   const plans: ReconciliationPlan[] = [];
   for (const { handler, names, files } of collections) {
     plans.push(await planReconciliation(handler, options, names, files, resolveContext));

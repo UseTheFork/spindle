@@ -65,6 +65,7 @@ export class InitCommand extends Service {
 
     const config = { stacks, variables };
     const outcomes = await reconcileBlueprints(this.#handlers, {
+      app: this.app,
       mode: "init",
       githubDirectory,
       blueprintSourceRoot: this.app.blueprintSourceRoot,

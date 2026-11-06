@@ -87,13 +87,16 @@ read-only. Implement a parameterless synchronous `render(): string` method to
 return the value, and add the provider class to the registry under its chosen
 name.
 
-Each registered provider is instantiated and rendered once per generation run,
-after Config resolution. Its resolved string is reused throughout that run,
-including across Blueprints and version inspection; a later run resolves it
-again. Computed values are not persisted in Config, prompted for, or directly
-overridable by project Variables or CLI options. They are developer-shipped
-providers, not project plugins. The provider contract does not expose
-machine-wide settings or arbitrary environment inputs.
+Each reconciliation run gets a fresh application-managed computed-context
+service. It copies and freezes the resolved Stacks and Variables passed to
+providers. Each registered provider is instantiated and rendered once after
+Config resolution; repeated or concurrent context requests in that run share
+the resolved context and values, including across Blueprints and version
+inspection. A later run resolves them again. Computed values are not persisted
+in Config, prompted for, or directly overridable by project Variables or CLI
+options. They are developer-shipped providers, not project plugins. The
+provider contract does not expose machine-wide settings or arbitrary
+environment inputs.
 
 Errors identify the missing computed name or failing registered provider and are
 reported during preparation, before Spindle applies generated files, Config

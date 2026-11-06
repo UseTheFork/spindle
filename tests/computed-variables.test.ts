@@ -5,10 +5,13 @@ import { test } from "node:test";
 
 import matter from "gray-matter";
 
+import { App } from "../src/app.ts";
 import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
 import { blueprintCatalog } from "../src/blueprints/catalog.ts";
+import { InitCommand } from "../src/commands/init/init-command.ts";
+import { UpdateCommand } from "../src/commands/update/update-command.ts";
+import { ComputedContextService } from "../src/computed/computed-context.ts";
 import { ComputedVariableProvider, type ResolvedConfig } from "../src/computed/provider.ts";
-import { createComputedContextResolver } from "../src/computed/resolve.ts";
 import { renderText } from "../src/render.ts";
 import { loadVariableDefinitions } from "../src/variables.ts";
 import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "./helpers.ts";
@@ -385,7 +388,61 @@ test("update identifies a missing computed output and applies no planned changes
   }
 });
 
-test("providers receive resolved Config once per cached run, then resolve in a fresh run", async () => {
+test("repeated Updates through one App render fresh Config with computed outputs", async () => {
+  const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
+  const project = await makeTempDir("spindle-computed-app-project-");
+  const github = join(project, ".github");
+  const skillName = "int-test-driven-development";
+  const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
+  const installedPath = join(github, "skills", skillName, "SKILL.md");
+  const descriptionSkill = await readFile(
+    join(process.cwd(), "src/blueprints/skills", skillName, "SKILL.md"),
+    "utf8",
+  );
+  const app = new App({ workspaceRoot: project, blueprintSourceRoot: blueprints });
+
+  try {
+    await cp(join(process.cwd(), "src/blueprints"), blueprints, { recursive: true });
+    const source = matter(descriptionSkill);
+    source.content += "\nRun owner={{ variables.owner }}\n";
+    await writeFile(sourcePath, matter.stringify(source.content, source.data));
+
+    await (await app.get(InitCommand)).run(["python"], ["owner=first-run"], false, "overwrite");
+    const update = await app.get(UpdateCommand);
+
+    const assertRendered = async (owner: string, version: string) => {
+      const generated = matter(await readFile(installedPath, "utf8"));
+      assert.equal(generated.data.description, description);
+      assert.equal(generated.data.metadata.spindle.version, version);
+      assert.ok(generated.content.includes(`Run owner=${owner}`));
+      const config = await readFile(join(github, "spindle.json"), "utf8");
+      assert.doesNotMatch(config, /computed|internal_skill_description/);
+    };
+
+    const updateSource = async (version: string, owner: string) => {
+      const current = matter(await readFile(sourcePath, "utf8"));
+      current.data.metadata.spindle.version = version;
+      await writeFile(sourcePath, matter.stringify(current.content, current.data));
+      const configPath = join(github, "spindle.json");
+      const config = JSON.parse(await readFile(configPath, "utf8"));
+      config.variables.owner = owner;
+      await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    };
+
+    await updateSource("900.0.0", "second-run");
+    await update.run(false, "overwrite");
+    await assertRendered("second-run", "900.0.0");
+
+    await updateSource("901.0.0", "third-run");
+    await update.run(false, "overwrite");
+    await assertRendered("third-run", "901.0.0");
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("providers receive immutable resolved Config once per run and refresh across runs", async () => {
   const defaultVariables = Object.fromEntries(
     loadVariableDefinitions().map((definition) => [
       definition.name,
@@ -396,8 +453,10 @@ test("providers receive resolved Config once per cached run, then resolve in a f
     stacks: ["python", "typescript"],
     variables: defaultVariables,
   };
+  let providerConfig: ResolvedConfig | undefined;
   class ConfigProvider extends ComputedVariableProvider {
     render() {
+      providerConfig = this.config;
       return `${this.config.stacks.join(",")}:${this.config.variables.owner}:${this.config.variables.lint_command}`;
     }
   }
@@ -413,20 +472,40 @@ test("providers receive resolved Config once per cached run, then resolve in a f
     count: CountingProvider,
   };
 
+  const app = new App({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
+  const firstRun = await app.create(ComputedContextService);
   let inputResolutions = 0;
-  const resolveFirstRun = createComputedContextResolver(async () => {
-    inputResolutions += 1;
-    return {
-      stacks: [...config.stacks],
-      variables: { ...config.variables },
-    };
-  }, registry);
-  const [firstContext, repeatedContext] = await Promise.all([resolveFirstRun(), resolveFirstRun()]);
+  const [firstContext, repeatedContext] = await Promise.all([
+    firstRun.resolve(async () => {
+      inputResolutions += 1;
+      return {
+        stacks: [...config.stacks],
+        variables: { ...config.variables },
+      };
+    }, registry),
+    firstRun.resolve(async () => {
+      inputResolutions += 1;
+      return {
+        stacks: [...config.stacks],
+        variables: { ...config.variables },
+      };
+    }, registry),
+  ]);
   assert.ok(firstContext);
   assert.strictEqual(repeatedContext, firstContext);
   assert.equal(inputResolutions, 1, "a run resolves its base Config once");
   assert.equal(firstContext.computed.config_summary, "python,typescript:nobody:just lint");
   assert.equal(firstContext.computed.count, "evaluation-1");
+  assert.ok(providerConfig);
+  assert.notStrictEqual(providerConfig.stacks, config.stacks);
+  assert.notStrictEqual(providerConfig.variables, config.variables);
+  assert.ok(Object.isFrozen(providerConfig.stacks));
+  assert.ok(Object.isFrozen(providerConfig.variables));
+  assert.throws(() => (providerConfig!.stacks as string[]).push("php-laravel"), TypeError);
+  assert.throws(
+    () => ((providerConfig!.variables as Record<string, string>).owner = "changed"),
+    TypeError,
+  );
   const renderContext = {
     ...firstContext,
     variables: {
@@ -448,17 +527,32 @@ test("providers receive resolved Config once per cached run, then resolve in a f
   assert.equal(renderText("{{ computed.count }}", renderContext), "evaluation-1");
   assert.equal(evaluations, 1, "reusing resolved values does not render the provider again");
 
-  const resolveSecondRun = createComputedContextResolver(
+  const secondRun = await app.create(ComputedContextService);
+  const secondContext = await secondRun.resolve(
     async () => ({
-      stacks: [...config.stacks],
-      variables: { ...config.variables },
+      stacks: ["typescript"],
+      variables: { ...config.variables, owner: "another project" },
     }),
     registry,
   );
-  const secondContext = await resolveSecondRun();
   assert.ok(secondContext);
+  assert.equal(secondContext.computed.config_summary, "typescript:another project:just lint");
   assert.equal(secondContext.computed.count, "evaluation-2");
   assert.equal(evaluations, 2, "a separate run renders a fresh value");
+
+  const otherApp = new App({ workspaceRoot: "/other-project", blueprintSourceRoot: "/blueprints" });
+  const isolatedRun = await otherApp.create(ComputedContextService);
+  const isolatedContext = await isolatedRun.resolve(
+    async () => ({
+      stacks: ["python"],
+      variables: { ...config.variables, owner: "isolated project" },
+    }),
+    registry,
+  );
+  assert.ok(isolatedContext);
+  assert.equal(isolatedContext.computed.config_summary, "python:isolated project:just lint");
+  assert.equal(isolatedContext.computed.count, "evaluation-3");
+  assert.equal(evaluations, 3, "a separate App starts with a distinct fresh run");
 });
 
 test("provider failures stop context resolution with the public key and original error", async () => {
@@ -468,12 +562,13 @@ test("provider failures stop context resolution with the public key and original
     }
   }
 
-  const resolveContext = createComputedContextResolver(
-    async () => ({ stacks: [], variables: {} }),
-    { public_failure_name: FailingProvider },
-  );
+  const app = new App({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
+  const contextService = await app.create(ComputedContextService);
+  const resolvedContext = contextService.resolve(async () => ({ stacks: [], variables: {} }), {
+    public_failure_name: FailingProvider,
+  });
   await assert.rejects(
-    resolveContext(),
+    resolvedContext,
     (error: unknown) =>
       error instanceof Error &&
       error.message.includes("public_failure_name") &&

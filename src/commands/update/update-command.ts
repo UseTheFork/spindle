@@ -103,6 +103,7 @@ export class UpdateCommand extends Service {
     let prompted: Record<string, string> = {};
 
     const outcomes = await reconcileBlueprints(this.#handlers, {
+      app: this.app,
       mode: "update",
       githubDirectory,
       blueprintSourceRoot: this.app.blueprintSourceRoot,
