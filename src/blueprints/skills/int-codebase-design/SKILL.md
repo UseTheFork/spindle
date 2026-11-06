@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # Codebase Design
@@ -74,89 +74,25 @@ Good interfaces make testing natural:
 
 1. **Accept dependencies, don't create them.**
 
-   {% if 'typescript' in stacks %}
+   ```text
+   Testable:
+     process the order using an injected payment gateway
 
-   ```typescript
-   // Testable
-   function processOrder(order, paymentGateway) {}
-
-   // Hard to test
-   function processOrder(order) {
-     const gateway = new StripeGateway();
-   }
+   Hard to test:
+     process the order
+       create the payment gateway inside the operation
    ```
-
-   {% endif %}
-   {% if 'python' in stacks %}
-
-   ```python
-   # Testable
-   def process_order(order, payment_gateway):
-       pass
-
-   # Hard to test
-   def process_order(order):
-       gateway = StripeGateway()
-   ```
-
-   {% endif %}
-   {% if 'php-laravel' in stacks %}
-
-   ```php
-   // Testable
-   function processOrder(Order $order, PaymentGateway $paymentGateway): void {}
-
-   // Hard to test
-   function processOrder(Order $order): void
-   {
-       $gateway = new StripeGateway();
-   }
-   ```
-
-   {% endif %}
 
 2. **Return results, don't produce side effects.**
 
-   {% if 'typescript' in stacks %}
+   ```text
+   Testable:
+     calculate the discount and return it
 
-   ```typescript
-   // Testable
-   function calculateDiscount(cart): Discount {}
-
-   // Hard to test
-   function applyDiscount(cart): void {
-     cart.total -= discount;
-   }
+   Hard to test:
+     apply the discount
+       change the cart total directly
    ```
-
-   {% endif %}
-   {% if 'python' in stacks %}
-
-   ```python
-   # Testable
-   def calculate_discount(cart) -> Discount:
-       ...
-
-   # Hard to test
-   def apply_discount(cart) -> None:
-       cart.total -= discount
-   ```
-
-   {% endif %}
-   {% if 'php-laravel' in stacks %}
-
-   ```php
-   // Testable
-   function calculateDiscount(Cart $cart): Discount {}
-
-   // Hard to test
-   function applyDiscount(Cart $cart): void
-   {
-       $cart->total -= $discount;
-   }
-   ```
-
-   {% endif %}
 
 3. **Small surface area.** Fewer methods = fewer tests needed. Fewer params = simpler test setup.
 
@@ -176,5 +112,5 @@ Good interfaces make testing natural:
 
 ## Going deeper
 
-- **Deepening a cluster given its dependencies**, see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
-- **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.
+- **Deepening a cluster given its dependencies**, see [DEEPENING.md](./references/DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
+- **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](./references/DESIGN-IT-TWICE.md): spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.

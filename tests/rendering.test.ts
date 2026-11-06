@@ -14,9 +14,18 @@ const context = {
   },
 };
 
-function assertNestedTestabilityExamples(rendered: string, languages: string[]) {
+function assertNestedTestabilityExamples(rendered: string) {
   const section = rendered.split("## Designing for testability\n")[1]?.split("## Relationships")[0];
   assert.ok(section);
+  for (const phrase of [
+    "process the order using an injected payment gateway",
+    "create the payment gateway inside the operation",
+    "calculate the discount and return it",
+    "change the cart total directly",
+  ]) {
+    assert.ok(section.includes(phrase), `testability guidance includes "${phrase}"`);
+  }
+  assert.doesNotMatch(section, /```(?:typescript|python|php)\n/);
   const items = section.split(/^\d+\. /m).slice(1);
   assert.equal(items.length, 3, "the section retains its three numbered entries");
 
@@ -33,13 +42,13 @@ function assertNestedTestabilityExamples(rendered: string, languages: string[]) 
     }
     assert.deepEqual(
       [...items[index].matchAll(/^ {3}```(\w+)\n/gm)].map((match) => match[1]),
-      languages,
-      `list entry ${index + 1} contains each selected Stack example`,
+      ["text"],
+      `list entry ${index + 1} contains one language-neutral pseudocode example`,
     );
     assert.equal(
       [...items[index].matchAll(/^ {3}```$/gm)].length,
-      languages.length,
-      `list entry ${index + 1} closes each nested fence`,
+      1,
+      `list entry ${index + 1} closes its pseudocode fence`,
     );
   }
 }
@@ -93,7 +102,7 @@ test("legacy custom delimiters are literal text rather than template syntax", ()
 for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1) {
   const stacks = supportedStacks.filter((_, index) => selection & (1 << index));
 
-  test(`codebase design Blueprint renders testability examples for ${stacks.join(", ")}`, async () => {
+  test(`codebase design Blueprint renders language-neutral testability examples for ${stacks.join(", ")}`, async () => {
     const source = await readFile(
       new URL("../src/blueprints/skills/int-codebase-design/SKILL.md", import.meta.url),
       "utf8",
@@ -104,29 +113,11 @@ for (let selection = 1; selection < 1 << supportedStacks.length; selection += 1)
       .split("## Designing for testability\n")[1]
       ?.split("## Relationships")[0];
     assert.ok(section);
-
-    for (const [stack, language] of [
-      ["typescript", "typescript"],
-      ["python", "python"],
-      ["php-laravel", "php"],
-    ]) {
-      const codeBlocks = section.match(new RegExp("```" + language + "\\n", "g")) ?? [];
-      assert.equal(codeBlocks.length, stacks.includes(stack) ? 2 : 0, language);
-    }
-
     assert.match(section, /Accept dependencies, don't create them/);
     assert.match(section, /Return results, don't produce side effects/);
     assert.match(section, /Small surface area/);
-    assertNestedTestabilityExamples(
-      rendered,
-      [
-        ["typescript", "typescript"],
-        ["python", "python"],
-        ["php-laravel", "php"],
-      ]
-        .filter(([stack]) => stacks.includes(stack))
-        .map(([, language]) => language),
-    );
+    assertNestedTestabilityExamples(rendered);
+    assert.doesNotMatch(source, /{%[^%]*\bstacks\b|```(?:typescript|python|php)\n/);
     assert.doesNotMatch(rendered, /{%|{{/);
     const [before, after] = source.split(
       /## Designing for testability\n[\s\S]*?(?=## Relationships)/,
@@ -141,5 +132,5 @@ test("installed codebase design Skill keeps examples nested in their numbered en
     new URL("../.github/skills/int-codebase-design/SKILL.md", import.meta.url),
     "utf8",
   );
-  assertNestedTestabilityExamples(installed, ["typescript"]);
+  assertNestedTestabilityExamples(installed);
 });

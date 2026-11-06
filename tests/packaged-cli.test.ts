@@ -291,6 +291,35 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
     assert.ok(domainSkill.includes(`(./references/${name})`));
   }
 
+  const designShippedDirectory = join(packagedBlueprints, "skills", "int-codebase-design");
+  const designInstalledDirectory = join(project, ".github", "skills", "int-codebase-design");
+  const designSkill = readFileSync(join(designInstalledDirectory, "SKILL.md"), "utf8");
+  const designSourceSkill = readFileSync(join(designShippedDirectory, "SKILL.md"), "utf8");
+  assert.equal(
+    matter(designSkill).data.metadata.spindle.version,
+    matter(designSourceSkill).data.metadata.spindle.version,
+  );
+  assert.equal(matter(designSkill).data.metadata.spindle.version, "1.1.1");
+  assert.doesNotMatch(designSkill, /{%[^%]*\bstacks\b|```(?:typescript|python|php)\n/);
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
+    const reference = join("references", name);
+    assert.equal(existsSync(join(designShippedDirectory, name)), false);
+    assert.equal(existsSync(join(designInstalledDirectory, name)), false);
+    assert.equal(
+      readFileSync(join(designInstalledDirectory, reference), "utf8"),
+      readFileSync(join(designShippedDirectory, reference), "utf8"),
+      `the packaged ${reference} must install without changing its content`,
+    );
+    assert.ok(designSkill.includes(`(./references/${name})`));
+  }
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
+    const reference = readFileSync(join(designInstalledDirectory, "references", name), "utf8");
+    assert.ok(reference.includes("(../SKILL.md)"));
+    if (name === "DESIGN-IT-TWICE.md") {
+      assert.ok(reference.includes("(DEEPENING.md)"));
+    }
+  }
+
   const legacySkill = matter(installed);
   legacySkill.data.metadata.spindle.version = "1.0.0";
   writeFileSync(
