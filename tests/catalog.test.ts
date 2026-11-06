@@ -519,6 +519,92 @@ test("a current Skill receives new supporting content only after its version inc
   }
 });
 
+test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
+  const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
+  const project = await makeTempDir("spindle-writing-guidance-project-");
+  const names = ["int-writing-for-agents", "int-writing-skills", "int-testing-agent-guidance"];
+  const installedSkills = join(project, ".github", "skills");
+  const oldMechanics = join(installedSkills, "int-writing-for-agents", "SKILL-MECHANICS.md");
+  const disclosedMechanics = join(
+    installedSkills,
+    "int-writing-for-agents",
+    "references",
+    "skill-mechanics.md",
+  );
+  const env = { SPINDLE_BLUEPRINTS_DIR: blueprints };
+  try {
+    writeCatalogFixture(blueprints, {
+      agents: {},
+      instructions: {},
+      skills: Object.fromEntries(
+        names.map((name) => [name, { path: `${name}/`, status: "active", stacks: [] }]),
+      ),
+    } satisfies BlueprintCatalogDefinition);
+    for (const name of names) {
+      await cp(resolve("src", "blueprints", "skills", name), join(blueprints, "skills", name), {
+        recursive: true,
+      });
+    }
+    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
+    assert.equal(init.status, 0, init.stderr);
+    for (const [name, version] of [
+      ["int-writing-for-agents", "1.1.0"],
+      ["int-writing-skills", "1.2.1"],
+    ]) {
+      await mkdir(join(installedSkills, name), { recursive: true });
+      await writeFile(
+        join(installedSkills, name, "SKILL.md"),
+        `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\nRead SKILL-MECHANICS.md.\n`,
+      );
+    }
+    await writeFile(oldMechanics, "Old invocation guidance\n");
+    await mkdir(dirname(disclosedMechanics), { recursive: true });
+    await writeFile(disclosedMechanics, "Previously disclosed invocation guidance\n");
+
+    const result = runCli(
+      project,
+      ["update", "--no-interactive", "--on-conflict", "overwrite"],
+      process.env.PATH ?? "",
+      env,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    await assert.rejects(readFile(oldMechanics), { code: "ENOENT" });
+    await assert.rejects(readFile(disclosedMechanics), { code: "ENOENT" });
+
+    for (const relative of ["int-writing-for-agents/SKILL.md", "int-writing-skills/SKILL.md"]) {
+      const file = join(installedSkills, relative);
+      const content = await readFile(file, "utf8");
+      assert.doesNotMatch(content, /skill-mechanics\.md|SKILL-MECHANICS\.md|{{|{%/);
+      if (relative.endsWith("SKILL.md")) {
+        const source = await readFile(join(blueprints, "skills", relative), "utf8");
+        const version = source.match(/version: (\S+)/)?.[1];
+        assert.ok(version);
+        assert.ok(content.includes(`version: ${version}`));
+        assert.match(content, /description: "This is an internal skill/);
+        assert.doesNotMatch(content, /\[[^\]]+\]\([^)]*\/SKILL\.md\)/);
+        if (relative === "int-writing-for-agents/SKILL.md") {
+          assert.ok(content.includes("use the `int-writing-skills` skill"));
+          assert.ok(content.includes("use the `int-testing-agent-guidance` skill"));
+        } else {
+          assert.ok(content.includes("**Invocation:**"));
+          assert.ok(content.includes("**Routers:**"));
+          assert.ok(content.includes("`description` is required in every case"));
+        }
+      }
+      for (const [, target] of content.matchAll(/\[[^\]]+\]\((\.[^)]+)\)/g)) {
+        const path = target.split("#")[0];
+        assert.ok(
+          (await readFile(resolve(dirname(file), path), "utf8")).length > 0,
+          `${relative}: ${target}`,
+        );
+      }
+    }
+  } finally {
+    await rm(blueprints, { recursive: true, force: true });
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("invalid catalogs fail with actionable diagnostics before creating the project installation", async () => {
   const cases = [
     {
