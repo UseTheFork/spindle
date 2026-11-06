@@ -4,7 +4,7 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # Test-Driven Development
@@ -48,4 +48,4 @@ When adding or changing tests, or reviewing their quality, read [Writing good te
 
 Assess behavioral coverage and available RED/GREEN evidence within the review assignment. A concise test summary and fresh GREEN results suffice; missing archived RED logs alone do not block approval. Current GREEN establishes present behavior, not historical test order. Disclose a skipped test-first step honestly; preserve working code rather than manufacturing historical RED.
 
-Use `int-verification-before-completion` for evidence attribution, scope, freshness, and completion claims. The caller defines required checks and their authorized owner; this reference does not schedule checks or grant permission to run them.
+Use the `int-verification-before-completion` skill for evidence attribution, scope, freshness, and completion claims. The caller defines required checks and their authorized owner; this reference does not schedule checks or grant permission to run them.
