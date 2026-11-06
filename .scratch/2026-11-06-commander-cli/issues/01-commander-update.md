@@ -3,7 +3,7 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
-Execution: accepted
+Execution: integrated
 
 **What to build:** Make `spindle update` a working Commander-backed command
 whose declaration lives with its command class, while existing commands remain
@@ -46,3 +46,6 @@ Execution: in-review for corrective round 1 on HEAD `3b684dfa306a6e670c9739926a5
 
 **2026-11-06T23:10:00Z - @unknown**
 Execution: accepted on HEAD `3b684dfa306a6e670c9739926a5a5a462fd99a1e` plus corrected uncommitted snapshot. Code review PASS, code-slop found no material simplification, Spec/Quality PASS after scoped re-review; `TASK-01-001` addressed. Ticket/direct-service tests passed 67/67, format/lint/type-check/whitespace checks passed. Reports: `../reports/01-code-review.md`, `../reports/01-code-slop-review.md`, `../reports/01-task-review.md`, `../reports/01-round-1-review.md`.
+
+**2026-11-06T23:15:00Z - @unknown**
+Execution: integrated on snapshot `7102372e020dd45435018d0469a185ce67a0735c`; implementation and durable reports committed, and the checkout was clean. Required ticket and direct-service tests plus formatting, lint, type-check, and whitespace checks passed before integration.
