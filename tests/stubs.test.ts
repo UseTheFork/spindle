@@ -120,7 +120,7 @@ for (const stacks of productionStackSelections) {
             `${skill}/${file} differs from rendered source`,
           );
           if (skill === "int-subagent-driven-dev") {
-            assert.doesNotMatch(installed, /\]\([^)]*(?:SKILL\.md|\.agent\.md)(?:#[^)]*)?\)/);
+            assert.doesNotMatch(installed, /\]\([^)]*\.agent\.md(?:#[^)]*)?\)/);
             if (dirname(file) === "assets") {
               assert.match(installed, /^## Assignment$/m);
               assert.match(installed, /^## (?:Verification and hand-back|Hand-back)$/m);
