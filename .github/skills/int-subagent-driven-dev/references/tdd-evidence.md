@@ -1,12 +1,9 @@
-# Test workflow
+# SDD test handoff
 
-Load and follow the `int-test-driven-development` skill for the RED → GREEN loop and separate refactoring. Apply it without a controller checkpoint or evidence matrix:
+Use `int-test-driven-development` for sequencing, test quality, and review of RED/GREEN evidence, and `int-verification-before-completion` for evidence-backed claims.
 
-1. **Start behavior changes and fixes with RED.** Add or use a relevant test and run it before changing implementation. Confirm it fails for the behavior being changed, not a setup error. Work one behavior slice at a time.
-2. **Make it GREEN.** Implement or fix the behavior until that test passes, then continue with the next slice. A pure refactor starts from passing tests and reruns those same tests; it needs no new test or RED phase.
-3. **Verify the implementation handoff.** After modifying, refactoring, or fixing code, run the relevant tests on the final version. Correct regressions rather than weakening behavioral assertions. Leave formatting, lint, type checks, and ticket-wide regression checks to the controller's ticket-completion gate defined by that skill before review.
-4. **Save a concise report.** Write commands/results, the tested code snapshot, and any failures or checks not run to the assigned `.scratch` report. Briefly state whether changes began with failing tests or reused tests for a pure refactor. Archived RED output, per-slice provenance, and controller release records are not required.
+The implementer owns focused behavioral tests. Formatting, lint, type checks, and ticket-wide regression checks belong to the [controller gate](../SKILL.md#d-controller-checks), unless scheduled for the worker or needed for a concrete diagnosis. An approved command list alone does not schedule checks.
 
-On resume, read the current report and rerun relevant tests if results are stale or missing. Missing old logs alone do not block continuation. Never invent a past test run or remove working code to manufacture RED history; disclose a skipped test-first step honestly. Current passing tests establish GREEN, not historical test order.
+Use the assigned report to record commands/results, tested snapshot, failures, and checks not run, with a concise test-first or pure-refactor summary. Per-slice provenance, an evidence matrix, and controller release records are not required. On resume, read the report and rerun relevant tests if results are stale or missing.
 
 **Implementation handoff complete when:** relevant tests pass after the final code edit, the report identifies what was checked, and limitations and pending controller checks are explicit. This is readiness for review, not ticket integration. Failed or unavailable required checks remain unresolved, not success.

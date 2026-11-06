@@ -1,37 +1,93 @@
 ---
 name: int-retrospective
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+argument-hint: "--entry|-E <delivery|maintainer> [--] [session or evidence context]"
+user-invocable: false
 metadata:
   spindle:
-    version: 1.0.0
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
+    version: 1.4.0
 ---
 
-# Delivery Retrospective
+# Retrospective
 
-Capture what a finished delivery teaches about the agent environment and the domain model. Run at `int-subagent-driven-dev`'s retrospective step after final verification: once for the entire spec, or once for a standalone ticket, never per ticket within a spec. A smooth run still gets one. The output is **proposals**: this skill applies nothing.
+Capture evidence-backed improvements to the agent environment and domain model. The controller coordinates; a fresh, read-only reader assesses.
 
-The controller dispatches; a fresh reader assesses. The agent that ran delivery does not grade its own run.
+## Arguments
+
+Required value-taking flag `--entry` / `-E` selects `delivery` or `maintainer`, with identical behavior and no default. Optional trailing task text supplies the session selection, proposal-report pointer or delivery evidence context. With no task text, maintainer uses the current session; delivery still requires its evidence pointers.
+
+- `delivery`: after final verification, once for the full spec or standalone ticket, never per ticket within a spec. Supply delivery evidence pointers. This path records proposals and applies nothing, even when asked to apply them.
+- `maintainer`: optional session selection (defaults to the current session) and optional proposal-report pointer. This path obtains item-level approval before applying changes.
+
+Parse only the leading option prefix. Recognize exact, case-sensitive `--entry` and `-E` tokens; consume the next token as the value. `--` ends option parsing and is removed. Otherwise the first non-option token starts task text: preserve everything after it unchanged, including later flag-like text, removing only separating whitespace.
+
+Before workflow actions, explain invalid input and request correction: missing entry or value, a value other than `delivery` or `maintainer`, unknown leading flags, repeated options (including aliases or conflicting values), bundled aliases, or equals-form options such as `--entry=delivery`. Another option where a value is required is a missing-value error.
+
+Calling skills supply arguments explicitly, for example `--entry maintainer`. Structured caller input `entry: maintainer` is equivalent; validate the same entry values and required presence without reconstructing a command string. Any supplied raw argument string follows the parsing rules above. Conversational mentions do not select an entry.
 
 ## Workflow
 
-1. **Collect evidence pointers.** List the spec or brief, every ticket file with its `## Comments` log, the integration range (starting and final revision), the final review report, and existing applicable `.github/instructions` files (or their absence). Pass pointers, not your account of how it went.
+Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Validate arguments before entering A.
 
-   **Complete when:** every ticket and log is listed with the revision range.
+```mermaid
+flowchart TD
+    A[Select evidence] --> B[Assess or reuse]
+    A -- Blocked --> H[Report outcomes]
+    B -- Blocked --> H
+    B --> C[Present proposals]
+    C --> D{Delivery entry?}
+    D -- Yes --> H
+    D -- No --> E[Obtain approval]
+    E --> F{Approved items?}
+    F -- No --> H
+    F -- Yes --> G[Apply and verify]
+    G --> H
+```
 
-2. **Dispatch a fresh reader.** Fill every input placeholder in the [retrospective contract](./retrospective-prompt.md) for one read-only subagent. Include its Required Reader Skills section unchanged: the reader must load `int-domain-modeling` before assessing evidence and consult `int-writing-instruction` when assessing instruction candidates, applying analysis guidance within the contract's proposals-only boundary.
+### A. Select evidence
 
-   **Complete when:** the reader confirms applicable required skills were loaded and returns a report including scoped instruction suggestions (or "None"), or reports why a prerequisite could not be satisfied; a missing prerequisite is not a completed assessment.
+For delivery, list the spec or brief, every ticket and its `## Comments` log, starting and final revisions, and final review. For maintainer, locate primary sources for the selected session, including relevant local session logs. Start from a supplied report or the work's existing dated `retrospective.md` when available. Include applicable glossary, ADR and instruction pointers.
 
-3. **Record proposals.** Write the report to `.scratch/YYYY-MM-DD-<feature-slug>/retrospective.md` in the delivered spec or ticket's existing dated directory. Drop any finding that does not cite a ticket comment, review finding, or revision.
+**Complete when:** the selected entry and accessible sources are explicit, selecting B; unavailable required sources select H with a blocker. Session sources need not contain delivery artifacts; state genuine evidence gaps.
 
-   **Complete when:** the file exists, every finding cites evidence, and no glossary, ADR, instruction, standards, check, or skill file has changed.
+### B. Assess or reuse
 
-4. **Hand to the maintainer.** Report the path and the highest-severity proposals. Approval happens item by item through `/retrospective`; domain proposals are resolved with the maintainer through `int-domain-modeling`. Instruction suggestions remain briefs for approval, not completed instruction files; use `int-writing-instruction` for full authoring and validation only after approval. A blanket "just apply it" is a request to review, so list the proposals for item-level approval.
+Read the [assessment reference](./references/assessment.md). Reuse an existing report only after checking its cited evidence still covers the selected work and its proposals satisfy that reference's [report contract](./references/assessment.md#report-contract); reuse requires no dispatch. Otherwise fill every slot in the [assignment template](./assets/retrospective-prompt.md) for one fresh read-only subagent that did not participate in the assessed work. Supply the assessment reference's resolved absolute path as a required first read, plus evidence pointers validated against its entry-specific requirements. The reader returns the report; the controller owns persistence and approval.
 
-   **Complete when:** the maintainer has the path and the list of pending proposals.
+**Complete when:** an evidence-current, contract-compliant report is available, selecting C; required reader skills were confirmed for fresh assessment. Missing prerequisites select H with a blocker, not a completed assessment.
 
-## Common mistakes
+### C. Present proposals
 
-- Skipping the retrospective because the run went fine or the maintainer is busy; recording "None" findings is cheap and keeps the record complete.
-- Routing terminology drift on integrated work to triage; it belongs in the retrospective's domain proposals.
+Rank by impact and show stable IDs with their evidence and verification criteria. Delivery writes `.scratch/YYYY-MM-DD-<feature-slug>/retrospective.md` in the work's existing dated directory. Maintainer presents the report; reuse that destination when one exists, otherwise present in chat.
+
+**Complete when:** proposals (or "None") and assessment limitations are visible, selecting D; delivery's report exists and no environment or domain files have changed.
+
+### D. Delivery entry?
+
+Evaluate the validated entry.
+
+**Complete when:** `delivery` selects Yes and H; `maintainer` selects No and E. Delivery never enters approval or application.
+
+### E. Obtain approval
+
+Ask for approval by proposal ID, recording approved, declined and pending items. A blanket "just apply it" is a request to review: list proposals for item-level approval and wait in E. On the response, resume E. Resolve approved domain proposals with the maintainer through `int-domain-modeling`; unresolved decisions remain pending.
+
+**Complete when:** the item-level response is recorded and approved IDs, targets and any domain decisions are explicit, selecting F. An empty proposal list proceeds to F without an approval request.
+
+### F. Approved items?
+
+Check for individually approved items whose targets and required domain decisions are settled.
+
+**Complete when:** at least one actionable approved item selects Yes and G; none selects No and H. Unresolved items remain pending.
+
+### G. Apply and verify
+
+Change only approved targets. Load `int-writing-for-agents` for agent-facing writing, `int-writing-instruction` for workspace instructions, `int-writing-skills` for skills, and `int-testing-agent-guidance` for behavior-shaping guidance validation. Instruction briefs are not validated files. Use existing repository tooling for checks and test each proposal against its recorded criterion.
+
+**Complete when:** each actionable approved item has an applied change and passing evidence, or an explicit blocker/unverified result, selecting H.
+
+### H. Report outcomes
+
+Delivery hands the report path and pending proposals to the maintainer and stops without applying changes. Maintainer reports applied, declined and pending IDs, verification evidence and limitations; update an existing proposal report without overwriting its evidence. A blocked assessment reports missing prerequisites instead of claiming completion. Commit or publish only when requested.
+
+**Complete when:** the caller has the report or explicit blocker, proposal statuses and applicable verification results; stop.

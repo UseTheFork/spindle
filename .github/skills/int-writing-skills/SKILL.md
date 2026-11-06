@@ -4,14 +4,14 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.2.0
+    version: 1.3.0
 ---
 
 # Writing Skills
 
 Author reusable guidance by testing the current behavior, addressing the observed gap, and retesting. This is an Interactive skill.
 
-**REQUIRED:** Use `int-writing-for-agents` for agent-facing writing and `int-testing-agent-guidance` for test execution. Read the former's `SKILL-MECHANICS.md` when choosing invocation or designing a router.
+**REQUIRED:** Use the `int-writing-for-agents` skill for shared writing principles and the `int-testing-agent-guidance` skill for test execution. This skill owns Skill structure, frontmatter, visibility, invocation, routers, and the authoring workflow.
 
 ## Authoring flow
 
@@ -53,6 +53,19 @@ An internal skill is like a private method or class: a primary skill pulls it in
 
 For non-internal, model-discoverable skills, start descriptions with "Use when..." and name concrete triggers, not workflow. Human-only skills use `disable-model-invocation: true` and a human-facing description. Follow the [Agent Skills specification](https://agentskills.io/specification): use a lowercase, hyphenated name matching its directory, a description of at most 1,024 characters, and repository version metadata.
 
+**Invocation:** [VS Code's controls](https://code.visualstudio.com/docs/agent-customization/agent-skills#use-skills-as-slash-commands) separate slash-menu visibility from automatic discovery:
+
+| Intended access                                                    | Configuration                                                                                              |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Slash command and automatic discovery                              | Omit both controls; use concrete discovery branches in the description                                     |
+| Internal, explicitly requested by a caller; hidden from slash menu | Set `user-invocable: false`; use the internal description above and leave `disable-model-invocation` unset |
+| Human-only slash command                                           | Set `disable-model-invocation: true`; use a human-facing description and leave `user-invocable` unset      |
+| Neither slash command nor automatic discovery                      | Set both controls                                                                                          |
+
+`description` is required in every case. Automatic discovery does not imply slash-menu visibility. These are VS Code's documented routes, not a universal guarantee of explicit loading or context cost across hosts. Verify caller invocation in the target host; when unavailable, use a plain reference file with an explicit pointer.
+
+**Routers:** a router Skill gives the human one entry point naming target Skills and the conditions for choosing each. For human-only targets, direct the human to invoke the target rather than executing it automatically: "For release preparation, invoke `/release-checks`. To publish, choose `/publish` yourself." Executing other Skills requires a verified host-supported loading route and targets intended for that route.
+
 Apply **DRY**: keep each meaning authoritative in one place; reuse existing guidance through explicit pointers. Apply **YAGNI**: include only what the requested capability needs. Internal skills enable disclosure, not speculative abstractions.
 
 **Complete when:** reusable scope, primary type, visibility, invocation, and relevant prior art are explicit.
@@ -78,7 +91,7 @@ Load only the selected branch:
 
 Use the matching template named there for every new skill. For existing skills, adopt its structure only where relevant to the requested edit. Address the observed gap using the guidance form selected during testing.
 
-Store skills at `.github/skills/<skill-name>/SKILL.md`, keeping the skill directory flat. Use bundled resources deliberately:
+Store skills at `.github/skills/<skill-name>/SKILL.md`. Keep that entry file at the skill root; put supporting documentation in `references/` and output templates in `assets/`:
 
 ```text
 skill-name/
