@@ -8,6 +8,7 @@ import { Command } from "commander";
 
 import { App } from "./app.js";
 import { dispatch } from "./cli.js";
+import { InitCommand } from "./commands/init/init-command.js";
 import { UpdateCommand } from "./commands/update/update-command.js";
 import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
 
@@ -33,15 +34,24 @@ export function discoverGitRoot(startingDirectory: string): string {
 }
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
+  const createApp = () => {
+    const workspaceRoot = discoverGitRoot(startingDirectory);
+    return new App({
+      workspaceRoot,
+      blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
+    });
+  };
+
+  if (args[0] === "init" || (args[0] === "help" && args[1] === "init")) {
+    const program = new Command().name("spindle");
+    InitCommand.register(program, createApp);
+    await program.parseAsync(args, { from: "user" });
+    return;
+  }
+
   if (args[0] === "update") {
     const program = new Command().name("spindle");
-    UpdateCommand.register(program, () => {
-      const workspaceRoot = discoverGitRoot(startingDirectory);
-      return new App({
-        workspaceRoot,
-        blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
-      });
-    });
+    UpdateCommand.register(program, createApp);
     await program.parseAsync(args, { from: "user" });
     return;
   }

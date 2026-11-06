@@ -10,27 +10,6 @@ import { SddWorkspaceCommand } from "./commands/sdd-workspace/sdd-workspace-comm
 import { SetupProjectCommand } from "./commands/setup-project/setup-project-command.js";
 import { UpdateCommand } from "./commands/update/update-command.js";
 import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
-import { parseConflictPolicy } from "./utilities/conflict-policy.js";
-import { supportedStacks } from "./utilities/stacks.js";
-
-const helpText = `${chalk.bold("Usage:")} spindle init [options]
-
-Install spindle Blueprints (Skills, Agents, and Instructions) into .github and save .github/spindle.json.
-
-${chalk.bold("Options:")}
-  --stack <id>          Stack to install; repeat for several (${supportedStacks.join(", ")})
-  --var <name>=<value>  Set a variable; repeat for several. Unset variables use their default
-  --on-conflict <overwrite|skip>
-                        Policy for Blueprints that already exist; required when
-                        non-interactive and any exist (interactive runs prompt per Blueprint)
-  --no-interactive      Never prompt; missing required input is an error
-  --help                Show this help
-
-Fails if .github/spindle.json already exists; use \`spindle update\` instead.
-Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`), setup-project (see \`spindle setup-project --help\`).
-Run \`spindle --version\` to print the installed version.
-`;
 
 const sddHelpText = `${chalk.bold("Usage:")} spindle sdd <command>
 
@@ -75,7 +54,29 @@ function createApplication(workspaceRoot: string | undefined): App {
   });
 }
 
+function rootHelp(workspaceRoot: string | undefined): string {
+  const program = new Command().name("spindle");
+  InitCommand.register(program, () => createApplication(workspaceRoot));
+  UpdateCommand.register(program, () => createApplication(workspaceRoot));
+  program
+    .command("sdd")
+    .description("Subagent-driven development workflow")
+    .command("workspace")
+    .description("Resolve durable report destinations");
+  program
+    .command("setup-project")
+    .description("Create project documentation defaults in an explicit workspace");
+  return `${program.helpInformation()}Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`), setup-project (see \`spindle setup-project --help\`).
+Run \`spindle --version\` to print the installed version.
+`;
+}
+
 export async function dispatch(args: string[], workspaceRoot: string | undefined) {
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
+    console.log(rootHelp(workspaceRoot));
+    return;
+  }
+
   if (args[0] === "update" || (args[0] === "help" && args[1] === "update")) {
     const program = new Command().name("spindle");
     UpdateCommand.register(program, () => createApplication(workspaceRoot));
@@ -198,36 +199,5 @@ export async function dispatch(args: string[], workspaceRoot: string | undefined
     return;
   }
 
-  const { positionals, values } = parseArgs({
-    args,
-    options: {
-      stack: { type: "string", multiple: true },
-      var: { type: "string", multiple: true },
-      "no-interactive": { type: "boolean" },
-      "on-conflict": { type: "string" },
-      help: { type: "boolean" },
-    },
-    allowPositionals: true,
-    strict: true,
-  });
-
-  if (values.help) {
-    console.log(helpText);
-    return;
-  }
-
-  const app = createApplication(workspaceRoot);
-
-  const command = positionals[0];
-  if (command !== "init" || positionals.length !== 1) {
-    throw new Error(
-      "Usage: spindle init [--stack <id>] [--var <name>=<value>] [--on-conflict <overwrite|skip>] [--no-interactive]. See --help.",
-    );
-  }
-
-  const policy = parseConflictPolicy(values["on-conflict"]);
-  const interactive =
-    !values["no-interactive"] && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
-
-  await (await app.get(InitCommand)).run(values.stack ?? [], values.var ?? [], interactive, policy);
+  throw new Error("Usage: spindle <command> [options]. See --help.");
 }

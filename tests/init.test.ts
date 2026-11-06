@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 import { Chalk } from "chalk";
 
-import { makeTempDir, runCliWithFixtureCatalog as runCli } from "./helpers.ts";
+import {
+  makeTempDir,
+  runCliWithFixtureCatalog as runCli,
+  runCliWithFixtureCatalogRaw as runCliRaw,
+  runCliInteractiveWithFixtureCatalog as runCliInteractive,
+} from "./helpers.ts";
 
 let stubsDirectory: string;
 const fixtureVariables = {
@@ -53,6 +59,94 @@ test("init reports success with a plain message when colors are off", async () =
   }
 });
 
+test("init help uses Commander conventions without starting the workflow", async () => {
+  const { project, result } = await runInit(["-h"]);
+
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Usage: spindle init \[options\]/);
+    assert.match(result.stdout, /-h, --help/);
+    assert.match(result.stdout, /--stack <id>/);
+    assert.doesNotMatch(result.stdout, /Installed/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init help and invalid-option errors are available outside a Git working tree", async () => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-init-outside-git-"));
+
+  try {
+    const help = runCliRaw(project, ["init", "--help"], process.env.PATH ?? "", {
+      SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
+    });
+    assert.equal(help.status, 0, help.stderr);
+    assert.match(help.stdout, /Usage: spindle init \[options\]/);
+
+    const invalid = runCliRaw(project, ["init", "--include-new"], process.env.PATH ?? "", {
+      SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
+    });
+    assert.notEqual(invalid.status, 0);
+    assert.match(invalid.stderr, /unknown option.*include-new/i);
+    assert.doesNotMatch(invalid.stderr, /Git working-tree root/i);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init reports semantic argument errors before Git discovery outside a working tree", async () => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-init-semantic-errors-"));
+  const cases = [
+    { args: ["--stack", "cobol"], error: /Invalid stack 'cobol'/ },
+    { args: ["--stack", "python", "--var", "owner"], error: /Invalid --var 'owner'/ },
+    {
+      args: ["--stack", "python", "--var", "unknown=value"],
+      error: /Unknown variable 'unknown'/,
+    },
+    { args: ["--no-interactive"], error: /Provide at least one --stack flag/ },
+  ];
+
+  try {
+    for (const { args, error } of cases) {
+      const result = runCliRaw(project, ["init", ...args], "", {
+        SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
+      });
+
+      assert.notEqual(result.status, 0, `Expected rejection for ${args.join(" ")}`);
+      assert.match(result.stderr, error, `Unexpected error for ${args.join(" ")}`);
+      assert.doesNotMatch(result.stderr, /Git working-tree root/i);
+      assert.deepEqual(
+        await readdir(project),
+        [],
+        "Invalid arguments must not create project files",
+      );
+    }
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("init rejects inapplicable options, missing values, invalid policies, and positionals", async () => {
+  const cases = [
+    { args: ["--include-new", "--stack", "python"], error: /unknown option.*include-new/i },
+    { args: ["--stack"], error: /argument.*missing/i },
+    { args: ["--var"], error: /argument.*missing/i },
+    { args: ["--stack", "python", "--on-conflict", "merge"], error: /allowed choices/i },
+    { args: ["--stack", "python", "extra"], error: /too many arguments/i },
+  ];
+
+  for (const { args, error } of cases) {
+    const { project, result } = await runInit(args);
+
+    try {
+      assert.notEqual(result.status, 0, `Expected rejection for ${args.join(" ")}`);
+      assert.match(result.stderr, error, `Unexpected error for ${args.join(" ")}`);
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  }
+});
+
 test("init colors success output with chalk when colors are forced", async () => {
   const { project, result } = await runInit(["--stack", "python"], { FORCE_COLOR: "1" });
 
@@ -97,6 +191,59 @@ test("init installs its configured skill and records repeatable stack flags", as
     await rm(project, { recursive: true, force: true });
   }
 });
+
+test("init applies repeated Variable flags in command-line order", async () => {
+  const { project, result } = await runInit([
+    "--stack",
+    "python",
+    "--var",
+    "owner=first",
+    "--var",
+    "owner=second",
+  ]);
+
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+      stacks: ["python"],
+      variables: { lint_command: "just lint", owner: "second" },
+    });
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test(
+  "interactive init prompts before overwriting an existing Blueprint",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const project = await makeTempDir();
+    const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
+
+    try {
+      await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
+      await writeFile(skillPath, "existing Skill\n");
+
+      const result = await runCliInteractive(
+        project,
+        ["init", "--stack", "python", "--var", "lint_command=just lint", "--var", "owner=nobody"],
+        process.env.PATH ?? "",
+        [{ trigger: "What should happen?", input: "\r" }],
+        { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
+      );
+
+      assert.equal(result.status, 0, result.stdout);
+      assert.match(result.stdout, /Skill 'demo'.*What should happen\?/);
+      assert.match(await readFile(skillPath, "utf8"), /# Demo/);
+      assert.match(
+        await readFile(join(project, ".github", "spindle.json"), "utf8"),
+        /"stacks":\s*\[\s*"python"\s*\]/,
+      );
+    } finally {
+      await rm(project, { recursive: true, force: true });
+    }
+  },
+);
 
 test("init renders nested Markdown with shared Variables and selected Stack values", async () => {
   const blueprints = await makeTempDir("spindle-init-rendering-blueprints-");
