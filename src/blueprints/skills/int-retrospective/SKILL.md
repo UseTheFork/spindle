@@ -5,7 +5,7 @@ argument-hint: "--entry|-E <delivery|maintainer> [--] [session or evidence conte
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.0
+    version: 1.4.0
 ---
 
 # Retrospective
@@ -52,7 +52,7 @@ For delivery, list the spec or brief, every ticket and its `## Comments` log, st
 
 ### B. Assess or reuse
 
-Reuse an existing report only after checking its cited evidence still covers the selected work and its proposals satisfy the [report contract](./assets/retrospective-prompt.md#required-report). Otherwise fill the [reader contract](./assets/retrospective-prompt.md) for one fresh read-only subagent that did not participate in the assessed work. Include Required Reader Skills unchanged. Both entries use the same assessment prompts and proposal contract.
+Read the [assessment reference](./references/assessment.md). Reuse an existing report only after checking its cited evidence still covers the selected work and its proposals satisfy that reference's [report contract](./references/assessment.md#report-contract); reuse requires no dispatch. Otherwise fill every slot in the [assignment template](./assets/retrospective-prompt.md) for one fresh read-only subagent that did not participate in the assessed work. Supply the assessment reference's resolved absolute path as a required first read, plus evidence pointers validated against its entry-specific requirements. The reader returns the report; the controller owns persistence and approval.
 
 **Complete when:** an evidence-current, contract-compliant report is available, selecting C; required reader skills were confirmed for fresh assessment. Missing prerequisites select H with a blocker, not a completed assessment.
 
