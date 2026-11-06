@@ -13,8 +13,8 @@ Controller for assigned tickets or dependency graphs; the brief governs. The con
 
 **First action:** Confirm invocation access to all five agents below. Files existing is not proof of access. If any access is unavailable or unconfirmed, stop and identify those agents; continue only when all five are callable. Use the assigned agents, not substitutes.
 
-| Assignment                   | Agent                    | Required template                                |
-| ---------------------------- | ------------------------ | ------------------------------------------------ |
+| Assignment                   | Agent                    | Required template                                  |
+| ---------------------------- | ------------------------ | -------------------------------------------------- |
 | Implementation and fixes     | `sdd-implementer`        | [implementer](./assets/implementer-prompt.md)      |
 | Code review                  | `sdd-code-reviewer`      | [code-review](./assets/code-reviewer-prompt.md)    |
 | Code-slop review             | `sdd-code-slop-reviewer` | [code-slop](./assets/code-slop-reviewer-prompt.md) |

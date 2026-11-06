@@ -45,3 +45,25 @@ All workspace commands require invocation from a Git working tree. `setup-projec
 continues to use its explicit `--workspace` target, and `sdd workspace` continues
 to use its explicit checkout and reports directory; neither path is replaced by
 the invocation repository root.
+
+## Application services
+
+The executable bootstrap is the only production code that reads the current
+directory, and only to discover the Git working-tree root. Workspace commands
+require that discovery; help and version do not. Commands and services use the
+immutable workspace and Blueprint source roots supplied to `App`. Preserve
+explicit path arguments: `setup-project` uses its `--workspace` target, while
+`sdd workspace` uses its explicit checkout and reports directory.
+
+Application-managed commands and services extend `Service` and receive their
+owning `App` in the constructor. Constructors only store the application and
+initialize ordinary fields; resolve dependencies and perform asynchronous
+initialization in `boot()`. Call `app.get(ServiceClass)` for an application-local
+singleton or `app.create(ServiceClass)` when a fresh instance is required. Both
+await initialization before returning the instance.
+
+Keep mutable operation data out of long-lived services. In particular,
+reconciliation creates a fresh computed-context service per run; its Config and
+memoized values must not leak into later runs. Migrate consumers and tests to
+the current service classes and focused utility modules directly; do not restore
+replaced workflow-function exports or compatibility adapters.
