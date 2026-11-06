@@ -7,10 +7,8 @@ import { fileURLToPath } from "node:url";
 import { App } from "../src/app.ts";
 import { blueprintHandlers } from "../src/blueprints/registry.ts";
 import { InstallationService } from "../src/installation/installation-service.ts";
-import {
-  installPlannedBlueprintFiles,
-  preparePlannedBlueprintFiles,
-} from "../src/utilities/blueprint-files.ts";
+import { BlueprintReconciliationService } from "../src/reconciliation/blueprint-reconciliation-service.ts";
+import { preparePlannedBlueprintFiles } from "../src/utilities/blueprint-files.ts";
 import { resolveBlueprintSourceRoot } from "../src/utilities/blueprint-source-root.ts";
 import { makeTempDir } from "./helpers.ts";
 
@@ -38,7 +36,7 @@ test("relative Blueprint overrides stay fixed to the App workspace after cwd cha
     assert.equal(app.blueprintSourceRoot, expectedSourceRoot);
     process.chdir(laterCwd);
     assert.equal(app.blueprintSourceRoot, expectedSourceRoot);
-    const service = await app.get(InstallationService);
+    const service = await app.get(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, { mode: "init", context: config, config });
     assert.match(
       await readFile(
@@ -87,7 +85,11 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
     const prepared = await preparePlannedBlueprintFiles(files, context);
-    await installPlannedBlueprintFiles(prepared, target);
+    const installation = await new App({
+      workspaceRoot: target,
+      blueprintSourceRoot: source,
+    }).get(InstallationService);
+    await installation.installPreparedFiles(prepared, target);
 
     assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), "Hello Spindle!");
     assert.equal(await readFile(join(target, "templates/a.md"), "utf8"), "a python,typescript\n");
@@ -104,7 +106,7 @@ test("installation renders recognized UTF-8 text and preserves files that must n
   }
 });
 
-test("installation services isolate App roots and reuse no prior operation data", async () => {
+test("reconciliation services isolate App roots and reuse no prior operation data", async () => {
   const firstWorkspace = await makeTempDir("spindle-install-app-first-");
   const secondWorkspace = await makeTempDir("spindle-install-app-second-");
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
@@ -134,8 +136,8 @@ test("installation services isolate App roots and reuse no prior operation data"
       blueprintSourceRoot: sourceRoot,
     });
     const [firstService, secondService] = await Promise.all([
-      firstApp.get(InstallationService),
-      secondApp.get(InstallationService),
+      firstApp.get(BlueprintReconciliationService),
+      secondApp.get(BlueprintReconciliationService),
     ]);
 
     assert.notEqual(firstService, secondService);

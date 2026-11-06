@@ -64,6 +64,12 @@ by `SKILL.md`; changes and additions require a Skill version bump.
 Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.
 
+`init` and `update` share an application-owned Blueprint reconciliation service.
+It resolves the installation service during asynchronous boot and keeps each
+run's Config, prompt answers, plans, and mutable state local to that operation.
+The service creates a fresh computed-context instance for each run, so computed
+values are memoized within a reconciliation but do not become stale across runs.
+
 ## Computed Variables
 
 Variables and Computed Variables serve different purposes. A Variable is

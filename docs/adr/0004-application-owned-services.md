@@ -15,6 +15,13 @@ utilities folder. Migrate consumers and tests directly to the new APIs without
 compatibility exports, preserving CLI behavior except for the root-discovery
 changes below.
 
+Init and Update delegate shared Blueprint lifecycle planning, preparation, and
+application to an application-owned reconciliation service. It resolves the
+installation service during asynchronous boot; each reconciliation keeps its
+Config, prompt answers, plans, and mutable state local to that run. It creates a
+fresh computed-context service per run, preserving memoization within a run
+without retaining computed values across runs.
+
 The refactor includes shared Blueprint reconciliation and computed-variable
 resolution, not just command wrappers around existing workflow functions.
 Existing computed provider classes remain, and computed-context caches retain

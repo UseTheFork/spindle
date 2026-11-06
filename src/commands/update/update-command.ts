@@ -6,9 +6,9 @@ import chalk from "chalk";
 import { App, Service } from "../../app.js";
 import { blueprintHandlers } from "../../blueprints/registry.js";
 import type { BlueprintHandler } from "../../blueprints/types.js";
-import { InstallationService } from "../../installation/installation-service.js";
 import type { ConflictPolicy } from "../../installation/types.js";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "../../prompts.js";
+import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
 import { validateStacks } from "../../utilities/stacks.js";
 import { loadVariableDefinitions } from "../../variables.js";
 
@@ -84,7 +84,7 @@ async function resolveVariables(
 
 export class UpdateCommand extends Service {
   #handlers: readonly BlueprintHandler[] = [];
-  #installationService!: InstallationService;
+  #reconciliationService!: BlueprintReconciliationService;
 
   constructor(app: App) {
     super(app);
@@ -92,7 +92,7 @@ export class UpdateCommand extends Service {
 
   override async boot(): Promise<void> {
     this.#handlers = blueprintHandlers;
-    this.#installationService = await this.app.get(InstallationService);
+    this.#reconciliationService = await this.app.get(BlueprintReconciliationService);
   }
 
   async run(
@@ -105,7 +105,7 @@ export class UpdateCommand extends Service {
     const config = await readConfig(configPath);
     let prompted: Record<string, string> = {};
 
-    const outcomes = await this.#installationService.reconcile(this.#handlers, {
+    const outcomes = await this.#reconciliationService.reconcile(this.#handlers, {
       mode: "update",
       config: { stacks: config.stacks, variables: config.variables },
       includeNew,
