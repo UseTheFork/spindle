@@ -141,10 +141,6 @@ export interface BlueprintHandlerCatalogPlan {
   membershipCleanup: PlannedBlueprintDeletion[];
 }
 
-export interface BlueprintCatalogReconciliationPlan {
-  handlers: BlueprintHandlerCatalogPlan[];
-}
-
 async function collectDestinationFiles(directory: string, result: string[] = []) {
   let directoryStat;
   try {
@@ -191,7 +187,7 @@ async function planBlueprintCatalogReconciliation(
   githubDirectory: string,
   blueprintSourceRoot: string,
   selectedStacks: string[],
-): Promise<BlueprintCatalogReconciliationPlan> {
+): Promise<BlueprintHandlerCatalogPlan[]> {
   const catalog = validateBlueprintCatalog(blueprintCatalog);
   const handlerPlans: BlueprintHandlerCatalogPlan[] = [];
   for (const handler of handlers) {
@@ -251,7 +247,7 @@ async function planBlueprintCatalogReconciliation(
       membershipCleanup,
     });
   }
-  return { handlers: handlerPlans };
+  return handlerPlans;
 }
 
 function willInstallBlueprint(
@@ -646,13 +642,13 @@ async function performReconciliation(
   const deletionOperations: PlannedDeletionOperation[] = [];
   const membershipCleanupOperations: PlannedMembershipCleanupOperation[] = [];
   await assertSafeInstallPaths(options.githubDirectory, [], options.githubDirectory);
-  const catalogPlan = await planBlueprintCatalogReconciliation(
+  const handlerPlans = await planBlueprintCatalogReconciliation(
     handlers,
     options.githubDirectory,
     options.blueprintSourceRoot,
     stacks,
   );
-  for (const handlerPlan of catalogPlan.handlers) {
+  for (const handlerPlan of handlerPlans) {
     const { handler, selections, catalogDeletions } = handlerPlan;
     const destinationDirectory = handler.destinationDirectory(options.githubDirectory);
     const deletions = handlerPlan.deletions;
