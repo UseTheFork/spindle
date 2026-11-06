@@ -5,10 +5,10 @@ import chalk from "chalk";
 
 import { App } from "./app.js";
 import { InitCommand } from "./commands/init/init-command.js";
+import { SddWorkspaceCommand } from "./commands/sdd-workspace/sdd-workspace-command.js";
+import { SetupProjectCommand } from "./commands/setup-project/setup-project-command.js";
 import { UpdateCommand } from "./commands/update/update-command.js";
 import { blueprintsRoot, parseConflictPolicy, supportedStacks } from "./install.js";
-import { setupProject } from "./setup-project/setup.js";
-import { resolveWorkspace } from "./subagent-driven-dev/workspace.js";
 
 const helpText = `${chalk.bold("Usage:")} spindle init [options]
 
@@ -81,106 +81,14 @@ ${chalk.bold("Options:")}
 Run workspace commands from a Git working tree.
 `;
 
-function runSdd(args: string[]) {
-  if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
-    console.log(sddHelpText);
-    return;
+function createApplication(workspaceRoot: string | undefined): App {
+  if (workspaceRoot === undefined) {
+    throw new Error("Cannot run a workspace command without a discovered Git working-tree root.");
   }
-  if (args[0] !== "workspace") {
-    throw new Error("Usage: spindle sdd workspace [options]. See `spindle sdd --help`.");
-  }
-
-  const optionNames = new Set(["--workspace", "--reports-dir", "--ticket", "--round", "--help"]);
-  const seenOptions = new Set<string>();
-  for (const argument of args.slice(1)) {
-    const option = argument.split("=", 1)[0];
-    if (!optionNames.has(option)) continue;
-    if (seenOptions.has(option)) {
-      throw new Error(`Option '${option}' may only be provided once.`);
-    }
-    seenOptions.add(option);
-  }
-
-  const { values, positionals } = parseArgs({
-    args: args.slice(1),
-    options: {
-      workspace: { type: "string" },
-      "reports-dir": { type: "string" },
-      ticket: { type: "string" },
-      round: { type: "string" },
-      help: { type: "boolean" },
-    },
-    allowPositionals: true,
-    strict: true,
+  return new App({
+    workspaceRoot,
+    blueprintSourceRoot: blueprintsRoot(),
   });
-
-  if (values.help) {
-    if (positionals.length || args.length !== 2) {
-      throw new Error("`--help` must be used alone for `spindle sdd workspace`.");
-    }
-    console.log(sddWorkspaceHelpText);
-    return;
-  }
-  if (positionals.length) {
-    throw new Error("`spindle sdd workspace` does not accept positional arguments.");
-  }
-  if (!values.workspace || !values["reports-dir"] || !values.ticket) {
-    throw new Error(
-      "Usage: spindle sdd workspace --workspace CHECKOUT_ROOT --reports-dir .scratch/FEATURE/reports --ticket NN [--round R].",
-    );
-  }
-
-  const resolution = resolveWorkspace({
-    workspacePath: values.workspace,
-    reportsDirectory: values["reports-dir"],
-    ticket: values.ticket,
-    round: values.round,
-  });
-  console.log(JSON.stringify(resolution, null, 2));
-}
-
-function runSetupProject(args: string[]) {
-  if (args.length === 1 && args[0] === "--help") {
-    console.log(setupProjectHelpText);
-    return;
-  }
-
-  const optionNames = new Set(["--workspace", "--help"]);
-  const seenOptions = new Set<string>();
-  for (const argument of args) {
-    const option = argument.split("=", 1)[0];
-    if (!optionNames.has(option)) continue;
-    if (seenOptions.has(option)) {
-      throw new Error(`Option '${option}' may only be provided once.`);
-    }
-    seenOptions.add(option);
-  }
-
-  const { values, positionals } = parseArgs({
-    args,
-    options: {
-      workspace: { type: "string" },
-      help: { type: "boolean" },
-    },
-    allowPositionals: true,
-    strict: true,
-  });
-
-  if (values.help) {
-    if (args.length !== 1 || positionals.length) {
-      throw new Error("`--help` must be used alone for `spindle setup-project`.");
-    }
-    console.log(setupProjectHelpText);
-    return;
-  }
-  if (positionals.length) {
-    throw new Error("`spindle setup-project` does not accept positional arguments.");
-  }
-  if (!values.workspace) {
-    throw new Error("Usage: spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT.");
-  }
-
-  console.log(JSON.stringify(setupProject({ workspacePath: values.workspace }), null, 2));
 }
 
 export async function dispatch(args: string[], workspaceRoot: string | undefined) {
@@ -192,11 +100,110 @@ export async function dispatch(args: string[], workspaceRoot: string | undefined
     return;
   }
   if (args[0] === "sdd") {
-    runSdd(args.slice(1));
+    const sddArgs = args.slice(1);
+    if (sddArgs.length === 0 || (sddArgs.length === 1 && sddArgs[0] === "--help")) {
+      console.log(sddHelpText);
+      return;
+    }
+    if (sddArgs[0] !== "workspace") {
+      throw new Error("Usage: spindle sdd workspace [options]. See `spindle sdd --help`.");
+    }
+
+    const commandArgs = sddArgs.slice(1);
+    const optionNames = new Set(["--workspace", "--reports-dir", "--ticket", "--round", "--help"]);
+    const seenOptions = new Set<string>();
+    for (const argument of commandArgs) {
+      const option = argument.split("=", 1)[0];
+      if (!optionNames.has(option)) continue;
+      if (seenOptions.has(option)) {
+        throw new Error(`Option '${option}' may only be provided once.`);
+      }
+      seenOptions.add(option);
+    }
+
+    const { values, positionals } = parseArgs({
+      args: commandArgs,
+      options: {
+        workspace: { type: "string" },
+        "reports-dir": { type: "string" },
+        ticket: { type: "string" },
+        round: { type: "string" },
+        help: { type: "boolean" },
+      },
+      allowPositionals: true,
+      strict: true,
+    });
+
+    if (values.help) {
+      if (positionals.length || sddArgs.length !== 2) {
+        throw new Error("`--help` must be used alone for `spindle sdd workspace`.");
+      }
+      console.log(sddWorkspaceHelpText);
+      return;
+    }
+    if (positionals.length) {
+      throw new Error("`spindle sdd workspace` does not accept positional arguments.");
+    }
+    if (!values.workspace || !values["reports-dir"] || !values.ticket) {
+      throw new Error(
+        "Usage: spindle sdd workspace --workspace CHECKOUT_ROOT --reports-dir .scratch/FEATURE/reports --ticket NN [--round R].",
+      );
+    }
+
+    const command = await createApplication(workspaceRoot).get(SddWorkspaceCommand);
+    const resolution = command.run({
+      workspacePath: values.workspace,
+      reportsDirectory: values["reports-dir"],
+      ticket: values.ticket,
+      round: values.round,
+    });
+    console.log(JSON.stringify(resolution, null, 2));
     return;
   }
   if (args[0] === "setup-project") {
-    runSetupProject(args.slice(1));
+    const commandArgs = args.slice(1);
+    if (commandArgs.length === 1 && commandArgs[0] === "--help") {
+      console.log(setupProjectHelpText);
+      return;
+    }
+
+    const optionNames = new Set(["--workspace", "--help"]);
+    const seenOptions = new Set<string>();
+    for (const argument of commandArgs) {
+      const option = argument.split("=", 1)[0];
+      if (!optionNames.has(option)) continue;
+      if (seenOptions.has(option)) {
+        throw new Error(`Option '${option}' may only be provided once.`);
+      }
+      seenOptions.add(option);
+    }
+
+    const { values, positionals } = parseArgs({
+      args: commandArgs,
+      options: {
+        workspace: { type: "string" },
+        help: { type: "boolean" },
+      },
+      allowPositionals: true,
+      strict: true,
+    });
+
+    if (values.help) {
+      if (commandArgs.length !== 1 || positionals.length) {
+        throw new Error("`--help` must be used alone for `spindle setup-project`.");
+      }
+      console.log(setupProjectHelpText);
+      return;
+    }
+    if (positionals.length) {
+      throw new Error("`spindle setup-project` does not accept positional arguments.");
+    }
+    if (!values.workspace) {
+      throw new Error("Usage: spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT.");
+    }
+
+    const command = await createApplication(workspaceRoot).get(SetupProjectCommand);
+    console.log(JSON.stringify(command.run({ workspacePath: values.workspace }), null, 2));
     return;
   }
 
@@ -219,13 +226,7 @@ export async function dispatch(args: string[], workspaceRoot: string | undefined
     return;
   }
 
-  if (workspaceRoot === undefined) {
-    throw new Error("Cannot run a workspace command without a discovered Git working-tree root.");
-  }
-  const app = new App({
-    workspaceRoot,
-    blueprintSourceRoot: blueprintsRoot(),
-  });
+  const app = createApplication(workspaceRoot);
 
   const command = positionals[0];
   if ((command !== "init" && command !== "update") || positionals.length !== 1) {

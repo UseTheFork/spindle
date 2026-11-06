@@ -102,6 +102,18 @@ test("workspace resolves durable report paths without changing the checkout", as
   assert.equal(existsSync(join(repo, ".github", "spindle.json")), false);
 });
 
+test("workspace honors an explicit checkout distinct from the invocation repository", async (t) => {
+  const { repo } = fixture(t);
+  const invocation = await makeTempDir("sdd-workspace-invocation-");
+
+  const result = runCli(invocation, reportArgs(repo), process.env.PATH ?? "");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).workspace, repo);
+  assert.equal(existsSync(join(repo, ".scratch")), false);
+  assert.equal(existsSync(join(invocation, ".scratch")), false);
+});
+
 test("workspace rejects a dangling report symlink as a non-regular target", async (t) => {
   const { repo } = fixture(t);
   const reportsDirectory = join(repo, ".scratch/2026-10-23-demo/reports");

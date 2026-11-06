@@ -19,10 +19,14 @@ const productionAgents = [
   "sdd-orchestrator",
   "sdd-re-review",
   "sdd-task-reviewer",
+  "shared-codebase-analyzer",
+  "shared-codebase-locator",
+  "shared-codebase-pattern-finder",
   "shared-explore",
   "shared-r",
   "shared-rw",
   "shared-rwx",
+  "shared-web-search-researcher",
 ];
 const productionStackSelections = supportedStacks
   .reduce<string[][]>(

@@ -2,11 +2,18 @@
 
 ## CLI workspace root
 
-Spindle discovers the Git working-tree root before running workspace commands.
-`init` and `update` always manage `.github` at that root, including when invoked
-from a nested directory. They fail without writing if Git is unavailable or the
-current directory is not inside a Git working tree; Spindle does not fall back
-to the current directory. Help and version output remain available outside Git.
+Spindle discovers the Git working-tree root before running workspace commands:
+`init`, `update`, `sdd workspace`, and `setup-project`. They fail without
+running if Git is unavailable or the current directory is not inside a Git
+working tree; Spindle does not fall back to the current directory. Help and
+version output remain available outside Git.
+
+`init` and `update` always manage `.github` at the discovered root, including
+when invoked from a nested directory. The explicit `--workspace` argument to
+`setup-project` remains its target directory, even when it differs from the
+discovered root or is outside Git. `sdd workspace` likewise honors its explicit
+`--workspace` checkout and `--reports-dir`; root discovery is required for
+invocation, but does not replace those report-path inputs.
 
 The shipped collection is controlled by the typed `blueprintCatalog` object in
 `src/blueprints/catalog.ts`. Edit this object to add or retire entries, then

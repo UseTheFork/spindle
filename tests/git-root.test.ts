@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { makeTempDir, runCliWithFixtureCatalogRaw as runCli } from "./helpers.ts";
+import { makeTempDir, runCliRaw, runCliWithFixtureCatalogRaw as runCli } from "./helpers.ts";
 
 test("init from a nested directory installs into the Git worktree root", async () => {
   const project = await makeTempDir("spindle-git-root-");
@@ -108,6 +109,50 @@ test("workspace commands fail without Git discovery and leave the directory unch
   }
 });
 
+test("setup-project and SDD workspace fail without Git discovery before using explicit paths", async (t) => {
+  const invocation = await mkdtemp(join(tmpdir(), "spindle-command-no-git-"));
+  const setupTarget = await mkdtemp(join(tmpdir(), "spindle-command-target-"));
+  const workspace = await makeTempDir("spindle-command-workspace-");
+  t.after(async () => {
+    await rm(invocation, { recursive: true, force: true });
+    await rm(setupTarget, { recursive: true, force: true });
+    await rm(workspace, { recursive: true, force: true });
+  });
+  execFileSync("git", ["init", "-q"], { cwd: workspace });
+  execFileSync("git", ["-C", workspace, "config", "user.name", "Fixture"]);
+  execFileSync("git", ["-C", workspace, "config", "user.email", "fixture@example.invalid"]);
+  await writeFile(join(workspace, "tracked.txt"), "base\n");
+  execFileSync("git", ["-C", workspace, "add", "."]);
+  execFileSync("git", ["-C", workspace, "commit", "-qm", "base"]);
+
+  for (const searchPath of [process.env.PATH ?? "", ""]) {
+    const setup = runCliRaw(invocation, ["setup-project", "--workspace", setupTarget], searchPath);
+    assert.notEqual(setup.status, 0);
+    assert.equal(setup.stdout, "");
+    assert.match(setup.stderr, /Git working-tree root/i);
+    assert.deepEqual(await readdir(setupTarget), []);
+
+    const sdd = runCliRaw(
+      invocation,
+      [
+        "sdd",
+        "workspace",
+        "--workspace",
+        workspace,
+        "--reports-dir",
+        ".scratch/feature/reports",
+        "--ticket",
+        "03",
+      ],
+      searchPath,
+    );
+    assert.notEqual(sdd.status, 0);
+    assert.equal(sdd.stdout, "");
+    assert.match(sdd.stderr, /Git working-tree root/i);
+    assert.equal(existsSync(join(workspace, ".scratch")), false);
+  }
+});
+
 test("help and version work outside Git when Git is unavailable", async () => {
   const project = await mkdtemp(join(tmpdir(), "spindle-informational-"));
   try {
@@ -119,7 +164,7 @@ test("help and version work outside Git when Git is unavailable", async () => {
       ["setup-project", "--help"],
       ["--version"],
     ]) {
-      const result = runCli(project, args, "");
+      const result = runCliRaw(project, args, "");
       assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
       assert.equal(result.stderr, "");
       assert.notEqual(result.stdout.trim(), "");

@@ -40,3 +40,8 @@ These recipes run the Spindle CLI from source through `pnpm run spindle` in the 
 - `just spindle::setup-project --workspace <absolute-project-root>` — Bootstrap missing project documentation defaults.
 - `just spindle::run *args` — Run any other Spindle CLI command with arbitrary arguments.
 - Append `--help` to any recipe to see the command's options, for example `just spindle::sdd workspace --help`.
+
+All workspace commands require invocation from a Git working tree. `setup-project`
+continues to use its explicit `--workspace` target, and `sdd workspace` continues
+to use its explicit checkout and reports directory; neither path is replaced by
+the invocation repository root.

@@ -68,6 +68,22 @@ test("setup-project creates the required directories and exact defaults", async 
   assert.equal(existsSync(join(workspace, ".github")), false);
 });
 
+test("setup-project honors an explicit target outside the invocation repository", async (t) => {
+  const invocation = fixture(t);
+  const workspace = fixture(t);
+
+  const result = runCli(
+    invocation,
+    ["setup-project", "--workspace", workspace],
+    process.env.PATH ?? "",
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).workspace, workspace);
+  assert.equal(existsSync(join(workspace, "docs/agents/domain.md")), true);
+  assert.equal(existsSync(join(invocation, "docs")), false);
+});
+
 test("setup-project preserves custom files byte-for-byte on repeated runs", async (t) => {
   const workspace = fixture(t);
   mkdirSync(join(workspace, "docs/agents"), { recursive: true });
