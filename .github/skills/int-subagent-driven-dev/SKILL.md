@@ -4,7 +4,7 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.3
+    version: 1.3.4
 ---
 
 # Subagent-Driven Development

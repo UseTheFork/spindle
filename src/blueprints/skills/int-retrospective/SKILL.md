@@ -1,33 +1,28 @@
 ---
 name: int-retrospective
 description: "{{ computed.internal_skill_description }}"
-argument-hint: "--entry|-E <delivery|maintainer> [--] [session or evidence context]"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.4.0
+    version: 1.4.1
 ---
 
 # Retrospective
 
 Capture evidence-backed improvements to the agent environment and domain model. The controller coordinates; a fresh, read-only reader assesses.
 
-## Arguments
+## Mode selection
 
-Required value-taking flag `--entry` / `-E` selects `delivery` or `maintainer`, with identical behavior and no default. Optional trailing task text supplies the session selection, proposal-report pointer or delivery evidence context. With no task text, maintainer uses the current session; delivery still requires its evidence pointers.
+Select the mode from the explicit purpose in the calling context, not from flags or unrelated conversational mentions.
 
-- `delivery`: after final verification, once for the full spec or standalone ticket, never per ticket within a spec. Supply delivery evidence pointers. This path records proposals and applies nothing, even when asked to apply them.
-- `maintainer`: optional session selection (defaults to the current session) and optional proposal-report pointer. This path obtains item-level approval before applying changes.
+- `delivery`: a delivery caller invokes this after final verification, once for the full spec or for a standalone ticket, and supplies verified delivery evidence pointers. This mode records proposals and applies nothing, even when asked to apply them.
+- `maintainer`: the maintainer retrospective caller requests an assessment of the current or selected session and may supply a proposal-report pointer. With no session selection, use the current session. This mode obtains item-level approval before applying changes.
 
-Parse only the leading option prefix. Recognize exact, case-sensitive `--entry` and `-E` tokens; consume the next token as the value. `--` ends option parsing and is removed. Otherwise the first non-option token starts task text: preserve everything after it unchanged, including later flag-like text, removing only separating whitespace.
-
-Before workflow actions, explain invalid input and request correction: missing entry or value, a value other than `delivery` or `maintainer`, unknown leading flags, repeated options (including aliases or conflicting values), bundled aliases, or equals-form options such as `--entry=delivery`. Another option where a value is required is a missing-value error.
-
-Calling skills supply arguments explicitly, for example `--entry maintainer`. Structured caller input `entry: maintainer` is equivalent; validate the same entry values and required presence without reconstructing a command string. Any supplied raw argument string follows the parsing rules above. Conversational mentions do not select an entry.
+If the calling context does not clearly establish exactly one mode, explain that the retrospective mode is unclear and ask for the purpose or caller context before starting the workflow. Delivery still requires its evidence pointers.
 
 ## Workflow
 
-Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Validate arguments before entering A.
+Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Select the mode from the calling context before entering A.
 
 ```mermaid
 flowchart TD
@@ -35,9 +30,9 @@ flowchart TD
     A -- Blocked --> H[Report outcomes]
     B -- Blocked --> H
     B --> C[Present proposals]
-    C --> D{Delivery entry?}
-    D -- Yes --> H
-    D -- No --> E[Obtain approval]
+    C --> D{Entry?}
+    D -- delivery --> H
+    D -- maintainer --> E[Obtain approval]
     E --> F{Approved items?}
     F -- No --> H
     F -- Yes --> G[Apply and verify]
@@ -62,11 +57,11 @@ Rank by impact and show stable IDs with their evidence and verification criteria
 
 **Complete when:** proposals (or "None") and assessment limitations are visible, selecting D; delivery's report exists and no environment or domain files have changed.
 
-### D. Delivery entry?
+### D. Entry?
 
-Evaluate the validated entry.
+Evaluate the mode selected from the calling context.
 
-**Complete when:** `delivery` selects Yes and H; `maintainer` selects No and E. Delivery never enters approval or application.
+**Complete when:** `delivery` selects its branch to H; `maintainer` selects its branch to E. Delivery never enters approval or application.
 
 ### E. Obtain approval
 

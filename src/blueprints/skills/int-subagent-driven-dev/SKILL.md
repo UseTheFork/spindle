@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.3
+    version: 1.3.4
 ---
 
 # Subagent-Driven Development

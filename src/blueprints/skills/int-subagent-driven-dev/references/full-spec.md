@@ -72,7 +72,7 @@ Confirm all required evidence covers the final delivered snapshot, rerunning onl
 
 ## M.H. Retrospective
 
-Load and follow the `int-retrospective` skill once for the full spec, supplying arguments `--entry delivery` and the verified delivery evidence pointers as task context.
+Load and follow the `int-retrospective` skill once for the full spec after final verification. Identify this invocation as a `delivery` retrospective in the calling context and supply the verified delivery evidence pointers as task context.
 
 **Complete when:** the retrospective and final evidence are available; resume parent M and return to parent Q. Unavailable required retrospective output selects M.X.
 
