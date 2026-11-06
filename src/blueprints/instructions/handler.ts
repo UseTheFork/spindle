@@ -1,13 +1,12 @@
 import { join } from "node:path";
 
-import { blueprintsRoot } from "../../install.js";
 import type { BlueprintHandler } from "../types.js";
 import { planVersionedUpdate, validateVersionedMetadata } from "../versioned.js";
 
 export const instructionHandler: BlueprintHandler = {
   kind: "Instruction",
   catalogKind: "instructions",
-  sourceDirectory: () => join(blueprintsRoot(), "instructions"),
+  sourceDirectory: (blueprintSourceRoot) => join(blueprintSourceRoot, "instructions"),
   destinationDirectory: (githubDirectory) => join(githubDirectory, "instructions"),
   fileTarget: true,
   targetPath: (destinationDirectory, name) => join(destinationDirectory, name),

@@ -1,5 +1,13 @@
 # Authoring Blueprints
 
+## CLI workspace root
+
+Spindle discovers the Git working-tree root before running workspace commands.
+`init` and `update` always manage `.github` at that root, including when invoked
+from a nested directory. They fail without writing if Git is unavailable or the
+current directory is not inside a Git working tree; Spindle does not fall back
+to the current directory. Help and version output remain available outside Git.
+
 The shipped collection is controlled by the typed `blueprintCatalog` object in
 `src/blueprints/catalog.ts`. Edit this object to add or retire entries, then
 rebuild Spindle. TypeScript checks entry fields, lifecycle statuses, supported

@@ -35,7 +35,7 @@ export interface PreparedBlueprintInitialization {
 export interface BlueprintHandler {
   kind: string;
   catalogKind: CatalogKind;
-  sourceDirectory(): string;
+  sourceDirectory(blueprintSourceRoot: string): string;
   destinationDirectory(githubDirectory: string): string;
   prepareInitialize?(
     githubDirectory: string,

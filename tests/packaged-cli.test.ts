@@ -147,10 +147,12 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
     assert.equal(git("status", "--porcelain=v1"), cleanStatus);
   }
 
+  const invocationWorkspace = tempDirectory(t, "spindle-packaged-setup-invocation-");
+  makeGitWorkspace(invocationWorkspace);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-setup-");
   assert.equal(existsSync(join(setupWorkspace, ".git")), false);
   assert.equal(existsSync(join(setupWorkspace, ".github", "spindle.json")), false);
-  const setup = cli.run(setupWorkspace, ["setup-project", "--workspace", setupWorkspace]);
+  const setup = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
   assert.equal(setup.status, 0, setup.stderr);
 
   const expectedSetup = {
@@ -180,7 +182,7 @@ test("packaged workflows use bundled defaults and preserve exact SDD behavior ou
 
   const customDomain = Buffer.from("custom setup guidance\r\n");
   writeFileSync(join(setupWorkspace, "docs/agents/domain.md"), customDomain);
-  const repeated = cli.run(setupWorkspace, ["setup-project", "--workspace", setupWorkspace]);
+  const repeated = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
   assert.equal(repeated.status, 0, repeated.stderr);
   assert.deepEqual(JSON.parse(repeated.stdout), {
     workspace: setupWorkspace,
@@ -221,6 +223,7 @@ test("packaged command discovery and help remain intact", (t) => {
 test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", (t) => {
   const cli = packagedCli(t);
   const project = tempDirectory(t, "spindle-packaged-computed-project-");
+  execFileSync("git", ["init", "-q"], { cwd: project });
   const blueprintRoot = tempDirectory(t, "spindle-packaged-computed-blueprints-");
   const packagedBlueprints = join(blueprintRoot, "blueprints");
   cpSync(join(cli.root, "build", "blueprints"), packagedBlueprints, { recursive: true });
@@ -375,7 +378,7 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["setup-project", "nested", "--workspace", setupWorkspace],
       ["setup-project", "init", "--workspace", setupWorkspace],
       ["setup-project", "--workspace", setupWorkspace, "--help"],
-    ].map((args) => [args, setupWorkspace] as const),
+    ].map((args) => [args, gitWorkspace] as const),
   ];
 
   for (const [args, workingDirectory] of invalidCases) {
@@ -383,6 +386,11 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
     assert.match(result.stderr, /^spindle:/, args.join(" "));
+    assert.doesNotMatch(
+      result.stderr,
+      /Unable to discover the Git working-tree root/,
+      args.join(" "),
+    );
     assert.equal(readdirSync(setupWorkspace).length, 0);
     assert.equal(git("status", "--porcelain=v1"), beforeStatus);
   }

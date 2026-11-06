@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -32,11 +32,37 @@ export function runCli(
   searchPath: string,
   env: Record<string, string> = {},
 ) {
+  ensureGitWorkspace(project);
+  return runCliRaw(project, args, searchPath, env);
+}
+
+export function runCliRaw(
+  project: string,
+  args: string[],
+  searchPath: string,
+  env: Record<string, string> = {},
+) {
   return spawnSync(process.execPath, [...nodeArguments(env), ...args], {
     cwd: project,
     encoding: "utf8",
     env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
   });
+}
+
+function ensureGitWorkspace(project: string) {
+  let root: string | undefined;
+  try {
+    root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: project,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    // Test workspaces are initialized below, rather than inheriting the checkout's Git root.
+  }
+  if (root !== resolve(project)) {
+    execFileSync("git", ["init", "-q"], { cwd: project, stdio: "ignore" });
+  }
 }
 
 export function writeCatalogFixture(blueprints: string, catalog: BlueprintCatalogDefinition) {
@@ -110,7 +136,29 @@ export function runCliWithFixtureCatalog(
   return runCliWithCatalog(project, args, searchPath, env);
 }
 
+export function runCliWithFixtureCatalogRaw(
+  project: string,
+  args: string[],
+  searchPath: string,
+  env: Record<string, string> = {},
+) {
+  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  if (blueprints) writeFixtureCatalog(blueprints);
+  return runCliRaw(project, args, searchPath, withCatalogFixture(env));
+}
+
 export function runCliInteractive(
+  project: string,
+  args: string[],
+  searchPath: string,
+  responses: { trigger: string; input: string; beforeInput?: () => void }[],
+  env: Record<string, string> = {},
+) {
+  ensureGitWorkspace(project);
+  return runCliInteractiveRaw(project, args, searchPath, responses, env);
+}
+
+export function runCliInteractiveRaw(
   project: string,
   args: string[],
   searchPath: string,
@@ -183,4 +231,16 @@ export function runCliInteractiveWithFixtureCatalog(
   const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliInteractive(project, args, searchPath, responses, withCatalogFixture(env));
+}
+
+export function runCliInteractiveWithFixtureCatalogRaw(
+  project: string,
+  args: string[],
+  searchPath: string,
+  responses: { trigger: string; input: string; beforeInput?: () => void }[],
+  env: Record<string, string> = {},
+) {
+  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  if (blueprints) writeFixtureCatalog(blueprints);
+  return runCliInteractiveRaw(project, args, searchPath, responses, withCatalogFixture(env));
 }

@@ -46,6 +46,7 @@ export interface PlannedBlueprintDeletion {
 
 interface ReconcileCommon {
   githubDirectory: string;
+  blueprintSourceRoot: string;
   context?: RenderContext;
   resolveContext?: () => Promise<RenderContext>;
   conflictPolicy?: ConflictPolicy;
@@ -180,6 +181,7 @@ async function collectDestinationFiles(directory: string, result: string[] = [])
 export async function planBlueprintCatalogReconciliation(
   handlers: readonly BlueprintHandler[],
   githubDirectory: string,
+  blueprintSourceRoot: string,
   selectedStacks: string[],
 ): Promise<BlueprintCatalogReconciliationPlan> {
   const catalog = validateBlueprintCatalog(blueprintCatalog);
@@ -188,7 +190,7 @@ export async function planBlueprintCatalogReconciliation(
     const expansion = await planBlueprintCatalog(
       catalog,
       handler.catalogKind,
-      handler.sourceDirectory(),
+      handler.sourceDirectory(blueprintSourceRoot),
       selectedStacks,
     );
     const destinationDirectory = handler.destinationDirectory(githubDirectory);
@@ -641,6 +643,7 @@ export async function reconcileBlueprints(
   const catalogPlan = await planBlueprintCatalogReconciliation(
     handlers,
     options.githubDirectory,
+    options.blueprintSourceRoot,
     stacks,
   );
   for (const handlerPlan of catalogPlan.handlers) {
