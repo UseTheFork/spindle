@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
-import { cp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 
 import {
   makeTempDir,
+  runCliRaw,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
 } from "./helpers.ts";
@@ -892,6 +894,70 @@ test("missing or malformed config points to init", async () => {
   }
 });
 
+test("update Commander help accepts -h and help update outside Git", async () => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-update-help-"));
+  try {
+    for (const args of [
+      ["update", "-h"],
+      ["help", "update"],
+    ]) {
+      const result = runCliRaw(project, args, process.env.PATH ?? "");
+      assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+      assert.equal(result.stderr, "");
+      assert.match(result.stdout, /Usage: spindle update/);
+      assert.match(result.stdout, /-h, --help/);
+    }
+    assert.deepEqual(await readdir(project), []);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("update reports invalid arguments before Git discovery outside a working tree", async () => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-update-invalid-no-git-"));
+  try {
+    const result = runCliRaw(project, ["update", "--stack", "python"], "");
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /unknown option.*--stack/i);
+    assert.doesNotMatch(result.stderr, /Git working-tree root/i);
+    assert.deepEqual(await readdir(project), []);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("valid update requires Git discovery outside a working tree", async () => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-update-valid-no-git-"));
+  try {
+    for (const searchPath of [process.env.PATH ?? "", ""]) {
+      const result = runCliRaw(project, ["update", "--no-interactive"], searchPath);
+      assert.notEqual(result.status, 0);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /Git working-tree root/i);
+      assert.deepEqual(await readdir(project), []);
+    }
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("update rejects inapplicable options, unexpected arguments, and invalid conflict choices", async () => {
+  const invalidInvocations: [string[], RegExp][] = [
+    [["--stack", "python"], /unknown option.*--stack/i],
+    [["unexpected"], /too many arguments/i],
+    [["--on-conflict", "prompt"], /allowed choices.*overwrite.*skip/i],
+  ];
+
+  for (const [args, error] of invalidInvocations) {
+    await withProject({}, args, (_project, result) => {
+      assert.notEqual(result.status, 0, args.join(" "));
+      assert.equal(result.stdout, "", args.join(" "));
+      assert.match(result.stderr, error, args.join(" "));
+    });
+  }
+});
+
 test("update --help documents its flags", async () => {
   await withProject({}, ["--help"], async (_project, result) => {
     assert.equal(result.status, 0);
@@ -899,6 +965,8 @@ test("update --help documents its flags", async () => {
       assert.ok(result.stdout.includes(flag), flag);
     }
     assert.match(result.stdout, /spindle update/);
+    assert.match(result.stdout, /Reads stacks and variables from \.github\/spindle\.json/);
+    assert.match(result.stdout, /run `spindle init` first/);
   });
 });
 

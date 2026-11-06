@@ -4,8 +4,12 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import chalk from "chalk";
+import { Command } from "commander";
 
+import { App } from "./app.js";
 import { dispatch } from "./cli.js";
+import { UpdateCommand } from "./commands/update/update-command.js";
+import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
 
 export function discoverGitRoot(startingDirectory: string): string {
   let root: string;
@@ -29,7 +33,24 @@ export function discoverGitRoot(startingDirectory: string): string {
 }
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
-  const informational = args.includes("--help") || (args.length === 1 && args[0] === "--version");
+  if (args[0] === "update") {
+    const program = new Command().name("spindle");
+    UpdateCommand.register(program, () => {
+      const workspaceRoot = discoverGitRoot(startingDirectory);
+      return new App({
+        workspaceRoot,
+        blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
+      });
+    });
+    await program.parseAsync(args, { from: "user" });
+    return;
+  }
+
+  const informational =
+    args.includes("--help") ||
+    args.includes("-h") ||
+    (args.length === 1 && args[0] === "--version") ||
+    (args[0] === "help" && args[1] === "update");
   const workspaceRoot = informational ? undefined : discoverGitRoot(startingDirectory);
   await dispatch(args, workspaceRoot);
 }

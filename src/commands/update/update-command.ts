@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
+import type { Command } from "commander";
 
 import { App, Service } from "../../app.js";
 import { blueprintHandlers } from "../../blueprints/registry.js";
@@ -9,8 +10,10 @@ import type { BlueprintHandler } from "../../blueprints/types.js";
 import type { ConflictPolicy } from "../../installation/types.js";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "../../prompts.js";
 import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
+import { parseConflictPolicy } from "../../utilities/conflict-policy.js";
 import { validateStacks } from "../../utilities/stacks.js";
 import { loadVariableDefinitions } from "../../variables.js";
+import { conflictPolicyOption, noInteractiveOption } from "../shared-options.js";
 
 const missingConfig = (reason: string) =>
   new Error(`${reason} Run \`spindle init\` to create .github/spindle.json.`);
@@ -85,6 +88,38 @@ async function resolveVariables(
 export class UpdateCommand extends Service {
   #handlers: readonly BlueprintHandler[] = [];
   #reconciliationService!: BlueprintReconciliationService;
+
+  static register(program: Command, createApp: () => App): void {
+    program
+      .command("update")
+      .description(
+        `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
+Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
+and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
+--include-new to install all of them without a prompt.`,
+      )
+      .addOption(conflictPolicyOption("Policy for outdated Blueprints"))
+      .addOption(
+        noInteractiveOption("Never prompt; outdated Blueprints without --on-conflict are an error"),
+      )
+      .option("--include-new", "Install every newly shipped Blueprint without prompting")
+      .addHelpText(
+        "after",
+        `
+Requires .github/spindle.json; run \`spindle init\` first.
+Installed Blueprints with a missing or non-semver version are skipped with a warning.
+`,
+      )
+      .allowExcessArguments(false)
+      .action(
+        async (options: { onConflict?: string; interactive: boolean; includeNew?: boolean }) => {
+          const interactive =
+            options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+          const policy = parseConflictPolicy(options.onConflict);
+          await (await createApp().get(UpdateCommand)).run(interactive, policy, options.includeNew);
+        },
+      );
+  }
 
   constructor(app: App) {
     super(app);

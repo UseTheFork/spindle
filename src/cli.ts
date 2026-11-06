@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 
 import chalk from "chalk";
+import { Command } from "commander";
 
 import { App } from "./app.js";
 import { InitCommand } from "./commands/init/init-command.js";
@@ -29,25 +30,6 @@ Fails if .github/spindle.json already exists; use \`spindle update\` instead.
 Prompts are also disabled when stdin or stdout is not a terminal.
 Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`), setup-project (see \`spindle setup-project --help\`).
 Run \`spindle --version\` to print the installed version.
-`;
-
-const updateHelpText = `${chalk.bold("Usage:")} spindle update [options]
-
-Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
-Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
-and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
---include-new to install all of them without a prompt.
-
-${chalk.bold("Options:")}
-  --on-conflict <overwrite|skip>
-                        Policy for outdated Blueprints; required when non-interactive and any
-                        are outdated (interactive runs prompt per Blueprint)
-  --include-new         Install every newly shipped Blueprint without prompting
-  --no-interactive      Never prompt; outdated Blueprints without --on-conflict are an error
-  --help                Show this help
-
-Requires .github/spindle.json; run \`spindle init\` first.
-Installed Blueprints with a missing or non-semver version are skipped with a warning.
 `;
 
 const sddHelpText = `${chalk.bold("Usage:")} spindle sdd <command>
@@ -94,6 +76,13 @@ function createApplication(workspaceRoot: string | undefined): App {
 }
 
 export async function dispatch(args: string[], workspaceRoot: string | undefined) {
+  if (args[0] === "update" || (args[0] === "help" && args[1] === "update")) {
+    const program = new Command().name("spindle");
+    UpdateCommand.register(program, () => createApplication(workspaceRoot));
+    await program.parseAsync(args, { from: "user" });
+    return;
+  }
+
   if (args.length === 1 && args[0] === "--version") {
     const packageMetadata = JSON.parse(
       await readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -216,7 +205,6 @@ export async function dispatch(args: string[], workspaceRoot: string | undefined
       var: { type: "string", multiple: true },
       "no-interactive": { type: "boolean" },
       "on-conflict": { type: "string" },
-      "include-new": { type: "boolean" },
       help: { type: "boolean" },
     },
     allowPositionals: true,
@@ -224,36 +212,22 @@ export async function dispatch(args: string[], workspaceRoot: string | undefined
   });
 
   if (values.help) {
-    console.log(positionals[0] === "update" ? updateHelpText : helpText);
+    console.log(helpText);
     return;
   }
 
   const app = createApplication(workspaceRoot);
 
   const command = positionals[0];
-  if ((command !== "init" && command !== "update") || positionals.length !== 1) {
+  if (command !== "init" || positionals.length !== 1) {
     throw new Error(
-      "Usage: spindle init [--stack <id>] [--var <name>=<value>] [--on-conflict <overwrite|skip>] [--no-interactive] | spindle update [--on-conflict <overwrite|skip>] [--no-interactive]. See --help.",
+      "Usage: spindle init [--stack <id>] [--var <name>=<value>] [--on-conflict <overwrite|skip>] [--no-interactive]. See --help.",
     );
   }
 
   const policy = parseConflictPolicy(values["on-conflict"]);
   const interactive =
     !values["no-interactive"] && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
-
-  if (command === "update") {
-    if (values.stack || values.var) {
-      throw new Error(
-        "`spindle update` does not accept --stack or --var; edit .github/spindle.json.",
-      );
-    }
-    await (await app.get(UpdateCommand)).run(interactive, policy, values["include-new"]);
-    return;
-  }
-
-  if (values["include-new"]) {
-    throw new Error("`spindle init` does not accept --include-new; use `spindle update`.");
-  }
 
   await (await app.get(InitCommand)).run(values.stack ?? [], values.var ?? [], interactive, policy);
 }
