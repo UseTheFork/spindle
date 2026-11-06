@@ -35,6 +35,26 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "shared-r": { path: "shared-r.agent.md", status: "active", stacks: [] },
     "shared-rw": { path: "shared-rw.agent.md", status: "active", stacks: [] },
     "shared-rwx": { path: "shared-rwx.agent.md", status: "active", stacks: [] },
+    "shared-codebase-analyzer": {
+      path: "shared-codebase-analyzer.agent.md",
+      status: "active",
+      stacks: [],
+    },
+    "shared-codebase-locator": {
+      path: "shared-codebase-locator.agent.md",
+      status: "active",
+      stacks: [],
+    },
+    "shared-web-search-researcher": {
+      path: "shared-web-search-researcher.agent.md",
+      status: "active",
+      stacks: [],
+    },
+    "shared-codebase-pattern-finder": {
+      path: "shared-codebase-pattern-finder.agent.md",
+      status: "active",
+      stacks: [],
+    },
   },
   instructions: {},
   skills: {
