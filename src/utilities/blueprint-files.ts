@@ -1,4 +1,4 @@
-import { existsSync, type Stats } from "node:fs";
+import { type Stats } from "node:fs";
 import {
   access,
   copyFile,
@@ -11,13 +11,9 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { renderText, type RenderContext } from "./render.js";
-
-export const supportedStacks = ["php-laravel", "python", "typescript"] as const;
-
-export type ConflictPolicy = "overwrite" | "skip";
+import type { PlannedBlueprintFile, PreparedBlueprintFile } from "../installation/types.js";
+import { renderText, type RenderContext } from "../render.js";
 
 // Only known text formats are rendered; all other files are copied unchanged.
 const textExtensions = new Set([
@@ -39,14 +35,6 @@ const textExtensions = new Set([
   ".njk",
   "",
 ]);
-
-// Override asset locations only; the catalog is compiled into the CLI.
-export function blueprintsRoot() {
-  if (process.env.SPINDLE_BLUEPRINTS_DIR) return process.env.SPINDLE_BLUEPRINTS_DIR;
-  const adjacent = fileURLToPath(new URL("./blueprints/", import.meta.url));
-  if (existsSync(join(adjacent, "skills"))) return adjacent;
-  return fileURLToPath(new URL("../src/blueprints/", import.meta.url));
-}
 
 export async function exists(path: string) {
   try {
@@ -119,15 +107,6 @@ export async function assertSingleFileDestination(path: string, mustExist = fals
   if (!stat.isFile()) {
     throw new Error(`Refusing to overwrite '${path}': expected a regular file.`);
   }
-}
-
-export interface PlannedBlueprintFile {
-  sourcePath: string;
-  outputPath: string;
-}
-
-export interface PreparedBlueprintFile extends PlannedBlueprintFile {
-  renderedText: string | null;
 }
 
 export async function preparePlannedBlueprintFiles(
@@ -217,19 +196,4 @@ export async function installPlannedBlueprintFiles(
     }
     onFileApplied?.(file, destinationPath);
   }
-}
-
-export function validateStacks(stacks: string[]) {
-  for (const stack of stacks) {
-    if (!supportedStacks.includes(stack as (typeof supportedStacks)[number])) {
-      throw new Error(`Invalid stack '${stack}'. Supported stacks: ${supportedStacks.join(", ")}.`);
-    }
-  }
-}
-
-export function parseConflictPolicy(policy: string | undefined): ConflictPolicy | undefined {
-  if (policy !== undefined && policy !== "overwrite" && policy !== "skip") {
-    throw new Error(`Invalid --on-conflict '${policy}'. Use overwrite or skip.`);
-  }
-  return policy;
 }

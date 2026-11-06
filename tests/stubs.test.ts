@@ -5,8 +5,8 @@ import { before, test } from "node:test";
 
 import matter from "gray-matter";
 
-import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
+import { supportedStacks } from "../src/utilities/stacks.ts";
 import { makeTempDir, runCli } from "./helpers.ts";
 
 const shippedSkills = resolve(process.cwd(), "src/blueprints/skills");

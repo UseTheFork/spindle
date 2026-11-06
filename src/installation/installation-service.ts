@@ -1,32 +1,30 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import type { App } from "../app.js";
-import { ComputedContextService } from "../computed/computed-context.js";
-import {
-  assertSafeInstallPaths,
-  assertSingleFileDestination,
-  exists,
-  installPlannedBlueprintFiles,
-  preparePlannedBlueprintFiles,
-  type ConflictPolicy,
-  type PlannedBlueprintFile,
-  type PreparedBlueprintFile,
-} from "../install.js";
-import type { RenderContext } from "../render.js";
-import { readBlueprintVersion } from "../version.js";
+import { App, Service } from "../app.js";
 import {
   planBlueprintCatalog,
   blueprintCatalog,
   validateBlueprintCatalog,
   type CatalogDeletion,
   type CatalogSelection,
-} from "./catalog.js";
+} from "../blueprints/catalog.js";
 import type {
   BlueprintHandler,
   BlueprintUpdatePlan,
   PreparedBlueprintInitialization,
-} from "./types.js";
+} from "../blueprints/types.js";
+import { ComputedContextService } from "../computed/computed-context.js";
+import type { RenderContext } from "../render.js";
+import {
+  assertSafeInstallPaths,
+  assertSingleFileDestination,
+  exists,
+  installPlannedBlueprintFiles,
+  preparePlannedBlueprintFiles,
+} from "../utilities/blueprint-files.js";
+import { readBlueprintVersion } from "../version.js";
+import type { ConflictPolicy, PlannedBlueprintFile, PreparedBlueprintFile } from "./types.js";
 
 export interface BlueprintOutcome {
   kind: string;
@@ -78,6 +76,12 @@ type ReconcileOptions =
       includeNew?: boolean;
       prepareConfigWrite?: () => PlannedConfigWrite | undefined;
     });
+
+type WithoutApplicationRoots<T> = T extends unknown
+  ? Omit<T, "app" | "githubDirectory" | "blueprintSourceRoot">
+  : never;
+
+export type InstallationOptions = WithoutApplicationRoots<ReconcileOptions>;
 
 interface PlannedBlueprint {
   name: string;
@@ -180,7 +184,7 @@ async function collectDestinationFiles(directory: string, result: string[] = [])
 }
 
 // Ticket-level coordinators can consume target paths and deletion reasons before applying changes.
-export async function planBlueprintCatalogReconciliation(
+async function planBlueprintCatalogReconciliation(
   handlers: readonly BlueprintHandler[],
   githubDirectory: string,
   blueprintSourceRoot: string,
@@ -621,7 +625,7 @@ async function applyRemovalOperations(
   return outcomes;
 }
 
-export async function reconcileBlueprints(
+async function performReconciliation(
   handlers: readonly BlueprintHandler[],
   options: ReconcileOptions,
 ): Promise<BlueprintOutcome[]> {
@@ -873,4 +877,22 @@ export async function reconcileBlueprints(
     );
   }
   return outcomes;
+}
+
+export class InstallationService extends Service {
+  constructor(app: App) {
+    super(app);
+  }
+
+  async reconcile(
+    handlers: readonly BlueprintHandler[],
+    options: InstallationOptions,
+  ): Promise<BlueprintOutcome[]> {
+    return performReconciliation(handlers, {
+      ...options,
+      app: this.app,
+      githubDirectory: join(this.app.workspaceRoot, ".github"),
+      blueprintSourceRoot: this.app.blueprintSourceRoot,
+    });
+  }
 }

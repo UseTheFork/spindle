@@ -114,6 +114,12 @@ Published packages use that bundled tree and do not include a separate
 `src/blueprints` fallback.
 
 `SPINDLE_BLUEPRINTS_DIR` overrides only the Blueprint asset root, not the catalog.
-External YAML catalogs are not loaded; overridden assets must satisfy the same
-compiled catalog. Runtime validation still checks safe, nonoverlapping paths,
-source types and existence, symbolic links, and required `SKILL.md` files.
+The CLI resolves this override when it creates the application; installation
+services use that application's fixed Blueprint source root for every operation.
+Relative overrides are resolved against the discovered Git workspace root, not
+the invocation directory, and remain fixed if the process later changes directory.
+Without an override, source execution uses `src/blueprints/` and packaged
+execution uses the bundled `build/blueprints/` assets. External YAML catalogs
+are not loaded; overridden assets must satisfy the same compiled catalog.
+Runtime validation still checks safe, nonoverlapping paths, source types and
+existence, symbolic links, and required `SKILL.md` files.

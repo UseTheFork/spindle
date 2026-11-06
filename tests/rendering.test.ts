@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { supportedStacks } from "../src/install.ts";
 import { renderText } from "../src/render.ts";
+import { supportedStacks } from "../src/utilities/stacks.ts";
 
 const context = {
   stacks: ["python", "typescript"],

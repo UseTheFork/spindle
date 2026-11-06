@@ -1,7 +1,7 @@
 import { lstat, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, sep, win32 } from "node:path";
 
-import { supportedStacks } from "../install.js";
+import { supportedStacks } from "../utilities/stacks.js";
 
 export type CatalogKind = "agents" | "instructions" | "skills";
 export type CatalogStatus = "active" | "removed";

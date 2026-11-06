@@ -8,7 +8,9 @@ import { InitCommand } from "./commands/init/init-command.js";
 import { SddWorkspaceCommand } from "./commands/sdd-workspace/sdd-workspace-command.js";
 import { SetupProjectCommand } from "./commands/setup-project/setup-project-command.js";
 import { UpdateCommand } from "./commands/update/update-command.js";
-import { blueprintsRoot, parseConflictPolicy, supportedStacks } from "./install.js";
+import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
+import { parseConflictPolicy } from "./utilities/conflict-policy.js";
+import { supportedStacks } from "./utilities/stacks.js";
 
 const helpText = `${chalk.bold("Usage:")} spindle init [options]
 
@@ -87,7 +89,7 @@ function createApplication(workspaceRoot: string | undefined): App {
   }
   return new App({
     workspaceRoot,
-    blueprintSourceRoot: blueprintsRoot(),
+    blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
   });
 }
 
