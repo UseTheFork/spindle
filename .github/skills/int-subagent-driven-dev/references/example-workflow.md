@@ -1,39 +1,27 @@
 # Example: sequential tickets in one checkout
 
-Load and follow the `int-subagent-driven-dev` skill; its workflow is authoritative. This example shows a two-ticket dependency graph using the existing checkout and canonical `.scratch` feature directory.
+Load and follow the `int-subagent-driven-dev` skill; its workflow is authoritative. This example uses the existing checkout, current triage fields, and canonical dated `.scratch` directory.
 
 ## Pre-flight
 
-Before starting the controller flow, confirm invocation access to `sdd-implementer`, `sdd-code-reviewer`, `sdd-code-slop-reviewer`, `sdd-task-reviewer`, and `sdd-re-review`. If any is unavailable or unconfirmed, stop and tell the user which agents are missing; an agent file alone does not establish access.
+Confirm actual invocation access to `sdd-implementer` and `sdd-reviewer`. Read the spec, ticket comments, instructions, and tracker guidance. Record checkout, baseline, permissions, criteria/seams, dependency graph, and report destinations. Ticket 2 depends on ticket 1, so only ticket 1 is initially eligible.
 
-The controller reads the spec, ticket comments, repository instructions, and tracker guidance. It records the current checkout, starting revision, user changes, permissions, dependency graph, and `.scratch/2026-10-23-dataset-foundation/` as the canonical feature directory. Ticket 2 depends on ticket 1, so only ticket 1 is initially ready.
-
-On resume, restore the ledger, snapshot, checks, findings, rulings, and round counters before continuing at the recorded gate. Announce each controller flowchart step, including re-entries and decision branches.
-
-The controller resolves report destinations, assigning a separate path to each worker:
-
-```sh
-spindle sdd workspace --workspace /repo \
-  --reports-dir .scratch/2026-10-23-dataset-foundation/reports --ticket 01
-```
+On resume, restore the recorded gate, snapshot, findings, rulings, checks, attempts, and progress assessments. Announce each flowchart entry and decision without restarting completed work.
 
 ## Ticket 1
 
-1. Set `Execution: claimed`, then `Execution: implementing`. Populate the [implementer template](../assets/implementer-prompt.md) in `INITIAL` mode and omit its corrective-only section. Dispatch `sdd-implementer` with canonical sources, criteria, checkout/snapshot, dependencies, file scope, checks and working directory, permissions, and report path. Missing or conflicting inputs cause the worker to request context before proceeding.
-2. The implementer edits only assigned code, tests, and `.scratch` files in `/repo`, preserving existing changes and report history. It announces its flowchart steps and announces `RED: <test or behavior>` or `GREEN: <test or behavior>` immediately before test calls. Behavior changes start with failing tests; pure refactors reuse existing tests. After relevant tests pass, it saves the assigned implementation report. Formatting, lint, type checks, and ticket-wide regression checks remain with the controller.
-3. The controller verifies the handoff, applies formatting, and runs applicable lint, type, and ticket-wide regression checks. Failed or unavailable required checks block review. Read [review inputs](./review-inputs.md), freeze the snapshot, and dispatch `sdd-code-reviewer`, `sdd-code-slop-reviewer`, and `sdd-task-reviewer` **in parallel**, using their populated [code-review](../assets/code-reviewer-prompt.md), [code-slop](../assets/code-slop-reviewer-prompt.md), and [task-review](../assets/task-reviewer-prompt.md) templates, one shared review-input reference, and distinct report paths. Existing exact diffs and evidence can be referenced without copying logs or duplicating SHA fields. Supply relevant existing findings and rulings; mark same-batch reports not yet available as `NONE - parallel review pending`. Reviewers write only their assigned reports and do not spawn agents or edit implementation files.
-4. Wait for **all three reports** before reconciling findings and issuing controller rulings. A failed or unavailable review blocks the gate; it does not permit implementation edits while another reviewer is running.
-5. If blocking findings remain, enter the [corrective branch](./corrective-rounds.md). It persists the round before dispatch, supplies corrective-only inputs, checks the fix, and requests scoped re-review before returning to acceptance.
-6. Once all required reviews pass and findings are ruled, confirm current evidence covers the delivered snapshot and follow [standalone integration](./integration.md) before starting ticket 2.
-
-Ticket 2 is now ready because ticket 1's accepted changes are already in the same checkout and freshly verified.
+1. Set `Execution: claimed`, then `Execution: implementing`. Dispatch `sdd-implementer` with the [implementer template](../assets/implementer-prompt.md) in `INITIAL` mode and assign `01-implementation.md` inside the canonical reports directory. Supply complete requirements, criteria/seams, scope, checkout/snapshot, dependencies, checks, and permissions.
+2. Verify its focused-test handoff, then perform controller formatting, lint, type, and applicable regression checks. Reuse current passing evidence; failed/unavailable required evidence blocks review.
+3. Read [review inputs](review-inputs.md), freeze the snapshot, and set `Execution: in-review`. Dispatch one `sdd-reviewer` using the [reviewer template](../assets/reviewer-prompt.md) in `INITIAL` mode with complete shared inputs and `01-review.md`. Wait for its comprehensive Spec/Quality report before allowing further implementation.
+4. Reconcile stable finding IDs and record rulings. If two compatible blockers remain, set `Execution: changes-requested`, record a supported [continuation decision](corrective-rounds.md#continuation-decision), persist attempt 1, and dispatch one corrective implementer assignment containing both findings.
+5. Verify the fix handoff and invalidated controller checks once. Freeze the fixed snapshot and dispatch the same reviewer role in `CORRECTIVE` mode to `01-round-1-review.md`, supplying both finding IDs, fix-only changes, prior/fixed identities, initial verdicts, and fresh checks. Do not repeat three separate review phases or redo unaffected initial coverage.
+6. Record per-finding dispositions and progress. If another concrete blocker remains and progress supports continuation, record another attempt; if the same blocker recurs or requirements conflict, pause for adjudication. Attempt 5 is not an automatic stop, and attempt 6 is not automatically justified.
+7. Once both verdicts pass and blockers are resolved, set `Execution: accepted`, confirm coverage, and follow [standalone integration](integration.md) under established permissions before claiming ticket 2.
 
 ## Ticket 2 and finalization
 
-Repeat the ticket gates sequentially for ticket 2; only independent reviewers run in parallel, not implementation workers.
+Ticket 2 becomes eligible only after ticket 1 is integrated. Repeat sequentially; never overlap implementation workers or implementation with review.
 
-After all tickets are integrated, enter [full-spec delivery](./full-spec.md) for aggregate review, its bounded final-fix path, verification, retrospective, and hand-back.
+For standalone full-spec delivery, follow [full-spec delivery](full-spec.md): one aggregate comprehensive review, progress-based batched corrections and scoped verification if needed, final verification/integration, the current required delivery retrospective, and hand-back. Delivery attempts are separate from ticket attempts and are not capped at one.
 
-For a caller-owned ticket rather than this standalone full-spec delivery, return the evidence at the caller-owned hand-back gate; leave integration and acceptance to the caller.
-
-No separate checkout, branch transfer, worktree cleanup, or `.scratch` copy is involved. If a blocking issue remains, preserve the checkout and reports and return an incomplete hand-back.
+Caller-owned tickets hand back with current evidence at the ownership gate, leaving integration to the caller. Preserve the checkout, report history, and all unresolved blockers on incomplete delivery.

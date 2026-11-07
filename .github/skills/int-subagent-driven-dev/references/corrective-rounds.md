@@ -1,77 +1,68 @@
-# Ticket corrective rounds
+# Progress-based corrections
 
-Parent: G - Corrective branch. Enter when reviews leave findings open or controller checks require a non-mechanical fix. Restore the persisted counter, prior findings, attempts, and rulings before acting.
+Parent: G - Corrective branch. Enter when review identifies actionable blockers or controller checks require a non-mechanical fix. Restore findings, attempts, rulings, and the recorded gate before acting. Attempt numbers identify history, not a fixed retry budget.
+
+## Continuation decision
+
+Apply this policy to both ticket and delivery corrections, keeping their histories separate. Before dispatch, record the selected finding IDs or concrete check failure, prior attempt outcome, demonstrated progress, and explicit controller continuation decision. For a first fix, record the actionable correction objective; for later fixes, cite verified blockers resolved or other concrete progress supported by current checks/review.
+
+Repeated failed fixes, recurring blockers, no demonstrated progress, or disagreement about requirements pause for controller/user adjudication rather than another automatic dispatch. Record residual blockers and the specific decision needed. Requirement ambiguity returns to current triage (`needs-info` or `needs-triage`) while preserving the execution gate; technical inability uses the project's blocked state. An adjudication may authorize a materially revised plan, but cannot weaken acceptance or silently reset attempts.
+
+Batch compatible confirmed blockers into one implementer assignment, including their required regression tests. Keep one checks gate and one comprehensive scoped review per checked fix. Reuse passing unaffected evidence; do not rerun all reviews or checks by default. A broadened contract or invalidated requirements/coverage needs expanded affected review, not an assertion that a narrow fix report covers everything.
 
 ```mermaid
 flowchart TD
-    A{Under five fix dispatches?} -->|Yes| B[Persist round and dispatch fix]
-    A -->|No| Z[Adjudicate incomplete]
+    A{Continuation justified?} -- Yes --> B[Persist attempt and dispatch batch fix]
+    A -- No --> X[Record adjudication or blocker]
     B -- Handoff current --> C[Controller checks]
-    B -- Blocked --> X[Return blocker]
-    C -- Checks current --> P{Initial reviews complete?}
+    B -- Blocked --> X
+    C -- Initial coverage missing --> R[Return to initial review]
+    C -- Checks and initial coverage current --> D[Freeze and corrective review]
     C -- Blocked --> X
-    P -- No --> R[Return to initial review gate]
-    P -- Yes --> D[Freeze and scoped re-review]
-    D -- Report current --> E[Return to acceptance gate]
+    D -- Report current --> F[Return to acceptance]
     D -- Blocked --> X
-    Z --> Q[Parent hand-back]
-    X --> Q
-    R --> T[Parent initial review]
-    E --> U[Parent acceptance]
 ```
 
-Q, T, and U denote parent return points, not child work: Q returns to parent Q, T to parent E, and U to parent F. Before returning, announce `Step G - Corrective branch` as resumed.
+Child IDs are local to this diagram: announce `Step G.<ID> - Corrective branch / <label>` before acting, for example `Step G.A - Corrective branch / Continuation justified?`. R returns to parent E, F to parent F, and X to parent Q. Before returning, announce `Step G - Corrective branch` as resumed, state the exit, and do not restart completed child work.
 
-## G.A. Under five fix dispatches?
+## A. Continuation justified?
 
-Cap corrective implementation dispatches at five per ticket across all reviews and check failures. Resume preserves the counter. A sixth dispatch is unavailable.
+Apply the continuation decision above. Do not use a five-round cap or permit blind retries.
 
-**Complete when:** persisted count below five selects G.B; exhausted budget selects G.Z.
+**Complete when:** an explicit supported continuation selects G.B; stalled progress, requirements disagreement, or unavailable prerequisites selects G.X with the decision/blocker recorded.
 
-## G.B. Persist round and dispatch fix
+## B. Persist attempt and dispatch batch fix
 
-Persist the next round before dispatching `sdd-implementer` with the [implementer template](../assets/implementer-prompt.md), corrective mode, assigned finding IDs, prior attempts, and controller rulings. Read [implementer corrections](implementer-corrections.md) for the branch inputs. Resolve round-specific destinations by adding `--round <R>` to the parent report-destination command. Serialize edits and retain report history.
+Persist the next attempt before dispatching `sdd-implementer` in corrective mode with the [implementer template](../assets/implementer-prompt.md). Supply all compatible selected blockers, prior attempts, rulings, and fresh scope/permissions using [corrective inputs](implementer-corrections.md). Assign a distinct round-specific review destination and append fix evidence to the implementation report. Set `Execution: implementing` and serialize edits.
 
-**Complete when:** the fix report and required passing focused-test evidence identify the fixed snapshot, selecting G.C; missing/failing required evidence selects G.X.
+**Complete when:** the handoff and required passing focused tests identify the fixed snapshot, selecting G.C; missing/failing required evidence selects G.X. Resume an interrupted assignment rather than allocating another attempt.
 
-## G.C. Controller checks
+## C. Controller checks
 
-Perform the parent D mechanical gate after the fix; rerun invalidated or explicitly required checks.
+Perform parent D once for the checked fix, rerunning invalidated or explicitly scheduled checks. Record the initial review coverage still applicable to the fixed snapshot.
 
-**Complete when:** required checks pass and cover the fixed snapshot, selecting G.P; otherwise G.X records the blocker without consuming an unrecorded round.
+**Complete when:** passing checks with missing initial coverage select G.R; passing checks with complete initial coverage select G.D; unresolved failures select G.X. Further non-mechanical fixes require a new recorded continuation decision, not an untracked edit loop.
 
-## G.P. Initial reviews complete?
+## D. Freeze and corrective review
 
-Check the ledger for the complete initial review batch.
+Freeze the fixed snapshot and set `Execution: in-review`. Read [review inputs](review-inputs.md) and populate the [reviewer template](../assets/reviewer-prompt.md) in `CORRECTIVE` mode with fix-only changes, prior/fixed identities, every selected finding verbatim, prior verdicts/rulings, initial coverage, and fresh covering checks. Dispatch `sdd-reviewer` once. Expand affected scope only when contracts or coverage changed; preserve justified unaffected evidence.
 
-**Complete when:** completed initial reviews select G.D; pending initial reviews select G.R. Scoped re-review cannot replace missing initial coverage.
+**Complete when:** the report accounts for each assigned finding and fix-induced regressions and records current scoped verdicts, selecting G.F; missing/unavailable review selects G.X. Unresolved actionable findings return through parent F for the next progress decision.
 
-## G.D. Freeze and scoped re-review
+## R. Return to initial review
 
-Freeze the fixed snapshot. Read [review inputs](review-inputs.md) and populate the [re-review template](../assets/re-review-prompt.md) with the fix-only change, exact previous and fixed identities, assigned findings, prior verdicts, rulings, and current covering-test evidence. Dispatch `sdd-re-review` and wait for its report.
+Record the checked snapshot and missing initial coverage. A check-driven correction before initial review must still receive a comprehensive initial review.
 
-**Complete when:** the report covers every assigned finding and fix-induced regressions, selecting G.E; failed/unavailable review selects G.X. Preserve unaffected review evidence.
+**Complete when:** missing coverage is explicit; resume parent G and return to E.
 
-## G.E. Return to acceptance gate
+## F. Return to acceptance
 
-Update verdicts and controller rulings from the scoped report.
+Record finding dispositions, controller rulings, affected verdicts, and progress from the checked fix.
 
-**Complete when:** current verdicts/rulings are recorded; resume parent G and return to parent F.
+**Complete when:** current evidence and unaffected coverage are accounted for; resume parent G and return to F.
 
-## G.R. Return to initial review gate
+## X. Record adjudication or blocker
 
-Record the checked fixed snapshot and missing initial coverage.
+Preserve working changes, reports, attempt numbers, findings, and current gate. State the missing evidence, stalled correction, or requirement decision; do not dispatch another worker or reset history.
 
-**Complete when:** the ledger identifies all pending initial reviewers; resume parent G and return to parent E.
-
-## G.Z. Adjudicate incomplete
-
-Rule on residual findings and persist the exhausted count and incomplete state. Preserve working changes and reports; do not reset the budget.
-
-**Complete when:** every residual blocker and the exhausted count are recorded; resume parent G and return to parent Q.
-
-## G.X. Return blocker
-
-Record the unavailable handoff, check, or review, preserving counters and evidence.
-
-**Complete when:** the blocker and current state are explicit; resume parent G and return to parent Q.
+**Complete when:** the next required decision or blocker is explicit; resume parent G and return to Q.
