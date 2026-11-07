@@ -131,6 +131,9 @@ test("packaged sdd create and status expose feature state outside the checkout",
     spec: expected.spec,
     ledger: expected.ledger,
     state: ledger,
+    actions: [],
+    pendingAssignments: [],
+    blockers: [],
   };
   assert.equal(inspected.stdout, `${JSON.stringify(expectedStatus, null, 2)}\n`);
   assert.deepEqual(JSON.parse(inspected.stdout), expectedStatus);

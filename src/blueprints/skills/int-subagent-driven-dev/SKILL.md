@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.4.0
+    version: 1.5.0
 ---
 
 # Subagent-Driven Development
@@ -18,7 +18,7 @@ Controller for assigned tickets or dependency graphs; the brief governs. The con
 | Implementation and batched fixes                       | `sdd-implementer` | [implementer](./assets/implementer-prompt.md) |
 | Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`    | [reviewer](./assets/reviewer-prompt.md)       |
 
-Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Retain the project's current triage fields, dated tracker, integration permissions, and retrospective convention; this workflow does not require new CLI commands or a new ledger format.
+Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Use the SDD ledger and workflow commands as the execution authority; Markdown remains the requirements, comments, and report record. Workflow commands persist intent and validate gates but never launch agents, execute checks, or mutate Git.
 
 ## Controller flow
 
@@ -59,23 +59,23 @@ flowchart TD
 
 ### A. Restore scope and ledger
 
-Read tickets/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and dated `.scratch` destinations. Confirm an acyclic dependency graph. Restore snapshot, checks, findings, rulings, attempts, progress decisions, and recorded gate on resume; continue there rather than restarting completed work. Preserve earlier reports, including legacy reviewer reports, as history; judge usable coverage rather than discarding it or restarting reviews solely because the reviewer roles changed. If no ticket remains, continue at K.
+Read issues/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and canonical `.scratch` destinations. Confirm an acyclic dependency graph. Use `sdd next --spec <path>` or `sdd status --spec <path>` to inspect permitted actions, pending assignments, and blockers without writing state. On resume, use `sdd resume --spec <path> --issue <id> --author <controller>` to restore the recorded gate and assignment; a changed controller must add `--confirm-handoff` only after confirming the prior worker stopped. Restore snapshot, checks, findings, rulings, attempts, and progress decisions without resetting completed work. Preserve earlier reports as history and judge usable coverage rather than discarding it. If no ticket remains, continue at K.
 
 **Complete when:** scope and ownership are explicit, the ledger is current, and required inputs/baseline are available. Resume the recorded gate, or select B for new ticket work and K if no ticket remains; unresolved triage or missing inputs select Q.
 
 ### B. Claim eligible ticket
 
-Claim only a ticket whose dependencies are integrated. Set `Execution: claimed`.
+Confirm the issue is ready and all dependencies are integrated. Commit preparation documents, issue/triage updates, and every other checkout change before claiming. Run `sdd claim --spec <path> --issue <id> --author <controller>`; the command rejects staged, unstaged, and untracked changes, records the clean starting commit and controller only on success, and does not change Git state.
 
-**Complete when:** one eligible ticket is claimed and its dependencies are integrated; proceed to C.
+**Complete when:** the ledger records one clean-baseline claim with integrated dependencies; proceed to C. A failed claim leaves ownership and baseline unchanged.
 
 ### C. Dispatch implementation
 
-Set `Execution: implementing`. Assign absolute destinations inside the canonical dated reports directory and record their tracker-relative paths: `<NN>-implementation.md`, `<NN>-review.md`, and `<NN>-round-<R>-review.md` for corrections. Preserve previous reports; expanded reviews after later changes also need distinct destinations. Assign paths directly without introducing a report-resolution command.
+Run `sdd implement --spec <path> --issue <id> --author <controller>`. It persists dispatch intent before returning the assignment's role `implementation` and durable absolute report destination. It does not launch an agent. Pass that exact path and the complete assignment inputs to `sdd-implementer`; preserve existing reports and never substitute another destination.
 
-Populate the implementer assignment in initial mode and dispatch `sdd-implementer`. Wait for its report.
+After the worker returns, save and submit its report with `sdd submit --spec <path> --issue <id> --role implementation --report <assigned-path> --author <controller>`. A missing report is not completion; record unavailable output explicitly with `--unavailable --details <reason>`, leaving the assignment pending. If dispatch was interrupted, `implement` or `resume` returns the same recorded assignment instead of allocating another one.
 
-**Complete when:** the implementation report identifies the assigned changes and current focused-test evidence, allowing D. Missing, stale, failing, or unavailable required handoff evidence selects Q with a blocker.
+**Complete when:** the report is registered against the expected action and assigned path, allowing D. Missing, stale, failing, or unavailable required handoff evidence selects Q with a blocker.
 
 ### D. Controller checks
 

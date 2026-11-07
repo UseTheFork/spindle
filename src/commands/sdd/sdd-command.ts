@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -60,6 +60,24 @@ type ExecutionState = (typeof EXECUTION_STATES)[number];
 interface IssueProgress {
   id: string;
   execution: ExecutionState;
+  owner?: string;
+  baseSha?: string;
+  assignment?: ImplementationAssignment;
+}
+
+interface ImplementationAssignment {
+  id: string;
+  role: "implementation";
+  action: "implement";
+  controller: string;
+  report: string;
+  requestedAt: string;
+  status: "pending" | "submitted" | "unavailable";
+  reportSha256?: string;
+  submittedAt?: string;
+  submittedBy?: string;
+  unavailableDetails?: string;
+  handoffs: { at: string; from: string; to: string; confirmedStopped: boolean }[];
 }
 
 interface DeliveryHistoryEntry {
@@ -133,6 +151,25 @@ interface ReadyOptions {
   spec: string;
 }
 
+type ClaimOptions = IssueSelection;
+
+type ImplementOptions = IssueSelection;
+
+interface SubmitOptions extends IssueSelection {
+  role: string;
+  report?: string;
+  unavailable?: boolean;
+  details?: string;
+}
+
+interface ResumeOptions extends IssueSelection {
+  confirmHandoff?: boolean;
+}
+
+interface NextOptions {
+  spec: string;
+}
+
 interface IssueDocument {
   metadata: Record<string, unknown>;
   id: string;
@@ -179,6 +216,51 @@ function validateCreateOptions({ title, author }: CreateOptions): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isImplementationAssignment(value: unknown): value is ImplementationAssignment {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    !value.id.trim() ||
+    value.role !== "implementation" ||
+    value.action !== "implement" ||
+    typeof value.controller !== "string" ||
+    !value.controller.trim() ||
+    typeof value.report !== "string" ||
+    !isAbsolute(value.report) ||
+    typeof value.requestedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.requestedAt)) ||
+    !["pending", "submitted", "unavailable"].includes(String(value.status)) ||
+    !Array.isArray(value.handoffs) ||
+    !value.handoffs.every(
+      (handoff) =>
+        isRecord(handoff) &&
+        typeof handoff.at === "string" &&
+        Number.isFinite(Date.parse(handoff.at)) &&
+        typeof handoff.from === "string" &&
+        handoff.from.trim() &&
+        typeof handoff.to === "string" &&
+        handoff.to.trim() &&
+        handoff.confirmedStopped === true,
+    )
+  ) {
+    return false;
+  }
+  if (value.status === "submitted") {
+    return (
+      typeof value.reportSha256 === "string" &&
+      /^[0-9a-f]{64}$/i.test(value.reportSha256) &&
+      typeof value.submittedAt === "string" &&
+      Number.isFinite(Date.parse(value.submittedAt)) &&
+      typeof value.submittedBy === "string" &&
+      !!value.submittedBy.trim()
+    );
+  }
+  if (value.status === "unavailable") {
+    return typeof value.unavailableDetails === "string" && !!value.unavailableDetails.trim();
+  }
+  return true;
 }
 
 function featureSlug(title: string): string {
@@ -299,8 +381,71 @@ export class SddCommand extends Service {
       });
 
     program
+      .command("claim")
+      .description("Claim a ready issue from a clean Git checkout.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ClaimOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.claim(options), null, 2));
+      });
+
+    program
+      .command("implement")
+      .description("Persist and return an implementation assignment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ImplementOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.implement(options), null, 2));
+      });
+
+    program
+      .command("submit")
+      .description("Register an implementation report or record its unavailability.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--role <role>", "Assignment role")
+      .option("--report <path>", "Implementation report path", once("--report"))
+      .option("--unavailable", "Record that the assigned report is unavailable")
+      .option("--details <details>", "Reason the report is unavailable", once("--details"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: SubmitOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.submit(options), null, 2));
+      });
+
+    program
+      .command("resume")
+      .description("Restore the recorded issue gate and assignment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .option("--confirm-handoff", "Confirm the previous controller has stopped editing")
+      .allowExcessArguments(false)
+      .action(async (options: ResumeOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.resume(options), null, 2));
+      });
+
+    program
+      .command("next")
+      .description("Show the next permitted issue actions without changing state.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .allowExcessArguments(false)
+      .action(async (options: NextOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.next(options), null, 2));
+      });
+
+    program
       .command("status")
-      .description("Inspect the recorded state and policy of an existing feature.")
+      .description("Inspect state, permitted actions, assignments, and blockers.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: StatusOptions) => {
@@ -415,7 +560,19 @@ export class SddCommand extends Service {
     }
   }
 
-  status({ spec }: StatusOptions): FeaturePaths & { state: FeatureLedger } {
+  status({ spec }: StatusOptions): FeaturePaths & {
+    state: FeatureLedger;
+    actions: { issue: string; action: string }[];
+    pendingAssignments: {
+      issue: string;
+      id: string;
+      role: "implementation";
+      action: "implement";
+      report: string;
+      status: ImplementationAssignment["status"];
+    }[];
+    blockers: { issue: string; reason: string }[];
+  } {
     if (!spec.trim()) throw new Error("Spec path must not be empty.");
     if (spec.includes("\\"))
       throw new Error("Spec path must use checkout-relative path separators.");
@@ -437,7 +594,121 @@ export class SddCommand extends Service {
     ) {
       throw new Error("Spec must be spec.md in a numbered feature workspace under .scratch.");
     }
-    return this.#statusFromPaths(root, specPath, relativeSpec, segments);
+    const feature = this.#statusFromPaths(root, specPath, relativeSpec, segments);
+    const issues = this.#readIssues(feature.workspace);
+    this.#validateDependencyGraph(issues);
+    const byId = new Map(issues.map((issue) => [issue.id, issue]));
+    const progressById = new Map(feature.state.issues.map((item) => [item.id, item]));
+    let checkoutChanges: string | undefined;
+    try {
+      checkoutChanges = this.#gitChangeSummary(feature);
+    } catch {
+      checkoutChanges = undefined;
+    }
+    const actions: { issue: string; action: string }[] = [];
+    const pendingAssignments: {
+      issue: string;
+      id: string;
+      role: "implementation";
+      action: "implement";
+      report: string;
+      status: ImplementationAssignment["status"];
+    }[] = [];
+    const blockers: { issue: string; reason: string }[] = [];
+
+    for (const progress of feature.state.issues) {
+      const issue = byId.get(progress.id);
+      if (!issue) {
+        blockers.push({ issue: progress.id, reason: "Issue Markdown is missing." });
+        continue;
+      }
+      if (progress.execution === "unstarted") {
+        if (issue.status !== "ready-for-agent") {
+          blockers.push({ issue: progress.id, reason: `Triage status is ${issue.status}.` });
+          continue;
+        }
+        const unmet = issue.blocked_by.filter(
+          (dependency) => progressById.get(dependency)?.execution !== "integrated",
+        );
+        if (unmet.length > 0) {
+          blockers.push({
+            issue: progress.id,
+            reason: `Dependencies are not integrated: ${unmet.join(", ")}.`,
+          });
+          continue;
+        }
+        if (checkoutChanges === undefined) {
+          blockers.push({
+            issue: progress.id,
+            reason: "Checkout cleanliness could not be verified; claim is unavailable.",
+          });
+          continue;
+        }
+        if (checkoutChanges) {
+          blockers.push({
+            issue: progress.id,
+            reason: `Checkout is dirty; claim requires no staged, unstaged, or untracked changes: ${checkoutChanges}`,
+          });
+          continue;
+        }
+        actions.push({ issue: progress.id, action: "claim" });
+      } else if (progress.execution === "claimed") {
+        if (progress.owner && progress.baseSha) {
+          actions.push({ issue: progress.id, action: "implement" });
+        } else {
+          blockers.push({
+            issue: progress.id,
+            reason: "Claim has no recorded owner or baseline; implementation is unavailable.",
+          });
+        }
+      } else if (progress.execution === "implementing") {
+        if (progress.assignment) {
+          pendingAssignments.push({
+            issue: progress.id,
+            id: progress.assignment.id,
+            role: progress.assignment.role,
+            action: progress.assignment.action,
+            report: progress.assignment.report,
+            status: progress.assignment.status,
+          });
+          if (progress.assignment.status === "submitted") {
+            const reason = this.#implementationReportBlocker(feature, progress.assignment);
+            if (reason) blockers.push({ issue: progress.id, reason });
+            else actions.push({ issue: progress.id, action: "review" });
+          } else {
+            actions.push({ issue: progress.id, action: "await-implementation-report" });
+          }
+        } else {
+          blockers.push({
+            issue: progress.id,
+            reason: "Implementation is marked in progress without a recorded assignment.",
+          });
+        }
+      } else if (progress.execution === "reviewing") {
+        const reason = this.#implementationReportBlocker(feature, progress.assignment);
+        if (reason) {
+          blockers.push({ issue: progress.id, reason });
+          continue;
+        }
+        actions.push({ issue: progress.id, action: "review" });
+      } else if (progress.execution === "changes-requested") {
+        blockers.push({
+          issue: progress.id,
+          reason: "A correction decision is required before another implementation dispatch.",
+        });
+      } else if (progress.execution === "blocked") {
+        blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
+      } else if (progress.execution === "accepted") {
+        actions.push({ issue: progress.id, action: "integrate" });
+      }
+    }
+    for (const issue of issues) {
+      if (!progressById.has(issue.id)) {
+        blockers.push({ issue: issue.id, reason: "Issue has no ledger execution record." });
+      }
+    }
+
+    return { ...feature, actions, pendingAssignments, blockers };
   }
 
   issueCreate(options: IssueCreateOptions): { issue: string; path: string } {
@@ -651,6 +922,520 @@ export class SddCommand extends Service {
     }
     this.#assertReadyReadable(feature.workspace);
     return { ready, unready };
+  }
+
+  claim(options: ClaimOptions): {
+    issue: string;
+    execution: "claimed";
+    owner: string;
+    baseSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issues = this.#readIssues(feature.workspace);
+      this.#validateDependencyGraph(issues);
+      const issue = this.#requireIssue(issues, options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution !== "unstarted") {
+        throw new Error(
+          `Issue ${options.issue} is already owned or has progressed to ${progress.execution}.`,
+        );
+      }
+      if (issue.status !== "ready-for-agent") {
+        throw new Error(`Issue ${options.issue} is not ready for an agent.`);
+      }
+      const byId = new Map(ledger.issues.map((item) => [item.id, item]));
+      const unmet = issue.blocked_by.filter(
+        (dependency) => byId.get(dependency)?.execution !== "integrated",
+      );
+      if (unmet.length > 0) {
+        throw new Error(
+          `Issue ${options.issue} has dependencies that are not integrated: ${unmet.join(", ")}.`,
+        );
+      }
+      const baseSha = this.#cleanGitBaseline(feature);
+      progress.execution = "claimed";
+      progress.owner = options.author.trim();
+      progress.baseSha = baseSha;
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Claimed from clean Git baseline ${baseSha}.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "claimed",
+        owner: options.author.trim(),
+        baseSha,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  implement(options: ImplementOptions): {
+    issue: string;
+    execution: "implementing";
+    assignment: ImplementationAssignment;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution === "implementing" && progress.assignment) {
+        if (progress.owner !== options.author.trim()) {
+          throw new Error("Controller ownership changed; resume and confirm the handoff first.");
+        }
+        return {
+          issue: options.issue,
+          execution: "implementing",
+          assignment: progress.assignment,
+        };
+      }
+      if (progress.execution !== "claimed" || !progress.baseSha || !progress.owner) {
+        throw new Error(`Issue ${options.issue} must be claimed before implementation dispatch.`);
+      }
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the recorded controller may dispatch implementation.");
+      }
+
+      const report = join(feature.workspace, "reports", `${options.issue}-implementation.md`);
+      this.#assertReportPath(feature, report, false);
+      if (lstatIfPresent(report)) {
+        throw new Error(`Assigned report already exists and was preserved: ${report}.`);
+      }
+      const assignment: ImplementationAssignment = {
+        id: randomUUID(),
+        role: "implementation",
+        action: "implement",
+        controller: options.author.trim(),
+        report,
+        requestedAt: new Date().toISOString(),
+        status: "pending",
+        handoffs: [],
+      };
+      progress.execution = "implementing";
+      progress.assignment = assignment;
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Implementation assignment ${assignment.id} recorded; role=implementation; report=${report}. No agent was launched.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return { issue: options.issue, execution: "implementing", assignment };
+    } finally {
+      release();
+    }
+  }
+
+  submit(options: SubmitOptions): {
+    issue: string;
+    execution: ExecutionState;
+    assignment: ImplementationAssignment;
+    report?: string;
+    reportSha256?: string;
+    unavailable?: boolean;
+    idempotent?: boolean;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (options.role !== "implementation") {
+      throw new Error("This submit command accepts only role implementation.");
+    }
+    if (options.unavailable && !options.details?.trim()) {
+      throw new Error("--details is required when the implementation report is unavailable.");
+    }
+    if (options.unavailable && options.report !== undefined) {
+      throw new Error("--report cannot be combined with --unavailable.");
+    }
+    if (!options.unavailable && options.details !== undefined) {
+      throw new Error("--details is only valid with --unavailable.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      const assignment = progress.assignment;
+      if (!assignment || assignment.action !== "implement" || assignment.role !== options.role) {
+        throw new Error("No matching implementation assignment is pending for this issue.");
+      }
+      if (
+        progress.owner !== options.author.trim() ||
+        assignment.controller !== options.author.trim()
+      ) {
+        throw new Error("Only the current controller may submit this implementation report.");
+      }
+      if (options.unavailable) {
+        const details = options.details!.trim();
+        if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
+          return {
+            issue: options.issue,
+            execution: progress.execution,
+            assignment,
+            unavailable: true,
+            idempotent: true,
+          };
+        }
+        if (assignment.status !== "pending" || progress.execution !== "implementing") {
+          throw new Error("The implementation assignment is no longer awaiting a report.");
+        }
+        assignment.status = "unavailable";
+        assignment.unavailableDetails = details;
+        const afterIssue = matter.stringify(
+          this.#appendAudit(
+            issue.body,
+            options.author,
+            `Implementation report unavailable for assignment ${assignment.id}: ${details}. Work remains pending.`,
+          ),
+          this.#metadata(issue),
+        );
+        this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+        return {
+          issue: options.issue,
+          execution: progress.execution,
+          assignment,
+          unavailable: true,
+        };
+      }
+      if (assignment.status === "submitted") {
+        const currentPath = this.#submissionReportPath(feature, assignment, options.report);
+        const digest = this.#readReportDigest(feature, currentPath);
+        if (digest !== assignment.reportSha256) {
+          throw new Error("The registered implementation report changed after submission.");
+        }
+        return {
+          issue: options.issue,
+          execution: progress.execution,
+          assignment,
+          report: assignment.report,
+          reportSha256: digest,
+          idempotent: true,
+        };
+      }
+      if (
+        (assignment.status !== "pending" && assignment.status !== "unavailable") ||
+        progress.execution !== "implementing"
+      ) {
+        throw new Error("The implementation assignment is not awaiting a report.");
+      }
+      const reportPath = this.#submissionReportPath(feature, assignment, options.report);
+      let reportSha256: string;
+      try {
+        reportSha256 = this.#readReportDigest(feature, reportPath);
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ENOENT"
+        ) {
+          throw new Error(
+            `Implementation report is missing or unavailable at ${assignment.report}; the assignment remains pending.`,
+          );
+        }
+        throw error;
+      }
+      assignment.status = "submitted";
+      assignment.reportSha256 = reportSha256;
+      assignment.submittedAt = new Date().toISOString();
+      assignment.submittedBy = options.author.trim();
+      delete assignment.unavailableDetails;
+      progress.execution = "reviewing";
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Implementation report submitted for assignment ${assignment.id}: ${assignment.report} (sha256 ${reportSha256}).`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: progress.execution,
+        assignment,
+        report: assignment.report,
+        reportSha256,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  resume(options: ResumeOptions): {
+    issue: string;
+    gate: ExecutionState;
+    nextAction: string;
+    owner?: string;
+    assignment?: ImplementationAssignment;
+    handoffRecorded?: boolean;
+    blocker?: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      let handoffRecorded = false;
+      if (progress.owner && progress.owner !== options.author.trim()) {
+        if (!options.confirmHandoff) {
+          throw new Error(
+            `Ownership handoff from ${progress.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
+          );
+        }
+        const previousOwner = progress.owner;
+        progress.owner = options.author.trim();
+        if (progress.assignment) {
+          progress.assignment.controller = options.author.trim();
+          progress.assignment.handoffs.push({
+            at: new Date().toISOString(),
+            from: previousOwner,
+            to: options.author.trim(),
+            confirmedStopped: true,
+          });
+        }
+        const afterIssue = matter.stringify(
+          this.#appendAudit(
+            issue.body,
+            options.author,
+            `Controller handoff from ${previousOwner} to ${options.author.trim()} confirmed after the previous controller stopped editing.`,
+          ),
+          this.#metadata(issue),
+        );
+        this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+        handoffRecorded = true;
+      }
+      const blocker = this.#resumeBlocker(feature, progress);
+      return {
+        issue: options.issue,
+        gate: progress.execution,
+        nextAction: this.#nextAction(progress, blocker),
+        ...(progress.owner ? { owner: progress.owner } : {}),
+        ...(progress.assignment ? { assignment: progress.assignment } : {}),
+        ...(handoffRecorded ? { handoffRecorded: true } : {}),
+        ...(blocker ? { blocker } : {}),
+      };
+    } finally {
+      release();
+    }
+  }
+
+  next(options: NextOptions) {
+    const status = this.status(options);
+    return {
+      feature: status.feature,
+      spec: status.spec,
+      actions: status.actions,
+      pendingAssignments: status.pendingAssignments,
+      blockers: status.blockers,
+    };
+  }
+
+  #nextAction(progress: IssueProgress, blocker?: string): string {
+    if (progress.execution === "unstarted") return "claim";
+    if (progress.execution === "claimed") {
+      return progress.owner && progress.baseSha ? "implement" : "resolve-claim-blocker";
+    }
+    if (progress.execution === "implementing") {
+      if (!progress.assignment) return "resolve-assignment-blocker";
+      if (progress.assignment.status === "submitted") {
+        return blocker ? "restore-implementation-report" : "review";
+      }
+      return "await-implementation-report";
+    }
+    if (progress.execution === "reviewing")
+      return blocker ? "restore-implementation-report" : "review";
+    if (progress.execution === "changes-requested") return "controller-correction-decision";
+    if (progress.execution === "accepted") return "integrate";
+    if (progress.execution === "integrated") return "complete";
+    return "resolve-blocker";
+  }
+
+  #resumeBlocker(feature: FeaturePaths, progress: IssueProgress): string | undefined {
+    if (progress.execution === "claimed" && (!progress.owner || !progress.baseSha)) {
+      return "Claim has no recorded owner or baseline; implementation is unavailable.";
+    }
+    if (progress.execution === "implementing" && !progress.assignment) {
+      return "Implementation is marked in progress without a recorded assignment.";
+    }
+    if (
+      progress.execution === "reviewing" ||
+      (progress.execution === "implementing" && progress.assignment?.status === "submitted")
+    ) {
+      return this.#implementationReportBlocker(feature, progress.assignment);
+    }
+    return undefined;
+  }
+
+  #requireProgress(ledger: FeatureLedger, issue: string): IssueProgress {
+    const progress = ledger.issues.find((item) => item.id === issue);
+    if (!progress) throw new Error(`Issue ${issue} has no ledger execution record.`);
+    return progress;
+  }
+
+  #implementationReportBlocker(
+    feature: FeaturePaths,
+    assignment: ImplementationAssignment | undefined,
+  ): string | undefined {
+    if (!assignment || assignment.status !== "submitted" || !assignment.reportSha256) {
+      return "Review is blocked because no submitted implementation report is registered.";
+    }
+    try {
+      const currentDigest = this.#readReportDigest(feature, assignment.report);
+      if (currentDigest !== assignment.reportSha256) {
+        return "The registered implementation report content changed after submission.";
+      }
+    } catch {
+      return "The registered implementation report is missing or unavailable.";
+    }
+    return undefined;
+  }
+
+  #cleanGitBaseline(feature: FeaturePaths): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const changes = this.#gitChangeSummary(feature);
+    if (changes) {
+      throw new Error(
+        `Cannot claim from a dirty checkout; commit or otherwise resolve staged, unstaged, and untracked changes first:\n${changes}`,
+      );
+    }
+    const revision = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    if (revision.error) throw revision.error;
+    if (revision.status !== 0 || !/^[0-9a-f]{40,64}\n?$/i.test(revision.stdout)) {
+      throw new Error(
+        `Unable to record the clean checkout's starting commit: ${revision.stderr.trim()}`,
+      );
+    }
+    return revision.stdout.trim();
+  }
+
+  #gitChangeSummary(feature: FeaturePaths): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const relativeLock = relative(root, join(feature.workspace, ".sdd-issues.lock"));
+    const status = spawnSync(
+      "git",
+      [
+        "--no-pager",
+        "-c",
+        "color.ui=false",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        ".",
+        `:(exclude)${relativeLock}`,
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      },
+    );
+    if (status.error) throw status.error;
+    if (status.status !== 0) {
+      throw new Error(`git status failed while checking claim readiness: ${status.stderr.trim()}`);
+    }
+    return status.stdout.trim();
+  }
+
+  #writeWorkflowState(
+    feature: FeaturePaths,
+    issue: IssueDocument,
+    issueAfter: string,
+    ledger: FeatureLedger,
+  ): void {
+    this.#applyWrites(feature.workspace, [
+      {
+        path: relative(feature.workspace, issue.path),
+        before: issue.raw,
+        after: issueAfter,
+      },
+      {
+        path: "sdd.json",
+        before: readFileSync(feature.ledger, "utf8"),
+        after: `${JSON.stringify(ledger, null, 2)}\n`,
+      },
+    ]);
+  }
+
+  #assertReportPath(feature: FeaturePaths, path: string, mustExist: boolean): void {
+    const reports = join(feature.workspace, "reports");
+    const directory = lstatIfPresent(reports);
+    if (!directory?.isDirectory() || directory.isSymbolicLink()) {
+      throw new Error("Feature reports path must be a real directory.");
+    }
+    if (!isPathInside(reports, path) || !/^[^/]+\.md$/.test(path.slice(reports.length + 1))) {
+      throw new Error("Implementation report must be a Markdown file inside feature reports/.");
+    }
+    const root = realpathSync(this.app.workspaceRoot);
+    if (!isPathInside(root, path) || !isPathInside(root, realpathSync(reports))) {
+      throw new Error("Implementation report must remain inside this checkout.");
+    }
+    const relativePath = relative(root, path);
+    if (this.#isIgnored(root, relativePath)) {
+      throw new Error(`Implementation report path is ignored: ${relativePath}`);
+    }
+    const entry = lstatIfPresent(path);
+    if (mustExist && !entry)
+      throw Object.assign(new Error("Report does not exist."), { code: "ENOENT" });
+    if (entry && (!entry.isFile() || entry.isSymbolicLink())) {
+      throw new Error(`Implementation report must be a regular file: ${path}.`);
+    }
+    if (entry && !isPathInside(reports, realpathSync(path))) {
+      throw new Error("Implementation report must remain inside feature reports/.");
+    }
+  }
+
+  #submissionReportPath(
+    feature: FeaturePaths,
+    assignment: ImplementationAssignment,
+    supplied?: string,
+  ): string {
+    const path = supplied
+      ? isAbsolute(supplied)
+        ? resolve(supplied)
+        : resolve(feature.workspace, supplied)
+      : assignment.report;
+    if (path !== assignment.report) {
+      throw new Error(
+        `Report target does not match the assigned destination ${assignment.report}.`,
+      );
+    }
+    this.#assertReportPath(feature, path, false);
+    return path;
+  }
+
+  #readReportDigest(feature: FeaturePaths, report: string): string {
+    this.#assertReportPath(feature, report, true);
+    return createHash("sha256").update(readFileSync(report)).digest("hex");
   }
 
   #assertReadyReadable(workspace: string): void {
@@ -1055,7 +1840,22 @@ export class SddCommand extends Service {
           typeof issue.id === "string" &&
           /^I-\d{4,}$/.test(issue.id) &&
           typeof issue.execution === "string" &&
-          EXECUTION_STATES.includes(issue.execution as ExecutionState),
+          EXECUTION_STATES.includes(issue.execution as ExecutionState) &&
+          ((!Object.hasOwn(issue, "owner") && !Object.hasOwn(issue, "baseSha")) ||
+            (typeof issue.owner === "string" &&
+              !!issue.owner.trim() &&
+              typeof issue.baseSha === "string" &&
+              /^[0-9a-f]{40,64}$/i.test(issue.baseSha))) &&
+          (!Object.hasOwn(issue, "assignment") ||
+            (isImplementationAssignment(issue.assignment) &&
+              issue.assignment.report ===
+                join(
+                  this.app.workspaceRoot,
+                  ".scratch",
+                  feature,
+                  "reports",
+                  `${issue.id}-implementation.md`,
+                ))),
       )
     ) {
       throw new Error(

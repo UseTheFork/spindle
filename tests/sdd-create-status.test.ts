@@ -123,6 +123,9 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     spec: second.spec,
     ledger: join(repo, ".scratch", second.feature, "sdd.json"),
     state,
+    actions: [],
+    pendingAssignments: [],
+    blockers: [],
   });
   assert.equal(state.retrospectiveRequired, true);
   assert.deepEqual(state.reviewPolicy, {
@@ -454,12 +457,17 @@ test("sdd status validates v1 issue and delivery history records without rewriti
   assert.equal(readFileSync(ledgerPath, "utf8"), validContents);
 });
 
-test("sdd help advertises create and status instead of the legacy workspace resolver", (t) => {
+test("sdd help advertises guarded workflow commands instead of the legacy workspace resolver", (t) => {
   const { repo } = fixture(t);
   const searchPath = process.env.PATH ?? "";
   const help = runCli(repo, ["sdd", "--help"], searchPath);
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /\bcreate\b/);
+  assert.match(help.stdout, /\bclaim\b/);
+  assert.match(help.stdout, /\bimplement\b/);
+  assert.match(help.stdout, /\bsubmit\b/);
+  assert.match(help.stdout, /\bresume\b/);
+  assert.match(help.stdout, /\bnext\b/);
   assert.match(help.stdout, /\bstatus\b/);
   assert.doesNotMatch(help.stdout, /^\s+workspace\s+\[options\]/m);
   assert.equal(help.stderr, "");
@@ -469,6 +477,14 @@ test("sdd help advertises create and status instead of the legacy workspace reso
   assert.match(createHelp.stdout, /--title <title>/);
   assert.match(createHelp.stdout, /--author <author>/);
   assert.match(createHelp.stdout, /--require-retrospective/);
+
+  const submitHelp = runCli(repo, ["sdd", "submit", "--help"], searchPath);
+  assert.equal(submitHelp.status, 0, submitHelp.stderr);
+  assert.match(submitHelp.stdout, /--role <role>/);
+  assert.match(submitHelp.stdout, /--report <path>/);
+  assert.match(submitHelp.stdout, /--unavailable/);
+  assert.match(submitHelp.stdout, /--details <details>/);
+  assert.equal(submitHelp.stderr, "");
 
   const statusHelp = runCli(repo, ["sdd", "status", "--help"], searchPath);
   assert.equal(statusHelp.status, 0, statusHelp.stderr);

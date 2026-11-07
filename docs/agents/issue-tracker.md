@@ -65,6 +65,40 @@ dependencies live in issue front matter; execution (`unstarted`, `claimed`,
 and acceptance. `ready` reports only unclaimed, triage-eligible issues with
 integrated dependencies and keeps unmet dependencies visible.
 
+Use the workflow commands for claim, dispatch, submission, and recovery:
+
+```sh
+just spindle::run sdd next --spec <absolute-spec-path>
+just spindle::run sdd claim --spec <absolute-spec-path> --issue I-0001 --author controller
+just spindle::run sdd implement --spec <absolute-spec-path> --issue I-0001 --author controller
+just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role implementation --report <assigned-report-path> --author controller
+just spindle::run sdd resume --spec <absolute-spec-path> --issue I-0001 --author controller
+```
+
+Before `claim`, commit preparation documents, issue/triage updates, and every
+other checkout change. Claim rejects staged, unstaged, and untracked content
+without changing it. A successful claim records the clean starting commit and
+explicit controller; dependency, readiness, cleanliness, and ownership checks
+must pass before ownership or baseline is recorded.
+
+`implement` persists one controller-authored implementation assignment before
+returning it. The assignment has role `implementation`, an action ID, and a
+stable absolute report path under the feature's `reports/` directory. It only
+returns handoff data: the CLI does not launch agents or run commands. Save the
+report at the returned destination, then submit that exact target. A missing
+report remains pending and is reported as unavailable; use
+`--unavailable --details <reason>` to record an unavailable worker explicitly.
+When the report later becomes available, it can still be submitted. Repeating
+the same dispatch or report submission returns the existing assignment/result
+without allocating another dispatch or duplicating history.
+
+`resume` returns the recorded gate and assignment without resetting evidence
+or history. A changed controller must use `--confirm-handoff` only after
+confirming the previous worker stopped editing; the handoff is recorded while
+the original assignment and report path remain unchanged. `next` and expanded
+`status` are read-only and report permitted actions, pending assignments, and
+blockers. Workflow commands do not stage, commit, or otherwise mutate Git.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under the feature's ID-based directory,

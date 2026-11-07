@@ -43,6 +43,12 @@ These recipes run the Spindle CLI from source through `pnpm run spindle` in the 
 - `just spindle::run sdd triage --spec <absolute-spec-path> --issue <id> --status <status> --category <category> --details <text> --author <author>` — Record an attributed triage decision using a supported status and category.
 - `just spindle::run sdd issue comment --spec <absolute-spec-path> --issue <id> --details <text> --author <author>` — Append an attributed comment.
 - `just spindle::run sdd ready --spec <absolute-spec-path>` — Inspect unclaimed, triage-eligible issues and dependency blockers.
+- `just spindle::run sdd claim --spec <absolute-spec-path> --issue I-0001 --author <controller>` — Claim a ready issue only from a clean Git checkout and record its baseline.
+- `just spindle::run sdd implement --spec <absolute-spec-path> --issue I-0001 --author <controller>` — Persist and return an implementation assignment with its durable report path; does not launch an agent.
+- `just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role implementation --report <assigned-report-path> --author <controller>` — Validate and register the assigned report. `--unavailable --details <reason>` records missing worker output as pending.
+- `just spindle::run sdd resume --spec <absolute-spec-path> --issue I-0001 --author <controller>` — Restore the recorded gate and assignment; a changed owner must confirm stopped editing with `--confirm-handoff`.
+- `just spindle::run sdd next --spec <absolute-spec-path>` — Read-only permitted actions, pending assignments, and blockers.
+- `just spindle::run sdd status --spec <absolute-spec-path>` — Read-only expanded feature state, actions, pending assignments, and blockers.
 - `just spindle::setup-project --workspace <absolute-project-root>` — Bootstrap missing project documentation defaults.
 - `just spindle::run *args` — Run any other Spindle CLI command with arbitrary arguments.
 - Append `--help` to any recipe to see the command's options, for example `just spindle::sdd create --help`.

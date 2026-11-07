@@ -1,17 +1,17 @@
 # Example: sequential tickets in one checkout
 
-Load and follow the `int-subagent-driven-dev` skill; its workflow is authoritative. This example uses the existing checkout, current triage fields, and canonical dated `.scratch` directory.
+Load and follow the `int-subagent-driven-dev` skill; its workflow is authoritative. This example uses the existing checkout, issue triage fields, and the feature's canonical `.scratch` directory.
 
 ## Pre-flight
 
-Confirm actual invocation access to `sdd-implementer` and `sdd-reviewer`. Read the spec, ticket comments, instructions, and tracker guidance. Record checkout, baseline, permissions, criteria/seams, dependency graph, and report destinations. Ticket 2 depends on ticket 1, so only ticket 1 is initially eligible.
+Confirm actual invocation access to `sdd-implementer` and `sdd-reviewer`. Read the spec, issue comments, instructions, and tracker guidance. Record checkout, baseline, permissions, criteria/seams, dependency graph, and report destinations. Inspect `sdd next --spec <path>` or `sdd status --spec <path>` for permitted actions, pending assignments, and blockers. Issue 2 depends on issue 1, so only issue 1 is initially eligible.
 
-On resume, restore the recorded gate, snapshot, findings, rulings, checks, attempts, and progress assessments. Announce each flowchart entry and decision without restarting completed work.
+On resume, use `sdd resume --spec <path> --issue <id> --author <controller>` to restore the existing gate and assignment. If the controller changes, add `--confirm-handoff` only after confirming the prior worker stopped. Restore the recorded snapshot, findings, rulings, checks, attempts, and progress assessments without restarting completed work.
 
 ## Ticket 1
 
-1. Set `Execution: claimed`, then `Execution: implementing`. Dispatch `sdd-implementer` with the [implementer template](../assets/implementer-prompt.md) in `INITIAL` mode and assign `01-implementation.md` inside the canonical reports directory. Supply complete requirements, criteria/seams, scope, checkout/snapshot, dependencies, checks, and permissions.
-2. Verify its focused-test handoff, then perform controller formatting, lint, type, and applicable regression checks. Reuse current passing evidence; failed/unavailable required evidence blocks review.
+1. Commit preparation documents, issue/triage updates, and every other checkout change. Run `sdd claim --spec <path> --issue I-0001 --author controller`; the command rejects staged, unstaged, and untracked changes and records the clean starting revision only on success. Run `sdd implement --spec <path> --issue I-0001 --author controller`; it persists an implementation assignment and returns its stable report path without launching an agent. Dispatch `sdd-implementer` with the [implementer template](../assets/implementer-prompt.md) in `INITIAL` mode and pass that exact path with the complete requirements, criteria/seams, scope, checkout/snapshot, dependencies, checks, and permissions.
+2. Register the returned report with `sdd submit --spec <path> --issue I-0001 --role implementation --report <assigned-path> --author controller`. A missing report is not complete; record unavailability explicitly with `--unavailable --details <reason>`. Then perform controller formatting, lint, type, and applicable regression checks. Reuse current passing evidence; failed/unavailable required evidence blocks review.
 3. Read [review inputs](review-inputs.md), freeze the snapshot, and set `Execution: in-review`. Dispatch one `sdd-reviewer` using the [reviewer template](../assets/reviewer-prompt.md) in `INITIAL` mode with complete shared inputs and `01-review.md`. Wait for its comprehensive Spec/Quality report before allowing further implementation.
 4. Reconcile stable finding IDs and record rulings. If two compatible blockers remain, set `Execution: changes-requested`, record a supported [continuation decision](corrective-rounds.md#continuation-decision), persist attempt 1, and dispatch one corrective implementer assignment containing both findings.
 5. Verify the fix handoff and invalidated controller checks once. Freeze the fixed snapshot and dispatch the same reviewer role in `CORRECTIVE` mode to `01-round-1-review.md`, supplying both finding IDs, fix-only changes, prior/fixed identities, initial verdicts, and fresh checks. Do not repeat three separate review phases or redo unaffected initial coverage.
