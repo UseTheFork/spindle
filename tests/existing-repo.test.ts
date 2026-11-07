@@ -74,13 +74,17 @@ test("existing config: init fails, points to update and changes nothing", async 
   );
 });
 
-test("existing config is checked before stack validation", async () => {
+test("invalid stack is rejected before the existing-config workflow check", async () => {
+  const config = "{}\n";
   await withProject(
-    (project) => seed(project, { ".github/spindle.json": "{}\n" }),
+    (project) => seed(project, { ".github/spindle.json": config }),
     ["--stack", "ruby"],
-    async (_project, result) => {
+    async (project, result) => {
       assert.notEqual(result.status, 0);
-      assert.match(result.stderr, /spindle update/);
+      assert.match(result.stderr, /Invalid stack 'ruby'/);
+      assert.equal(result.stdout, "");
+      assert.deepEqual(await readdir(join(project, ".github")), ["spindle.json"]);
+      assert.equal(await readFile(join(project, ".github/spindle.json"), "utf8"), config);
     },
   );
 });

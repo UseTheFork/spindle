@@ -174,17 +174,21 @@ test("typed Variable definitions apply independently of Blueprint fixtures", asy
   });
 });
 
-test("help documents every flag and exits 0", async () => {
+test("root help discovers commands and init help documents init options", async () => {
   const project = await makeTempDir();
   try {
-    for (const args of [["--help"], ["init", "--help"]]) {
-      const result = runCli(project, args, process.env.PATH ?? "");
-      assert.equal(result.status, 0, result.stderr);
-      for (const flag of ["--stack", "--var", "--no-interactive", "--help"]) {
-        assert.match(result.stdout, new RegExp(flag));
-      }
-      assert.match(result.stdout, /php-laravel/);
+    const rootHelp = runCli(project, ["--help"], process.env.PATH ?? "");
+    assert.equal(rootHelp.status, 0, rootHelp.stderr);
+    for (const command of ["init", "update", "sdd", "setup-project"]) {
+      assert.match(rootHelp.stdout, new RegExp(`^\\s*${command}\\b`, "m"));
     }
+
+    const initHelp = runCli(project, ["init", "--help"], process.env.PATH ?? "");
+    assert.equal(initHelp.status, 0, initHelp.stderr);
+    for (const flag of ["--stack", "--var", "--no-interactive", "--help"]) {
+      assert.match(initHelp.stdout, new RegExp(flag));
+    }
+    assert.match(initHelp.stdout, /php-laravel/);
     await assert.rejects(readFile(join(project, ".github/spindle.json")));
   } finally {
     await rm(project, { recursive: true, force: true });
