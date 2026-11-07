@@ -25,20 +25,20 @@ At pre-flight, record the absolute path of the existing checkout and the feature
 
 Add the line when work is picked up; an issue without it has not started.
 
-| Execution           | Set when                                                                                                                       |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `claimed`           | The controller picks the issue up and records the existing checkout and base revision                                          |
-| `implementing`      | An implementer is dispatched                                                                                                   |
-| `in-code-review`    | A fresh reviewer examines the tested implementation before task review                                                         |
-| `in-review`         | A task review or scoped re-review is in progress                                                                               |
-| `changes-requested` | Review returned blocking findings to the implementer                                                                           |
-| `accepted`          | Code review, Spec and Quality pass on the current snapshot with no blocking findings or unresolved declined-behavior decisions |
-| `integrated`        | Accepted work in the existing checkout has been freshly verified                                                               |
-| `blocked`           | A technical blocker stops delivery (environment, access, failing dependency)                                                   |
+| Execution           | Set when                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `claimed`           | The controller picks the issue up and records the existing checkout and base revision                                           |
+| `implementing`      | An implementer is dispatched                                                                                                    |
+| `in-code-review`    | Historical separate code-review gate; preserve recorded history on resume                                                       |
+| `in-review`         | A comprehensive initial or corrective Spec/Quality review is in progress                                                        |
+| `changes-requested` | Review returned blocking findings to the implementer                                                                            |
+| `accepted`          | Comprehensive Spec and Quality pass on the current snapshot with no blocking findings or unresolved declined-behavior decisions |
+| `integrated`        | Accepted work in the existing checkout has been freshly verified                                                                |
+| `blocked`           | A technical blocker stops delivery (environment, access, failing dependency)                                                    |
 
-Typical path: `claimed → implementing → in-code-review → in-review → accepted → integrated`.
+Typical path: `claimed → implementing → in-review → accepted → integrated`.
 
-Either review may return blocking findings: `changes-requested → implementing → in-code-review` (code-only scoped fix review), or `changes-requested → implementing → in-review` (task scoped fix review). Code-fix clearance still requires initial task review. Keep snapshot, finding IDs, rulings and fix-round counter in comments/ledger. `int-subagent-driven-dev` permits five corrective dispatches per task shared across review phases and integration fixes, then adjudication without round 6; standalone final review permits one fix dispatch and one scoped re-review. Resume from the logged phase and budget, never reset it. Matching scoped evidence may update a verdict while preserving unaffected evidence; stale or missing required evidence blocks acceptance. Log executor rulings on every declined behavior and park only nonblocking findings with reasons and follow-up. Unresolved load-bearing findings prevent acceptance; requirement decisions follow the triage rule below.
+Comprehensive review may return blockers: `changes-requested → implementing → in-review`. Batch compatible blockers into one corrective assignment, run required covering checks once, and use one scoped comprehensive reviewer. Scoped verification cannot replace missing initial issue or aggregate coverage. Keep snapshots, finding IDs, rulings, attempts, and explicit progress/continuation decisions in comments/ledger. There is no fixed five-attempt ticket or one-fix delivery cap: continue only with demonstrated progress; repeated failed fixes, recurring blockers, or requirements disagreement pause for adjudication. Resume preserves the gate and history. Matching scoped evidence may update a verdict while preserving unaffected coverage; stale or missing required evidence blocks acceptance. Log controller rulings on declined behavior and park only nonblocking findings with reasons and follow-up. Unresolved blockers prevent acceptance; requirement decisions follow the triage rule below.
 
 On every change, append a one-line entry under `## Comments` naming the new value, the snapshot (commit or diff), and the reason.
 
@@ -59,11 +59,11 @@ Read the file at the referenced path. The user will normally pass the path or th
 Keep durable delivery evidence in `.scratch/YYYY-MM-DD-<feature-slug>/reports/`:
 
 - `<NN>-implementation.md`: full implementer report; append fixes with round, finding IDs and fresh covering-check evidence.
-- `<NN>-code-review.md` and `<NN>-task-review.md`: initial review reports.
+- `<NN>-review.md`: comprehensive initial Spec/Quality review.
 - `<NN>-round-<R>-review.md`: each scoped fix review, retaining finding IDs and verdict history.
-- `final-review.md` and, when needed, `final-fix-review.md`: aggregate review and its scoped follow-up.
+- `final-review.md` and, when needed, `final-round-<R>-review.md`: aggregate review and each delivery-scoped corrective review.
 
-Before dispatch, the controller assigns absolute report destinations inside the feature's `.scratch` directory and records their tracker-relative paths. Resolve them in the existing checkout with `spindle sdd workspace --workspace <checkout> --reports-dir <feature-reports-directory> --ticket <NN>`. `REPORT_FILE` is the assigned implementation report. Implementers and reviewers may save reports directly; append fix reports before review, preserving earlier rounds. The controller checks that reports exist before using them.
+Before dispatch, the controller assigns absolute report destinations inside the feature's `.scratch` directory and records their tracker-relative paths. Assign these paths directly; the comprehensive-review flow does not require a report-resolution command. `REPORT_FILE` is the assigned implementation report. Implementers and reviewers may save reports directly; append fix reports before review, preserving earlier attempts. Preserve historical separate-reviewer reports on resume, using their coverage where still valid rather than renaming or overwriting them. The controller checks that reports exist before using them.
 
 Each report identifies its exact reviewed/tested code snapshot (base/head plus any uncommitted diff and untracked inputs), commands/results and limitations. List implementation and test changes separately from mutable `.scratch` tracker and report files, so a full-tree fingerprint difference from controller-owned artifacts is not mistaken for a code change; still list and review every supplied change. Ticket comments link to these reports using relative paths and record acceptance/integration evidence. Preserve earlier rounds; do not overwrite history when resuming.
 

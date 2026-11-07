@@ -4,24 +4,21 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.4
+    version: 1.4.0
 ---
 
 # Subagent-Driven Development
 
 Controller for assigned tickets or dependency graphs; the brief governs. The controller owns scheduling, execution states, acceptance, snapshot freshness, integration, and hand-back. Workers own role workflows and report contracts; assignment templates carry inputs only.
 
-**First action:** Confirm invocation access to all five agents below. Files existing is not proof of access. If any access is unavailable or unconfirmed, stop and identify those agents; continue only when all five are callable. Use the assigned agents, not substitutes.
+**First action:** Confirm invocation access to `sdd-implementer` and `sdd-reviewer`. Files existing is not proof of access. If access is unavailable or unconfirmed, stop and identify the missing agents. Use the assigned agents, not substitutes.
 
-| Assignment                   | Agent                    | Required template                                  |
-| ---------------------------- | ------------------------ | -------------------------------------------------- |
-| Implementation and fixes     | `sdd-implementer`        | [implementer](./assets/implementer-prompt.md)      |
-| Code review                  | `sdd-code-reviewer`      | [code-review](./assets/code-reviewer-prompt.md)    |
-| Code-slop review             | `sdd-code-slop-reviewer` | [code-slop](./assets/code-slop-reviewer-prompt.md) |
-| Task Spec and Quality review | `sdd-task-reviewer`      | [task-review](./assets/task-reviewer-prompt.md)    |
-| Scoped re-review             | `sdd-re-review`          | [re-review](./assets/re-review-prompt.md)          |
+| Assignment                                             | Agent             | Required template                             |
+| ------------------------------------------------------ | ----------------- | --------------------------------------------- |
+| Implementation and batched fixes                       | `sdd-implementer` | [implementer](./assets/implementer-prompt.md) |
+| Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`    | [reviewer](./assets/reviewer-prompt.md)       |
 
-Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until every dispatched reviewer returns. Only the controller changes execution states.
+Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Retain the project's current triage fields, dated tracker, integration permissions, and retrospective convention; this workflow does not require new CLI commands or a new ledger format.
 
 ## Controller flow
 
@@ -62,7 +59,7 @@ flowchart TD
 
 ### A. Restore scope and ledger
 
-Read tickets/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and dated `.scratch` destinations. Confirm an acyclic dependency graph. Restore snapshot, checks, findings, rulings, counters, and recorded gate on resume; continue there rather than restarting completed work. If no ticket remains, continue at K.
+Read tickets/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and dated `.scratch` destinations. Confirm an acyclic dependency graph. Restore snapshot, checks, findings, rulings, attempts, progress decisions, and recorded gate on resume; continue there rather than restarting completed work. Preserve earlier reports, including legacy reviewer reports, as history; judge usable coverage rather than discarding it or restarting reviews solely because the reviewer roles changed. If no ticket remains, continue at K.
 
 **Complete when:** scope and ownership are explicit, the ledger is current, and required inputs/baseline are available. Resume the recorded gate, or select B for new ticket work and K if no ticket remains; unresolved triage or missing inputs select Q.
 
@@ -74,7 +71,7 @@ Claim only a ticket whose dependencies are integrated. Set `Execution: claimed`.
 
 ### C. Dispatch implementation
 
-Set `Execution: implementing`. Resolve report destinations with `spindle sdd workspace --workspace <absolute-checkout> --reports-dir <dated-reports-dir> --ticket <ID>`. This read-only command returns absolute and checkout-relative paths; it does not create reports. Spindle workflow commands are invoked directly, not through Just wrappers.
+Set `Execution: implementing`. Assign absolute destinations inside the canonical dated reports directory and record their tracker-relative paths: `<NN>-implementation.md`, `<NN>-review.md`, and `<NN>-round-<R>-review.md` for corrections. Preserve previous reports; expanded reviews after later changes also need distinct destinations. Assign paths directly without introducing a report-resolution command.
 
 Populate the implementer assignment in initial mode and dispatch `sdd-implementer`. Wait for its report.
 
@@ -88,21 +85,21 @@ Apply formatting, then applicable lint, type, and ticket-wide regression checks.
 
 ### E. Freeze and review
 
-Before preparing review assignments, read [review inputs](./references/review-inputs.md). Supply the same frozen change and verification evidence to `sdd-code-reviewer`, `sdd-code-slop-reviewer`, and `sdd-task-reviewer` **in parallel**, with distinct report paths. Existing durable inputs may be referenced rather than copied. For unavailable same-batch reports use `NONE - parallel review pending`; reviewers do not wait for peers.
+Before preparing the assignment, read [review inputs](./references/review-inputs.md). Set `Execution: in-review`, freeze the snapshot, and dispatch one independent `sdd-reviewer` using the reviewer template in `INITIAL` mode. Supply complete requirements, change and same-snapshot evidence, implementation report, concerns/dependencies, prior findings/rulings or `NONE`, and assigned destination. Reference existing durable inputs rather than copying logs.
 
-Wait for all three reports before reconciling findings and controller rulings. Failed/unavailable reviews block this gate while implementation remains frozen.
+Wait for its report, reconcile stable finding IDs, and record controller rulings. A demonstrated defect proceeds to correction; missing context or unavailable required review evidence is a blocker, not a clean report.
 
-**Complete when:** every required review has returned for the frozen snapshot and every finding is ruled, selecting F. Failed/unavailable reviews select Q with a blocker only after all dispatched reviewers return.
+**Complete when:** the comprehensive report covers Spec and Quality on the frozen snapshot and findings are ruled, selecting F. Missing/inconsistent review context or unavailable review selects Q after the reviewer returns.
 
 ### F. Accepted?
 
-Compare all required verdicts, findings, and controller rulings with the current snapshot.
+Compare Spec/Quality verdicts, finding dispositions, and controller rulings with the current snapshot. Keep nonblocking recommendations separate from required fixes; park them only with reasons and follow-up. Set `Execution: accepted` only after sufficient current review/check evidence and no unresolved blocker.
 
-**Complete when:** passing reviews and no unresolved blocker select H; remaining findings select G. Missing required review coverage remains blocked rather than accepted.
+**Complete when:** both verdicts `PASS` and no unresolved blocker select H; actionable blocking findings or non-mechanical failures select G with `Execution: changes-requested`. Missing required coverage or `UNVERIFIED` without an actionable fix selects Q. A confirmed finding is not a verified fix; scope changes require triage resolution and fresh affected review.
 
 ### G. Corrective branch
 
-When findings or non-mechanical check failures require fixes, read [corrective rounds](./references/corrective-rounds.md) before dispatch.
+When findings or non-mechanical check failures require fixes, read [corrective rounds](./references/corrective-rounds.md) before dispatch. Batch compatible actionable blockers into one assignment; do not cycle through separate code, task, and slop reviews.
 
 **Complete when:** the child exits with a checked snapshot requiring initial reviews (E), current scoped verdicts (F), or an incomplete/blocker result (Q). Announce `Step G - Corrective branch` as resumed, then take that exit without restarting child work.
 

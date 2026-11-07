@@ -107,6 +107,10 @@ for (const stacks of productionStackSelections) {
             "assets",
             "references",
           ]);
+          assert.deepEqual((await readdir(join(installedDirectory, "assets"))).sort(), [
+            "implementer-prompt.md",
+            "reviewer-prompt.md",
+          ]);
         }
 
         for (const file of sourceFiles) {
@@ -126,6 +130,23 @@ for (const stacks of productionStackSelections) {
           );
           if (skill === "int-subagent-driven-dev") {
             assert.doesNotMatch(installed, /\]\([^)]*\.agent\.md(?:#[^)]*)?\)/);
+            assert.doesNotMatch(
+              installed,
+              /sdd-(?:code-reviewer|code-slop-reviewer|task-reviewer|re-review)\b/,
+            );
+            if (file === "SKILL.md") {
+              assert.match(installed, /invocation access to `sdd-implementer` and `sdd-reviewer`/);
+              assert.match(installed, /`Execution: in-review`/);
+              assert.doesNotMatch(installed, /spindle sdd/);
+            }
+            if (file === "references/corrective-rounds.md") {
+              assert.match(installed, /explicit controller continuation decision/);
+              assert.match(installed, /Batch compatible confirmed blockers/);
+            }
+            if (file === "references/full-spec.md") {
+              assert.match(installed, /There is no single-final-fix allowance/);
+              assert.match(installed, /`int-retrospective` skill/);
+            }
             if (dirname(file) === "assets") {
               assert.match(installed, /^## Assignment$/m);
               assert.match(installed, /^## (?:Verification and hand-back|Hand-back)$/m);
@@ -176,6 +197,13 @@ for (const stacks of productionStackSelections) {
         if (agent.startsWith("sdd-")) {
           assert.doesNotMatch(installedAgent, /\]\([^)]*SKILL\.md(?:#[^)]*)?\)/);
           assert.match(installedAgent, /[Ll]oad and follow the `int-[^`]+` skill/);
+        }
+        if (agent === "sdd-orchestrator") {
+          assert.deepEqual(parsed.data.agents, [
+            "sdd-implementer",
+            "sdd-reviewer",
+            "shared-explore",
+          ]);
         }
         if (agent === "shared-r") {
           assert.equal(

@@ -5,7 +5,7 @@ disable-model-invocation: false
 user-invocable: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # Setup Project
