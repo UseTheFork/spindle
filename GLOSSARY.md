@@ -51,3 +51,24 @@ A named text value derived from Config for use in Blueprints during generation. 
 **Config**:
 The `.github/spindle.json` file holding the user's selected stacks and variables.
 _Avoid_: Settings file, manifest
+
+**Feature workspace**:
+A repository-identified collection of a feature's specification, issues,
+reports, and delivery history.
+
+**Issue**:
+A numbered Markdown work item scoped to a feature workspace, with requirements,
+triage state, and delivery progress.
+_Avoid_: Ticket
+
+**Review finding**:
+A specific defect, requirement gap, or improvement identified while evaluating
+an issue's proposed or completed work.
+
+**Blocking finding**:
+A review finding that prevents acceptance until verified fixed, dismissed as
+invalid, or addressed by an approved and reviewed requirements change.
+
+**Review policy**:
+The required reviews governing a feature's delivery, including its comprehensive
+independent reviewer and any justified specialist reviews.
