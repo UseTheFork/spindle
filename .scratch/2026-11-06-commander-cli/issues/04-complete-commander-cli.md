@@ -3,6 +3,7 @@
 Reporter: unknown
 Category: enhancement
 Status: ready-for-agent
+Execution: implementing
 
 **What to build:** Complete the transition to a single Commander command tree
 with discoverable help, standard CLI errors, parsing before Git discovery, and
@@ -22,3 +23,9 @@ equivalent behavior in the built executable.
 Checklist key: `- [ ]` Not started; `- [X]` Complete; `- [-]` In progress; `- [S]` Skipped.
 
 ## Comments
+
+**2026-11-07T06:15:00Z - @unknown**
+Execution: claimed at base snapshot `c1ce2ac6a18e413d9c18b67d28096e86f3ae0840`; tickets 02 and 03 are integrated.
+
+**2026-11-07T06:16:00Z - @unknown**
+Execution: implementing at base snapshot `c1ce2ac6a18e413d9c18b67d28096e86f3ae0840`; ticket 04 is the only remaining dependency-eligible ticket.
