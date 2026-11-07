@@ -18,6 +18,7 @@ const productionAgents = [
   "sdd-implementer",
   "sdd-orchestrator",
   "sdd-re-review",
+  "sdd-reviewer",
   "sdd-task-reviewer",
   "shared-codebase-analyzer",
   "shared-codebase-locator",

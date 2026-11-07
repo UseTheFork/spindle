@@ -30,6 +30,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "sdd-implementer": { path: "sdd-implementer.agent.md", status: "active", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", status: "active", stacks: [] },
     "sdd-re-review": { path: "sdd-re-review.agent.md", status: "active", stacks: [] },
+    "sdd-reviewer": { path: "sdd-reviewer.agent.md", status: "active", stacks: [] },
     "sdd-task-reviewer": { path: "sdd-task-reviewer.agent.md", status: "active", stacks: [] },
     "shared-explore": { path: "shared-explore.agent.md", status: "active", stacks: [] },
     "shared-r": { path: "shared-r.agent.md", status: "active", stacks: [] },

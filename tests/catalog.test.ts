@@ -730,7 +730,7 @@ test("the asset override uses the compiled catalog without loading external cata
       env,
     );
     assert.equal(withExternalCatalogs.status, 0, withExternalCatalogs.stderr);
-    assert.equal((await readdir(join(project, ".github", "agents"))).length, 15);
+    assert.equal((await readdir(join(project, ".github", "agents"))).length, 16);
     assert.equal((await readdir(join(project, ".github", "skills"))).length, 30);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
@@ -750,6 +750,7 @@ test("the shipped Blueprint collection installs its flattened catalog sources", 
       "sdd-implementer.agent.md",
       "sdd-orchestrator.agent.md",
       "sdd-re-review.agent.md",
+      "sdd-reviewer.agent.md",
       "sdd-task-reviewer.agent.md",
       "shared-codebase-analyzer.agent.md",
       "shared-codebase-locator.agent.md",
