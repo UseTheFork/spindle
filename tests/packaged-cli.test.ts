@@ -204,18 +204,25 @@ test("packaged command discovery and help remain intact", (t) => {
   const cli = packagedCli(t);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-help-setup-");
 
-  for (const [args, expected] of [
-    [["--help"], /sdd \(see `spindle sdd --help`\).*setup-project/s],
-    [["sdd", "--help"], /workspace/],
-    [["sdd", "workspace", "--help"], /--reports-dir \.scratch/],
+  const rootHelp = cli.run(setupWorkspace, ["--help"]);
+  assert.equal(rootHelp.status, 0, rootHelp.stderr);
+  assert.match(rootHelp.stdout, /^\s*sdd\b/m);
+  assert.match(rootHelp.stdout, /^\s*setup-project\b/m);
+  assert.equal(rootHelp.stderr, "");
+
+  for (const [args, expectedContent] of [
+    [["sdd", "--help"], ["workspace"]],
     [
-      ["setup-project", "--help"],
-      /Usage:.*spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT/s,
+      ["sdd", "workspace", "--help"],
+      ["--workspace", "--reports-dir", "--ticket", "--round"],
     ],
+    [["setup-project", "--help"], ["--workspace"]],
   ] as const) {
     const result = cli.run(setupWorkspace, args);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, expected);
+    for (const content of expectedContent) {
+      assert.ok(result.stdout.includes(content), `${args.join(" ")} should describe ${content}`);
+    }
     assert.equal(result.stderr, "");
   }
 });
@@ -409,7 +416,6 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["setup-project", "--workspace", setupWorkspace, "--reports-dir", ".scratch/reports"],
       ["setup-project", "nested", "--workspace", setupWorkspace],
       ["setup-project", "init", "--workspace", setupWorkspace],
-      ["setup-project", "--workspace", setupWorkspace, "--help"],
     ].map((args) => [args, gitWorkspace] as const),
   ];
 
@@ -417,7 +423,7 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
     const result = cli.run(workingDirectory, args);
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
-    assert.match(result.stderr, /^spindle:/, args.join(" "));
+    assert.notEqual(result.stderr.trim(), "", args.join(" "));
     assert.doesNotMatch(
       result.stderr,
       /Unable to discover the Git working-tree root/,

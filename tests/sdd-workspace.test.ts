@@ -233,12 +233,15 @@ test("SDD help discovers workspace and rejects malformed or inapplicable argumen
 
   for (const [args, expected] of [
     [["sdd", "--help"], /workspace/],
-    [["sdd", "workspace", "--help"], /--reports-dir \.scratch/],
-    [["--help"], /sdd \(see `spindle sdd --help`\)/],
+    [["sdd", "workspace", "--help"], /--reports-dir <path>/],
+    [["--help"], /Commands:[\s\S]*\bsdd\b/],
   ] as const) {
     const result = runCli(repo, [...args], searchPath);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, expected);
+    if (args[0] === "sdd" && args[1] === "workspace") {
+      assert.match(result.stdout, /inside \.scratch/);
+    }
     assert.equal(result.stderr, "");
   }
 
@@ -253,12 +256,22 @@ test("SDD help discovers workspace and rejects malformed or inapplicable argumen
     [...valid, "--stack", "typescript"],
     [...valid, "--round"],
     ["sdd", "other"],
-    ["sdd", "workspace", "--help", "--ticket", "03"],
   ];
   for (const args of invalidArguments) {
     const result = runCli(repo, args, searchPath);
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
-    assert.match(result.stderr, /spindle:/, args.join(" "));
+    assert.notEqual(result.stderr.trim(), "", args.join(" "));
   }
+});
+
+test("SDD group short help is generated from its registered workspace command", async (t) => {
+  const { repo } = fixture(t);
+
+  const result = runCli(repo, ["sdd", "-h"], process.env.PATH ?? "");
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Usage: spindle sdd/);
+  assert.match(result.stdout, /workspace/);
+  assert.equal(result.stderr, "");
 });

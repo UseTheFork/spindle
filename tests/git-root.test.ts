@@ -158,10 +158,18 @@ test("help and version work outside Git when Git is unavailable", async () => {
   try {
     for (const args of [
       ["--help"],
+      ["-h"],
       ["init", "--help"],
+      ["init", "-h"],
       ["update", "--help"],
       ["sdd", "--help"],
+      ["sdd", "-h"],
+      ["sdd", "workspace", "-h"],
+      ["help", "sdd"],
+      ["help", "sdd", "workspace"],
       ["setup-project", "--help"],
+      ["setup-project", "-h"],
+      ["help", "setup-project"],
       ["--version"],
     ]) {
       const result = runCliRaw(project, args, "");
@@ -175,6 +183,53 @@ test("help and version work outside Git when Git is unavailable", async () => {
   } finally {
     await rm(project, { recursive: true, force: true });
   }
+});
+
+test("CLI argument errors take precedence over Git-root discovery", async (t) => {
+  const project = await mkdtemp(join(tmpdir(), "spindle-invalid-args-no-git-"));
+  t.after(() => rm(project, { recursive: true, force: true }));
+
+  const invalidInvocations = [
+    [
+      "sdd",
+      "workspace",
+      "--workspace",
+      join(project, "target"),
+      "--reports-dir",
+      ".scratch/reports",
+      "--ticket",
+      "invalid",
+    ],
+    [
+      "sdd",
+      "workspace",
+      "--workspace",
+      join(project, "target"),
+      "--reports-dir",
+      ".scratch/reports",
+      "--ticket",
+      "03",
+      "unexpected",
+    ],
+    ["setup-project", "--workspace", "relative"],
+    ["setup-project", "--workspace", join(project, "target"), "unexpected"],
+    [
+      "setup-project",
+      "--workspace",
+      join(project, "target"),
+      "--workspace",
+      join(project, "target"),
+    ],
+  ];
+
+  for (const args of invalidInvocations) {
+    const result = runCliRaw(project, args, "");
+    assert.notEqual(result.status, 0, args.join(" "));
+    assert.equal(result.stdout, "", args.join(" "));
+    assert.notEqual(result.stderr.trim(), "", args.join(" "));
+    assert.doesNotMatch(result.stderr, /Git working-tree root/i, args.join(" "));
+  }
+  assert.deepEqual(await readdir(project), []);
 });
 
 test("importing the executable bootstrap does not dispatch the CLI", async () => {

@@ -2,7 +2,10 @@ import { constants, copyFileSync, lstatSync, mkdirSync, realpathSync, statSync }
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { Command } from "commander";
+
 import { App, Service } from "../../app.js";
+import { once } from "../shared-options.js";
 
 export interface SetupProjectInput {
   workspacePath: string;
@@ -16,15 +19,36 @@ export interface SetupProjectResult {
 
 const templates = fileURLToPath(new URL("../../setup-project/templates/", import.meta.url));
 
+function validateWorkspacePath(workspacePath: string): void {
+  if (!isAbsolute(workspacePath)) {
+    throw new Error("Workspace must be an absolute project directory.");
+  }
+}
+
 export class SetupProjectCommand extends Service {
+  static register(program: Command, createApp: () => App): void {
+    program
+      .command("setup-project")
+      .description("Create project documentation directories and missing Spindle defaults.")
+      .requiredOption(
+        "--workspace <path>",
+        "Existing absolute target directory (may be outside Git)",
+        once("--workspace"),
+      )
+      .allowExcessArguments(false)
+      .action(async (options: { workspace: string }) => {
+        validateWorkspacePath(options.workspace);
+        const command = await createApp().get(SetupProjectCommand);
+        console.log(JSON.stringify(command.run({ workspacePath: options.workspace }), null, 2));
+      });
+  }
+
   constructor(app: App) {
     super(app);
   }
 
   run({ workspacePath }: SetupProjectInput): SetupProjectResult {
-    if (!isAbsolute(workspacePath)) {
-      throw new Error("Workspace must be an absolute project directory.");
-    }
+    validateWorkspacePath(workspacePath);
 
     const workspace = realpathSync(workspacePath);
     if (!statSync(workspace).isDirectory()) {

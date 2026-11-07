@@ -4,12 +4,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import chalk from "chalk";
-import { Command } from "commander";
 
 import { App } from "./app.js";
 import { dispatch } from "./cli.js";
-import { InitCommand } from "./commands/init/init-command.js";
-import { UpdateCommand } from "./commands/update/update-command.js";
 import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
 
 export function discoverGitRoot(startingDirectory: string): string {
@@ -34,35 +31,13 @@ export function discoverGitRoot(startingDirectory: string): string {
 }
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
-  const createApp = () => {
+  await dispatch(args, () => {
     const workspaceRoot = discoverGitRoot(startingDirectory);
     return new App({
       workspaceRoot,
       blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
     });
-  };
-
-  if (args[0] === "init" || (args[0] === "help" && args[1] === "init")) {
-    const program = new Command().name("spindle");
-    InitCommand.register(program, createApp);
-    await program.parseAsync(args, { from: "user" });
-    return;
-  }
-
-  if (args[0] === "update") {
-    const program = new Command().name("spindle");
-    UpdateCommand.register(program, createApp);
-    await program.parseAsync(args, { from: "user" });
-    return;
-  }
-
-  const informational =
-    args.includes("--help") ||
-    args.includes("-h") ||
-    (args.length === 1 && args[0] === "--version") ||
-    (args[0] === "help" && args[1] === "update");
-  const workspaceRoot = informational ? undefined : discoverGitRoot(startingDirectory);
-  await dispatch(args, workspaceRoot);
+  });
 }
 
 function isExecutable() {

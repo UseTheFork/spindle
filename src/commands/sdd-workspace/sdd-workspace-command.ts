@@ -2,8 +2,11 @@ import { spawnSync } from "node:child_process";
 import { lstatSync, realpathSync, statSync, type Stats } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 
+import type { Command } from "commander";
+
 import { App, Service } from "../../app.js";
 import { isPathInside } from "../../utilities/is-path-inside.js";
+import { once } from "../shared-options.js";
 
 export type WorkspaceRequest = {
   workspacePath: string;
@@ -30,7 +33,72 @@ export type WorkspaceResolution = {
   };
 };
 
+function validateWorkspaceRequest({
+  workspacePath,
+  reportsDirectory,
+  ticket,
+  round,
+}: WorkspaceRequest): void {
+  if (!isAbsolute(workspacePath)) {
+    throw new Error("Workspace must be the absolute checkout root.");
+  }
+
+  const segments = reportsDirectory.split("/");
+  if (
+    !reportsDirectory.startsWith(".scratch/") ||
+    isAbsolute(reportsDirectory) ||
+    reportsDirectory.includes("\\") ||
+    segments.some((part) => !part || part === "." || part === ".." || part.toLowerCase() === ".git")
+  ) {
+    throw new Error("Reports directory must be inside .scratch without path traversal.");
+  }
+
+  if (!/^(0[1-9]|[1-9][0-9]*)$/.test(ticket)) {
+    throw new Error("Ticket must be a positive numeric identifier, for example 03.");
+  }
+  if (round !== undefined && !/^[1-9][0-9]*$/.test(round)) {
+    throw new Error("Round must be a positive integer.");
+  }
+}
+
 export class SddWorkspaceCommand extends Service {
+  static register(program: Command, createApp: () => App): void {
+    program
+      .command("workspace")
+      .description("Resolve durable report destinations in an existing Git checkout.")
+      .requiredOption("--workspace <path>", "Absolute Git checkout root", once("--workspace"))
+      .requiredOption(
+        "--reports-dir <path>",
+        "Report directory inside .scratch",
+        once("--reports-dir"),
+      )
+      .requiredOption(
+        "--ticket <id>",
+        "Positive ticket identifier, for example 03",
+        once("--ticket"),
+      )
+      .option("--round <number>", "Optional positive review round", once("--round"))
+      .allowExcessArguments(false)
+      .action(
+        async (options: {
+          workspace: string;
+          reportsDir: string;
+          ticket: string;
+          round?: string;
+        }) => {
+          const request: WorkspaceRequest = {
+            workspacePath: options.workspace,
+            reportsDirectory: options.reportsDir,
+            ticket: options.ticket,
+            round: options.round,
+          };
+          validateWorkspaceRequest(request);
+          const command = await createApp().get(SddWorkspaceCommand);
+          console.log(JSON.stringify(command.run(request), null, 2));
+        },
+      );
+  }
+
   constructor(app: App) {
     super(app);
   }
@@ -41,9 +109,12 @@ export class SddWorkspaceCommand extends Service {
     ticket,
     round,
   }: WorkspaceRequest): WorkspaceResolution {
-    if (!isAbsolute(workspacePath)) {
-      throw new Error("Workspace must be the absolute checkout root.");
-    }
+    validateWorkspaceRequest({
+      workspacePath,
+      reportsDirectory: relativeReportsDirectory,
+      ticket,
+      round,
+    });
 
     const root = realpathSync(
       this.#git(workspacePath, ["rev-parse", "--show-toplevel"]).stdout.trim(),
@@ -54,17 +125,6 @@ export class SddWorkspaceCommand extends Service {
     this.#git(root, ["rev-parse", "--verify", "HEAD^{commit}"]);
 
     const segments = relativeReportsDirectory.split("/");
-    if (
-      !relativeReportsDirectory.startsWith(".scratch/") ||
-      isAbsolute(relativeReportsDirectory) ||
-      relativeReportsDirectory.includes("\\") ||
-      segments.some(
-        (part) => !part || part === "." || part === ".." || part.toLowerCase() === ".git",
-      )
-    ) {
-      throw new Error("Reports directory must be inside .scratch without path traversal.");
-    }
-
     const directory = join(root, ...segments);
     let ancestor = directory;
     while (!this.#lstatIfPresent(ancestor)) ancestor = dirname(ancestor);
@@ -73,13 +133,6 @@ export class SddWorkspaceCommand extends Service {
     }
     if (this.#checkIgnored(root, `${relativeReportsDirectory}/sdd-report.md`)) {
       throw new Error("Reports directory is ignored.");
-    }
-
-    if (!/^(0[1-9]|[1-9][0-9]*)$/.test(ticket)) {
-      throw new Error("Ticket must be a positive numeric identifier, for example 03.");
-    }
-    if (round !== undefined && !/^[1-9][0-9]*$/.test(round)) {
-      throw new Error("Round must be a positive integer.");
     }
 
     const report = (name: string): ReportDestination => ({

@@ -211,7 +211,6 @@ test("setup-project rejects malformed CLI arguments and workspace conflicts", as
     ["setup-project", "init", "--workspace", workspace],
     ["setup-project", "--workspace", workspace, "--stack", "typescript"],
     ["setup-project", "--workspace"],
-    ["setup-project", "--workspace", workspace, "--help"],
     ["setup-project", "--workspace", conflict],
   ];
 
@@ -219,7 +218,7 @@ test("setup-project rejects malformed CLI arguments and workspace conflicts", as
     const result = runCli(workspace, args, process.env.PATH ?? "");
     assert.notEqual(result.status, 0, args.join(" "));
     assert.equal(result.stdout, "", args.join(" "));
-    assert.match(result.stderr, /spindle:/, args.join(" "));
+    assert.notEqual(result.stderr.trim(), "", args.join(" "));
   }
   assert.equal(readFileSync(file, "utf8"), "preserve\n");
   assert.equal(readFileSync(join(conflict, "docs"), "utf8"), "preserve\n");
@@ -230,13 +229,10 @@ test("setup-project and top-level help describe the public command", async (t) =
 
   const commandHelp = runCli(workspace, ["setup-project", "--help"], process.env.PATH ?? "");
   assert.equal(commandHelp.status, 0, commandHelp.stderr);
-  assert.match(
-    commandHelp.stdout,
-    /Usage:.*spindle setup-project --workspace ABSOLUTE_PROJECT_ROOT/,
-  );
+  assert.match(commandHelp.stdout, /Usage: spindle setup-project \[options\]/);
   assert.match(commandHelp.stdout, /--workspace <path>/);
 
   const topLevelHelp = runCli(workspace, ["--help"], process.env.PATH ?? "");
   assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
-  assert.match(topLevelHelp.stdout, /setup-project \(see `spindle setup-project --help`\)/);
+  assert.match(topLevelHelp.stdout, /Commands:[\s\S]*\bsetup-project\b/);
 });
