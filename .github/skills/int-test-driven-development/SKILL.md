@@ -4,7 +4,7 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.1.1
+    version: 1.2.0
 ---
 
 # Test-Driven Development
@@ -21,12 +21,12 @@ Testing is ready when the expected behavior is clear and the seam has applicable
 
 ## Behavior changes and bug fixes
 
-1. **Write one focused test** for one behavior at the agreed seam.
-2. **Verify RED.** Run it and confirm an intended behavioral failure. Repair setup errors before evaluating RED. If it passes, investigate existing behavior or an insensitive test; never delete working code to manufacture failure.
-3. **Implement minimally.** Change only what satisfies that behavior.
-4. **Verify GREEN.** Rerun the focused test; correct failures before the next slice.
+1. **Write a cohesive test batch** at the agreed seam. Group one operation's happy path, validation, and edge cases; keep each test focused on one behavior and unrelated operations in separate batches. Use behavior cohesion, not an arbitrary test count, to bound the batch.
+2. **Verify RED together.** Run the batch in one approved runner invocation and confirm an intended behavioral failure for every new test before implementation. A nonzero exit alone is insufficient. Repair setup errors before evaluating RED. If a test passes, investigate existing behavior or an insensitive test; never delete working code to manufacture failure. If the runner skips tests or stops early, obtain the missing RED evidence before proceeding.
+3. **Implement minimally.** Change only what satisfies the current behavior group.
+4. **Verify GREEN together.** Run the batch and relevant regression tests, combining related selectors in one approved runner invocation where supported; correct failures before the next batch. Use individual runs only when needed to diagnose failures or establish missing evidence.
 
-Work in vertical slices: reach GREEN for one behavior before writing the next behavior's test. Each requested behavior needs coverage, with relevant tests passing on the final implementation.
+Work in cohesive vertical slices: reach GREEN for the current behavior group before starting the next unrelated group. Do not default to a separate RED/GREEN cycle for each test. Each requested behavior needs coverage, with relevant tests passing on the final implementation.
 
 ## Pure refactors
 
