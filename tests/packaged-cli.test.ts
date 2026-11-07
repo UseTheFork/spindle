@@ -77,75 +77,65 @@ function makeGitWorkspace(directory: string) {
   writeFileSync(join(reportsDirectory, "03-implementation.md"), "existing report\n");
   git("add", ".");
   git("commit", "-qm", "package fixture");
-  return { git, reportsDirectory, reportsRelative };
+  return { git };
 }
 
-function sddArgs(workspace: string, reportsRelative: string) {
-  return [
-    "sdd",
-    "workspace",
-    "--workspace",
-    workspace,
-    "--reports-dir",
-    reportsRelative,
-    "--ticket",
-    "03",
-  ];
-}
-
-test("packaged workflows use bundled defaults and preserve exact SDD behavior outside the checkout", (t) => {
+test("packaged sdd create and status expose feature state outside the checkout", (t) => {
   const cli = packagedCli(t);
   const gitWorkspace = tempDirectory(t, "spindle-packaged-git-");
-  const { git, reportsDirectory, reportsRelative } = makeGitWorkspace(gitWorkspace);
-  const originalReport = readFileSync(join(reportsDirectory, "03-implementation.md"));
-  const cleanStatus = git("status", "--porcelain=v1");
+  const { git } = makeGitWorkspace(gitWorkspace);
 
-  for (const round of [undefined, "2"]) {
-    const args = sddArgs(gitWorkspace, reportsRelative);
-    if (round) args.push("--round", round);
-    const result = cli.run(gitWorkspace, args);
-    assert.equal(result.status, 0, result.stderr);
+  const created = cli.run(gitWorkspace, [
+    "sdd",
+    "create",
+    "--title",
+    "Packaged Feature",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(created.status, 0, created.stderr);
+  assert.equal(created.stderr, "");
+  const featureDirectory = join(gitWorkspace, ".scratch", "0001-packaged-feature");
+  const expected = {
+    feature: "0001-packaged-feature",
+    workspace: featureDirectory,
+    spec: join(featureDirectory, "spec.md"),
+    ledger: join(featureDirectory, "sdd.json"),
+  };
+  assert.equal(created.stdout, `${JSON.stringify(expected, null, 2)}\n`);
+  assert.deepEqual(JSON.parse(created.stdout), expected);
+  assert.equal(readFileSync(expected.spec, "utf8"), "# Packaged Feature\n");
+  assert.deepEqual(readdirSync(featureDirectory).sort(), [
+    "issues",
+    "reports",
+    "sdd.json",
+    "spec.md",
+  ]);
 
-    const reports: Record<string, { relative: string; absolute: string }> = {
-      implementation: {
-        relative: `${reportsRelative}/03-implementation.md`,
-        absolute: join(reportsDirectory, "03-implementation.md"),
-      },
-      codeReview: {
-        relative: `${reportsRelative}/03-code-review.md`,
-        absolute: join(reportsDirectory, "03-code-review.md"),
-      },
-      taskReview: {
-        relative: `${reportsRelative}/03-task-review.md`,
-        absolute: join(reportsDirectory, "03-task-review.md"),
-      },
-    };
-    if (round) {
-      reports.scopedReview = {
-        relative: `${reportsRelative}/03-round-${round}-review.md`,
-        absolute: join(reportsDirectory, `03-round-${round}-review.md`),
-      };
-    }
-    reports.finalReview = {
-      relative: `${reportsRelative}/final-review.md`,
-      absolute: join(reportsDirectory, "final-review.md"),
-    };
-    reports.finalFixReview = {
-      relative: `${reportsRelative}/final-fix-review.md`,
-      absolute: join(reportsDirectory, "final-fix-review.md"),
-    };
-    const expected = {
-      workspace: gitWorkspace,
-      reportsDirectory,
-      reports,
-    };
-    assert.equal(result.stdout, `${JSON.stringify(expected, null, 2)}\n`);
-    assert.deepEqual(JSON.parse(result.stdout), expected);
-    assert.equal(result.stderr, "");
-    assert.deepEqual(readdirSync(reportsDirectory), ["03-implementation.md"]);
-    assert.deepEqual(readFileSync(join(reportsDirectory, "03-implementation.md")), originalReport);
-    assert.equal(git("status", "--porcelain=v1"), cleanStatus);
-  }
+  const ledgerBeforeStatus = readFileSync(expected.ledger, "utf8");
+  const ledger = JSON.parse(ledgerBeforeStatus);
+  assert.deepEqual(ledger.reviewPolicy, {
+    version: 1,
+    issue: ["sdd-reviewer"],
+    delivery: ["sdd-reviewer"],
+  });
+  assert.deepEqual(ledger.delivery, { execution: "unstarted", history: [] });
+  assert.deepEqual(ledger.issues, []);
+  const statusBefore = git("status", "--porcelain=v1");
+  const inspected = cli.run(gitWorkspace, ["sdd", "status", "--spec", expected.spec]);
+  assert.equal(inspected.status, 0, inspected.stderr);
+  assert.equal(inspected.stderr, "");
+  const expectedStatus = {
+    feature: expected.feature,
+    workspace: featureDirectory,
+    spec: expected.spec,
+    ledger: expected.ledger,
+    state: ledger,
+  };
+  assert.equal(inspected.stdout, `${JSON.stringify(expectedStatus, null, 2)}\n`);
+  assert.deepEqual(JSON.parse(inspected.stdout), expectedStatus);
+  assert.equal(readFileSync(expected.ledger, "utf8"), ledgerBeforeStatus);
+  assert.equal(git("status", "--porcelain=v1"), statusBefore);
 
   const invocationWorkspace = tempDirectory(t, "spindle-packaged-setup-invocation-");
   makeGitWorkspace(invocationWorkspace);
@@ -210,12 +200,18 @@ test("packaged command discovery and help remain intact", (t) => {
   assert.match(rootHelp.stdout, /^\s*setup-project\b/m);
   assert.equal(rootHelp.stderr, "");
 
+  const sddHelp = cli.run(setupWorkspace, ["sdd", "--help"]);
+  assert.equal(sddHelp.status, 0, sddHelp.stderr);
+  assert.match(sddHelp.stdout, /^\s+create\s/m);
+  assert.match(sddHelp.stdout, /^\s+status\s/m);
+  assert.equal(sddHelp.stderr, "");
+
   for (const [args, expectedContent] of [
-    [["sdd", "--help"], ["workspace"]],
     [
-      ["sdd", "workspace", "--help"],
-      ["--workspace", "--reports-dir", "--ticket", "--round"],
+      ["sdd", "create", "--help"],
+      ["--title <title>", "--author <author>", "--require-retrospective"],
     ],
+    [["sdd", "status", "--help"], ["--spec <path>"]],
     [["setup-project", "--help"], ["--workspace"]],
   ] as const) {
     const result = cli.run(setupWorkspace, args);
@@ -392,20 +388,24 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
 test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", (t) => {
   const cli = packagedCli(t);
   const gitWorkspace = tempDirectory(t, "spindle-packaged-invalid-git-");
-  const { git, reportsRelative } = makeGitWorkspace(gitWorkspace);
+  const { git } = makeGitWorkspace(gitWorkspace);
   const setupWorkspace = tempDirectory(t, "spindle-packaged-invalid-setup-");
   const beforeStatus = git("status", "--porcelain=v1");
 
   const invalidCases = [
     ...[
-      ["sdd", "workspace"],
-      ["sdd", "workspace", "--workspace"],
-      [...sddArgs(gitWorkspace, reportsRelative), "--unknown", "value"],
-      [...sddArgs(gitWorkspace, reportsRelative), "--ticket", "04"],
-      [...sddArgs(gitWorkspace, reportsRelative), "--ticket"],
-      [...sddArgs(gitWorkspace, reportsRelative), "--round", "2", "--round", "3"],
-      [...sddArgs(gitWorkspace, reportsRelative), "--stack", "typescript"],
-      [...sddArgs(gitWorkspace, reportsRelative), "nested"],
+      ["sdd", "create"],
+      ["sdd", "create", "--title"],
+      ["sdd", "create", "--title", "Feature"],
+      ["sdd", "create", "--title", "Feature", "--author"],
+      ["sdd", "create", "--title", "Feature", "--author", "one", "--author", "two"],
+      ["sdd", "create", "--title", "Feature", "--author", "maintainer", "--unknown"],
+      ["sdd", "create", "--title", "Feature", "--author", "maintainer", "nested"],
+      ["sdd", "status"],
+      ["sdd", "status", "--spec"],
+      ["sdd", "status", "--spec", "missing.md", "--spec", "another.md"],
+      ["sdd", "status", "--spec", "missing.md", "--unknown"],
+      ["sdd", "status", "--spec", "missing.md", "nested"],
       ["sdd", "unknown"],
     ].map((args) => [args, gitWorkspace] as const),
     ...[

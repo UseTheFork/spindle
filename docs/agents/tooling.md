@@ -35,15 +35,17 @@ These recipes run the Spindle CLI from source through `pnpm run spindle` in the 
 
 - `just spindle::init *args` — Install project Blueprints.
 - `just spindle::update *args` — Update installed project Blueprints.
-- `just spindle::sdd workspace --workspace <checkout> --reports-dir <reports-dir> --ticket <NN>` — Resolve durable report destinations.
+- `just spindle::sdd create --title <title> --author <author> [--require-retrospective]` — Create a numbered feature workspace with its initial spec and policy ledger.
+- `just spindle::sdd status --spec <absolute-spec-path>` — Read a feature's recorded policy and progress without modifying it.
 - `just spindle::setup-project --workspace <absolute-project-root>` — Bootstrap missing project documentation defaults.
 - `just spindle::run *args` — Run any other Spindle CLI command with arbitrary arguments.
-- Append `--help` to any recipe to see the command's options, for example `just spindle::sdd workspace --help`.
+- Append `--help` to any recipe to see the command's options, for example `just spindle::sdd create --help`.
 
-All workspace commands require invocation from a Git working tree. `setup-project`
-continues to use its explicit `--workspace` target, and `sdd workspace` continues
-to use its explicit checkout and reports directory; neither path is replaced by
-the invocation repository root.
+`sdd create` allocates an ID-based directory under `.scratch/` in the
+discovered Git checkout. `sdd status` requires an explicit spec path inside
+that checkout. Historical dated workspaces are not migrated. `setup-project`
+continues to use its explicit `--workspace` target, which may differ from the
+invocation repository root.
 
 ## Application services
 

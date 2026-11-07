@@ -4,7 +4,7 @@ import { Command } from "commander";
 
 import type { App } from "./app.js";
 import { InitCommand } from "./commands/init/init-command.js";
-import { SddWorkspaceCommand } from "./commands/sdd-workspace/sdd-workspace-command.js";
+import { SddCommand } from "./commands/sdd/sdd-command.js";
 import { SetupProjectCommand } from "./commands/setup-project/setup-project-command.js";
 import { UpdateCommand } from "./commands/update/update-command.js";
 
@@ -20,7 +20,7 @@ export async function dispatch(args: string[], createApp: () => App): Promise<vo
     .command("sdd")
     .description("Subagent-driven development workflow")
     .allowExcessArguments(false);
-  SddWorkspaceCommand.register(sdd, createApp);
+  SddCommand.register(sdd, createApp);
   SetupProjectCommand.register(program, createApp);
 
   await program.parseAsync(args, { from: "user" });
