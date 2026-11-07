@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
+  chmodSync,
   closeSync,
   lstatSync,
   mkdirSync,
@@ -19,6 +21,7 @@ import {
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import type { Command } from "commander";
+import matter from "gray-matter";
 
 import { App, Service } from "../../app.js";
 import { once } from "../shared-options.js";
@@ -26,6 +29,15 @@ import { once } from "../shared-options.js";
 const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const HISTORICAL_DATE_DIRECTORY = /^\d{4}-\d{2}-\d{2}-/;
 const LOCK_TIMEOUT_MS = 15_000;
+const ISSUE_ID = /^I-(\d{4,})$/;
+const ISSUE_CATEGORIES = ["bug", "enhancement"] as const;
+const TRIAGE_STATUSES = [
+  "needs-triage",
+  "needs-info",
+  "ready-for-agent",
+  "ready-for-human",
+  "wontfix",
+] as const;
 const EXECUTION_STATES = [
   "unstarted",
   "claimed",
@@ -86,6 +98,80 @@ interface StatusOptions {
   spec: string;
 }
 
+interface IssueCreateOptions {
+  spec: string;
+  title: string;
+  reporter: string;
+  category: string;
+  author: string;
+}
+
+interface IssueSelection {
+  spec: string;
+  issue: string;
+  author: string;
+}
+
+interface IssueUpdateOptions extends IssueSelection {
+  title?: string;
+  reporter?: string;
+  blockedBy?: string[];
+  clearBlockedBy?: boolean;
+}
+
+interface TriageOptions extends IssueSelection {
+  status: string;
+  category: string;
+  details: string;
+}
+
+interface IssueCommentOptions extends IssueSelection {
+  details: string;
+}
+
+interface ReadyOptions {
+  spec: string;
+}
+
+interface IssueDocument {
+  metadata: Record<string, unknown>;
+  id: string;
+  title: string;
+  reporter: string;
+  category: (typeof ISSUE_CATEGORIES)[number];
+  status: (typeof TRIAGE_STATUSES)[number];
+  blocked_by: string[];
+  body: string;
+  path: string;
+  raw: string;
+}
+
+interface RecoveryWrite {
+  path: string;
+  before: string | null;
+  after: string;
+}
+
+function validateAuthor(author: string): void {
+  if (!author.trim()) throw new Error("Author must not be empty.");
+}
+
+function validateIssueId(issue: string): void {
+  if (!ISSUE_ID.test(issue)) throw new Error(`Invalid issue ID: ${issue}.`);
+}
+
+function validateCategory(category: string): asserts category is IssueDocument["category"] {
+  if (!ISSUE_CATEGORIES.includes(category as IssueDocument["category"])) {
+    throw new Error(`Invalid issue category: ${category}.`);
+  }
+}
+
+function validateTriageStatus(status: string): asserts status is IssueDocument["status"] {
+  if (!TRIAGE_STATUSES.includes(status as IssueDocument["status"])) {
+    throw new Error(`Invalid triage status: ${status}.`);
+  }
+}
+
 function validateCreateOptions({ title, author }: CreateOptions): void {
   if (!title.trim()) throw new Error("Title must not be empty.");
   if (!author.trim()) throw new Error("Author must not be empty.");
@@ -141,6 +227,75 @@ export class SddCommand extends Service {
         validateCreateOptions(options);
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.create(options), null, 2));
+      });
+
+    const issue = program.command("issue").description("Create and maintain feature issues.");
+    issue
+      .command("create")
+      .description("Create an attributed issue in the selected feature.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--title <title>", "Issue title", once("--title"))
+      .requiredOption("--reporter <reporter>", "Issue reporter", once("--reporter"))
+      .requiredOption("--category <category>", "Issue category", once("--category"))
+      .requiredOption("--author <author>", "Acting author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: IssueCreateOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.issueCreate(options), null, 2));
+      });
+
+    issue
+      .command("update")
+      .description("Update issue descriptive metadata and dependencies.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--title <title>", "Updated issue title", once("--title"))
+      .option("--reporter <reporter>", "Updated issue reporter", once("--reporter"))
+      .option("--blocked-by <issues...>", "Authoritative dependency issue IDs")
+      .option("--clear-blocked-by", "Remove all issue dependencies")
+      .requiredOption("--author <author>", "Acting author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: IssueUpdateOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.issueUpdate(options), null, 2));
+      });
+
+    issue
+      .command("comment")
+      .description("Append an attributed issue comment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--details <details>", "Comment text", once("--details"))
+      .requiredOption("--author <author>", "Acting author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: IssueCommentOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.issueComment(options), null, 2));
+      });
+
+    program
+      .command("triage")
+      .description("Set an issue's category and triage status with rationale.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--status <status>", "Triage status", once("--status"))
+      .requiredOption("--category <category>", "Issue category", once("--category"))
+      .requiredOption("--details <details>", "Triage rationale", once("--details"))
+      .requiredOption("--author <author>", "Acting author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: TriageOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.triage(options), null, 2));
+      });
+
+    program
+      .command("ready")
+      .description("List ready issues and issues waiting on dependencies.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .allowExcessArguments(false)
+      .action(async (options: ReadyOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.ready(options), null, 2));
       });
 
     program
@@ -249,7 +404,6 @@ export class SddCommand extends Service {
           `Feature creation failed before publishing ${feature}; no complete workspace was created: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
-
       return {
         feature,
         workspace,
@@ -283,7 +437,536 @@ export class SddCommand extends Service {
     ) {
       throw new Error("Spec must be spec.md in a numbered feature workspace under .scratch.");
     }
+    return this.#statusFromPaths(root, specPath, relativeSpec, segments);
+  }
 
+  issueCreate(options: IssueCreateOptions): { issue: string; path: string } {
+    this.#validateIssueCreateOptions(options);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issues = this.#readIssues(feature.workspace);
+      this.#validateDependencyGraph(issues);
+      let highest = 0n;
+      for (const candidate of [
+        ...issues.map((item) => item.id),
+        ...ledger.issues.map((item) => item.id),
+      ]) {
+        const match = ISSUE_ID.exec(candidate);
+        if (match && BigInt(match[1]!) > highest) highest = BigInt(match[1]!);
+      }
+      const id = `I-${String(highest + 1n).padStart(4, "0")}`;
+      const path = join(feature.workspace, "issues", `${id}.md`);
+      if (lstatIfPresent(path)) throw new Error(`Issue already exists: ${id}.`);
+      this.#assertIssuePath(feature.workspace, path);
+      const issue = {
+        id,
+        title: options.title.trim(),
+        reporter: options.reporter.trim(),
+        category: options.category as IssueDocument["category"],
+        status: "needs-triage" as const,
+        blocked_by: [],
+      };
+      const document = matter.stringify(
+        this.#appendAudit(
+          "\n## Requirements\n\n## Acceptance Criteria\n\n## Comments\n",
+          options.author,
+          "Issue created.",
+        ),
+        issue,
+      );
+      ledger.issues.push({ id, execution: "unstarted" });
+      this.#applyWrites(feature.workspace, [
+        { path: relative(feature.workspace, path), before: null, after: document },
+        {
+          path: "sdd.json",
+          before: readFileSync(feature.ledger, "utf8"),
+          after: `${JSON.stringify(ledger, null, 2)}\n`,
+        },
+      ]);
+      return { issue: id, path };
+    } finally {
+      release();
+    }
+  }
+
+  issueUpdate(options: IssueUpdateOptions): { issue: string; path: string } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (
+      options.title === undefined &&
+      options.reporter === undefined &&
+      options.blockedBy === undefined &&
+      !options.clearBlockedBy
+    ) {
+      throw new Error("Provide descriptive metadata or dependency options to update.");
+    }
+    if (options.clearBlockedBy && options.blockedBy !== undefined) {
+      throw new Error("--clear-blocked-by cannot be combined with --blocked-by.");
+    }
+    if (options.title !== undefined && !options.title.trim())
+      throw new Error("Title must not be empty.");
+    if (options.reporter !== undefined && !options.reporter.trim()) {
+      throw new Error("Reporter must not be empty.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const issues = this.#readIssues(feature.workspace);
+      const current = this.#requireIssue(issues, options.issue);
+      const updated = { ...current };
+      if (options.title !== undefined) updated.title = options.title.trim();
+      if (options.reporter !== undefined) updated.reporter = options.reporter.trim();
+      if (options.blockedBy !== undefined) {
+        const blockedBy = this.#normalizeDependencies(options.blockedBy);
+        updated.blocked_by = blockedBy;
+      }
+      if (options.clearBlockedBy) updated.blocked_by = [];
+      const changed = this.#serializeIssue(
+        updated,
+        this.#appendAudit(current.body, options.author, "Issue metadata and dependencies updated."),
+      );
+      const candidate = issues.map((item) =>
+        item.id === current.id ? { ...updated, raw: changed, body: matter(changed).content } : item,
+      );
+      this.#validateDependencyGraph(candidate);
+      this.#applyWrites(feature.workspace, [
+        { path: relative(feature.workspace, current.path), before: current.raw, after: changed },
+      ]);
+      return { issue: options.issue, path: current.path };
+    } finally {
+      release();
+    }
+  }
+
+  triage(options: TriageOptions): { issue: string; path: string } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (!options.details.trim()) throw new Error("Triage details must not be empty.");
+    validateCategory(options.category);
+    validateTriageStatus(options.status);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      this.#readLedger(feature);
+      const issues = this.#readIssues(feature.workspace);
+      const current = this.#requireIssue(issues, options.issue);
+      const metadata = this.#metadata(current);
+      metadata.category = options.category;
+      metadata.status = options.status;
+      const after = matter.stringify(
+        this.#appendAudit(current.body, options.author, options.details.trim()),
+        metadata,
+      );
+      this.#validateDependencyGraph(issues);
+      this.#applyWrites(feature.workspace, [
+        { path: relative(feature.workspace, current.path), before: current.raw, after },
+      ]);
+      return { issue: options.issue, path: current.path };
+    } finally {
+      release();
+    }
+  }
+
+  issueComment(options: IssueCommentOptions): { issue: string; path: string } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (!options.details.trim()) throw new Error("Comment details must not be empty.");
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      this.#readLedger(feature);
+      const current = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const after = matter.stringify(
+        this.#appendAudit(current.body, options.author, options.details.trim()),
+        this.#metadata(current),
+      );
+      this.#applyWrites(feature.workspace, [
+        { path: relative(feature.workspace, current.path), before: current.raw, after },
+      ]);
+      return { issue: options.issue, path: current.path };
+    } finally {
+      release();
+    }
+  }
+
+  ready(options: ReadyOptions): {
+    ready: string[];
+    unready: { issue: string; blockedBy: string[] }[];
+  } {
+    const feature = this.#resolveFeature(options.spec);
+    let ledger: FeatureLedger | undefined;
+    let issues: IssueDocument[] | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      this.#assertReadyReadable(feature.workspace);
+      const ledgerRaw = readFileSync(feature.ledger, "utf8");
+      this.#validateLedger(JSON.parse(ledgerRaw) as unknown, feature.feature);
+      const observedIssues = this.#readIssues(feature.workspace);
+      this.#assertReadyReadable(feature.workspace);
+
+      const confirmedLedgerRaw = readFileSync(feature.ledger, "utf8");
+      const confirmedLedger = this.#validateLedger(
+        JSON.parse(confirmedLedgerRaw) as unknown,
+        feature.feature,
+      );
+      const confirmedIssues = this.#readIssues(feature.workspace);
+      this.#assertReadyReadable(feature.workspace);
+      const observedIssueContents = new Map(observedIssues.map((issue) => [issue.id, issue.raw]));
+      const issuesMatch =
+        observedIssueContents.size === confirmedIssues.length &&
+        confirmedIssues.every((issue) => observedIssueContents.get(issue.id) === issue.raw);
+      if (ledgerRaw === confirmedLedgerRaw && issuesMatch) {
+        ledger = confirmedLedger;
+        issues = confirmedIssues;
+        break;
+      }
+    }
+    if (!ledger || !issues) {
+      throw new Error("Issue data changed while reading the ready queue; retry ready.");
+    }
+    this.#validateDependencyGraph(issues);
+    const progress = new Map(ledger.issues.map((item) => [item.id, item.execution]));
+    const byId = new Map(issues.map((item) => [item.id, item]));
+    const eligible = issues.filter(
+      (item) => item.status === "ready-for-agent" && progress.get(item.id) === "unstarted",
+    );
+    const ready: string[] = [];
+    const unready: { issue: string; blockedBy: string[] }[] = [];
+    for (const item of eligible) {
+      const pending = item.blocked_by.filter((id) => progress.get(id) !== "integrated");
+      if (pending.length === 0) ready.push(item.id);
+      else unready.push({ issue: item.id, blockedBy: pending });
+    }
+    for (const item of issues) {
+      if (!progress.has(item.id))
+        throw new Error(`Issue ${item.id} has no ledger execution record.`);
+    }
+    for (const id of progress.keys()) {
+      if (!byId.has(id)) throw new Error(`Ledger issue ${id} has no corresponding Markdown issue.`);
+    }
+    this.#assertReadyReadable(feature.workspace);
+    return { ready, unready };
+  }
+
+  #assertReadyReadable(workspace: string): void {
+    if (lstatIfPresent(join(workspace, ".sdd-write-recovery.json"))) {
+      throw new Error("Pending issue recovery journal; run a mutating issue command to recover.");
+    }
+    if (lstatIfPresent(join(workspace, ".sdd-issues.lock"))) {
+      throw new Error("Issue updates are in progress; retry ready after the lock is released.");
+    }
+  }
+
+  #validateIssueCreateOptions(options: IssueCreateOptions): void {
+    if (!options.title.trim()) throw new Error("Title must not be empty.");
+    if (!options.reporter.trim()) throw new Error("Reporter must not be empty.");
+    validateCategory(options.category);
+    validateAuthor(options.author);
+  }
+
+  #resolveFeature(spec: string): FeaturePaths {
+    const absoluteSpec = isAbsolute(spec) ? relative(this.app.workspaceRoot, spec) : spec;
+    return this.status({ spec: absoluteSpec });
+  }
+
+  #readLedger(feature: FeaturePaths): FeatureLedger {
+    return this.#validateLedger(
+      JSON.parse(readFileSync(feature.ledger, "utf8")) as unknown,
+      feature.feature,
+    );
+  }
+
+  #readIssues(workspace: string): IssueDocument[] {
+    const directory = join(workspace, "issues");
+    const issues: IssueDocument[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.name.endsWith(".md")) continue;
+      const id = entry.name.slice(0, -3);
+      validateIssueId(id);
+      const path = join(directory, entry.name);
+      this.#assertIssuePath(workspace, path);
+      const raw = readFileSync(path, "utf8");
+      const parsed = matter(raw);
+      const data = parsed.data;
+      if (!isRecord(data) || data.id !== id)
+        throw new Error(`Issue ${id} has invalid YAML front matter.`);
+      if ("execution" in data)
+        throw new Error(`Issue ${id} must not mirror ledger execution in YAML.`);
+      if (typeof data.title !== "string" || !data.title.trim())
+        throw new Error(`Issue ${id} title is invalid.`);
+      if (typeof data.reporter !== "string" || !data.reporter.trim())
+        throw new Error(`Issue ${id} reporter is invalid.`);
+      const category = String(data.category);
+      const status = String(data.status);
+      validateCategory(category);
+      validateTriageStatus(status);
+      if (
+        !Array.isArray(data.blocked_by) ||
+        !data.blocked_by.every((blocked) => typeof blocked === "string")
+      ) {
+        throw new Error(`Issue ${id} blocked_by must be a list of issue IDs.`);
+      }
+      const blockedBy = data.blocked_by as string[];
+      if (new Set(blockedBy).size !== blockedBy.length)
+        throw new Error(`Issue ${id} has duplicate dependencies.`);
+      for (const blocked of blockedBy) validateIssueId(blocked);
+      issues.push({
+        metadata: { ...data },
+        id,
+        title: data.title,
+        reporter: data.reporter,
+        category,
+        status,
+        blocked_by: [...blockedBy],
+        body: parsed.content,
+        path,
+        raw,
+      });
+    }
+    return issues;
+  }
+
+  #metadata(issue: IssueDocument): Record<string, unknown> {
+    return {
+      ...issue.metadata,
+      id: issue.id,
+      title: issue.title,
+      reporter: issue.reporter,
+      category: issue.category,
+      status: issue.status,
+      blocked_by: issue.blocked_by,
+    };
+  }
+
+  #requireIssue(issues: IssueDocument[], id: string): IssueDocument {
+    const issue = issues.find((item) => item.id === id);
+    if (!issue) throw new Error(`Issue not found: ${id}.`);
+    return issue;
+  }
+
+  #normalizeDependencies(values: string[]): string[] {
+    const dependencies = values.flatMap((value) => value.split(",")).map((value) => value.trim());
+    if (dependencies.some((value) => !value)) throw new Error("Dependency IDs must not be empty.");
+    for (const dependency of dependencies) validateIssueId(dependency);
+    if (new Set(dependencies).size !== dependencies.length) {
+      throw new Error("Dependency IDs must not contain duplicates.");
+    }
+    return dependencies;
+  }
+
+  #validateDependencyGraph(issues: IssueDocument[]): void {
+    const byId = new Map(issues.map((item) => [item.id, item]));
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const visit = (id: string) => {
+      if (visiting.has(id)) throw new Error(`Issue dependency cycle detected at ${id}.`);
+      if (visited.has(id)) return;
+      const issue = byId.get(id);
+      if (!issue) return;
+      visiting.add(id);
+      for (const dependency of issue.blocked_by) {
+        if (!byId.has(dependency))
+          throw new Error(`Issue ${id} references missing dependency ${dependency}.`);
+        visit(dependency);
+      }
+      visiting.delete(id);
+      visited.add(id);
+    };
+    for (const issue of issues) visit(issue.id);
+  }
+
+  #appendAudit(body: string, author: string, details: string): string {
+    const heading = /^## Comments[ \t]*\r?$/m.exec(body);
+    if (!heading) throw new Error("Issue must contain a ## Comments section.");
+    const start = heading.index + heading[0].length;
+    const nextHeading = /^#{1,2}[ \t]+/m.exec(body.slice(start));
+    const end = nextHeading ? start + nextHeading.index : body.length;
+    const content = body.slice(0, end).replace(/\s+$/, "");
+    const laterSections = body.slice(end);
+    const entry = `**${new Date().toISOString()} - ${author.trim()}**\n\n${details}`;
+    return `${content}\n\n${entry}\n${laterSections ? `\n${laterSections}` : ""}`;
+  }
+
+  #serializeIssue(issue: IssueDocument, body: string): string {
+    return matter.stringify(body, this.#metadata(issue));
+  }
+
+  #assertIssuePath(workspace: string, path: string): void {
+    const issuesDirectory = join(workspace, "issues");
+    const directoryEntry = lstatIfPresent(issuesDirectory);
+    if (!directoryEntry?.isDirectory() || directoryEntry.isSymbolicLink()) {
+      throw new Error("Feature issues path must be a real directory.");
+    }
+    if (
+      !isPathInside(issuesDirectory, path) ||
+      !/^I-\d{4,}\.md$/.test(path.slice(issuesDirectory.length + 1))
+    ) {
+      throw new Error("Issue path must be a numbered Markdown file inside issues/.");
+    }
+    const entry = lstatIfPresent(path);
+    if (entry && !entry.isFile()) throw new Error(`Issue path must be a regular file: ${path}.`);
+    if (entry && !isPathInside(issuesDirectory, realpathSync(path))) {
+      throw new Error("Issue file must remain inside the feature issues directory.");
+    }
+    const root = realpathSync(this.app.workspaceRoot);
+    const relativePath = relative(root, path);
+    if (this.#isIgnored(root, relativePath))
+      throw new Error(`Issue path is ignored: ${relativePath}`);
+  }
+
+  #acquireIssueLock(workspace: string): () => void {
+    const lockPath = join(workspace, ".sdd-issues.lock");
+    const root = realpathSync(this.app.workspaceRoot);
+    const relativeLock = relative(root, lockPath);
+    if (this.#isIgnored(root, relativeLock)) {
+      throw new Error(`Issue lock path is ignored: ${relativeLock}`);
+    }
+    const deadline = Date.now() + LOCK_TIMEOUT_MS;
+    while (true) {
+      try {
+        const descriptor = openSync(lockPath, "wx", 0o600);
+        try {
+          writeSync(descriptor, JSON.stringify({ pid: process.pid }));
+        } catch (error) {
+          closeSync(descriptor);
+          unlinkSync(lockPath);
+          throw error;
+        }
+        return () => {
+          try {
+            closeSync(descriptor);
+          } finally {
+            unlinkSync(lockPath);
+          }
+        };
+      } catch (error) {
+        if (
+          typeof error !== "object" ||
+          error === null ||
+          !("code" in error) ||
+          error.code !== "EEXIST"
+        )
+          throw error;
+        if (this.#staleLockReason(lockPath)) {
+          const lockEntry = lstatIfPresent(lockPath);
+          if (!lockEntry?.isFile() || lockEntry.isSymbolicLink()) {
+            throw new Error(
+              `Issue lock path is not a regular file and was preserved: ${lockPath}.`,
+            );
+          }
+          unlinkSync(lockPath);
+          continue;
+        }
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Timed out waiting for issue updates; inspect ${lockPath} before retrying.`,
+          );
+        }
+        waitBriefly();
+      }
+    }
+  }
+
+  #recoverWrites(workspace: string): void {
+    const journalPath = join(workspace, ".sdd-write-recovery.json");
+    const entry = lstatIfPresent(journalPath);
+    if (!entry) return;
+    if (!entry.isFile() || entry.isSymbolicLink())
+      throw new Error("Issue recovery journal is not a regular file.");
+    const value = JSON.parse(readFileSync(journalPath, "utf8")) as unknown;
+    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.writes)) {
+      throw new Error("Issue recovery journal has an unsupported format.");
+    }
+    const writes = value.writes as RecoveryWrite[];
+    const targets = new Set<string>();
+    const pending: { target: string; after: string }[] = [];
+    for (const write of writes) {
+      if (
+        !isRecord(write) ||
+        typeof write.path !== "string" ||
+        !(write.before === null || typeof write.before === "string") ||
+        typeof write.after !== "string" ||
+        !(write.path === "sdd.json" || /^issues\/I-\d{4,}\.md$/.test(write.path))
+      )
+        throw new Error("Issue recovery journal contains an invalid write target.");
+      if (targets.has(write.path))
+        throw new Error("Issue recovery journal contains duplicate write targets.");
+      targets.add(write.path);
+      const target = join(workspace, write.path);
+      const root = realpathSync(this.app.workspaceRoot);
+      const relativeTarget = relative(root, target);
+      if (this.#isIgnored(root, relativeTarget)) {
+        throw new Error(`Issue write target is ignored: ${relativeTarget}`);
+      }
+      if (write.path !== "sdd.json") this.#assertIssuePath(workspace, target);
+      else {
+        const ledgerEntry = lstatIfPresent(target);
+        if (!ledgerEntry?.isFile() || ledgerEntry.isSymbolicLink()) {
+          throw new Error("Feature ledger must be a regular file during issue recovery.");
+        }
+      }
+      const current = lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
+      if (current !== write.before && current !== write.after) {
+        throw new Error(
+          `Issue recovery found conflicting external content at ${write.path}; preserved all files.`,
+        );
+      }
+      if (current !== write.after) pending.push({ target, after: write.after });
+    }
+    for (const write of pending) this.#atomicWrite(write.target, write.after);
+    unlinkSync(journalPath);
+  }
+
+  #applyWrites(workspace: string, writes: RecoveryWrite[]): void {
+    const journalPath = join(workspace, ".sdd-write-recovery.json");
+    if (lstatIfPresent(journalPath)) {
+      throw new Error("A pending issue write recovery journal must be resolved first.");
+    }
+    for (const write of writes) {
+      if (!(write.path === "sdd.json" || /^issues\/I-\d{4,}\.md$/.test(write.path))) {
+        throw new Error(`Unsafe issue write target: ${write.path}.`);
+      }
+      const root = realpathSync(this.app.workspaceRoot);
+      const target = join(workspace, write.path);
+      const relativeTarget = relative(root, target);
+      if (this.#isIgnored(root, relativeTarget)) {
+        throw new Error(`Issue write target is ignored: ${relativeTarget}`);
+      }
+    }
+    const root = realpathSync(this.app.workspaceRoot);
+    const relativeJournal = relative(root, journalPath);
+    if (this.#isIgnored(root, relativeJournal)) {
+      throw new Error(`Issue recovery path is ignored: ${relativeJournal}`);
+    }
+    this.#atomicWrite(journalPath, `${JSON.stringify({ version: 1, writes }, null, 2)}\n`);
+    this.#recoverWrites(workspace);
+  }
+
+  #atomicWrite(path: string, contents: string): void {
+    const temporary = `${path}.${randomUUID()}.tmp`;
+    const existing = lstatIfPresent(path);
+    const mode = existing ? existing.mode & 0o777 : 0o666 & ~process.umask();
+    try {
+      writeFileSync(temporary, contents, { flag: "wx", mode: mode | 0o200 });
+      if ((mode | 0o200) !== mode) chmodSync(temporary, mode);
+      renameSync(temporary, path);
+    } catch (error) {
+      rmSync(temporary, { force: true });
+      throw error;
+    }
+  }
+
+  #statusFromPaths(
+    root: string,
+    specPath: string,
+    relativeSpec: string,
+    segments: string[],
+  ): FeaturePaths & { state: FeatureLedger } {
     const scratch = join(root, ".scratch");
     const workspace = join(scratch, segments[1]!);
     const ledgerPath = join(workspace, "sdd.json");
@@ -378,6 +1061,11 @@ export class SddCommand extends Service {
       throw new Error(
         "Feature issue records must contain an issue ID and a valid execution state.",
       );
+    }
+    if (
+      new Set(value.issues.map((issue) => (issue as IssueProgress).id)).size !== value.issues.length
+    ) {
+      throw new Error("Feature ledger issue IDs must be unique.");
     }
     if (!isRecord(value.delivery)) throw new Error("Feature delivery progress must be an object.");
     if (

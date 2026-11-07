@@ -27,6 +27,7 @@ Run project build, test, lint, formatting, and Spindle workflow commands through
 
 - `just test::test *args` — Run all TypeScript tests when no paths are supplied; otherwise run the selected Node tests through tsx.
 - Focused tests: `just test::test tests/<name>.test.ts`
+- Issue-management CLI tests: `just test::test tests/sdd-issues.test.ts`
 - `just test::coverage *args` — Run Node tests with coverage.
 
 ## Spindle workflows
@@ -37,6 +38,11 @@ These recipes run the Spindle CLI from source through `pnpm run spindle` in the 
 - `just spindle::update *args` — Update installed project Blueprints.
 - `just spindle::sdd create --title <title> --author <author> [--require-retrospective]` — Create a numbered feature workspace with its initial spec and policy ledger.
 - `just spindle::sdd status --spec <absolute-spec-path>` — Read a feature's recorded policy and progress without modifying it.
+- `just spindle::run sdd issue create --spec <absolute-spec-path> --title <title> --reporter <reporter> --category <category> --author <author>` — Create a per-feature `I-0001` Markdown issue (`bug` or `enhancement`).
+- `just spindle::run sdd issue update --spec <absolute-spec-path> --issue <id> --author <author> [--title <title>] [--reporter <reporter>] [--blocked-by <id...>] [--clear-blocked-by]` — Update descriptive metadata and dependencies; the two dependency options are mutually exclusive.
+- `just spindle::run sdd triage --spec <absolute-spec-path> --issue <id> --status <status> --category <category> --details <text> --author <author>` — Record an attributed triage decision using a supported status and category.
+- `just spindle::run sdd issue comment --spec <absolute-spec-path> --issue <id> --details <text> --author <author>` — Append an attributed comment.
+- `just spindle::run sdd ready --spec <absolute-spec-path>` — Inspect unclaimed, triage-eligible issues and dependency blockers.
 - `just spindle::setup-project --workspace <absolute-project-root>` — Bootstrap missing project documentation defaults.
 - `just spindle::run *args` — Run any other Spindle CLI command with arbitrary arguments.
 - Append `--help` to any recipe to see the command's options, for example `just spindle::sdd create --help`.
