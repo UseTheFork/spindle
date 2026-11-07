@@ -123,6 +123,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     spec: second.spec,
     ledger: join(repo, ".scratch", second.feature, "sdd.json"),
     state,
+    snapshots: [],
     actions: [],
     pendingAssignments: [],
     blockers: [],

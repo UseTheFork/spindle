@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -138,13 +139,19 @@ test("claim records the clean starting revision and explicit controller", (t) =>
     execution: string;
     owner: string;
     baseSha: string;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
   };
-  assert.deepEqual(output, {
-    issue: "I-0001",
-    execution: "claimed",
-    owner: "controller",
-    baseSha,
-  });
+  assert.equal(output.issue, "I-0001");
+  assert.equal(output.execution, "claimed");
+  assert.equal(output.owner, "controller");
+  assert.equal(output.baseSha, baseSha);
+  assert.equal(output.headSha, baseSha);
+  assert.match(output.snapshot, /^[0-9a-f]{64}$/);
+  assert.match(output.codeSnapshot, /^[0-9a-f]{64}$/);
+  assert.match(output.requirementsSnapshot, /^[0-9a-f]{64}$/);
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
@@ -155,6 +162,1213 @@ test("claim records the clean starting revision and explicit controller", (t) =>
     baseSha,
   });
   assert.equal(git("rev-parse", "HEAD"), baseSha);
+});
+
+test("checks require declares required commands and permits later additions", (t) => {
+  const { repo, spec } = prepareClaimableIssue(t);
+  const requireCheck = (command: string) =>
+    invoke(repo, [
+      "checks",
+      "require",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--command",
+      command,
+      "--author",
+      "controller",
+    ]);
+
+  const initial = requireCheck("just test::test tests/unit.test.ts");
+  assert.equal(initial.status, 0, initial.stderr);
+
+  const added = requireCheck("just test::test tests/integration.test.ts");
+  assert.equal(added.status, 0, added.stderr);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.deepEqual(
+    ledger.issues[0].checks.required.map((check: { command: string }) => check.command),
+    ["just test::test tests/unit.test.ts", "just test::test tests/integration.test.ts"],
+  );
+  assert.equal(JSON.parse(initial.stdout).checks.required.length, 1);
+  assert.equal(JSON.parse(added.stdout).checks.required.length, 2);
+});
+
+test("claim and resume report content identities that change for untracked code", (t) => {
+  const { repo, spec } = prepareClaimableIssue(t);
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const baseline = JSON.parse(claim.stdout) as {
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+  };
+  assert.match(baseline.snapshot, /^[0-9a-f]{64}$/);
+  assert.match(baseline.codeSnapshot, /^[0-9a-f]{64}$/);
+  assert.match(baseline.requirementsSnapshot, /^[0-9a-f]{64}$/);
+
+  writeFileSync(join(repo, "new-source.ts"), "export const changed = true;\n");
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const current = JSON.parse(resumed.stdout) as typeof baseline;
+  assert.notEqual(current.codeSnapshot, baseline.codeSnapshot);
+  assert.notEqual(current.snapshot, baseline.snapshot);
+  assert.equal(current.requirementsSnapshot, baseline.requirementsSnapshot);
+});
+
+test("code identity distinguishes one untracked payload from two separately framed files", (t) => {
+  const { repo, spec } = prepareClaimableIssue(t);
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+
+  const secondFileRecord = Buffer.from(
+    "path\0b\0index-absent\0worktree-mode:420\0worktree-file\0Y",
+  );
+  writeFileSync(join(repo, "a"), Buffer.concat([Buffer.from("X"), secondFileRecord]));
+  const oneFile = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(oneFile.status, 0, oneFile.stderr);
+  const oneFileIdentity = JSON.parse(oneFile.stdout).codeSnapshot as string;
+
+  rmSync(join(repo, "a"));
+  writeFileSync(join(repo, "a"), "X");
+  writeFileSync(join(repo, "b"), "Y");
+  const twoFiles = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(twoFiles.status, 0, twoFiles.stderr);
+  const twoFileIdentity = JSON.parse(twoFiles.stdout).codeSnapshot as string;
+
+  assert.notEqual(oneFileIdentity, twoFileIdentity);
+});
+
+test("code identity rejects changed submodule revisions and dirty or untracked submodule content", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/example.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare required check");
+
+  const source = join(repo, "..", "submodule-source");
+  mkdirSync(source);
+  execFileSync("git", ["init", "-q"], { cwd: source });
+  execFileSync("git", ["config", "user.name", "Fixture"], { cwd: source });
+  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: source });
+  writeFileSync(join(source, "tracked.txt"), "submodule base\n");
+  execFileSync("git", ["add", "."], { cwd: source });
+  execFileSync("git", ["commit", "-qm", "submodule base"], { cwd: source });
+  const submodulePath = "modules/example";
+  git("-c", "protocol.file.allow=always", "submodule", "add", "-q", source, submodulePath);
+  commitAll(repo, git, "add fixture submodule");
+
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const snapshot = JSON.parse(claim.stdout).snapshot as string;
+  const recordArgs = [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ];
+
+  const submodule = join(repo, submodulePath);
+  writeFileSync(join(submodule, "tracked.txt"), "dirty tracked content\n");
+  const dirtyRecord = invoke(repo, recordArgs);
+  assert.notEqual(dirtyRecord.status, 0);
+  assert.match(dirtyRecord.stderr, /submodule/i);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  assert.deepEqual(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records, []);
+
+  writeFileSync(join(submodule, "tracked.txt"), "submodule base\n");
+  writeFileSync(join(submodule, "untracked.txt"), "untracked submodule content\n");
+  const untrackedResume = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(untrackedResume.status, 0);
+  assert.match(untrackedResume.stderr, /submodule/i);
+
+  rmSync(join(submodule, "untracked.txt"));
+  writeFileSync(join(submodule, "tracked.txt"), "new submodule revision\n");
+  execFileSync("git", ["add", "tracked.txt"], { cwd: submodule });
+  execFileSync("git", ["commit", "-qm", "new submodule revision"], { cwd: submodule });
+  const revisionResume = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(revisionResume.status, 0);
+  assert.match(revisionResume.stderr, /submodule/i);
+});
+
+test("nested untracked repositories cannot reuse identities or record check coverage", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/example.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare required check");
+
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const claimSnapshot = JSON.parse(claim.stdout).snapshot as string;
+
+  const nested = join(repo, "vendor", "dependencies", "embedded");
+  mkdirSync(nested, { recursive: true });
+  execFileSync("git", ["init", "-q"], { cwd: nested });
+  execFileSync("git", ["config", "user.name", "Fixture"], { cwd: nested });
+  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: nested });
+  writeFileSync(join(nested, "tracked.txt"), "nested repository base\n");
+  execFileSync("git", ["add", "."], { cwd: nested });
+  execFileSync("git", ["commit", "-qm", "nested repository base"], { cwd: nested });
+
+  const resumeArgs = ["resume", "--spec", spec, "--issue", "I-0001", "--author", "controller"];
+  const initialIdentity = invoke(repo, resumeArgs);
+  const reusableSnapshot =
+    initialIdentity.status === 0
+      ? (JSON.parse(initialIdentity.stdout).snapshot as string)
+      : claimSnapshot;
+  if (initialIdentity.status !== 0) {
+    assert.match(initialIdentity.stderr, /nested|repository|worktree/i);
+  }
+
+  writeFileSync(join(nested, "tracked.txt"), "nested repository changed\n");
+  const changedIdentity = invoke(repo, resumeArgs);
+  assert.notEqual(changedIdentity.status, 0);
+  assert.match(changedIdentity.stderr, /nested|repository|worktree/i);
+
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    reusableSnapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(recorded.status, 0);
+  assert.match(recorded.stderr, /nested|repository|worktree/i);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  assert.deepEqual(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records, []);
+});
+
+test("missing known Gitlinks reject identity actions and check recording", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/example.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare required check");
+
+  const source = join(repo, "..", "missing-submodule-source");
+  mkdirSync(source);
+  execFileSync("git", ["init", "-q"], { cwd: source });
+  execFileSync("git", ["config", "user.name", "Fixture"], { cwd: source });
+  execFileSync("git", ["config", "user.email", "fixture@example.invalid"], { cwd: source });
+  writeFileSync(join(source, "tracked.txt"), "submodule base\n");
+  execFileSync("git", ["add", "."], { cwd: source });
+  execFileSync("git", ["commit", "-qm", "submodule base"], { cwd: source });
+  const submodulePath = "modules/missing";
+  git("-c", "protocol.file.allow=always", "submodule", "add", "-q", source, submodulePath);
+  commitAll(repo, git, "add fixture submodule");
+
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const snapshot = JSON.parse(claim.stdout).snapshot as string;
+
+  git("submodule", "deinit", "-f", "--", submodulePath);
+  rmSync(join(repo, submodulePath), { recursive: true, force: true });
+
+  const resume = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(resume.status, 0);
+  assert.match(resume.stderr, /missing or uninitialized/i);
+
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(recorded.status, 0);
+  assert.match(recorded.stderr, /missing or uninitialized/i);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  assert.deepEqual(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records, []);
+});
+
+test("content identity includes staged and unstaged working content relative to the claim baseline", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
+
+  writeFileSync(join(repo, "tracked.txt"), "staged content\n");
+  git("add", "tracked.txt");
+  const stagedResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(stagedResult.status, 0, stagedResult.stderr);
+  const staged = JSON.parse(stagedResult.stdout).codeSnapshot as string;
+  assert.notEqual(staged, baseline);
+
+  writeFileSync(join(repo, "tracked.txt"), "unstaged content\n");
+  const unstagedResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(unstagedResult.status, 0, unstagedResult.stderr);
+  const stagedAndUnstaged = JSON.parse(unstagedResult.stdout).codeSnapshot as string;
+  assert.notEqual(stagedAndUnstaged, staged);
+
+  git("commit", "-qm", "commit staged content");
+  const committedResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(committedResult.status, 0, committedResult.stderr);
+  assert.equal(JSON.parse(committedResult.stdout).codeSnapshot, stagedAndUnstaged);
+});
+
+test("content identity includes staged content even when the working tree is restored", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
+  writeFileSync(join(repo, "tracked.txt"), "staged-only content\n");
+  git("add", "tracked.txt");
+  writeFileSync(join(repo, "tracked.txt"), "base\n");
+
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  assert.notEqual(JSON.parse(resumed.stdout).codeSnapshot, baseline);
+});
+
+test("content identity includes Git-tracked executable mode changes", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
+  chmodSync(join(repo, "tracked.txt"), 0o755);
+  git("add", "tracked.txt");
+
+  const stagedResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(stagedResult.status, 0, stagedResult.stderr);
+  const staged = JSON.parse(stagedResult.stdout).codeSnapshot as string;
+  assert.notEqual(staged, baseline);
+
+  chmodSync(join(repo, "tracked.txt"), 0o644);
+  const unstagedResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(unstagedResult.status, 0, unstagedResult.stderr);
+  assert.notEqual(JSON.parse(unstagedResult.stdout).codeSnapshot, staged);
+});
+
+test("checks record stores one result against the supplied snapshot and is idempotent", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/example.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare required check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const snapshot = JSON.parse(claim.stdout).snapshot as string;
+  const recordArgs = [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ];
+
+  const recorded = invoke(repo, recordArgs);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  assert.deepEqual(JSON.parse(recorded.stdout).record, {
+    command,
+    result: "passed",
+    author: "controller",
+    snapshot,
+    codeSnapshot: JSON.parse(claim.stdout).codeSnapshot,
+    requirementsSnapshot: JSON.parse(claim.stdout).requirementsSnapshot,
+    headSha: JSON.parse(claim.stdout).headSha,
+    recordedAt: JSON.parse(recorded.stdout).record.recordedAt,
+  });
+  const repeated = invoke(repo, recordArgs);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.equal(ledger.issues[0].checks.records.length, 1);
+});
+
+test("content identity excludes ordinary comments but tracks requirement changes and decisions", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    "just test::test tests/example.test.ts",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const initial = JSON.parse(claim.stdout) as {
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+  };
+  const command = "just test::test tests/example.test.ts";
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    initial.snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  const comment = invoke(repo, [
+    "issue",
+    "comment",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--details",
+    "A routine progress note with no changed acceptance requirements.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(comment.status, 0, comment.stderr);
+  const generatedReport = join(
+    repo,
+    ".scratch",
+    "0001-claim-flow",
+    "reports",
+    "generated-report.md",
+  );
+  writeFileSync(generatedReport, "Generated report content.\n");
+  const afterComment = JSON.parse(
+    invoke(repo, ["resume", "--spec", spec, "--issue", "I-0001", "--author", "controller"]).stdout,
+  ) as typeof initial;
+  assert.equal(afterComment.snapshot, initial.snapshot);
+  assert.equal(afterComment.codeSnapshot, initial.codeSnapshot);
+  const afterCommentNext = invoke(repo, ["next", "--spec", spec]);
+  assert.equal(afterCommentNext.status, 0, afterCommentNext.stderr);
+  assert.equal(
+    JSON.stringify(JSON.parse(afterCommentNext.stdout).blockers).includes("Required check"),
+    false,
+  );
+
+  writeFileSync(
+    spec,
+    `${readFileSync(spec, "utf8")}\n## Requirements\n\nA changed feature requirement.\n`,
+  );
+  const afterSpecChangeResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(afterSpecChangeResult.status, 0, afterSpecChangeResult.stderr);
+  const afterSpecChange = JSON.parse(afterSpecChangeResult.stdout) as typeof initial;
+  assert.equal(afterSpecChange.codeSnapshot, initial.codeSnapshot);
+  assert.notEqual(afterSpecChange.requirementsSnapshot, initial.requirementsSnapshot);
+  const staleNext = invoke(repo, ["next", "--spec", spec]);
+  assert.equal(staleNext.status, 0, staleNext.stderr);
+  assert.match(JSON.stringify(JSON.parse(staleNext.stdout).blockers), /Required check .* is stale/);
+
+  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
+  const issueContent = readFileSync(issuePath, "utf8");
+  writeFileSync(
+    issuePath,
+    issueContent.replace(
+      "## Requirements\n",
+      "## Requirements\n\nAn issue-specific requirement changed.\n",
+    ),
+  );
+  const afterIssueRequirementResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(afterIssueRequirementResult.status, 0, afterIssueRequirementResult.stderr);
+  const afterIssueRequirement = JSON.parse(afterIssueRequirementResult.stdout) as typeof initial;
+  assert.equal(afterIssueRequirement.codeSnapshot, initial.codeSnapshot);
+  assert.notEqual(afterIssueRequirement.requirementsSnapshot, afterSpecChange.requirementsSnapshot);
+
+  const decision = invoke(repo, [
+    "issue",
+    "comment",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--details",
+    "Requirements decision: retain the new acceptance requirement.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(decision.status, 0, decision.stderr);
+  const afterDecisionResult = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(afterDecisionResult.status, 0, afterDecisionResult.stderr);
+  assert.notEqual(
+    JSON.parse(afterDecisionResult.stdout).requirementsSnapshot,
+    afterIssueRequirement.requirementsSnapshot,
+  );
+});
+
+test("metadata-only commits preserve content coverage while changing Git provenance", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/example.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const initial = JSON.parse(claim.stdout) as {
+    snapshot: string;
+    headSha: string;
+  };
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    initial.snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  git("commit", "--allow-empty", "-m", "metadata-only revision");
+
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const current = JSON.parse(resumed.stdout) as typeof initial;
+  assert.equal(current.snapshot, initial.snapshot);
+  assert.notEqual(current.headSha, initial.headSha);
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(
+    JSON.parse(status.stdout).blockers.some((item: { reason: string }) =>
+      item.reason.includes(`Required check ${command}`),
+    ),
+    false,
+  );
+});
+
+test("checks record rejects malformed or stale snapshots and requires failure details without executing commands", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const sentinel = join(repo, "command-was-not-executed");
+  const command = `touch ${sentinel}`;
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const snapshot = JSON.parse(claim.stdout).snapshot as string;
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const before = readFileSync(ledgerPath, "utf8");
+  const baseArgs = [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ];
+
+  const malformed = invoke(repo, [
+    ...baseArgs,
+    "--snapshot",
+    "not-a-snapshot",
+    "--result",
+    "passed",
+  ]);
+  assert.notEqual(malformed.status, 0);
+  assert.match(malformed.stderr, /64-character hexadecimal/);
+  const invalidResult = invoke(repo, [...baseArgs, "--snapshot", snapshot, "--result", "skipped"]);
+  assert.notEqual(invalidResult.status, 0);
+  assert.match(invalidResult.stderr, /Invalid check result/);
+  const failedWithoutDetails = invoke(repo, [
+    ...baseArgs,
+    "--snapshot",
+    snapshot,
+    "--result",
+    "failed",
+  ]);
+  assert.notEqual(failedWithoutDetails.status, 0);
+  assert.match(failedWithoutDetails.stderr, /--details is required/);
+  const unavailableWithoutDetails = invoke(repo, [
+    ...baseArgs,
+    "--snapshot",
+    snapshot,
+    "--result",
+    "unavailable",
+  ]);
+  assert.notEqual(unavailableWithoutDetails.status, 0);
+  assert.match(unavailableWithoutDetails.stderr, /--details is required/);
+  assert.equal(readFileSync(ledgerPath, "utf8"), before);
+
+  writeFileSync(join(repo, "new-source.ts"), "export const changed = true;\n");
+  const stale = invoke(repo, [...baseArgs, "--snapshot", snapshot, "--result", "passed"]);
+  assert.notEqual(stale.status, 0);
+  assert.match(stale.stderr, /Snapshot is stale/);
+  assert.equal(readFileSync(ledgerPath, "utf8"), before);
+
+  const currentSnapshot = JSON.parse(
+    invoke(repo, ["resume", "--spec", spec, "--issue", "I-0001", "--author", "controller"]).stdout,
+  ).snapshot as string;
+  const failed = invoke(repo, [
+    ...baseArgs,
+    "--snapshot",
+    currentSnapshot,
+    "--result",
+    "failed",
+    "--details",
+    "The external check found a defect.",
+  ]);
+  assert.equal(failed.status, 0, failed.stderr);
+  const unavailable = invoke(repo, [
+    ...baseArgs,
+    "--snapshot",
+    currentSnapshot,
+    "--result",
+    "unavailable",
+    "--details",
+    "The configured external runner was unavailable.",
+  ]);
+  assert.equal(unavailable.status, 0, unavailable.stderr);
+  const next = invoke(repo, ["next", "--spec", spec]);
+  assert.equal(next.status, 0, next.stderr);
+  assert.match(
+    JSON.stringify(JSON.parse(next.stdout).blockers),
+    /Required check .* is unavailable/,
+  );
+  assert.equal(existsSync(sentinel), false);
+});
+
+test("check removal requires rationale and invalidates accepted decisions while preserving history", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const firstCommand = "just test::test tests/first.test.ts";
+  const requireFirst = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    firstCommand,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(requireFirst.status, 0, requireFirst.stderr);
+  commitAll(repo, git, "declare first check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const claimOutput = JSON.parse(claim.stdout);
+  const record = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    claimOutput.snapshot,
+    "--command",
+    firstCommand,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(record.status, 0, record.stderr);
+
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.issues[0].execution = "accepted";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const beforeRemoval = readFileSync(ledgerPath, "utf8");
+  const missingRationale = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    firstCommand,
+    "--remove",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(missingRationale.status, 0);
+  assert.match(missingRationale.stderr, /requires non-empty --details rationale/);
+  assert.equal(readFileSync(ledgerPath, "utf8"), beforeRemoval);
+
+  const removed = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    firstCommand,
+    "--remove",
+    "--details",
+    "The target is no longer supported.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(removed.status, 0, removed.stderr);
+  const afterRemoval = JSON.parse(removed.stdout);
+  assert.equal(
+    afterRemoval.checks.required[0].removalDetails,
+    "The target is no longer supported.",
+  );
+  assert.equal(afterRemoval.invalidatedDecision.from, "accepted");
+  assert.equal(afterRemoval.invalidatedDecision.to, "reviewing");
+  assert.notEqual(afterRemoval.requirementsSnapshot, claimOutput.requirementsSnapshot);
+  const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  assert.equal(persisted.issues[0].execution, "reviewing");
+  assert.equal(persisted.issues[0].checks.records.length, 1);
+  assert.equal(persisted.issues[0].checks.invalidations.length, 1);
+
+  const secondCommand = "just test::test tests/second.test.ts";
+  const added = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    secondCommand,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(added.status, 0, added.stderr);
+  assert.notEqual(JSON.parse(added.stdout).requirementsSnapshot, afterRemoval.requirementsSnapshot);
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.match(
+    JSON.stringify(JSON.parse(status.stdout).blockers),
+    /Required check .*second\.test\.ts.*missing/,
+  );
+});
+
+test("status does not permit integration when a required check failed", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/required.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const failed = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    JSON.parse(claim.stdout).snapshot,
+    "--command",
+    command,
+    "--result",
+    "failed",
+    "--details",
+    "The required check failed.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failed.status, 0, failed.stderr);
+
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.issues[0].execution = "accepted";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.deepEqual(JSON.parse(status.stdout).actions, []);
+  assert.match(JSON.stringify(JSON.parse(status.stdout).blockers), /Required check .* is failed/);
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  assert.equal(JSON.parse(resumed.stdout).nextAction, "resolve-check-blocker");
+});
+
+test("stale checks on an integrated issue keep dependent issues blocked", (t) => {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/required.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare check");
+  const claim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claim.status, 0, claim.stderr);
+  const failed = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    JSON.parse(claim.stdout).snapshot,
+    "--command",
+    command,
+    "--result",
+    "failed",
+    "--details",
+    "The required check failed.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failed.status, 0, failed.stderr);
+
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.issues[0].execution = "integrated";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const dependent = invoke(repo, [
+    "issue",
+    "create",
+    "--spec",
+    spec,
+    "--title",
+    "Wait for valid evidence",
+    "--reporter",
+    "requester",
+    "--category",
+    "enhancement",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(dependent.status, 0, dependent.stderr);
+  const dependency = invoke(repo, [
+    "issue",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--blocked-by",
+    "I-0001",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(dependency.status, 0, dependency.stderr);
+  const triaged = invoke(repo, [
+    "triage",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--status",
+    "ready-for-agent",
+    "--category",
+    "enhancement",
+    "--details",
+    "Ready after the dependency satisfies all gates.",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(triaged.status, 0, triaged.stderr);
+
+  const ready = invoke(repo, ["ready", "--spec", spec]);
+  assert.equal(ready.status, 0, ready.stderr);
+  assert.deepEqual(JSON.parse(ready.stdout).unready, [{ issue: "I-0002", blockedBy: ["I-0001"] }]);
+  const attemptedClaim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(attemptedClaim.status, 0);
+  assert.match(attemptedClaim.stderr, /dependencies that are not integrated: I-0001/);
 });
 
 test("claim rejects staged, unstaged, and untracked changes without changing ownership or baseline", (t) => {

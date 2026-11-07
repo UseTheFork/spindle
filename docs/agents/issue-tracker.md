@@ -99,6 +99,59 @@ the original assignment and report path remain unchanged. `next` and expanded
 `status` are read-only and report permitted actions, pending assignments, and
 blockers. Workflow commands do not stage, commit, or otherwise mutate Git.
 
+## Required checks and content identities
+
+Declare externally executed checks with
+`sdd checks require --spec <path> --issue <id> --command <command> --author <author>`.
+This records the command; it does not run it. Add requirements as implementation
+uncovers risks. Remove one explicitly with `--remove --details <rationale>`;
+the removal and rationale remain in the ledger. Changing the required-check set
+changes the requirements identity, makes earlier results stale, and reopens an
+accepted or integrated issue for review.
+
+Obtain the current `snapshot`, `codeSnapshot`, and `requirementsSnapshot` from
+workflow output (`claim`, `implement`, `resume`, `status`, or `next`). Record one
+external result at a time:
+
+```sh
+just spindle::run sdd checks record --spec <absolute-spec-path> --issue I-0001 --snapshot <snapshot> --command "just test::test tests/example.test.ts" --result passed --author controller
+```
+
+Allowed results are `passed`, `failed`, and `unavailable`; failures and
+unavailability require `--details`. The CLI verifies that the supplied
+snapshot is still current before it persists the structured result in the
+ledger. Missing, stale, failed, or unavailable required coverage is reported
+by `next` and `status`. Repeating an identical result does not duplicate its
+history.
+
+Code identity is derived from paths Git identifies as changed from the issue's
+claim baseline, including committed, staged, unstaged, and untracked content.
+The identity hashes the Git index entries and working-tree modes and bytes for
+those changed paths, not the whole checkout or `HEAD` alone. `.scratch`
+content—including ledgers, reports, and generated audit entries—is excluded
+from code identity.
+Changed Gitlink revisions and dirty or untracked submodule worktrees are
+unsupported: identity computation fails closed, and `checks record` does not
+persist a result for that state.
+Missing or uninitialized known Gitlinks and changed nested repository/worktree
+directories are also unsupported and fail closed; their contents are not
+reduced to a generic non-file identity marker.
+Git SHAs are retained as
+provenance; a metadata-only commit with identical content does not invalidate
+coverage.
+
+Requirements identity is separate: it covers the feature spec, the issue's
+`Requirements` and `Acceptance Criteria`, explicit `Requirements decision`
+comments, and the required-check declaration history. Ordinary issue comments
+do not affect it. A requirements edit invalidates evidence even when code is
+unchanged.
+
+These identities establish which local content an author supplied with a
+result; they are not proof that the declared command ran, that it ran in a
+particular environment, or that its reported verdict is truthful. The controller
+executes checks externally and attests to their result. The CLI never launches
+declared commands.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a new file under the feature's ID-based directory,

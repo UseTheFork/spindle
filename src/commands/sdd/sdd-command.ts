@@ -13,6 +13,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  readlinkSync,
   unlinkSync,
   writeFileSync,
   writeSync,
@@ -63,6 +64,49 @@ interface IssueProgress {
   owner?: string;
   baseSha?: string;
   assignment?: ImplementationAssignment;
+  checks?: IssueChecks;
+}
+
+interface CheckRequirement {
+  command: string;
+  addedAt: string;
+  addedBy: string;
+  removedAt?: string;
+  removedBy?: string;
+  removalDetails?: string;
+}
+
+interface IssueChecks {
+  required: CheckRequirement[];
+  records: CheckRecord[];
+  invalidations?: CheckGateInvalidation[];
+}
+
+interface CheckGateInvalidation {
+  at: string;
+  author: string;
+  command: string;
+  from: "accepted" | "integrated";
+  to: "reviewing";
+}
+
+interface CheckRecord {
+  command: string;
+  result: "passed" | "failed" | "unavailable";
+  author: string;
+  snapshot: string;
+  codeSnapshot: string;
+  requirementsSnapshot: string;
+  headSha: string;
+  recordedAt: string;
+  details?: string;
+}
+
+interface ContentIdentity {
+  snapshot: string;
+  codeSnapshot: string;
+  requirementsSnapshot: string;
+  headSha: string;
 }
 
 interface ImplementationAssignment {
@@ -166,6 +210,19 @@ interface ResumeOptions extends IssueSelection {
   confirmHandoff?: boolean;
 }
 
+interface ChecksRequireOptions extends IssueSelection {
+  command: string;
+  remove?: boolean;
+  details?: string;
+}
+
+interface ChecksRecordOptions extends IssueSelection {
+  snapshot: string;
+  command: string;
+  result: string;
+  details?: string;
+}
+
 interface NextOptions {
   spec: string;
 }
@@ -261,6 +318,66 @@ function isImplementationAssignment(value: unknown): value is ImplementationAssi
     return typeof value.unavailableDetails === "string" && !!value.unavailableDetails.trim();
   }
   return true;
+}
+
+function isCheckRequirement(value: unknown): value is CheckRequirement {
+  if (
+    !isRecord(value) ||
+    typeof value.command !== "string" ||
+    !value.command.trim() ||
+    typeof value.addedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.addedAt)) ||
+    typeof value.addedBy !== "string" ||
+    !value.addedBy.trim()
+  ) {
+    return false;
+  }
+  const removed = Object.hasOwn(value, "removedAt");
+  return (
+    !removed ||
+    (typeof value.removedAt === "string" &&
+      Number.isFinite(Date.parse(value.removedAt)) &&
+      typeof value.removedBy === "string" &&
+      !!value.removedBy.trim() &&
+      typeof value.removalDetails === "string" &&
+      !!value.removalDetails.trim())
+  );
+}
+
+function isCheckRecord(value: unknown): value is CheckRecord {
+  return (
+    isRecord(value) &&
+    typeof value.command === "string" &&
+    !!value.command.trim() &&
+    ["passed", "failed", "unavailable"].includes(String(value.result)) &&
+    typeof value.author === "string" &&
+    !!value.author.trim() &&
+    typeof value.snapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.snapshot) &&
+    typeof value.codeSnapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.codeSnapshot) &&
+    typeof value.requirementsSnapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
+    typeof value.headSha === "string" &&
+    /^[0-9a-f]{40,64}$/i.test(value.headSha) &&
+    typeof value.recordedAt === "string" &&
+    Number.isFinite(Date.parse(value.recordedAt)) &&
+    (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
+  );
+}
+
+function isCheckGateInvalidation(value: unknown): value is CheckGateInvalidation {
+  return (
+    isRecord(value) &&
+    typeof value.at === "string" &&
+    Number.isFinite(Date.parse(value.at)) &&
+    typeof value.author === "string" &&
+    !!value.author.trim() &&
+    typeof value.command === "string" &&
+    !!value.command.trim() &&
+    ["accepted", "integrated"].includes(String(value.from)) &&
+    value.to === "reviewing"
+  );
 }
 
 function featureSlug(title: string): string {
@@ -390,6 +507,45 @@ export class SddCommand extends Service {
       .action(async (options: ClaimOptions) => {
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.claim(options), null, 2));
+      });
+
+    const checks = program.command("checks").description("Declare and record required checks.");
+    checks
+      .command("require")
+      .description("Add or remove a required external check.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--command <command>", "Exact externally executed command", once("--command"))
+      .option("--remove", "Remove the requirement; requires --details rationale")
+      .option("--details <details>", "Removal rationale")
+      .requiredOption("--author <author>", "Acting controller", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ChecksRequireOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.checksRequire(options), null, 2));
+      });
+    checks
+      .command("record")
+      .description("Record an externally executed check against a current snapshot.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption(
+        "--snapshot <snapshot>",
+        "CLI-returned content snapshot identity",
+        once("--snapshot"),
+      )
+      .requiredOption("--command <command>", "Exact required command", once("--command"))
+      .requiredOption(
+        "--result <result>",
+        "Check result: passed, failed, unavailable",
+        once("--result"),
+      )
+      .option("--details <details>", "Failure or unavailability details")
+      .requiredOption("--author <author>", "Acting controller", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ChecksRecordOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.checksRecord(options), null, 2));
       });
 
     program
@@ -562,6 +718,7 @@ export class SddCommand extends Service {
 
   status({ spec }: StatusOptions): FeaturePaths & {
     state: FeatureLedger;
+    snapshots: ({ issue: string } & ContentIdentity)[];
     actions: { issue: string; action: string }[];
     pendingAssignments: {
       issue: string;
@@ -606,6 +763,7 @@ export class SddCommand extends Service {
       checkoutChanges = undefined;
     }
     const actions: { issue: string; action: string }[] = [];
+    const snapshots: ({ issue: string } & ContentIdentity)[] = [];
     const pendingAssignments: {
       issue: string;
       id: string;
@@ -622,14 +780,25 @@ export class SddCommand extends Service {
         blockers.push({ issue: progress.id, reason: "Issue Markdown is missing." });
         continue;
       }
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      snapshots.push({ issue: progress.id, ...identity });
+      const checkBlockers = this.#checkBlockers(progress, identity);
+      for (const reason of checkBlockers) blockers.push({ issue: progress.id, reason });
       if (progress.execution === "unstarted") {
         if (issue.status !== "ready-for-agent") {
           blockers.push({ issue: progress.id, reason: `Triage status is ${issue.status}.` });
           continue;
         }
-        const unmet = issue.blocked_by.filter(
-          (dependency) => progressById.get(dependency)?.execution !== "integrated",
-        );
+        const unmet = issue.blocked_by.filter((dependency) => {
+          const dependencyProgress = progressById.get(dependency);
+          const dependencyIssue = byId.get(dependency);
+          return (
+            !dependencyProgress ||
+            dependencyProgress.execution !== "integrated" ||
+            !dependencyIssue ||
+            !this.#hasCurrentCheckCoverage(feature, dependencyIssue, dependencyProgress)
+          );
+        });
         if (unmet.length > 0) {
           blockers.push({
             issue: progress.id,
@@ -674,7 +843,8 @@ export class SddCommand extends Service {
           if (progress.assignment.status === "submitted") {
             const reason = this.#implementationReportBlocker(feature, progress.assignment);
             if (reason) blockers.push({ issue: progress.id, reason });
-            else actions.push({ issue: progress.id, action: "review" });
+            else if (checkBlockers.length === 0)
+              actions.push({ issue: progress.id, action: "review" });
           } else {
             actions.push({ issue: progress.id, action: "await-implementation-report" });
           }
@@ -690,7 +860,7 @@ export class SddCommand extends Service {
           blockers.push({ issue: progress.id, reason });
           continue;
         }
-        actions.push({ issue: progress.id, action: "review" });
+        if (checkBlockers.length === 0) actions.push({ issue: progress.id, action: "review" });
       } else if (progress.execution === "changes-requested") {
         blockers.push({
           issue: progress.id,
@@ -699,7 +869,7 @@ export class SddCommand extends Service {
       } else if (progress.execution === "blocked") {
         blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
       } else if (progress.execution === "accepted") {
-        actions.push({ issue: progress.id, action: "integrate" });
+        if (checkBlockers.length === 0) actions.push({ issue: progress.id, action: "integrate" });
       }
     }
     for (const issue of issues) {
@@ -708,7 +878,7 @@ export class SddCommand extends Service {
       }
     }
 
-    return { ...feature, actions, pendingAssignments, blockers };
+    return { ...feature, snapshots, actions, pendingAssignments, blockers };
   }
 
   issueCreate(options: IssueCreateOptions): { issue: string; path: string } {
@@ -758,6 +928,168 @@ export class SddCommand extends Service {
         },
       ]);
       return { issue: id, path };
+    } finally {
+      release();
+    }
+  }
+
+  checksRequire(options: ChecksRequireOptions): {
+    issue: string;
+    checks: IssueChecks;
+    idempotent?: boolean;
+    invalidatedDecision?: { from: "accepted" | "integrated"; to: "reviewing" };
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const command = options.command.trim();
+    if (!command) throw new Error("Check command must not be empty.");
+    if (options.remove && !options.details?.trim()) {
+      throw new Error("Removing a required check requires non-empty --details rationale.");
+    }
+    if (!options.remove && options.details !== undefined) {
+      throw new Error("--details is only valid when removing a required check.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const progress = this.#requireProgress(ledger, options.issue);
+      const checks = (progress.checks ??= { required: [], records: [], invalidations: [] });
+      const active = checks.required.find(
+        (requirement) => requirement.command === command && !requirement.removedAt,
+      );
+      if (options.remove) {
+        if (!active) throw new Error(`Required check is not declared: ${command}.`);
+        active.removedAt = new Date().toISOString();
+        active.removedBy = options.author.trim();
+        active.removalDetails = options.details!.trim();
+      } else {
+        if (active) {
+          return {
+            issue: options.issue,
+            checks,
+            idempotent: true,
+            ...this.#contentIdentity(
+              feature,
+              this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+              progress.baseSha,
+              checks,
+            ),
+          };
+        }
+        checks.required.push({
+          command,
+          addedAt: new Date().toISOString(),
+          addedBy: options.author.trim(),
+        });
+      }
+      let invalidatedDecision: { from: "accepted" | "integrated"; to: "reviewing" } | undefined;
+      if (progress.execution === "accepted" || progress.execution === "integrated") {
+        const from = progress.execution;
+        progress.execution = "reviewing";
+        const invalidation = {
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          command,
+          from,
+          to: "reviewing" as const,
+        };
+        (checks.invalidations ??= []).push(invalidation);
+        invalidatedDecision = { from, to: "reviewing" };
+      }
+      const currentIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const identity = this.#contentIdentity(feature, currentIssue, progress.baseSha, checks);
+      this.#writeLedger(feature, ledger);
+      return {
+        issue: options.issue,
+        checks,
+        ...(invalidatedDecision ? { invalidatedDecision } : {}),
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  checksRecord(options: ChecksRecordOptions): {
+    issue: string;
+    record: CheckRecord;
+    idempotent?: boolean;
+  } & ContentIdentity {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const command = options.command.trim();
+    if (!command) throw new Error("Check command must not be empty.");
+    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
+      throw new Error("Snapshot must be a 64-character hexadecimal content identity.");
+    }
+    if (!["passed", "failed", "unavailable"].includes(options.result)) {
+      throw new Error(`Invalid check result: ${options.result}.`);
+    }
+    if (options.result !== "passed" && !options.details?.trim()) {
+      throw new Error("--details is required for failed or unavailable checks.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const progress = this.#requireProgress(ledger, options.issue);
+      const checks = progress.checks;
+      if (!checks) throw new Error("No required checks are declared for this issue.");
+      const requirement = checks.required.find(
+        (item) => item.command === command && !item.removedAt,
+      );
+      if (!requirement) throw new Error(`Check command is not currently required: ${command}.`);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, checks);
+      if (identity.snapshot !== options.snapshot) {
+        throw new Error(
+          `Snapshot is stale; current content identity is ${identity.snapshot}. No check result was recorded.`,
+        );
+      }
+      const latestForCommand = [...checks.records]
+        .reverse()
+        .find((record) => record.command === command);
+      const repeat =
+        latestForCommand &&
+        latestForCommand.result === options.result &&
+        latestForCommand.author === options.author.trim() &&
+        latestForCommand.snapshot === options.snapshot &&
+        latestForCommand.details === options.details?.trim()
+          ? latestForCommand
+          : undefined;
+      if (repeat) return { issue: options.issue, record: repeat, idempotent: true, ...identity };
+      const record: CheckRecord = {
+        command,
+        result: options.result as CheckRecord["result"],
+        author: options.author.trim(),
+        snapshot: identity.snapshot,
+        codeSnapshot: identity.codeSnapshot,
+        requirementsSnapshot: identity.requirementsSnapshot,
+        headSha: identity.headSha,
+        recordedAt: new Date().toISOString(),
+        ...(options.details?.trim() ? { details: options.details.trim() } : {}),
+      };
+      checks.records.push(record);
+      const confirmedIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const confirmedIdentity = this.#contentIdentity(
+        feature,
+        confirmedIssue,
+        progress.baseSha,
+        checks,
+      );
+      if (confirmedIdentity.snapshot !== identity.snapshot) {
+        checks.records.pop();
+        throw new Error("Content changed while recording the check; retry with a fresh snapshot.");
+      }
+      this.#writeLedger(feature, ledger);
+      return { issue: options.issue, record, ...identity };
     } finally {
       release();
     }
@@ -901,15 +1233,25 @@ export class SddCommand extends Service {
       throw new Error("Issue data changed while reading the ready queue; retry ready.");
     }
     this.#validateDependencyGraph(issues);
-    const progress = new Map(ledger.issues.map((item) => [item.id, item.execution]));
+    const progress = new Map(ledger.issues.map((item) => [item.id, item]));
     const byId = new Map(issues.map((item) => [item.id, item]));
     const eligible = issues.filter(
-      (item) => item.status === "ready-for-agent" && progress.get(item.id) === "unstarted",
+      (item) =>
+        item.status === "ready-for-agent" && progress.get(item.id)?.execution === "unstarted",
     );
     const ready: string[] = [];
     const unready: { issue: string; blockedBy: string[] }[] = [];
     for (const item of eligible) {
-      const pending = item.blocked_by.filter((id) => progress.get(id) !== "integrated");
+      const pending = item.blocked_by.filter((id) => {
+        const dependencyProgress = progress.get(id);
+        const dependencyIssue = byId.get(id);
+        return (
+          !dependencyProgress ||
+          dependencyProgress.execution !== "integrated" ||
+          !dependencyIssue ||
+          !this.#hasCurrentCheckCoverage(feature, dependencyIssue, dependencyProgress)
+        );
+      });
       if (pending.length === 0) ready.push(item.id);
       else unready.push({ issue: item.id, blockedBy: pending });
     }
@@ -929,6 +1271,10 @@ export class SddCommand extends Service {
     execution: "claimed";
     owner: string;
     baseSha: string;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
   } {
     validateIssueId(options.issue);
     validateAuthor(options.author);
@@ -950,9 +1296,17 @@ export class SddCommand extends Service {
         throw new Error(`Issue ${options.issue} is not ready for an agent.`);
       }
       const byId = new Map(ledger.issues.map((item) => [item.id, item]));
-      const unmet = issue.blocked_by.filter(
-        (dependency) => byId.get(dependency)?.execution !== "integrated",
-      );
+      const issuesById = new Map(issues.map((item) => [item.id, item]));
+      const unmet = issue.blocked_by.filter((dependency) => {
+        const dependencyProgress = byId.get(dependency);
+        const dependencyIssue = issuesById.get(dependency);
+        return (
+          !dependencyProgress ||
+          dependencyProgress.execution !== "integrated" ||
+          !dependencyIssue ||
+          !this.#hasCurrentCheckCoverage(feature, dependencyIssue, dependencyProgress)
+        );
+      });
       if (unmet.length > 0) {
         throw new Error(
           `Issue ${options.issue} has dependencies that are not integrated: ${unmet.join(", ")}.`,
@@ -962,6 +1316,7 @@ export class SddCommand extends Service {
       progress.execution = "claimed";
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
+      const identity = this.#contentIdentity(feature, issue, baseSha, progress.checks);
       const afterIssue = matter.stringify(
         this.#appendAudit(
           issue.body,
@@ -976,6 +1331,7 @@ export class SddCommand extends Service {
         execution: "claimed",
         owner: options.author.trim(),
         baseSha,
+        ...identity,
       };
     } finally {
       release();
@@ -986,6 +1342,10 @@ export class SddCommand extends Service {
     issue: string;
     execution: "implementing";
     assignment: ImplementationAssignment;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
   } {
     validateIssueId(options.issue);
     validateAuthor(options.author);
@@ -996,6 +1356,7 @@ export class SddCommand extends Service {
       const ledger = this.#readLedger(feature);
       const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const progress = this.#requireProgress(ledger, options.issue);
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
       if (progress.execution === "implementing" && progress.assignment) {
         if (progress.owner !== options.author.trim()) {
           throw new Error("Controller ownership changed; resume and confirm the handoff first.");
@@ -1004,6 +1365,7 @@ export class SddCommand extends Service {
           issue: options.issue,
           execution: "implementing",
           assignment: progress.assignment,
+          ...identity,
         };
       }
       if (progress.execution !== "claimed" || !progress.baseSha || !progress.owner) {
@@ -1039,7 +1401,7 @@ export class SddCommand extends Service {
         this.#metadata(issue),
       );
       this.#writeWorkflowState(feature, issue, afterIssue, ledger);
-      return { issue: options.issue, execution: "implementing", assignment };
+      return { issue: options.issue, execution: "implementing", assignment, ...identity };
     } finally {
       release();
     }
@@ -1053,6 +1415,10 @@ export class SddCommand extends Service {
     reportSha256?: string;
     unavailable?: boolean;
     idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
   } {
     validateIssueId(options.issue);
     validateAuthor(options.author);
@@ -1075,6 +1441,7 @@ export class SddCommand extends Service {
       const ledger = this.#readLedger(feature);
       const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const progress = this.#requireProgress(ledger, options.issue);
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
       const assignment = progress.assignment;
       if (!assignment || assignment.action !== "implement" || assignment.role !== options.role) {
         throw new Error("No matching implementation assignment is pending for this issue.");
@@ -1094,6 +1461,7 @@ export class SddCommand extends Service {
             assignment,
             unavailable: true,
             idempotent: true,
+            ...identity,
           };
         }
         if (assignment.status !== "pending" || progress.execution !== "implementing") {
@@ -1115,6 +1483,7 @@ export class SddCommand extends Service {
           execution: progress.execution,
           assignment,
           unavailable: true,
+          ...identity,
         };
       }
       if (assignment.status === "submitted") {
@@ -1130,6 +1499,7 @@ export class SddCommand extends Service {
           report: assignment.report,
           reportSha256: digest,
           idempotent: true,
+          ...identity,
         };
       }
       if (
@@ -1176,6 +1546,7 @@ export class SddCommand extends Service {
         assignment,
         report: assignment.report,
         reportSha256,
+        ...identity,
       };
     } finally {
       release();
@@ -1190,6 +1561,10 @@ export class SddCommand extends Service {
     assignment?: ImplementationAssignment;
     handoffRecorded?: boolean;
     blocker?: string;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
   } {
     validateIssueId(options.issue);
     validateAuthor(options.author);
@@ -1229,7 +1604,14 @@ export class SddCommand extends Service {
         this.#writeWorkflowState(feature, issue, afterIssue, ledger);
         handoffRecorded = true;
       }
-      const blocker = this.#resumeBlocker(feature, progress);
+      const identity = this.#contentIdentity(
+        feature,
+        this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+        progress.baseSha,
+        progress.checks,
+      );
+      const blocker =
+        this.#resumeBlocker(feature, progress) ?? this.#checkBlockers(progress, identity)[0];
       return {
         issue: options.issue,
         gate: progress.execution,
@@ -1238,6 +1620,7 @@ export class SddCommand extends Service {
         ...(progress.assignment ? { assignment: progress.assignment } : {}),
         ...(handoffRecorded ? { handoffRecorded: true } : {}),
         ...(blocker ? { blocker } : {}),
+        ...identity,
       };
     } finally {
       release();
@@ -1249,10 +1632,46 @@ export class SddCommand extends Service {
     return {
       feature: status.feature,
       spec: status.spec,
+      snapshots: status.snapshots,
       actions: status.actions,
       pendingAssignments: status.pendingAssignments,
       blockers: status.blockers,
     };
+  }
+
+  #hasCurrentCheckCoverage(
+    feature: FeaturePaths,
+    issue: IssueDocument,
+    progress: IssueProgress,
+  ): boolean {
+    const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+    return this.#checkBlockers(progress, identity).length === 0;
+  }
+
+  #checkBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+    const checks = progress.checks;
+    if (!checks) return [];
+    return checks.required
+      .filter((requirement) => !requirement.removedAt)
+      .flatMap((requirement) => {
+        const records = checks.records.filter((record) => record.command === requirement.command);
+        const current = records.filter(
+          (record) =>
+            record.snapshot === identity.snapshot &&
+            record.codeSnapshot === identity.codeSnapshot &&
+            record.requirementsSnapshot === identity.requirementsSnapshot,
+        );
+        const latest = current.at(-1);
+        if (!latest) {
+          const state = records.length > 0 ? "stale" : "missing";
+          return [`Required check ${requirement.command} is ${state} for the current content.`];
+        }
+        if (latest.result !== "passed") {
+          const suffix = latest.details ? ` Details: ${latest.details}` : "";
+          return [`Required check ${requirement.command} is ${latest.result}.${suffix}`];
+        }
+        return [];
+      });
   }
 
   #nextAction(progress: IssueProgress, blocker?: string): string {
@@ -1263,15 +1682,18 @@ export class SddCommand extends Service {
     if (progress.execution === "implementing") {
       if (!progress.assignment) return "resolve-assignment-blocker";
       if (progress.assignment.status === "submitted") {
+        if (blocker?.startsWith("Required check ")) return "record-current-checks";
         return blocker ? "restore-implementation-report" : "review";
       }
       return "await-implementation-report";
     }
-    if (progress.execution === "reviewing")
+    if (progress.execution === "reviewing") {
+      if (blocker?.startsWith("Required check ")) return "record-current-checks";
       return blocker ? "restore-implementation-report" : "review";
+    }
     if (progress.execution === "changes-requested") return "controller-correction-decision";
-    if (progress.execution === "accepted") return "integrate";
-    if (progress.execution === "integrated") return "complete";
+    if (progress.execution === "accepted") return blocker ? "resolve-check-blocker" : "integrate";
+    if (progress.execution === "integrated") return blocker ? "resolve-check-blocker" : "complete";
     return "resolve-blocker";
   }
 
@@ -1337,6 +1759,220 @@ export class SddCommand extends Service {
     return revision.stdout.trim();
   }
 
+  #contentIdentity(
+    feature: FeaturePaths,
+    issue: IssueDocument,
+    baseSha = this.#headSha(),
+    checks?: IssueChecks,
+  ): ContentIdentity {
+    const root = realpathSync(this.app.workspaceRoot);
+    const headSha = this.#headSha();
+    const paths = new Set<string>();
+    for (const args of [
+      ["diff", "--name-only", "-z", baseSha, "--", "."],
+      ["diff", "--cached", "--name-only", "-z", baseSha, "--", "."],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]) {
+      const output = this.#gitBuffer(args).toString("utf8");
+      for (const path of output.split("\0")) {
+        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
+      }
+    }
+
+    this.#assertStableSubmodules(baseSha, paths);
+
+    const code = createHash("sha256");
+    code.update("spindle-code-snapshot-v2\0");
+    const field = (tag: string, value: Buffer | string) => {
+      const tagBytes = Buffer.from(tag);
+      const valueBytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      const tagLength = Buffer.alloc(4);
+      tagLength.writeUInt32BE(tagBytes.length);
+      const valueLength = Buffer.alloc(8);
+      valueLength.writeBigUInt64BE(BigInt(valueBytes.length));
+      code.update(tagLength);
+      code.update(tagBytes);
+      code.update(valueLength);
+      code.update(valueBytes);
+    };
+    for (const path of [...paths].sort()) {
+      field("record", "path");
+      field("path", path);
+      field(
+        "index-stage",
+        this.#gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`]),
+      );
+      const indexed = spawnSync("git", ["show", `:${path}`], {
+        cwd: root,
+        encoding: "buffer",
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      });
+      if (indexed.error) throw indexed.error;
+      field("index-state", indexed.status === 0 ? "present" : "absent");
+      if (indexed.status === 0) field("index-content", indexed.stdout);
+      const pathOnDisk = join(root, path);
+      const entry = lstatIfPresent(pathOnDisk);
+      if (!entry) {
+        field("worktree-state", "deleted");
+      } else {
+        field("worktree-mode", String(entry.mode & 0o777));
+        if (entry.isSymbolicLink()) {
+          field("worktree-type", "symlink");
+          field("worktree-target", readlinkSync(pathOnDisk));
+        } else if (entry.isFile()) {
+          field("worktree-type", "file");
+          field("worktree-content", readFileSync(pathOnDisk));
+        } else if (entry.isDirectory()) {
+          throw new Error(
+            `Cannot compute code identity for nested repository or worktree '${path}'; directory worktrees are unsupported.`,
+          );
+        } else {
+          throw new Error(
+            `Cannot compute code identity for unsupported non-file worktree path '${path}'.`,
+          );
+        }
+      }
+    }
+    const codeSnapshot = code.digest("hex");
+    const requirementParts = [
+      readFileSync(feature.spec, "utf8"),
+      this.#issueRequirements(issue.raw),
+      checks?.required ?? [],
+    ];
+    const requirementsSnapshot = createHash("sha256")
+      .update(JSON.stringify(requirementParts))
+      .digest("hex");
+    const snapshot = createHash("sha256")
+      .update(JSON.stringify([codeSnapshot, requirementsSnapshot]))
+      .digest("hex");
+    return { snapshot, codeSnapshot, requirementsSnapshot, headSha };
+  }
+
+  #assertStableSubmodules(baseSha: string, changedPaths: Set<string>): void {
+    const gitlinks = new Map<string, string>();
+    for (const record of this.#gitBuffer(["ls-files", "--stage", "-z"])
+      .toString("utf8")
+      .split("\0")) {
+      const [metadata, path] = record.split("\t", 2);
+      if (!metadata || !path || path === ".scratch" || path.startsWith(".scratch/")) continue;
+      const [mode, sha, stage] = metadata.split(" ");
+      if (mode === "160000" && sha && stage === "0") gitlinks.set(path, sha);
+    }
+
+    const knownPaths = new Set(gitlinks.keys());
+    for (const record of this.#gitBuffer(["ls-tree", "-r", "-z", baseSha])
+      .toString("utf8")
+      .split("\0")) {
+      const [metadata, path] = record.split("\t", 2);
+      if (
+        metadata?.startsWith("160000 commit ") &&
+        path &&
+        path !== ".scratch" &&
+        !path.startsWith(".scratch/")
+      ) {
+        knownPaths.add(path);
+      }
+    }
+
+    for (const path of knownPaths) {
+      const entry = lstatIfPresent(join(this.app.workspaceRoot, path));
+      if (!entry) {
+        throw new Error(
+          `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
+        );
+      }
+      if (!entry.isDirectory()) {
+        throw new Error(
+          `Cannot compute code identity for submodule '${path}'; its worktree state is unsupported.`,
+        );
+      }
+
+      if (changedPaths.has(path)) {
+        throw new Error(
+          `Cannot compute code identity for changed submodule '${path}'; submodule changes are unsupported.`,
+        );
+      }
+
+      if (!gitlinks.has(path)) continue;
+
+      let revision: string;
+      try {
+        revision = this.#gitBuffer(["-C", path, "rev-parse", "--verify", "HEAD"])
+          .toString("utf8")
+          .trim();
+      } catch {
+        throw new Error(
+          `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
+        );
+      }
+      const status = this.#gitBuffer([
+        "-C",
+        path,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+      ]).toString("utf8");
+      if (revision !== gitlinks.get(path) || status.length > 0) {
+        throw new Error(
+          `Cannot compute code identity for changed submodule '${path}'; submodule changes are unsupported.`,
+        );
+      }
+    }
+  }
+
+  #issueRequirements(raw: string): string {
+    const body = matter(raw).content;
+    const sections = new Map<string, string>();
+    const headings = [...body.matchAll(/^##[ \t]+(.+?)[ \t]*\r?$/gm)];
+    for (let index = 0; index < headings.length; index++) {
+      const heading = headings[index]!;
+      const title = heading[1]!.trim().toLowerCase();
+      const start = heading.index! + heading[0].length;
+      const end = headings[index + 1]?.index ?? body.length;
+      if (title === "requirements" || title === "acceptance criteria") {
+        sections.set(title, body.slice(start, end).trim());
+      }
+      if (title === "comments") {
+        const decisions = body
+          .slice(start, end)
+          .split(/\n[ \t]*\n/)
+          .filter((entry) => /\brequirements? decision\b/i.test(entry))
+          .map((entry) => entry.trim());
+        sections.set("requirements decisions", decisions.join("\n\n"));
+      }
+    }
+    return JSON.stringify(
+      [...sections.entries()].sort(([left], [right]) => left.localeCompare(right)),
+    );
+  }
+
+  #headSha(): string {
+    const revision = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
+      cwd: realpathSync(this.app.workspaceRoot),
+      encoding: "utf8",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    if (revision.error) throw revision.error;
+    if (revision.status !== 0 || !/^[0-9a-f]{40,64}\n?$/i.test(revision.stdout)) {
+      throw new Error(`Unable to identify current Git revision: ${revision.stderr.trim()}`);
+    }
+    return revision.stdout.trim();
+  }
+
+  #gitBuffer(args: string[]): Buffer {
+    const result = spawnSync("git", args, {
+      cwd: realpathSync(this.app.workspaceRoot),
+      encoding: "buffer",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`git ${args[0]} failed: ${result.stderr.toString("utf8").trim()}`);
+    }
+    return result.stdout;
+  }
+
   #gitChangeSummary(feature: FeaturePaths): string {
     const root = realpathSync(this.app.workspaceRoot);
     const relativeLock = relative(root, join(feature.workspace, ".sdd-issues.lock"));
@@ -1378,6 +2014,16 @@ export class SddCommand extends Service {
         before: issue.raw,
         after: issueAfter,
       },
+      {
+        path: "sdd.json",
+        before: readFileSync(feature.ledger, "utf8"),
+        after: `${JSON.stringify(ledger, null, 2)}\n`,
+      },
+    ]);
+  }
+
+  #writeLedger(feature: FeaturePaths, ledger: FeatureLedger): void {
+    this.#applyWrites(feature.workspace, [
       {
         path: "sdd.json",
         before: readFileSync(feature.ledger, "utf8"),
@@ -1846,6 +2492,15 @@ export class SddCommand extends Service {
               !!issue.owner.trim() &&
               typeof issue.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(issue.baseSha))) &&
+          (!Object.hasOwn(issue, "checks") ||
+            (isRecord(issue.checks) &&
+              Array.isArray(issue.checks.required) &&
+              issue.checks.required.every(isCheckRequirement) &&
+              Array.isArray(issue.checks.records) &&
+              issue.checks.records.every(isCheckRecord) &&
+              (!Object.hasOwn(issue.checks, "invalidations") ||
+                (Array.isArray(issue.checks.invalidations) &&
+                  issue.checks.invalidations.every(isCheckGateInvalidation))))) &&
           (!Object.hasOwn(issue, "assignment") ||
             (isImplementationAssignment(issue.assignment) &&
               issue.assignment.report ===
