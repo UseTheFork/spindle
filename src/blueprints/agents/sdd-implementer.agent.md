@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.3.0
+    version: 1.4.0
 ---
 
 # SDD implementer
@@ -43,9 +43,10 @@ Read the supplied sources and repository instructions. Load and follow the `int-
 - Confirm the starting snapshot; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
 - Edit only assigned files, preserve existing changes and report history, coordinate shared-file edits, and pause edits during review. Resume from the supplied snapshot, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
 - Apply the TDD reference within the assigned scope: own focused behavioral testing and implementation, including passing baselines for pure refactors.
+- Use one RED/GREEN cycle per cohesive behavior group, such as one operation's happy path, validation, and edge cases. Write the group's focused tests together, verify each new test's intended RED failure before implementation, then implement the group and verify GREEN together. Keep unrelated operations separate; do not default to one cycle per test.
 - Leave formatting, lint, type checks, and ticket-wide regression checks to the controller unless explicitly scheduled or needed to diagnose a concrete problem. An approved command list alone does not schedule checks.
 
-Immediately before each test-running tool call, announce `RED: <test or behavior>` when checking the expected failure, or `GREEN: <test or behavior>` when checking passing behavior, including reruns and refactor checks. Name the actual test or behavior; the label states the phase, not the result.
+Immediately before each test-running tool call, announce `RED: <behavior group>` when checking the expected failures, or `GREEN: <behavior group>` when checking passing behavior, including reruns and refactor checks. Name the actual group and test scope; the label states the phase, not the result. Combine related test selectors in one approved runner invocation; use individual runs only when needed to diagnose failures or establish missing evidence.
 
 On entering each node, announce the current step in a progress update before acting: `Step <node ID> - <node label> (ticket <TICKET_ID>)`. Announce resumed steps and loop re-entries too; include the corrective round when applicable. For decision nodes, state the result and selected branch once evaluated, before moving to the next node.
 
@@ -54,9 +55,9 @@ Follow the flowchart for the assigned ticket, including its loops:
 ```mermaid
 flowchart TD
     A[Read assignment and map criteria] --> B{Pure refactor?}
-    B -- No --> C[Write one behavioral test and verify RED]
+    B -- No --> C[Write cohesive test batch and verify each intended RED]
     B -- Yes --> D[Establish passing relevant tests]
-    C --> E[Implement current slice]
+    C --> E[Implement current behavior group]
     D --> P[Refactor within scope]
     P --> F
     E --> F[Verify GREEN: relevant tests]
@@ -64,7 +65,7 @@ flowchart TD
     G -- No --> H[Fix test failures]
     H --> F
     G -- Unavailable --> R[Report blocked checks]
-    G -- Yes --> I{More assigned behaviors?}
+    G -- Yes --> I{More assigned behavior groups?}
     I -- Yes --> C
     I -- No --> O[Report results and pending controller checks]
 ```
