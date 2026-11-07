@@ -25,6 +25,7 @@ import type { Command } from "commander";
 import matter from "gray-matter";
 
 import { App, Service } from "../../app.js";
+import { blueprintCatalog } from "../../blueprints/catalog.js";
 import { once } from "../shared-options.js";
 
 const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
@@ -64,6 +65,7 @@ interface IssueProgress {
   owner?: string;
   baseSha?: string;
   assignment?: ImplementationAssignment;
+  reviewAssignments?: ReviewAssignment[];
   checks?: IssueChecks;
 }
 
@@ -122,6 +124,29 @@ interface ImplementationAssignment {
   submittedBy?: string;
   unavailableDetails?: string;
   handoffs: { at: string; from: string; to: string; confirmedStopped: boolean }[];
+}
+
+type ReviewResult = "passed" | "failed" | "unavailable";
+
+interface ReviewAssignment {
+  id: string;
+  agent: string;
+  role: "review";
+  scope: "initial";
+  snapshot: string;
+  codeSnapshot: string;
+  requirementsSnapshot: string;
+  headSha: string;
+  inventory: string[];
+  report: string;
+  requestedAt: string;
+  status: "pending" | "submitted";
+  result?: ReviewResult;
+  noFindings?: true;
+  reportSha256?: string;
+  submittedAt?: string;
+  submittedBy?: string;
+  details?: string;
 }
 
 interface DeliveryHistoryEntry {
@@ -202,9 +227,19 @@ type ImplementOptions = IssueSelection;
 interface SubmitOptions extends IssueSelection {
   role: string;
   report?: string;
+  assignment?: string;
+  result?: string;
+  noFindings?: boolean;
+  findings?: boolean;
   unavailable?: boolean;
   details?: string;
 }
+
+interface ReviewOptions extends IssueSelection {
+  inventory: string;
+}
+
+type AcceptOptions = IssueSelection;
 
 interface ResumeOptions extends IssueSelection {
   confirmHandoff?: boolean;
@@ -318,6 +353,50 @@ function isImplementationAssignment(value: unknown): value is ImplementationAssi
     return typeof value.unavailableDetails === "string" && !!value.unavailableDetails.trim();
   }
   return true;
+}
+
+function isReviewAssignment(value: unknown): value is ReviewAssignment {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    !value.id.trim() ||
+    typeof value.agent !== "string" ||
+    !value.agent.trim() ||
+    value.role !== "review" ||
+    value.scope !== "initial" ||
+    typeof value.snapshot !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(value.snapshot) ||
+    typeof value.codeSnapshot !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(value.codeSnapshot) ||
+    typeof value.requirementsSnapshot !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) ||
+    typeof value.headSha !== "string" ||
+    !/^[0-9a-f]{40,64}$/i.test(value.headSha) ||
+    !Array.isArray(value.inventory) ||
+    !value.inventory.every((path) => typeof path === "string" && path.length > 0) ||
+    new Set(value.inventory).size !== value.inventory.length ||
+    typeof value.report !== "string" ||
+    !isAbsolute(value.report) ||
+    typeof value.requestedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.requestedAt)) ||
+    !["pending", "submitted"].includes(String(value.status))
+  ) {
+    return false;
+  }
+  if (value.status === "pending") return true;
+  return (
+    ["passed", "failed", "unavailable"].includes(String(value.result)) &&
+    (value.result === "passed"
+      ? value.noFindings === true
+      : value.noFindings === undefined || value.noFindings === true) &&
+    typeof value.reportSha256 === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.reportSha256) &&
+    typeof value.submittedAt === "string" &&
+    Number.isFinite(Date.parse(value.submittedAt)) &&
+    typeof value.submittedBy === "string" &&
+    !!value.submittedBy.trim() &&
+    (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
+  );
 }
 
 function isCheckRequirement(value: unknown): value is CheckRequirement {
@@ -561,19 +640,65 @@ export class SddCommand extends Service {
       });
 
     program
+      .command("review")
+      .description("Freeze the confirmed change inventory and persist review assignments.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption(
+        "--inventory <json>",
+        "Controller-confirmed Git-derived inventory as a JSON string array",
+        once("--inventory"),
+      )
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ReviewOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.review(options), null, 2));
+      });
+
+    program
       .command("submit")
-      .description("Register an implementation report or record its unavailability.")
+      .description("Register an implementation or review report.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .requiredOption("--issue <id>", "Issue ID", once("--issue"))
       .requiredOption("--role <role>", "Assignment role")
+      .option("--assignment <id>", "Exact review assignment ID", once("--assignment"))
       .option("--report <path>", "Implementation report path", once("--report"))
+      .option("--result <result>", "Review result: passed, failed, unavailable", once("--result"))
+      .option("--no-findings", "Explicitly attest that the review report has no findings")
       .option("--unavailable", "Record that the assigned report is unavailable")
-      .option("--details <details>", "Reason the report is unavailable", once("--details"))
+      .option(
+        "--details <details>",
+        "Required details for failed or unavailable results",
+        once("--details"),
+      )
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: SubmitOptions) => {
         const command = await createApp().get(SddCommand);
-        console.log(JSON.stringify(command.submit(options), null, 2));
+        const { findings, ...submission } = options;
+        console.log(
+          JSON.stringify(
+            command.submit({
+              ...submission,
+              ...(options.role === "review" ? { noFindings: findings === false } : {}),
+            }),
+            null,
+            2,
+          ),
+        );
+      });
+
+    program
+      .command("accept")
+      .description("Accept an issue with current checks and complete passing review coverage.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: AcceptOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.accept(options), null, 2));
       });
 
     program
@@ -723,10 +848,12 @@ export class SddCommand extends Service {
     pendingAssignments: {
       issue: string;
       id: string;
-      role: "implementation";
-      action: "implement";
+      role: "implementation" | "review";
+      action: "implement" | "review";
       report: string;
-      status: ImplementationAssignment["status"];
+      status: ImplementationAssignment["status"] | ReviewAssignment["status"];
+      agent?: string;
+      scope?: ReviewAssignment["scope"];
     }[];
     blockers: { issue: string; reason: string }[];
   } {
@@ -767,10 +894,12 @@ export class SddCommand extends Service {
     const pendingAssignments: {
       issue: string;
       id: string;
-      role: "implementation";
-      action: "implement";
+      role: "implementation" | "review";
+      action: "implement" | "review";
       report: string;
-      status: ImplementationAssignment["status"];
+      status: ImplementationAssignment["status"] | ReviewAssignment["status"];
+      agent?: string;
+      scope?: ReviewAssignment["scope"];
     }[] = [];
     const blockers: { issue: string; reason: string }[] = [];
 
@@ -860,7 +989,43 @@ export class SddCommand extends Service {
           blockers.push({ issue: progress.id, reason });
           continue;
         }
-        if (checkBlockers.length === 0) actions.push({ issue: progress.id, action: "review" });
+        const reviewCheckBlockers = this.#reviewCheckBlockers(progress, identity);
+        for (const blocker of reviewCheckBlockers)
+          blockers.push({ issue: progress.id, reason: blocker });
+        const assignments = progress.reviewAssignments ?? [];
+        for (const assignment of assignments) {
+          if (assignment.status === "pending") {
+            pendingAssignments.push({
+              issue: progress.id,
+              id: assignment.id,
+              role: assignment.role,
+              action: "review",
+              report: assignment.report,
+              status: assignment.status,
+              agent: assignment.agent,
+              scope: assignment.scope,
+            });
+          }
+          const assignmentBlocker = this.#reviewAssignmentBlocker(
+            feature,
+            progress,
+            assignment,
+            identity,
+          );
+          if (assignmentBlocker) blockers.push({ issue: progress.id, reason: assignmentBlocker });
+        }
+        if (reviewCheckBlockers.length === 0) {
+          if (assignments.length === 0) actions.push({ issue: progress.id, action: "review" });
+          else if (assignments.some((assignment) => assignment.status === "pending")) {
+            actions.push({ issue: progress.id, action: "await-review-report" });
+          } else if (
+            assignments.every(
+              (assignment) => assignment.status === "submitted" && assignment.result === "passed",
+            )
+          ) {
+            actions.push({ issue: progress.id, action: "accept" });
+          }
+        }
       } else if (progress.execution === "changes-requested") {
         blockers.push({
           issue: progress.id,
@@ -869,7 +1034,16 @@ export class SddCommand extends Service {
       } else if (progress.execution === "blocked") {
         blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
       } else if (progress.execution === "accepted") {
-        if (checkBlockers.length === 0) actions.push({ issue: progress.id, action: "integrate" });
+        const acceptanceBlockers = this.#acceptBlockers(feature, feature.state, progress, identity);
+        for (const reason of acceptanceBlockers) {
+          if (
+            !blockers.some((blocker) => blocker.issue === progress.id && blocker.reason === reason)
+          ) {
+            blockers.push({ issue: progress.id, reason });
+          }
+        }
+        if (acceptanceBlockers.length === 0)
+          actions.push({ issue: progress.id, action: "integrate" });
       }
     }
     for (const issue of issues) {
@@ -959,6 +1133,11 @@ export class SddCommand extends Service {
       this.#recoverWrites(feature.workspace);
       const ledger = this.#readLedger(feature);
       const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution === "reviewing" && (progress.reviewAssignments?.length ?? 0) > 0) {
+        throw new Error(
+          "The review snapshot is frozen; required checks cannot change while review assignments are active.",
+        );
+      }
       const checks = (progress.checks ??= { required: [], records: [], invalidations: [] });
       const active = checks.required.find(
         (requirement) => requirement.command === command && !requirement.removedAt,
@@ -1407,10 +1586,166 @@ export class SddCommand extends Service {
     }
   }
 
+  review(options: ReviewOptions): {
+    issue: string;
+    execution: "reviewing";
+    assignments: ReviewAssignment[];
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    let confirmedInventory: unknown;
+    try {
+      confirmedInventory = JSON.parse(options.inventory) as unknown;
+    } catch {
+      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
+    }
+    if (
+      !Array.isArray(confirmedInventory) ||
+      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
+      new Set(confirmedInventory).size !== confirmedInventory.length
+    ) {
+      throw new Error("--inventory must be a JSON string array without duplicate paths.");
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution !== "reviewing" || !progress.assignment) {
+        throw new Error(
+          `Issue ${options.issue} must have a submitted implementation before review.`,
+        );
+      }
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the recorded controller may dispatch review.");
+      }
+      const implementationBlocker = this.#implementationReportBlocker(feature, progress.assignment);
+      if (implementationBlocker) throw new Error(implementationBlocker);
+      if (!progress.baseSha) throw new Error("Review requires the issue's recorded Git baseline.");
+
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const reviewCheckBlockers = this.#reviewCheckBlockers(progress, identity);
+      if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
+      const inventory = this.#changedPaths(progress.baseSha);
+      const suppliedPaths = new Set(confirmedInventory);
+      if (
+        suppliedPaths.size !== inventory.length ||
+        inventory.some((path) => !suppliedPaths.has(path))
+      ) {
+        throw new Error(
+          `Controller-confirmed inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
+        );
+      }
+
+      const existing = progress.reviewAssignments ?? [];
+      if (existing.length > 0) {
+        if (
+          existing.length !== ledger.reviewPolicy.issue.length ||
+          existing.some(
+            (assignment, index) =>
+              assignment.agent !== ledger.reviewPolicy.issue[index] ||
+              assignment.snapshot !== identity.snapshot ||
+              assignment.codeSnapshot !== identity.codeSnapshot ||
+              assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
+              JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
+          )
+        ) {
+          throw new Error(
+            "The frozen review assignment no longer matches the current issue snapshot.",
+          );
+        }
+        for (const assignment of existing) {
+          const blocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
+          if (blocker) throw new Error(blocker);
+        }
+        return {
+          issue: options.issue,
+          execution: "reviewing",
+          assignments: existing,
+          idempotent: true,
+          ...identity,
+        };
+      }
+
+      const assignments = ledger.reviewPolicy.issue.map((agent) => {
+        const catalogEntry = blueprintCatalog.agents[agent];
+        if (!catalogEntry || catalogEntry.canReview !== true) {
+          throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+        }
+        const id = randomUUID();
+        const report = join(feature.workspace, "reports", `${options.issue}-review-${id}.md`);
+        this.#assertReportPath(feature, report, false);
+        if (lstatIfPresent(report)) {
+          throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
+        }
+        return {
+          id,
+          agent,
+          role: "review" as const,
+          scope: "initial" as const,
+          snapshot: identity.snapshot,
+          codeSnapshot: identity.codeSnapshot,
+          requirementsSnapshot: identity.requirementsSnapshot,
+          headSha: identity.headSha,
+          inventory,
+          report,
+          requestedAt: new Date().toISOString(),
+          status: "pending" as const,
+        };
+      });
+
+      const confirmedIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const confirmedIdentity = this.#contentIdentity(
+        feature,
+        confirmedIssue,
+        progress.baseSha,
+        progress.checks,
+      );
+      const confirmedCurrentInventory = this.#changedPaths(progress.baseSha);
+      if (
+        confirmedIdentity.snapshot !== identity.snapshot ||
+        JSON.stringify(confirmedCurrentInventory) !== JSON.stringify(inventory)
+      ) {
+        throw new Error(
+          "Issue content changed while freezing review; retry with a fresh inventory.",
+        );
+      }
+      progress.reviewAssignments = assignments;
+      const assignmentSummary = assignments
+        .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
+        .join("; ");
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Initial review assignment${assignments.length === 1 ? "" : "s"} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "reviewing",
+        assignments,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
   submit(options: SubmitOptions): {
     issue: string;
     execution: ExecutionState;
-    assignment: ImplementationAssignment;
+    assignment: ImplementationAssignment | ReviewAssignment;
     report?: string;
     reportSha256?: string;
     unavailable?: boolean;
@@ -1422,8 +1757,17 @@ export class SddCommand extends Service {
   } {
     validateIssueId(options.issue);
     validateAuthor(options.author);
+    if (options.role === "review") return this.#submitReview(options);
     if (options.role !== "implementation") {
-      throw new Error("This submit command accepts only role implementation.");
+      throw new Error("Submit role must be implementation or review.");
+    }
+    if (
+      options.assignment !== undefined ||
+      options.result !== undefined ||
+      options.noFindings ||
+      options.findings !== undefined
+    ) {
+      throw new Error("Review assignment, result, and no-findings options require role review.");
     }
     if (options.unavailable && !options.details?.trim()) {
       throw new Error("--details is required when the implementation report is unavailable.");
@@ -1553,12 +1897,238 @@ export class SddCommand extends Service {
     }
   }
 
+  #submitReview(options: SubmitOptions): {
+    issue: string;
+    execution: "reviewing";
+    assignment: ReviewAssignment;
+    report: string;
+    reportSha256: string;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    if (!options.assignment?.trim()) {
+      throw new Error("Review submission requires --assignment.");
+    }
+    if (!options.report) throw new Error("Review submission requires --report.");
+    if (!options.result) throw new Error("Review submission requires explicit --result.");
+    if (!["passed", "failed", "unavailable"].includes(options.result)) {
+      throw new Error(`Invalid review result: ${options.result}.`);
+    }
+    if (options.result === "passed" && options.noFindings !== true) {
+      throw new Error(
+        "Finding registration is unavailable; finding-free review submission requires exclusive --no-findings.",
+      );
+    }
+    if (options.result !== "passed" && options.noFindings === true) {
+      throw new Error("--no-findings is only valid for a passed review result.");
+    }
+    if (options.unavailable) {
+      throw new Error("Use --result unavailable, not --unavailable, for review submissions.");
+    }
+    if (options.result === "passed" && options.details !== undefined) {
+      throw new Error("--details is only valid for failed or unavailable review results.");
+    }
+    if (options.result !== "passed" && !options.details?.trim()) {
+      throw new Error("--details is required for failed or unavailable reviews.");
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution !== "reviewing" || !progress.owner) {
+        throw new Error(`Issue ${options.issue} is not awaiting review submission.`);
+      }
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the current controller may submit a review result.");
+      }
+      const assignment = progress.reviewAssignments?.find(
+        (candidate) => candidate.id === options.assignment,
+      );
+      if (!assignment || assignment.role !== "review") {
+        throw new Error(`No review assignment matches ID ${options.assignment}.`);
+      }
+      if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const checkBlockers = this.#reviewCheckBlockers(progress, identity);
+      if (checkBlockers.length > 0) throw new Error(checkBlockers.join("\n"));
+      const snapshotBlocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
+      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      const reportPath = this.#submissionReportPath(feature, assignment, options.report);
+      const reportSha256 = this.#readReportDigest(feature, reportPath);
+
+      if (assignment.status === "submitted") {
+        if (
+          assignment.result === options.result &&
+          assignment.noFindings === (options.result === "passed" ? true : undefined) &&
+          assignment.submittedBy === options.author.trim() &&
+          assignment.details === options.details?.trim()
+        ) {
+          return {
+            issue: options.issue,
+            execution: "reviewing",
+            assignment,
+            report: assignment.report,
+            reportSha256,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        throw new Error("The review assignment already has a different submitted result.");
+      }
+
+      const confirmedIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const confirmedIdentity = this.#contentIdentity(
+        feature,
+        confirmedIssue,
+        progress.baseSha,
+        progress.checks,
+      );
+      const confirmedInventory = this.#changedPaths(progress.baseSha);
+      const confirmedReportDigest = this.#readReportDigest(feature, reportPath);
+      if (
+        confirmedIdentity.snapshot !== identity.snapshot ||
+        JSON.stringify(confirmedInventory) !== JSON.stringify(assignment.inventory) ||
+        confirmedReportDigest !== reportSha256
+      ) {
+        throw new Error(
+          "Review inputs changed while submitting; retry against the frozen assignment.",
+        );
+      }
+
+      assignment.status = "submitted";
+      assignment.result = options.result as ReviewResult;
+      if (options.result === "passed") assignment.noFindings = true;
+      else delete assignment.noFindings;
+      assignment.reportSha256 = reportSha256;
+      assignment.submittedAt = new Date().toISOString();
+      assignment.submittedBy = options.author.trim();
+      if (options.details?.trim()) assignment.details = options.details.trim();
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Review report submitted for assignment ${assignment.id}: result=${assignment.result}${assignment.noFindings === true ? "; no-findings explicitly declared" : ""}; report=${assignment.report} (sha256 ${reportSha256}).`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "reviewing",
+        assignment,
+        report: assignment.report,
+        reportSha256,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  accept(options: AcceptOptions): {
+    issue: string;
+    execution: "accepted";
+    reviews: {
+      agent: string;
+      assignment: string;
+      result: "passed";
+      noFindings: true;
+    }[];
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution !== "reviewing" && progress.execution !== "accepted") {
+        throw new Error(`Issue ${options.issue} must be reviewing before it can be accepted.`);
+      }
+      if (!progress.owner || progress.owner !== options.author.trim()) {
+        throw new Error("Only the current controller may accept this issue.");
+      }
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const blockers = this.#acceptBlockers(feature, ledger, progress, identity);
+      if (blockers.length > 0) {
+        throw new Error(`Issue ${options.issue} cannot be accepted:\n${blockers.join("\n")}`);
+      }
+      const reviews = ledger.reviewPolicy.issue.map((agent) => {
+        const assignment = progress.reviewAssignments!.find(
+          (candidate) => candidate.agent === agent && candidate.scope === "initial",
+        )!;
+        return {
+          agent,
+          assignment: assignment.id,
+          result: "passed" as const,
+          noFindings: true as const,
+        };
+      });
+      if (progress.execution === "accepted") {
+        return {
+          issue: options.issue,
+          execution: "accepted",
+          reviews,
+          idempotent: true,
+          ...identity,
+        };
+      }
+
+      const confirmedIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const confirmedIdentity = this.#contentIdentity(
+        feature,
+        confirmedIssue,
+        progress.baseSha,
+        progress.checks,
+      );
+      const confirmedBlockers = this.#acceptBlockers(feature, ledger, progress, confirmedIdentity);
+      if (confirmedIdentity.snapshot !== identity.snapshot || confirmedBlockers.length > 0) {
+        throw new Error(
+          `Issue content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
+        );
+      }
+      progress.execution = "accepted";
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Issue accepted with current passing checks and complete initial review coverage: ${reviews.map((review) => `${review.agent} (${review.assignment})`).join(", ")}.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "accepted",
+        reviews,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
   resume(options: ResumeOptions): {
     issue: string;
     gate: ExecutionState;
     nextAction: string;
     owner?: string;
     assignment?: ImplementationAssignment;
+    reviewAssignments?: ReviewAssignment[];
     handoffRecorded?: boolean;
     blocker?: string;
     snapshot: string;
@@ -1610,14 +2180,20 @@ export class SddCommand extends Service {
         progress.baseSha,
         progress.checks,
       );
+      const reviewBlocker = (progress.reviewAssignments ?? [])
+        .map((assignment) => this.#reviewAssignmentBlocker(feature, progress, assignment, identity))
+        .find((reason) => reason !== undefined);
       const blocker =
-        this.#resumeBlocker(feature, progress) ?? this.#checkBlockers(progress, identity)[0];
+        this.#resumeBlocker(feature, progress) ??
+        reviewBlocker ??
+        this.#checkBlockers(progress, identity)[0];
       return {
         issue: options.issue,
         gate: progress.execution,
         nextAction: this.#nextAction(progress, blocker),
         ...(progress.owner ? { owner: progress.owner } : {}),
         ...(progress.assignment ? { assignment: progress.assignment } : {}),
+        ...(progress.reviewAssignments ? { reviewAssignments: progress.reviewAssignments } : {}),
         ...(handoffRecorded ? { handoffRecorded: true } : {}),
         ...(blocker ? { blocker } : {}),
         ...identity,
@@ -1674,6 +2250,106 @@ export class SddCommand extends Service {
       });
   }
 
+  #reviewCheckBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+    const activeRequirements =
+      progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
+    if (activeRequirements.length === 0) {
+      return ["Review requires at least one currently required passing check."];
+    }
+    return this.#checkBlockers(progress, identity);
+  }
+
+  #reviewAssignmentBlocker(
+    feature: FeaturePaths,
+    progress: IssueProgress,
+    assignment: ReviewAssignment,
+    identity: ContentIdentity,
+  ): string | undefined {
+    const snapshotBlocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
+    if (snapshotBlocker) return snapshotBlocker;
+    if (assignment.status === "pending") return undefined;
+    if (assignment.result !== "passed") {
+      return `Review assignment ${assignment.id} is ${assignment.result}.${assignment.details ? ` Details: ${assignment.details}` : ""}`;
+    }
+    if (assignment.noFindings !== true) {
+      return `Review assignment ${assignment.id} has no explicit no-findings declaration.`;
+    }
+    return undefined;
+  }
+
+  #reviewSnapshotBlocker(
+    feature: FeaturePaths,
+    progress: IssueProgress,
+    assignment: ReviewAssignment,
+    identity: ContentIdentity,
+  ): string | undefined {
+    if (
+      assignment.snapshot !== identity.snapshot ||
+      assignment.codeSnapshot !== identity.codeSnapshot ||
+      assignment.requirementsSnapshot !== identity.requirementsSnapshot
+    ) {
+      return `Review assignment ${assignment.id} is stale for the current issue snapshot.`;
+    }
+    if (!progress.baseSha) return "Review assignment has no recorded Git baseline.";
+    let inventory: string[];
+    try {
+      inventory = this.#changedPaths(progress.baseSha);
+    } catch (error) {
+      return `Review inventory cannot be revalidated: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    if (JSON.stringify(inventory) !== JSON.stringify(assignment.inventory)) {
+      return `Review assignment ${assignment.id} no longer matches the frozen Git inventory.`;
+    }
+    if (assignment.status === "pending") return undefined;
+    try {
+      const currentDigest = this.#readReportDigest(feature, assignment.report);
+      if (currentDigest !== assignment.reportSha256) {
+        return `The registered review report for assignment ${assignment.id} changed after submission.`;
+      }
+    } catch {
+      return `The registered review report for assignment ${assignment.id} is missing or unavailable.`;
+    }
+    return undefined;
+  }
+
+  #acceptBlockers(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    progress: IssueProgress,
+    identity: ContentIdentity,
+  ): string[] {
+    const blockers = this.#reviewCheckBlockers(progress, identity);
+    const implementationBlocker = this.#implementationReportBlocker(feature, progress.assignment);
+    if (implementationBlocker) blockers.push(implementationBlocker);
+
+    const assignments = progress.reviewAssignments ?? [];
+    for (const agent of ledger.reviewPolicy.issue) {
+      const coverage = assignments.filter(
+        (assignment) => assignment.agent === agent && assignment.scope === "initial",
+      );
+      if (coverage.length === 0) {
+        blockers.push(`Required initial review coverage for '${agent}' is missing.`);
+      } else if (coverage.length > 1) {
+        blockers.push(`Required initial review coverage for '${agent}' is duplicated.`);
+      }
+    }
+    for (const assignment of assignments) {
+      if (!ledger.reviewPolicy.issue.includes(assignment.agent)) {
+        blockers.push(
+          `Review assignment ${assignment.id} is not part of the pinned review policy.`,
+        );
+        continue;
+      }
+      if (assignment.status === "pending") {
+        blockers.push(`Review assignment ${assignment.id} is pending.`);
+        continue;
+      }
+      const blocker = this.#reviewAssignmentBlocker(feature, progress, assignment, identity);
+      if (blocker) blockers.push(blocker);
+    }
+    return [...new Set(blockers)];
+  }
+
   #nextAction(progress: IssueProgress, blocker?: string): string {
     if (progress.execution === "unstarted") return "claim";
     if (progress.execution === "claimed") {
@@ -1689,6 +2365,18 @@ export class SddCommand extends Service {
     }
     if (progress.execution === "reviewing") {
       if (blocker?.startsWith("Required check ")) return "record-current-checks";
+      const reviews = progress.reviewAssignments ?? [];
+      if (reviews.length > 0) {
+        if (blocker?.startsWith("The registered review report")) return "restore-review-report";
+        if (blocker) return "resolve-review-blocker";
+        if (reviews.some((assignment) => assignment.status === "pending")) {
+          return "await-review-report";
+        }
+        if (reviews.some((assignment) => assignment.result !== "passed")) {
+          return "resolve-review-result";
+        }
+        return "accept";
+      }
       return blocker ? "restore-implementation-report" : "review";
     }
     if (progress.execution === "changes-requested") return "controller-correction-decision";
@@ -1767,20 +2455,7 @@ export class SddCommand extends Service {
   ): ContentIdentity {
     const root = realpathSync(this.app.workspaceRoot);
     const headSha = this.#headSha();
-    const paths = new Set<string>();
-    for (const args of [
-      ["diff", "--name-only", "-z", baseSha, "--", "."],
-      ["diff", "--cached", "--name-only", "-z", baseSha, "--", "."],
-      ["ls-files", "--others", "--exclude-standard", "-z"],
-    ]) {
-      const output = this.#gitBuffer(args).toString("utf8");
-      for (const path of output.split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
-      }
-    }
-
-    this.#assertStableSubmodules(baseSha, paths);
-
+    const paths = new Set(this.#changedPaths(baseSha));
     const code = createHash("sha256");
     code.update("spindle-code-snapshot-v2\0");
     const field = (tag: string, value: Buffer | string) => {
@@ -1846,6 +2521,22 @@ export class SddCommand extends Service {
       .update(JSON.stringify([codeSnapshot, requirementsSnapshot]))
       .digest("hex");
     return { snapshot, codeSnapshot, requirementsSnapshot, headSha };
+  }
+
+  #changedPaths(baseSha: string): string[] {
+    const paths = new Set<string>();
+    for (const args of [
+      ["diff", "--name-only", "-z", baseSha, "--", "."],
+      ["diff", "--cached", "--name-only", "-z", baseSha, "--", "."],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]) {
+      const output = this.#gitBuffer(args).toString("utf8");
+      for (const path of output.split("\0")) {
+        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
+      }
+    }
+    this.#assertStableSubmodules(baseSha, paths);
+    return [...paths].sort();
   }
 
   #assertStableSubmodules(baseSha: string, changedPaths: Set<string>): void {
@@ -2062,7 +2753,7 @@ export class SddCommand extends Service {
 
   #submissionReportPath(
     feature: FeaturePaths,
-    assignment: ImplementationAssignment,
+    assignment: Pick<ImplementationAssignment, "report"> | Pick<ReviewAssignment, "report">,
     supplied?: string,
   ): string {
     const path = supplied
@@ -2510,7 +3201,22 @@ export class SddCommand extends Service {
                   feature,
                   "reports",
                   `${issue.id}-implementation.md`,
-                ))),
+                ))) &&
+          (!Object.hasOwn(issue, "reviewAssignments") ||
+            (Array.isArray(issue.reviewAssignments) &&
+              issue.reviewAssignments.every(
+                (assignment) =>
+                  isReviewAssignment(assignment) &&
+                  blueprintCatalog.agents[assignment.agent]?.canReview === true &&
+                  assignment.report ===
+                    join(
+                      this.app.workspaceRoot,
+                      ".scratch",
+                      feature,
+                      "reports",
+                      `${issue.id}-review-${assignment.id}.md`,
+                    ),
+              ))),
       )
     ) {
       throw new Error(
@@ -2521,6 +3227,19 @@ export class SddCommand extends Service {
       new Set(value.issues.map((issue) => (issue as IssueProgress).id)).size !== value.issues.length
     ) {
       throw new Error("Feature ledger issue IDs must be unique.");
+    }
+    const reviewAssignmentIds = value.issues.flatMap((issue) =>
+      isRecord(issue) && Array.isArray(issue.reviewAssignments)
+        ? issue.reviewAssignments.map((assignment) =>
+            isRecord(assignment) ? assignment.id : undefined,
+          )
+        : [],
+    );
+    if (
+      reviewAssignmentIds.some((assignmentId) => typeof assignmentId !== "string") ||
+      new Set(reviewAssignmentIds).size !== reviewAssignmentIds.length
+    ) {
+      throw new Error("Feature review assignment IDs must be unique.");
     }
     if (!isRecord(value.delivery)) throw new Error("Feature delivery progress must be an object.");
     if (

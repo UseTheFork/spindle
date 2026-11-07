@@ -13,7 +13,7 @@ export interface CatalogSourceEntry {
 }
 
 export interface BlueprintCatalogDefinition {
-  agents: Record<string, CatalogSourceEntry>;
+  agents: Record<string, CatalogSourceEntry & { canReview?: boolean }>;
   instructions: Record<string, CatalogSourceEntry>;
   skills: Record<string, CatalogSourceEntry & { path: `${string}/` }>;
 }
@@ -30,7 +30,12 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "sdd-implementer": { path: "sdd-implementer.agent.md", status: "active", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", status: "active", stacks: [] },
     "sdd-re-review": { path: "sdd-re-review.agent.md", status: "active", stacks: [] },
-    "sdd-reviewer": { path: "sdd-reviewer.agent.md", status: "active", stacks: [] },
+    "sdd-reviewer": {
+      path: "sdd-reviewer.agent.md",
+      status: "active",
+      stacks: [],
+      canReview: true,
+    },
     "sdd-task-reviewer": { path: "sdd-task-reviewer.agent.md", status: "active", stacks: [] },
     "shared-explore": { path: "shared-explore.agent.md", status: "active", stacks: [] },
     "shared-r": { path: "shared-r.agent.md", status: "active", stacks: [] },
@@ -115,6 +120,7 @@ export interface CatalogEntry {
   directory: boolean;
   status: CatalogStatus;
   stacks: string[];
+  canReview?: boolean;
 }
 
 export interface CatalogSelection {
@@ -144,7 +150,8 @@ export interface CatalogExpansionPlan {
 export type BlueprintCatalog = Record<CatalogKind, CatalogEntry[]>;
 
 const catalogKinds: CatalogKind[] = ["agents", "instructions", "skills"];
-const allowedEntryFields = new Set(["path", "status", "stacks"]);
+const allowedEntryFields = new Set(["path", "status", "stacks", "canReview"]);
+const requiredEntryFields = ["path", "status", "stacks"] as const;
 const globCharacters = /[*?[\]{}]/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -199,11 +206,16 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
         throw new Error(`Blueprint Catalog '${kind}.${key}' must be an entry mapping.`);
       }
       for (const field of Object.keys(rawEntry)) {
+        if (field === "canReview" && kind !== "agents") {
+          throw new Error(
+            `Field 'canReview' is only valid for Blueprint Catalog agents, not '${kind}'.`,
+          );
+        }
         if (!allowedEntryFields.has(field)) {
           throw new Error(`Unknown field '${field}' in Blueprint Catalog entry '${kind}.${key}'.`);
         }
       }
-      for (const field of allowedEntryFields) {
+      for (const field of requiredEntryFields) {
         if (!Object.hasOwn(rawEntry, field)) {
           throw new Error(`Blueprint Catalog '${kind}.${key}' is missing required '${field}'.`);
         }
@@ -220,6 +232,15 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
       ) {
         throw new Error(`Blueprint Catalog '${kind}.${key}.stacks' must be a list of Stack names.`);
       }
+      if (
+        kind === "agents" &&
+        Object.hasOwn(rawEntry, "canReview") &&
+        typeof rawEntry.canReview !== "boolean"
+      ) {
+        throw new Error(
+          `Blueprint Catalog '${kind}.${key}.canReview' must be a boolean when supplied.`,
+        );
+      }
       for (const stack of rawEntry.stacks) {
         if (!supportedStacks.includes(stack as (typeof supportedStacks)[number])) {
           throw new Error(
@@ -230,7 +251,16 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
       if (kind === "skills" && !directory) {
         throw new Error(`Blueprint Catalog Skill path '${kind}.${key}' must select a directory.`);
       }
-      entries.push({ key, path, directory, status: rawEntry.status, stacks: rawEntry.stacks });
+      entries.push({
+        key,
+        path,
+        directory,
+        status: rawEntry.status,
+        stacks: rawEntry.stacks,
+        ...(kind === "agents" && Object.hasOwn(rawEntry, "canReview")
+          ? { canReview: rawEntry.canReview as boolean }
+          : {}),
+      });
     }
     catalog[kind] = entries;
   }

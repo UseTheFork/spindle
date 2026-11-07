@@ -120,6 +120,147 @@ function prepareClaimableIssue(t: TestContext) {
   return { repo, git, spec: feature.spec, baseSha };
 }
 
+function prepareImplementationForReview(t: TestContext) {
+  const { repo, git, spec } = prepareClaimableIssue(t);
+  const command = "just test::test tests/feature.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(repo, git, "declare required check");
+
+  const claimed = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claimed.status, 0, claimed.stderr);
+  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+
+  const implemented = invoke(repo, [
+    "implement",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(implemented.status, 0, implemented.stderr);
+  const implementation = JSON.parse(implemented.stdout) as {
+    assignment: { report: string };
+  };
+  writeFileSync(implementation.assignment.report, "# Implementation report\n\nCompleted.\n");
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "implementation",
+    "--report",
+    implementation.assignment.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  return {
+    repo,
+    git,
+    spec,
+    command,
+    report: implementation.assignment.report,
+    submission: JSON.parse(submitted.stdout) as {
+      snapshot: string;
+      codeSnapshot: string;
+      requirementsSnapshot: string;
+    },
+  };
+}
+
+function recordReviewCheck(
+  repo: string,
+  spec: string,
+  command: string,
+  snapshot: string,
+  result: "passed" | "failed",
+) {
+  return invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    snapshot,
+    "--command",
+    command,
+    "--result",
+    result,
+    ...(result === "failed" ? ["--details", "The required check failed."] : []),
+    "--author",
+    "controller",
+  ]);
+}
+
+function prepareReviewAssignment(t: TestContext) {
+  const prepared = prepareImplementationForReview(t);
+  const passingCheck = recordReviewCheck(
+    prepared.repo,
+    prepared.spec,
+    prepared.command,
+    prepared.submission.snapshot,
+    "passed",
+  );
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+  const dispatched = invoke(prepared.repo, [
+    "review",
+    "--spec",
+    prepared.spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  return {
+    ...prepared,
+    assignment: JSON.parse(dispatched.stdout).assignments[0] as {
+      id: string;
+      agent: string;
+      role: string;
+      scope: string;
+      snapshot: string;
+      report: string;
+      status: string;
+    },
+  };
+}
+
+function refreshReviewCheck(repo: string, spec: string, command: string) {
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  const snapshot = JSON.parse(status.stdout).snapshots[0].snapshot as string;
+  return recordReviewCheck(repo, spec, command, snapshot, "passed");
+}
+
 test("claim records the clean starting revision and explicit controller", (t) => {
   const { repo, git, spec, baseSha } = prepareClaimableIssue(t);
 
@@ -162,6 +303,673 @@ test("claim records the clean starting revision and explicit controller", (t) =>
     baseSha,
   });
   assert.equal(git("rev-parse", "HEAD"), baseSha);
+});
+
+test("review requires current passing checks and confirmed inventory and reuses its assignment", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const review = (inventory: string[]) =>
+    invoke(repo, [
+      "review",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--inventory",
+      JSON.stringify(inventory),
+      "--author",
+      "controller",
+    ]);
+
+  const missingCheck = review(["feature.ts"]);
+  assert.notEqual(missingCheck.status, 0);
+  assert.match(missingCheck.stderr, /Required check .* is missing/);
+
+  const failedCheck = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  assert.equal(failedCheck.status, 0, failedCheck.stderr);
+  const failedReview = review(["feature.ts"]);
+  assert.notEqual(failedReview.status, 0);
+  assert.match(failedReview.stderr, /Required check .* is failed/);
+
+  const passingCheck = recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+  const wrongInventory = review([]);
+  assert.notEqual(wrongInventory.status, 0);
+  assert.match(wrongInventory.stderr, /inventory/i);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  assert.equal(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].reviewAssignments, undefined);
+
+  const dispatched = review(["feature.ts"]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const result = JSON.parse(dispatched.stdout) as {
+    issue: string;
+    execution: string;
+    assignments: {
+      id: string;
+      agent: string;
+      role: string;
+      scope: string;
+      snapshot: string;
+      inventory: string[];
+      report: string;
+      status: string;
+    }[];
+  };
+  assert.equal(result.issue, "I-0001");
+  assert.equal(result.execution, "reviewing");
+  assert.equal(result.assignments.length, 1);
+  const assignment = result.assignments[0]!;
+  assert.match(assignment.id, /^[0-9a-f-]{36}$/i);
+  assert.equal(assignment.agent, "sdd-reviewer");
+  assert.equal(assignment.role, "review");
+  assert.equal(assignment.scope, "initial");
+  assert.equal(assignment.snapshot, submission.snapshot);
+  assert.deepEqual(assignment.inventory, ["feature.ts"]);
+  assert.match(assignment.report, /I-0001-review-/);
+  assert.equal(assignment.status, "pending");
+
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.deepEqual(JSON.parse(status.stdout).pendingAssignments, [
+    {
+      issue: "I-0001",
+      id: assignment.id,
+      role: "review",
+      action: "review",
+      report: assignment.report,
+      status: "pending",
+      agent: "sdd-reviewer",
+      scope: "initial",
+    },
+  ]);
+
+  const repeated = review(["feature.ts"]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).assignments[0].id, assignment.id);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+  const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  assert.equal(persisted.issues[0].reviewAssignments.length, 1);
+  const issueText = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+    "utf8",
+  );
+  assert.equal(issueText.match(/Initial review assignment recorded/g)?.length, 1);
+});
+
+test("review accepts a Git-derived mixed-case inventory in its supplied order", (t) => {
+  const { repo, spec, command } = prepareImplementationForReview(t);
+  writeFileSync(join(repo, "B.ts"), "export const upper = true;\n");
+  writeFileSync(join(repo, "a.ts"), "export const lower = true;\n");
+  const passingCheck = refreshReviewCheck(repo, spec, command);
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["B.ts", "a.ts", "feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  assert.deepEqual(JSON.parse(dispatched.stdout).assignments[0].inventory, [
+    "B.ts",
+    "a.ts",
+    "feature.ts",
+  ]);
+});
+
+test("review submission requires exact provenance, result, and explicit no-findings and is idempotent", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
+  const submit = (extra: string[]) =>
+    invoke(repo, [
+      "submit",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--role",
+      "review",
+      ...extra,
+      "--author",
+      "controller",
+    ]);
+
+  const omittedNoFindings = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+  ]);
+  assert.notEqual(omittedNoFindings.status, 0);
+  assert.match(omittedNoFindings.stderr, /--no-findings/);
+
+  const findingsUnsupported = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--findings",
+    "F-0001",
+  ]);
+  assert.notEqual(findingsUnsupported.status, 0);
+  assert.match(findingsUnsupported.stderr, /unknown option '--findings'/);
+
+  const wrongAssignment = submit([
+    "--assignment",
+    `${assignment.id}-other`,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+  ]);
+  assert.notEqual(wrongAssignment.status, 0);
+  assert.match(wrongAssignment.stderr, /assignment/i);
+
+  const wrongReport = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    join(repo, ".scratch", "other-report.md"),
+    "--result",
+    "passed",
+    "--no-findings",
+  ]);
+  assert.notEqual(wrongReport.status, 0);
+  assert.match(wrongReport.stderr, /assigned destination/);
+
+  const registered = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+  ]);
+  assert.equal(registered.status, 0, registered.stderr);
+  const result = JSON.parse(registered.stdout) as {
+    execution: string;
+    assignment: {
+      id: string;
+      status: string;
+      result: string;
+      noFindings: boolean;
+      snapshot: string;
+      reportSha256: string;
+    };
+  };
+  assert.equal(result.execution, "reviewing");
+  assert.equal(result.assignment.id, assignment.id);
+  assert.equal(result.assignment.status, "submitted");
+  assert.equal(result.assignment.result, "passed");
+  assert.equal(result.assignment.noFindings, true);
+  assert.equal(result.assignment.snapshot, assignment.snapshot);
+  assert.match(result.assignment.reportSha256, /^[0-9a-f]{64}$/);
+
+  const repeated = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+  ]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+  const issueText = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+    "utf8",
+  );
+  assert.equal(issueText.match(/Review report submitted for assignment/g)?.length, 1);
+
+  writeFileSync(assignment.report, "# Changed review report\n");
+  const altered = submit([
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+  ]);
+  assert.notEqual(altered.status, 0);
+  assert.match(altered.stderr, /changed after submission/);
+});
+
+test("failed review without a no-findings attestation requires details and blocks acceptance", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Review report\n\nA blocking defect was found.\n");
+  const submit = (details?: string) =>
+    invoke(repo, [
+      "submit",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--role",
+      "review",
+      "--assignment",
+      assignment.id,
+      "--report",
+      assignment.report,
+      "--result",
+      "failed",
+      ...(details ? ["--details", details] : []),
+      "--author",
+      "controller",
+    ]);
+
+  const missingDetails = submit();
+  assert.notEqual(missingDetails.status, 0);
+  assert.match(missingDetails.stderr, /--details/);
+  const recordedFailure = submit("A blocking defect was found in the implementation.");
+  assert.equal(recordedFailure.status, 0, recordedFailure.stderr);
+  const submitted = JSON.parse(recordedFailure.stdout).assignment;
+  assert.equal(submitted.result, "failed");
+  assert.equal(submitted.noFindings, undefined);
+  assert.equal(submitted.details, "A blocking defect was found in the implementation.");
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[0].reviewAssignments[0].details,
+    "A blocking defect was found in the implementation.",
+  );
+
+  const accepted = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(accepted.status, 0);
+  assert.match(accepted.stderr, /failed/);
+});
+
+test("unavailable review without a no-findings attestation requires details and blocks acceptance", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Review report\n\nReview could not be completed.\n");
+  const submit = (details?: string) =>
+    invoke(repo, [
+      "submit",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--role",
+      "review",
+      "--assignment",
+      assignment.id,
+      "--report",
+      assignment.report,
+      "--result",
+      "unavailable",
+      ...(details ? ["--details", details] : []),
+      "--author",
+      "controller",
+    ]);
+
+  const missingDetails = submit();
+  assert.notEqual(missingDetails.status, 0);
+  assert.match(missingDetails.stderr, /--details/);
+  const recordedUnavailable = submit("The reviewer could not assess whether findings exist.");
+  assert.equal(recordedUnavailable.status, 0, recordedUnavailable.stderr);
+  const submitted = JSON.parse(recordedUnavailable.stdout).assignment;
+  assert.equal(submitted.result, "unavailable");
+  assert.equal(submitted.noFindings, undefined);
+  assert.equal(submitted.details, "The reviewer could not assess whether findings exist.");
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[0].reviewAssignments[0].details,
+    "The reviewer could not assess whether findings exist.",
+  );
+
+  const accepted = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(accepted.status, 0);
+  assert.match(accepted.stderr, /unavailable/);
+});
+
+test("accept requires current checks and a complete passing finding-free initial review", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+
+  const accepted = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  const result = JSON.parse(accepted.stdout) as {
+    issue: string;
+    execution: string;
+    reviews: { agent: string; assignment: string; result: string; noFindings: boolean }[];
+    snapshot: string;
+  };
+  assert.equal(result.issue, "I-0001");
+  assert.equal(result.execution, "accepted");
+  assert.deepEqual(result.reviews, [
+    {
+      agent: "sdd-reviewer",
+      assignment: assignment.id,
+      result: "passed",
+      noFindings: true,
+    },
+  ]);
+  assert.equal(result.snapshot, assignment.snapshot);
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[0].execution,
+    "accepted",
+  );
+  const repeated = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
+  const refreshedCheck = refreshReviewCheck(repo, spec, "just test::test tests/feature.test.ts");
+  assert.equal(refreshedCheck.status, 0, refreshedCheck.stderr);
+  const staleStatus = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(staleStatus.status, 0, staleStatus.stderr);
+  const statusOutput = JSON.parse(staleStatus.stdout);
+  assert.equal(statusOutput.state.issues[0].execution, "accepted");
+  assert.equal(
+    statusOutput.actions.some((action: { action: string }) => action.action === "integrate"),
+    false,
+  );
+  assert.match(
+    statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
+    /Review assignment .* stale/,
+  );
+});
+
+test("accept rejects missing initial review coverage", (t) => {
+  const accept = (repo: string, spec: string) =>
+    invoke(repo, ["accept", "--spec", spec, "--issue", "I-0001", "--author", "controller"]);
+
+  const unreviewed = prepareImplementationForReview(t);
+  const passingCheck = recordReviewCheck(
+    unreviewed.repo,
+    unreviewed.spec,
+    unreviewed.command,
+    unreviewed.submission.snapshot,
+    "passed",
+  );
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+  const missing = accept(unreviewed.repo, unreviewed.spec);
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /review coverage/i);
+});
+
+test("accept rejects pending or failed initial reviews", (t) => {
+  const accept = (repo: string, spec: string) =>
+    invoke(repo, ["accept", "--spec", spec, "--issue", "I-0001", "--author", "controller"]);
+  const reviewed = prepareReviewAssignment(t);
+  const pending = accept(reviewed.repo, reviewed.spec);
+  assert.notEqual(pending.status, 0);
+  assert.match(pending.stderr, /pending/i);
+
+  writeFileSync(reviewed.assignment.report, "# Review report\n\nReview is incomplete.\n");
+  const failed = invoke(reviewed.repo, [
+    "submit",
+    "--spec",
+    reviewed.spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    reviewed.assignment.id,
+    "--report",
+    reviewed.assignment.report,
+    "--result",
+    "failed",
+    "--details",
+    "The implementation does not meet the acceptance criteria.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failed.status, 0, failed.stderr);
+  const rejected = accept(reviewed.repo, reviewed.spec);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /Review assignment .* is failed/);
+});
+
+test("required checks cannot change after review assignment freezes the snapshot", (t) => {
+  const reviewed = prepareReviewAssignment(t);
+  const additionalCheck = invoke(reviewed.repo, [
+    "checks",
+    "require",
+    "--spec",
+    reviewed.spec,
+    "--issue",
+    "I-0001",
+    "--command",
+    "just lint::check",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(additionalCheck.status, 0);
+  assert.match(additionalCheck.stderr, /frozen.*review/i);
+});
+
+test("interrupted review dispatch and submission resume the same persisted assignment", async (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const passingCheck = recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+  const reviewArgs = [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ];
+  const interruptedDispatch = await invokeAsync(repo, reviewArgs, {
+    killOnOutput: '"assignments"',
+  });
+  assert.equal(interruptedDispatch.signal, "SIGKILL");
+  const resumedDispatch = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumedDispatch.status, 0, resumedDispatch.stderr);
+  const resumed = JSON.parse(resumedDispatch.stdout) as {
+    nextAction: string;
+    reviewAssignments: { id: string; status: string; report: string }[];
+  };
+  assert.equal(resumed.nextAction, "await-review-report");
+  assert.equal(resumed.reviewAssignments.length, 1);
+  const assignment = resumed.reviewAssignments[0]!;
+  assert.equal(assignment.status, "pending");
+  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
+
+  const submitArgs = [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ];
+  const interruptedSubmission = await invokeAsync(repo, submitArgs, {
+    killOnOutput: '"reportSha256"',
+  });
+  assert.equal(interruptedSubmission.signal, "SIGKILL");
+  const resumedSubmission = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumedSubmission.status, 0, resumedSubmission.stderr);
+  const resumedResult = JSON.parse(resumedSubmission.stdout) as {
+    nextAction: string;
+    reviewAssignments: { id: string; status: string; result: string }[];
+  };
+  assert.equal(resumedResult.nextAction, "accept");
+  assert.equal(resumedResult.reviewAssignments[0]?.id, assignment.id);
+  assert.equal(resumedResult.reviewAssignments[0]?.status, "submitted");
+  assert.equal(resumedResult.reviewAssignments[0]?.result, "passed");
+
+  const repeatedSubmission = invoke(repo, submitArgs);
+  assert.equal(repeatedSubmission.status, 0, repeatedSubmission.stderr);
+  assert.equal(JSON.parse(repeatedSubmission.stdout).idempotent, true);
+  const issueText = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+    "utf8",
+  );
+  assert.equal(issueText.match(/Review report submitted for assignment/g)?.length, 1);
+});
+
+test("review submission and acceptance reject changed requirements, code, and report content", (t) => {
+  const { repo, spec, command, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
+  const originalSpec = readFileSync(spec, "utf8");
+  writeFileSync(spec, `${originalSpec}\nA new acceptance requirement.\n`);
+  const staleRequirements = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(staleRequirements.status, 0);
+  assert.match(staleRequirements.stderr, /stale|frozen/i);
+
+  writeFileSync(spec, originalSpec);
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
+  const refreshedCodeCheck = refreshReviewCheck(repo, spec, command);
+  assert.equal(refreshedCodeCheck.status, 0, refreshedCodeCheck.stderr);
+  const staleCodeAcceptance = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(staleCodeAcceptance.status, 0);
+  assert.match(staleCodeAcceptance.stderr, /Review assignment .* stale/);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+  const originalCodeCheck = refreshReviewCheck(repo, spec, command);
+  assert.equal(originalCodeCheck.status, 0, originalCodeCheck.stderr);
+  writeFileSync(assignment.report, "# Altered report\n");
+  const alteredReportAcceptance = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(alteredReportAcceptance.status, 0);
+  assert.match(alteredReportAcceptance.stderr, /review report .* changed after submission/i);
 });
 
 test("checks require declares required commands and permits later additions", (t) => {

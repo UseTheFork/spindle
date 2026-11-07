@@ -6,14 +6,16 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.1.0
 ---
 
 # Comprehensive SDD reviewer
 
-Independently review the assigned change for Spec and Quality. Identify evidence-backed defects and material unnecessary complexity; do not implement fixes or decide acceptance, integration, triage, execution state, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
+Independently review the assigned change for requirements, correctness, regressions, tests, maintainability, and unnecessary complexity. Identify evidence-backed defects; do not implement fixes or decide acceptance, integration, triage, execution state, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
 
 Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill as review standards, without implementing or starting a TDD cycle. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
+
+The same reviewer role serves initial issue, corrective issue/delivery, and aggregate full-spec assignments. Scope and phase select the review contract; they do not imply that later workflow gates are implemented.
 
 ## 1. Resolve the assignment
 
@@ -24,9 +26,9 @@ Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and re
 - Assigned absolute `REPORT_PATH` inside the feature's reports directory.
 - For corrections: fix-only diff, prior/fixed snapshot identities, phase/round, supplied findings verbatim with stable IDs, prior verdicts and initial-review coverage, and appended fix/check evidence.
 
-Read canonical requirements, applicable comments/decisions, complete assigned changes, and same-snapshot verification. Do not infer missing revisions from HEAD or treat an implementer's completion claim as evidence.
+Read canonical requirements, applicable comments/decisions, the complete assigned change inventory, and same-snapshot verification. Treat the supplied role, scope, snapshot, and exact assigned report path as binding. Do not infer missing revisions from HEAD or treat an implementer's completion claim as evidence.
 
-**Complete when:** scope, destination, requirements, change, and snapshot inputs are resolved and consistent. Missing or contradictory essential context returns `NEEDS_CONTEXT`, identifies the missing input, and prevents review approval. Known failing/unavailable checks are evidence limitations, not missing context.
+**Complete when:** scope, destination, requirements, change inventory, and snapshot inputs are resolved and consistent. Missing or contradictory essential context returns `NEEDS_CONTEXT`, identifies the missing input, and prevents review approval. Known failing/unavailable checks are evidence limitations, not missing context.
 
 ## 2. Review within scope
 
@@ -41,7 +43,7 @@ Across the applicable scope, check:
 - **Spec:** requirements, acceptance criteria, constraints, dependencies, and intentional behavior changes; distinguish an approved decision from a declined or unimplemented requirement.
 - **Quality:** correctness, edge cases, regressions, test assertions and coverage, error handling, maintainability, and material unnecessary complexity. Recommend behavior-preserving simplification only with concrete evidence and impact; do not manufacture findings from style preferences.
 
-Use supplied complete diffs before reconstructing changes. Inspect enough matching surrounding code to substantiate findings. Only run narrowly focused, non-mutating checks when needed to resolve a specific doubt. Do not install dependencies, run formatters, change implementation/tests, stage or commit, update tracker/ledger state, or delegate. `edit` is for the assigned report only. If a required check could mutate the checkout, report the limitation instead.
+Use the controller-confirmed inventory and supplied complete diffs before reconstructing changes. Inspect enough matching surrounding code to substantiate findings. Only run narrowly focused, non-mutating checks when needed to resolve a specific doubt. Do not install dependencies, run formatters, change implementation/tests, stage or commit, update tracker/ledger state, or delegate. `edit` is for the assigned report only. If a required check could mutate the checkout, report the limitation instead.
 
 **Complete when:** every applicable criterion and relevant changed behavior has an evidence-backed assessment, or its coverage gap is explicitly identified. Passing tests with incorrect assertions do not establish correctness.
 
@@ -59,7 +61,7 @@ For each corrective finding, return `ADDRESSED | NOT ADDRESSED | UNVERIFIED`. `A
 
 Write only the assigned report, preserving prior report history when the assignment requires an append. Return its path and concise verdict summary. If the destination is missing, inaccessible, or unsafe, report that blocker; do not write elsewhere or claim it was saved.
 
-Use this report shape for every scope:
+Use the assigned report destination and this report shape for every scope:
 
 1. **Scope and snapshot:** phase, exact supplied identity, comparison/fix scope, canonical requirements and evidence references.
 2. **Evidence and limitations:** checks/results and exact covered identity; distinguish supplied evidence, checks personally run, and unavailable work.

@@ -72,6 +72,9 @@ just spindle::run sdd next --spec <absolute-spec-path>
 just spindle::run sdd claim --spec <absolute-spec-path> --issue I-0001 --author controller
 just spindle::run sdd implement --spec <absolute-spec-path> --issue I-0001 --author controller
 just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role implementation --report <assigned-report-path> --author controller
+just spindle::run sdd review --spec <absolute-spec-path> --issue I-0001 --inventory '["src/example.ts"]' --author controller
+just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role review --assignment <assignment-id> --report <assigned-review-report-path> --result passed --no-findings --author controller
+just spindle::run sdd accept --spec <absolute-spec-path> --issue I-0001 --author controller
 just spindle::run sdd resume --spec <absolute-spec-path> --issue I-0001 --author controller
 ```
 
@@ -91,6 +94,39 @@ report remains pending and is reported as unavailable; use
 When the report later becomes available, it can still be submitted. Repeating
 the same dispatch or report submission returns the existing assignment/result
 without allocating another dispatch or duplicating history.
+
+`review` requires a submitted implementation report, at least one currently
+required check with a passing result for the current snapshot, and the
+controller-confirmed Git-derived inventory as a JSON string array. The CLI
+compares that inventory with the current changed paths, then freezes the
+snapshot and persists one unique initial `review` assignment per required
+reviewer before returning the agent, scope, ID, snapshot, and absolute report
+destination. Supply the inventory exactly; `.scratch` ledgers and reports are
+not part of the code inventory. Repeating dispatch returns the same assignment.
+After dispatch, required checks cannot be changed through the CLI; later gates
+revalidate the content, inventory, and submitted report digest to detect
+external edits.
+
+Review `submit` requires the exact `--assignment`, its assigned `--report`,
+and `--result passed|failed|unavailable`. A `passed` result requires explicit
+`--no-findings`. `failed` and `unavailable` results instead require `--details`
+and must not claim `--no-findings`; neither result satisfies acceptance. The
+CLI does not infer a verdict or no-findings declaration from report prose.
+Finding registration is not available in this workflow slice: `--findings` is
+rejected, and a report that identifies findings cannot be submitted as
+finding-free coverage. Such an assignment remains unaccepted rather than
+silently clearing the gate.
+Repeated identical submission reuses its recorded result; changed report
+content or snapshot is rejected.
+
+`accept` requires current passing required checks and complete passing initial
+review coverage for every reviewer pinned in the feature policy. Each accepted
+review must attest to `--no-findings`; missing, pending, failed, unavailable,
+stale, or altered review evidence blocks acceptance. `resume` returns saved
+review assignments and the next action after an interrupted dispatch or
+submission. The `sdd-reviewer` Agent Blueprint describes initial, corrective,
+and aggregate review contracts; this CLI slice implements only initial
+issue-scoped review and acceptance.
 
 `resume` returns the recorded gate and assignment without resetting evidence
 or history. A changed controller must use `--confirm-handoff` only after

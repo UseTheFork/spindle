@@ -43,7 +43,7 @@ test("relative Blueprint overrides stay fixed to the App workspace after cwd cha
         join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md"),
         "utf8",
       ),
-      /version: 1\.1\.1/,
+      /version: 1\.2\.0/,
     );
   } finally {
     process.chdir(originalCwd);
@@ -162,10 +162,10 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     );
 
     const sourceText = await readFile(skillSource, "utf8");
-    assert.ok(sourceText.includes("version: 1.1.1"));
+    assert.ok(sourceText.includes("version: 1.2.0"));
     await writeFile(
       skillSource,
-      `${sourceText.replace("version: 1.1.1", "version: 2.0.0")}\nApplication one update marker.\n`,
+      `${sourceText.replace("version: 1.2.0", "version: 2.0.0")}\nApplication one update marker.\n`,
     );
     await firstService.reconcile(blueprintHandlers, {
       mode: "update",
@@ -178,7 +178,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     const secondInstalledSkill = await readFile(skillTarget(secondWorkspace), "utf8");
     assert.match(firstInstalledSkill, /version: 2\.0\.0/);
     assert.match(firstInstalledSkill, /Application one update marker\./);
-    assert.match(secondInstalledSkill, /version: 1\.1\.1/);
+    assert.match(secondInstalledSkill, /version: 1\.2\.0/);
     assert.doesNotMatch(secondInstalledSkill, /Application one update marker\./);
   } finally {
     await rm(firstWorkspace, { recursive: true, force: true });

@@ -73,6 +73,7 @@ test("static catalog normalization preserves logical keys, directories, and Stac
           path: "group/reviewer.agent.md",
           status: "active",
           stacks: ["python", "typescript"],
+          canReview: true,
         },
       },
       instructions: {},
@@ -86,11 +87,53 @@ test("static catalog normalization preserves logical keys, directories, and Stac
           directory: false,
           status: "active",
           stacks: ["python", "typescript"],
+          canReview: true,
         },
       ],
       instructions: [],
       skills: [{ key: "retired", path: "retired", directory: true, status: "removed", stacks: [] }],
     },
+  );
+});
+
+test("catalog review eligibility is agent-only and must be boolean", () => {
+  const entry = { path: "reviewer.agent.md", status: "active", stacks: [] };
+  const catalog = (agents: unknown, instructions: unknown, skills: unknown) => ({
+    agents,
+    instructions,
+    skills,
+  });
+
+  assert.deepEqual(
+    validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: true } }, {}, {}))
+      .agents[0],
+    {
+      key: "reviewer",
+      path: "reviewer.agent.md",
+      directory: false,
+      status: "active",
+      stacks: [],
+      canReview: true,
+    },
+  );
+  assert.throws(
+    () => validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: "yes" } }, {}, {})),
+    /canReview.*boolean/,
+  );
+  assert.throws(
+    () => validateBlueprintCatalog(catalog({}, { reviewer: { ...entry, canReview: true } }, {})),
+    /canReview.*agents/,
+  );
+  assert.throws(
+    () =>
+      validateBlueprintCatalog(
+        catalog(
+          {},
+          {},
+          { reviewer: { path: "reviewer/", status: "active", stacks: [], canReview: true } },
+        ),
+      ),
+    /canReview.*agents/,
   );
 });
 
@@ -761,6 +804,14 @@ test("the shipped Blueprint collection installs its flattened catalog sources", 
       "shared-rwx.agent.md",
       "shared-web-search-researcher.agent.md",
     ]);
+    const reviewer = await readFile(
+      join(project, ".github", "agents", "sdd-reviewer.agent.md"),
+      "utf8",
+    );
+    assert.match(reviewer, /version: 1\.1\.0/);
+    assert.match(reviewer, /requirements, correctness, regressions, tests, maintainability/);
+    assert.match(reviewer, /initial issue, corrective issue\/delivery, and aggregate full-spec/);
+    assert.match(reviewer, /assigned report/);
     assert.equal((await readdir(join(project, ".github", "skills"))).length, 30);
   } finally {
     await rm(project, { recursive: true, force: true });
