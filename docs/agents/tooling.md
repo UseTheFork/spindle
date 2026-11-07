@@ -13,7 +13,6 @@ Run project build, test, lint, formatting, and Spindle workflow commands through
 
 ## Formatting
 
-- `just format::check *args` — Check formatting without modifying files.
 - `just format::format *args` — Format files.
 
 ## Type checking
