@@ -33,6 +33,7 @@ from the repository root. Replace `<args>` with optional command arguments.
 
 - `pnpm exec vitest run <args>` - Run migrated Vitest tests once.
 - `pnpm exec vitest run tests/app.test.ts` - Run the migrated application tests.
+- `pnpm exec vitest run tests/sdd/*.test.ts` - Run only the migrated SDD workflow tests.
 - `pnpm exec vitest <args>` - Run Vitest in watch mode during local development.
 - `pnpm exec vitest run --coverage <args>` - Run migrated tests with coverage; requires a compatible Vitest coverage provider.
 
