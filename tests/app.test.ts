@@ -1,7 +1,6 @@
-import assert from "node:assert/strict";
-import { test } from "vitest";
+import { expect, test } from "vitest";
 
-import { App, Service } from "../src/app.ts";
+import { App, Service } from "@/app";
 
 test("applications retain their own immutable explicit roots", () => {
   const first = new App({
@@ -13,16 +12,16 @@ test("applications retain their own immutable explicit roots", () => {
     blueprintSourceRoot: "/blueprints/second",
   });
 
-  assert.equal(first.workspaceRoot, "/workspaces/first");
-  assert.equal(first.blueprintSourceRoot, "/blueprints/first");
-  assert.equal(second.workspaceRoot, "/workspaces/second");
-  assert.equal(second.blueprintSourceRoot, "/blueprints/second");
-  assert.notEqual(first, second);
+  expect(first.workspaceRoot).toBe("/workspaces/first");
+  expect(first.blueprintSourceRoot).toBe("/blueprints/first");
+  expect(second.workspaceRoot).toBe("/workspaces/second");
+  expect(second.blueprintSourceRoot).toBe("/blueprints/second");
+  expect(first).not.toBe(second);
 
-  assert.equal(Reflect.set(first, "workspaceRoot", "/workspaces/changed"), false);
-  assert.equal(Reflect.set(first, "blueprintSourceRoot", "/blueprints/changed"), false);
-  assert.equal(first.workspaceRoot, "/workspaces/first");
-  assert.equal(first.blueprintSourceRoot, "/blueprints/first");
+  expect(Reflect.set(first, "workspaceRoot", "/workspaces/changed")).toBe(false);
+  expect(Reflect.set(first, "blueprintSourceRoot", "/blueprints/changed")).toBe(false);
+  expect(first.workspaceRoot).toBe("/workspaces/first");
+  expect(first.blueprintSourceRoot).toBe("/blueprints/first");
 });
 
 test("singleton retrieval shares delayed boot and exposes only the initialized service", async () => {
@@ -46,7 +45,7 @@ test("singleton retrieval shares delayed boot and exposes only the initialized s
 
     override async boot(): Promise<void> {
       bootCount += 1;
-      assert.equal(this.isBooted, false);
+      expect(this.isBooted).toBe(false);
       signalBootStarted();
       await bootGate;
       this.completedValue = this.derivedValue;
@@ -62,24 +61,24 @@ test("singleton retrieval shares delayed boot and exposes only the initialized s
 
   await bootStarted;
   await Promise.resolve();
-  assert.equal(firstRequestSettled, false);
+  expect(firstRequestSettled).toBe(false);
   releaseBoot();
 
   const [first, second] = await Promise.all([firstRequest, secondRequest]);
-  assert.equal(first, second);
-  assert.equal(first.app, app);
-  assert.equal(first instanceof App, false);
-  assert.equal(first.completedValue, "initialized by the derived constructor");
-  assert.equal(first.isBooted, true);
+  expect(first).toBe(second);
+  expect(first.app).toBe(app);
+  expect(first).not.toBeInstanceOf(App);
+  expect(first.completedValue).toBe("initialized by the derived constructor");
+  expect(first.isBooted).toBe(true);
   const otherApp = new App({
     workspaceRoot: "/workspaces/other",
     blueprintSourceRoot: "/blueprints/other",
   });
-  assert.equal(Reflect.set(first, "app", otherApp), false);
-  assert.equal(Reflect.set(first, "isBooted", false), false);
-  assert.equal(first.app, app);
-  assert.equal(first.isBooted, true);
-  assert.equal(bootCount, 1);
+  expect(Reflect.set(first, "app", otherApp)).toBe(false);
+  expect(Reflect.set(first, "isBooted", false)).toBe(false);
+  expect(first.app).toBe(app);
+  expect(first.isBooted).toBe(true);
+  expect(bootCount).toBe(1);
 });
 
 test("create returns distinct booted services without registering them as the singleton", async () => {
@@ -97,20 +96,20 @@ test("create returns distinct booted services without registering them as the si
 
   const firstCreation = app.create(FreshService);
   const secondCreation = app.create(FreshService);
-  assert.ok(firstCreation instanceof Promise);
-  assert.ok(secondCreation instanceof Promise);
+  expect(firstCreation).toBeInstanceOf(Promise);
+  expect(secondCreation).toBeInstanceOf(Promise);
 
   const [first, second] = await Promise.all([firstCreation, secondCreation]);
   const singleton = await app.get(FreshService);
 
-  assert.notEqual(first, second);
-  assert.notEqual(first, singleton);
-  assert.notEqual(second, singleton);
-  assert.equal(first.isBooted, true);
-  assert.equal(second.isBooted, true);
-  assert.equal(singleton.isBooted, true);
-  assert.equal(await app.get(FreshService), singleton);
-  assert.equal(bootCount, 3);
+  expect(first).not.toBe(second);
+  expect(first).not.toBe(singleton);
+  expect(second).not.toBe(singleton);
+  expect(first.isBooted).toBe(true);
+  expect(second.isBooted).toBe(true);
+  expect(singleton.isBooted).toBe(true);
+  expect(await app.get(FreshService)).toBe(singleton);
+  expect(bootCount).toBe(3);
 });
 
 test("fresh service boot can retrieve its already-initialized same-type singleton", async () => {
@@ -127,20 +126,20 @@ test("fresh service boot can retrieve its already-initialized same-type singleto
       bootCount += 1;
       if (bootCount > 1) {
         this.singleton = await this.app.get(SharedLifetimeService);
-        assert.equal(this.singleton.isBooted, true);
+        expect(this.singleton.isBooted).toBe(true);
       }
     }
   }
 
   const singleton = await app.get(SharedLifetimeService);
-  assert.equal(singleton.isBooted, true);
+  expect(singleton.isBooted).toBe(true);
 
   const fresh = await app.create(SharedLifetimeService);
-  assert.notEqual(fresh, singleton);
-  assert.equal(fresh.singleton, singleton);
-  assert.equal(fresh.isBooted, true);
-  assert.equal(await app.get(SharedLifetimeService), singleton);
-  assert.equal(bootCount, 2);
+  expect(fresh).not.toBe(singleton);
+  expect(fresh.singleton).toBe(singleton);
+  expect(fresh.isBooted).toBe(true);
+  expect(await app.get(SharedLifetimeService)).toBe(singleton);
+  expect(bootCount).toBe(2);
 });
 
 test("singleton dependency cycles reject with the service chain", async () => {
@@ -160,8 +159,7 @@ test("singleton dependency cycles reject with the service chain", async () => {
     }
   }
 
-  await assert.rejects(
-    app.get(FirstService),
+  await expect(app.get(FirstService)).rejects.toThrow(
     /Circular service dependency: FirstService -> SecondService -> FirstService/,
   );
 });
@@ -183,8 +181,7 @@ test("fresh-instance dependency cycles reject with the service chain", async () 
     }
   }
 
-  await assert.rejects(
-    app.create(FirstFreshService),
+  await expect(app.create(FirstFreshService)).rejects.toThrow(
     /Circular service dependency: FirstFreshService -> SecondFreshService -> FirstFreshService/,
   );
 });
@@ -242,9 +239,9 @@ test("concurrent services share a non-cyclic singleton dependency", async () => 
   releaseSharedBoot();
   const root = await rootRequest;
 
-  assert.ok(root.first?.shared);
-  assert.equal(root.first.shared, root.second?.shared);
-  assert.equal(sharedBootCount, 1);
+  expect(root.first?.shared).toBeTruthy();
+  expect(root.first?.shared).toBe(root.second?.shared);
+  expect(sharedBootCount).toBe(1);
 });
 
 test("concurrent singleton branches reject a cycle formed through shared initialization", async () => {
@@ -279,8 +276,7 @@ test("concurrent singleton branches reject a cycle formed through shared initial
     timeout = setTimeout(() => reject(new Error("Service resolution timed out")), 1_000);
   });
   try {
-    await assert.rejects(
-      Promise.race([app.get(RootService), timedOut]),
+    await expect(Promise.race([app.get(RootService), timedOut])).rejects.toThrow(
       /Circular service dependency: SharedService -> SecondBranch -> SharedService/,
     );
   } finally {
@@ -309,14 +305,14 @@ test("failed singleton boot propagates and a later request creates a fresh usabl
     }
   }
 
-  await assert.rejects(app.get(RetryService), (error) => error === bootFailure);
-  assert.equal(attempts[0]?.isBooted, false);
+  await expect(app.get(RetryService)).rejects.toBe(bootFailure);
+  expect(attempts[0]?.isBooted).toBe(false);
 
   const retry = await app.get(RetryService);
-  assert.notEqual(retry, attempts[0]);
-  assert.equal(retry.isBooted, true);
-  assert.equal(await app.get(RetryService), retry);
-  assert.equal(bootCount, 2);
+  expect(retry).not.toBe(attempts[0]);
+  expect(retry.isBooted).toBe(true);
+  expect(await app.get(RetryService)).toBe(retry);
+  expect(bootCount).toBe(2);
 });
 
 test("the base service boots asynchronously and singleton state is application-local", async () => {
@@ -331,15 +327,15 @@ test("the base service boots asynchronously and singleton state is application-l
 
   const firstRequest = firstApp.get(Service);
   const secondRequest = secondApp.get(Service);
-  assert.ok(firstRequest instanceof Promise);
-  assert.ok(secondRequest instanceof Promise);
+  expect(firstRequest).toBeInstanceOf(Promise);
+  expect(secondRequest).toBeInstanceOf(Promise);
 
   const [first, second] = await Promise.all([firstRequest, secondRequest]);
-  assert.notEqual(first, second);
-  assert.equal(first.app, firstApp);
-  assert.equal(second.app, secondApp);
-  assert.equal(first.isBooted, true);
-  assert.equal(second.isBooted, true);
-  assert.equal(await firstApp.get(Service), first);
-  assert.equal(await secondApp.get(Service), second);
+  expect(first).not.toBe(second);
+  expect(first.app).toBe(firstApp);
+  expect(second.app).toBe(secondApp);
+  expect(first.isBooted).toBe(true);
+  expect(second.isBooted).toBe(true);
+  expect(await firstApp.get(Service)).toBe(first);
+  expect(await secondApp.get(Service)).toBe(second);
 });
