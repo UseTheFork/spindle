@@ -254,6 +254,41 @@ function prepareReviewAssignment(t: TestContext) {
   };
 }
 
+function prepareAcceptedIssue(t: TestContext) {
+  const prepared = prepareReviewAssignment(t);
+  writeFileSync(prepared.assignment.report, "# Review report\n\nNo defects found.\n");
+  const submitted = invoke(prepared.repo, [
+    "submit",
+    "--spec",
+    prepared.spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    prepared.assignment.id,
+    "--report",
+    prepared.assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const accepted = invoke(prepared.repo, [
+    "accept",
+    "--spec",
+    prepared.spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  return prepared;
+}
+
 function refreshReviewCheck(repo: string, spec: string, command: string) {
   const status = invoke(repo, ["status", "--spec", spec]);
   assert.equal(status.status, 0, status.stderr);
@@ -2982,6 +3017,412 @@ test("accept requires current checks and a complete passing finding-free initial
     statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
     /Review assignment .* stale/,
   );
+});
+
+test("integrate hands back the frozen accepted files and delivery records without changing Git", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const headBefore = git("rev-parse", "HEAD");
+  const statusBefore = git("status", "--porcelain");
+
+  const prepared = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+
+  assert.equal(prepared.status, 0, prepared.stderr);
+  const output = JSON.parse(prepared.stdout) as {
+    issue: string;
+    execution: string;
+    acceptedFiles: string[];
+    deliveryRecords: string[];
+  };
+  assert.equal(output.issue, "I-0001");
+  assert.equal(output.execution, "accepted");
+  assert.deepEqual(output.acceptedFiles, ["feature.ts"]);
+  assert.ok(output.deliveryRecords.some((path) => path.endsWith("/sdd.json")));
+  assert.equal(git("rev-parse", "HEAD"), headBefore);
+  assert.equal(git("status", "--porcelain"), statusBefore);
+});
+
+test("integrate confirms an exact caller-owned commit idempotently and preserves accepted evidence", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const handback = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(handback.status, 0, handback.stderr);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+  const confirmed = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+  const output = JSON.parse(confirmed.stdout) as {
+    execution: string;
+    commitSha: string;
+    acceptedFiles: string[];
+    deliveryRecords: string[];
+  };
+  assert.equal(output.execution, "integrated");
+  assert.equal(output.commitSha, commitSha);
+  assert.deepEqual(output.acceptedFiles, ["feature.ts"]);
+  assert.ok(output.deliveryRecords.some((path) => path.endsWith("/sdd.json")));
+  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
+  const issueAfterConfirmation = readFileSync(issuePath, "utf8");
+  assert.equal(git("rev-parse", "HEAD"), commitSha);
+
+  const repeated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+  assert.equal(readFileSync(issuePath, "utf8"), issueAfterConfirmation);
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  const statusOutput = JSON.parse(status.stdout);
+  assert.equal(statusOutput.state.issues[0].execution, "integrated");
+  assert.doesNotMatch(
+    statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
+    /stale|missing.*check|review assignment/i,
+  );
+});
+
+test("integrate rejects changed accepted content and unrelated pending changes without modifying them", (t) => {
+  const changedAccepted = prepareAcceptedIssue(t);
+  writeFileSync(join(changedAccepted.repo, "feature.ts"), "export const feature = false;\n");
+  const changedStatusBefore = changedAccepted.git("status", "--porcelain");
+  const changed = invoke(changedAccepted.repo, [
+    "integrate",
+    "--spec",
+    changedAccepted.spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(changed.status, 0);
+  assert.match(changed.stderr, /accepted file content changed/i);
+  assert.equal(changedAccepted.git("status", "--porcelain"), changedStatusBefore);
+  assert.equal(
+    readFileSync(join(changedAccepted.repo, "feature.ts"), "utf8"),
+    "export const feature = false;\n",
+  );
+
+  const unrelated = prepareAcceptedIssue(t);
+  writeFileSync(join(unrelated.repo, "unrelated.txt"), "keep this work\n");
+  const unrelatedStatusBefore = unrelated.git("status", "--porcelain");
+  const rejected = invoke(unrelated.repo, [
+    "integrate",
+    "--spec",
+    unrelated.spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /inventory changed after acceptance/i);
+  assert.equal(unrelated.git("status", "--porcelain"), unrelatedStatusBefore);
+  assert.equal(readFileSync(join(unrelated.repo, "unrelated.txt"), "utf8"), "keep this work\n");
+});
+
+test("integrate rejects arbitrary pending files inside the feature workspace without changing workflow state", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const userFile = join(repo, ".scratch", "0001-claim-flow", "notes.txt");
+  writeFileSync(userFile, "keep this user-authored note\n");
+  const statusBefore = git("status", "--porcelain");
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+
+  const rejected = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /unsafe unrelated pending changes/i);
+  assert.equal(readFileSync(userFile, "utf8"), "keep this user-authored note\n");
+  assert.equal(git("status", "--porcelain"), statusBefore);
+  assert.equal(readFileSync(ledgerPath, "utf8"), ledgerBefore);
+  assert.equal(JSON.parse(ledgerBefore).issues[0].execution, "accepted");
+});
+
+test("integrate rejects divergent staged accepted-file bytes while preserving index and worktree", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const acceptedContent = readFileSync(join(repo, "feature.ts"), "utf8");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'staged divergence';\n");
+  git("add", "feature.ts");
+  writeFileSync(join(repo, "feature.ts"), acceptedContent);
+  const statusBefore = git("status", "--porcelain");
+  const stagedContentBefore = execFileSync("git", ["show", ":feature.ts"], { cwd: repo });
+  const worktreeContentBefore = readFileSync(join(repo, "feature.ts"), "utf8");
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+
+  const rejected = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /staged|index|accepted.*content/i);
+  assert.equal(git("rev-parse", "HEAD"), commitSha);
+  assert.equal(git("status", "--porcelain"), statusBefore);
+  assert.deepEqual(
+    execFileSync("git", ["show", ":feature.ts"], { cwd: repo }),
+    stagedContentBefore,
+  );
+  assert.deepEqual(
+    stagedContentBefore,
+    Buffer.from("export const feature = 'staged divergence';\n"),
+  );
+  assert.equal(readFileSync(join(repo, "feature.ts"), "utf8"), worktreeContentBefore);
+  assert.equal(worktreeContentBefore, acceptedContent);
+  assert.equal(readFileSync(ledgerPath, "utf8"), ledgerBefore);
+  assert.equal(JSON.parse(ledgerBefore).issues[0].execution, "accepted");
+});
+
+test("integrate rejects a caller commit whose blob differs from accepted content", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver mismatched feature");
+  const commitSha = git("rev-parse", "HEAD");
+  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+  const statusBefore = git("status", "--porcelain");
+
+  const rejected = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /commit content does not match/i);
+  assert.equal(git("rev-parse", "HEAD"), commitSha);
+  assert.equal(git("status", "--porcelain"), statusBefore);
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[0].execution,
+    "accepted",
+  );
+});
+
+test("integrate refuses caller confirmation when accepted required-check evidence is no longer passing", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.issues[0].checks.records[0].result = "failed";
+  ledger.issues[0].checks.records[0].details = "The accepted check is no longer passing.";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+  const rejected = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /required check .* is failed/i);
+  assert.equal(git("rev-parse", "HEAD"), commitSha);
+  assert.equal(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].execution, "accepted");
+});
+
+test("integrate rejects an altered registered review report as stale evidence", (t) => {
+  const { repo, git, spec, assignment } = prepareAcceptedIssue(t);
+  writeFileSync(assignment.report, "# Review report\n\nChanged after acceptance.\n");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+
+  const rejected = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /review report .*not current and submitted/i);
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[0].execution,
+    "accepted",
+  );
+});
+
+test("dependent claims wait for caller-committed delivery records and reuse integrated evidence", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  const prepared = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(prepared.status, 0, prepared.stderr);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver prerequisite");
+  const commitSha = git("rev-parse", "HEAD");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const created = invoke(repo, [
+    "issue",
+    "create",
+    "--spec",
+    spec,
+    "--title",
+    "Use the prerequisite",
+    "--reporter",
+    "requester",
+    "--category",
+    "enhancement",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(created.status, 0, created.stderr);
+  const dependency = invoke(repo, [
+    "issue",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--blocked-by",
+    "I-0001",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(dependency.status, 0, dependency.stderr);
+  const triaged = invoke(repo, [
+    "triage",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--status",
+    "ready-for-agent",
+    "--category",
+    "enhancement",
+    "--details",
+    "Prerequisite integration is recorded.",
+    "--author",
+    "maintainer",
+  ]);
+  assert.equal(triaged.status, 0, triaged.stderr);
+
+  const prematureClaim = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(prematureClaim.status, 0);
+  assert.match(prematureClaim.stderr, /uncommitted delivery records/i);
+  assert.equal(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .issues[1].baseSha,
+    undefined,
+  );
+
+  git("add", "-A");
+  git("commit", "-qm", "record completed prerequisite delivery");
+  const ready = invoke(repo, ["ready", "--spec", spec]);
+  assert.equal(ready.status, 0, ready.stderr);
+  assert.doesNotMatch(ready.stdout, /dependencies are not integrated: I-0001/i);
+  const claimed = invoke(repo, [
+    "claim",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0002",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claimed.status, 0, claimed.stderr);
+  assert.equal(JSON.parse(claimed.stdout).baseSha, git("rev-parse", "HEAD"));
 });
 
 test("accept rejects missing initial review coverage", (t) => {

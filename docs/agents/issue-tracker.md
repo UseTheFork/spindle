@@ -180,6 +180,22 @@ action after an interrupted dispatch or submission. The `sdd-reviewer` Agent
 Blueprint describes initial, corrective, and aggregate review contracts; later
 corrective and aggregate command gates remain separately scoped.
 
+After acceptance, prepare a caller-owned delivery with
+`just spindle::run sdd integrate --spec <absolute-spec-path> --issue I-0001 --author controller`.
+Use its `acceptedFiles` as the exact delivery inventory and preserve the
+returned `deliveryRecords`. Create a commit externally containing only the
+accepted files, then verify it with
+`just spindle::run sdd integrate --spec <absolute-spec-path> --issue I-0001 --commit <sha> --author controller`.
+Confirmation records `integrated` only when the existing commit is a child of
+the recorded baseline and its paths and content match accepted evidence. It
+does not stage or commit. Commit the returned delivery records separately
+before another claim; claim requires a clean checkout and takes the next
+issue's baseline only after that record commit. Reconfirming the same commit is
+idempotent, and identical reviewed dirty content remains covered after commit.
+Unrelated pending changes, changed accepted files, stale evidence, or a commit
+mismatch fail without modifying user work. Dependencies become ready only
+after integration and current prerequisite evidence.
+
 `resume` returns the recorded gate and assignment without resetting evidence
 or history. A changed controller must use `--confirm-handoff` only after
 confirming the previous worker stopped editing; the handoff is recorded while

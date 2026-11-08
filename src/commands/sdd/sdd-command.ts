@@ -114,6 +114,8 @@ interface IssueProgress {
   execution: ExecutionState;
   owner?: string;
   baseSha?: string;
+  acceptedEvidence?: AcceptedEvidence;
+  integration?: IntegrationRecord;
   assignment?: ImplementationAssignment;
   correctionAttempts?: CorrectionAttempt[];
   adjudication?: CorrectionAdjudication;
@@ -123,6 +125,22 @@ interface IssueProgress {
   requirementsDecisions?: RequirementsDecision[];
   checks?: IssueChecks;
   findings?: ReviewFinding[];
+}
+
+interface AcceptedEvidence {
+  snapshot: string;
+  codeSnapshot: string;
+  requirementsSnapshot: string;
+  files: string[];
+  contentDigest: string;
+}
+
+interface IntegrationRecord {
+  commitSha: string;
+  integratedAt: string;
+  integratedBy: string;
+  files: string[];
+  contentDigest: string;
 }
 
 interface SpecialistReviewRequirement {
@@ -406,6 +424,10 @@ interface ReviewRequireOptions extends IssueSelection {
 
 type AcceptOptions = IssueSelection;
 
+interface IntegrateOptions extends IssueSelection {
+  commit?: string;
+}
+
 interface ResumeOptions extends IssueSelection {
   confirmHandoff?: boolean;
 }
@@ -664,6 +686,42 @@ function isCorrectionAdjudication(value: unknown): value is CorrectionAdjudicati
           !!value.resolution.recordedBy.trim();
   }
   return false;
+}
+
+function isAcceptedEvidence(value: unknown): value is AcceptedEvidence {
+  return (
+    isRecord(value) &&
+    typeof value.snapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.snapshot) &&
+    typeof value.codeSnapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.codeSnapshot) &&
+    typeof value.requirementsSnapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
+    Array.isArray(value.files) &&
+    value.files.length > 0 &&
+    value.files.every((path) => typeof path === "string" && isSafeCoveragePath(path)) &&
+    new Set(value.files).size === value.files.length &&
+    typeof value.contentDigest === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.contentDigest)
+  );
+}
+
+function isIntegrationRecord(value: unknown): value is IntegrationRecord {
+  return (
+    isRecord(value) &&
+    typeof value.commitSha === "string" &&
+    /^[0-9a-f]{40,64}$/i.test(value.commitSha) &&
+    typeof value.integratedAt === "string" &&
+    Number.isFinite(Date.parse(value.integratedAt)) &&
+    typeof value.integratedBy === "string" &&
+    !!value.integratedBy.trim() &&
+    Array.isArray(value.files) &&
+    value.files.length > 0 &&
+    value.files.every((path) => typeof path === "string" && isSafeCoveragePath(path)) &&
+    new Set(value.files).size === value.files.length &&
+    typeof value.contentDigest === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.contentDigest)
+  );
 }
 
 function isReviewAssignment(value: unknown): value is ReviewAssignment {
@@ -1297,6 +1355,19 @@ export class SddCommand extends Service {
       .action(async (options: AcceptOptions) => {
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.accept(options), null, 2));
+      });
+
+    program
+      .command("integrate")
+      .description("Prepare accepted files for caller-owned commit or confirm an existing commit.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--commit <sha>", "Verify an existing caller-created commit", once("--commit"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: IntegrateOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.integrate(options), null, 2));
       });
 
     program
@@ -3913,6 +3984,9 @@ export class SddCommand extends Service {
         };
       });
       if (progress.execution === "accepted") {
+        if (!progress.acceptedEvidence) {
+          throw new Error(`Accepted issue ${options.issue} has no frozen integration evidence.`);
+        }
         return {
           issue: options.issue,
           execution: "accepted",
@@ -3941,7 +4015,19 @@ export class SddCommand extends Service {
           `Issue content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
         );
       }
+      const acceptedFiles = this.#acceptedInventory(progress, options.issue);
+      if (JSON.stringify(this.#changedPaths(progress.baseSha!)) !== JSON.stringify(acceptedFiles)) {
+        throw new Error("Accepted Git inventory changed while accepting the issue.");
+      }
+      const contentDigest = this.#worktreeContentDigest(acceptedFiles);
       progress.execution = "accepted";
+      progress.acceptedEvidence = {
+        snapshot: identity.snapshot,
+        codeSnapshot: identity.codeSnapshot,
+        requirementsSnapshot: identity.requirementsSnapshot,
+        files: acceptedFiles,
+        contentDigest,
+      };
       const afterIssue = matter.stringify(
         this.#appendAudit(
           issue.body,
@@ -3956,6 +4042,215 @@ export class SddCommand extends Service {
         execution: "accepted",
         reviews,
         ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  integrate(options: IntegrateOptions): {
+    issue: string;
+    execution: "accepted" | "integrated";
+    acceptedFiles: string[];
+    deliveryRecords: string[];
+    commitSha?: string;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (options.commit && !/^[0-9a-f]{40,64}$/i.test(options.commit)) {
+      throw new Error("--commit must be an existing full Git commit SHA.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.execution !== "accepted" && progress.execution !== "integrated") {
+        throw new Error(`Issue ${options.issue} must be accepted before integration.`);
+      }
+      if (!progress.owner || progress.owner !== options.author.trim()) {
+        throw new Error("Only the current controller may integrate this issue.");
+      }
+      const accepted = progress.acceptedEvidence;
+      if (!accepted) {
+        throw new Error(`Issue ${options.issue} has no frozen accepted inventory and evidence.`);
+      }
+      if (!progress.baseSha) {
+        throw new Error(`Issue ${options.issue} has no recorded Git baseline for integration.`);
+      }
+
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      if (identity.requirementsSnapshot !== accepted.requirementsSnapshot) {
+        throw new Error("Accepted requirements evidence is stale; re-review is required.");
+      }
+      const inventory = this.#changedPaths(progress.baseSha);
+      if (JSON.stringify(inventory) !== JSON.stringify(accepted.files)) {
+        throw new Error(
+          `Git-derived inventory changed after acceptance; expected ${JSON.stringify(accepted.files)}, found ${JSON.stringify(inventory)}.`,
+        );
+      }
+      const currentDigest = this.#worktreeContentDigest(accepted.files);
+      if (currentDigest !== accepted.contentDigest) {
+        throw new Error("Accepted file content changed after acceptance.");
+      }
+      this.#assertSafeIntegrationChanges(feature, accepted.files, ledger);
+      this.#assertAcceptedReportsCurrent(feature, progress);
+
+      if (!options.commit) {
+        if (progress.execution === "integrated") {
+          return {
+            issue: options.issue,
+            execution: "integrated",
+            acceptedFiles: accepted.files,
+            deliveryRecords: this.#deliveryRecordPaths(feature),
+            commitSha: progress.integration?.commitSha,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        const blockers = this.#acceptBlockers(feature, ledger, issue, progress, identity);
+        if (blockers.length > 0) {
+          throw new Error(`Issue ${options.issue} cannot be integrated:\n${blockers.join("\n")}`);
+        }
+        return {
+          issue: options.issue,
+          execution: "accepted",
+          acceptedFiles: accepted.files,
+          deliveryRecords: this.#deliveryRecordPaths(feature),
+          ...identity,
+        };
+      }
+
+      const requestedCommit = this.#gitBuffer([
+        "rev-parse",
+        "--verify",
+        `${options.commit}^{commit}`,
+      ])
+        .toString("utf8")
+        .trim()
+        .toLowerCase();
+      if (requestedCommit !== options.commit.toLowerCase()) {
+        throw new Error(`Commit ${options.commit} did not resolve to the requested commit.`);
+      }
+      if (progress.execution === "integrated") {
+        if (progress.integration?.commitSha !== requestedCommit) {
+          throw new Error(
+            `Issue ${options.issue} is already integrated through ${progress.integration?.commitSha ?? "an unknown commit"}.`,
+          );
+        }
+        if (this.#gitIndexContentDigest(accepted.files) !== accepted.contentDigest) {
+          throw new Error("Staged index content does not match the accepted file content.");
+        }
+        return {
+          issue: options.issue,
+          execution: "integrated",
+          acceptedFiles: accepted.files,
+          deliveryRecords: this.#deliveryRecordPaths(feature),
+          commitSha: requestedCommit,
+          idempotent: true,
+          ...identity,
+        };
+      }
+
+      const acceptedIdentity: ContentIdentity = {
+        snapshot: accepted.snapshot,
+        codeSnapshot: accepted.codeSnapshot,
+        requirementsSnapshot: accepted.requirementsSnapshot,
+        headSha: identity.headSha,
+      };
+      const acceptanceBlockers = this.#acceptBlockers(
+        feature,
+        ledger,
+        issue,
+        progress,
+        acceptedIdentity,
+      );
+      if (acceptanceBlockers.length > 0) {
+        throw new Error(
+          `Accepted evidence is no longer valid for integration:\n${acceptanceBlockers.join("\n")}`,
+        );
+      }
+
+      const headSha = this.#headSha();
+      if (headSha !== requestedCommit) {
+        throw new Error(
+          `Commit ${requestedCommit} must be the current HEAD (${headSha}) before integration can be confirmed.`,
+        );
+      }
+      const ancestry = this.#gitBuffer(["rev-list", "--parents", "-n", "1", requestedCommit])
+        .toString("utf8")
+        .trim()
+        .split(/\s+/);
+      if (ancestry.length !== 2 || ancestry[1] !== progress.baseSha) {
+        throw new Error(
+          `Commit ${requestedCommit} must be a caller-created child of the recorded baseline ${progress.baseSha}.`,
+        );
+      }
+      const committedFiles = this.#gitBuffer([
+        "diff",
+        "--name-only",
+        "-z",
+        "--no-renames",
+        progress.baseSha,
+        requestedCommit,
+        "--",
+        ".",
+      ])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean)
+        .sort();
+      if (JSON.stringify(committedFiles) !== JSON.stringify(accepted.files)) {
+        throw new Error(
+          `Commit contents do not match the accepted inventory; expected ${JSON.stringify(accepted.files)}, found ${JSON.stringify(committedFiles)}.`,
+        );
+      }
+      if (this.#gitTreeContentDigest(requestedCommit, accepted.files) !== accepted.contentDigest) {
+        throw new Error("Caller commit content does not match the accepted file content.");
+      }
+      if (this.#worktreeContentDigest(accepted.files) !== accepted.contentDigest) {
+        throw new Error("Accepted file content changed before integration confirmation.");
+      }
+      if (this.#gitIndexContentDigest(accepted.files) !== accepted.contentDigest) {
+        throw new Error("Staged index content does not match the accepted file content.");
+      }
+
+      progress.execution = "integrated";
+      progress.integration = {
+        commitSha: requestedCommit,
+        integratedAt: new Date().toISOString(),
+        integratedBy: options.author.trim(),
+        files: accepted.files,
+        contentDigest: accepted.contentDigest,
+      };
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Issue integration confirmed against caller-owned commit ${requestedCommit}; delivery records remain caller-owned.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "integrated",
+        acceptedFiles: accepted.files,
+        deliveryRecords: this.#deliveryRecordPaths(feature),
+        commitSha: requestedCommit,
+        ...this.#contentIdentity(
+          feature,
+          this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+          progress.baseSha,
+          progress.checks,
+        ),
       };
     } finally {
       release();
@@ -4091,11 +4386,20 @@ export class SddCommand extends Service {
       .filter((requirement) => !requirement.removedAt)
       .flatMap((requirement) => {
         const records = checks.records.filter((record) => record.command === requirement.command);
+        const preservedIntegrationEvidence = this.#integrationPreservesEvidence(progress, identity);
         const current = records.filter((record) => {
           if (
             record.snapshot === identity.snapshot &&
             record.codeSnapshot === identity.codeSnapshot &&
             record.requirementsSnapshot === identity.requirementsSnapshot
+          ) {
+            return true;
+          }
+          if (
+            preservedIntegrationEvidence &&
+            record.snapshot === progress.acceptedEvidence?.snapshot &&
+            record.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
+            record.requirementsSnapshot === progress.acceptedEvidence?.requirementsSnapshot
           ) {
             return true;
           }
@@ -4130,6 +4434,29 @@ export class SddCommand extends Service {
         }
         return [];
       });
+  }
+
+  #integrationPreservesEvidence(progress: IssueProgress, identity: ContentIdentity): boolean {
+    const accepted = progress.acceptedEvidence;
+    if (
+      progress.execution !== "integrated" ||
+      !progress.integration ||
+      !accepted ||
+      !progress.baseSha ||
+      identity.requirementsSnapshot !== accepted.requirementsSnapshot
+    ) {
+      return false;
+    }
+    try {
+      return (
+        progress.integration.contentDigest === accepted.contentDigest &&
+        JSON.stringify(progress.integration.files) === JSON.stringify(accepted.files) &&
+        JSON.stringify(this.#changedPaths(progress.baseSha!)) === JSON.stringify(accepted.files) &&
+        this.#worktreeContentDigest(accepted.files) === accepted.contentDigest
+      );
+    } catch {
+      return false;
+    }
   }
 
   #findingBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
@@ -4203,10 +4530,17 @@ export class SddCommand extends Service {
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
+    const integratedEvidence =
+      this.#integrationPreservesEvidence(progress, identity) &&
+      assignment.snapshot === progress.acceptedEvidence?.snapshot &&
+      assignment.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
+      assignment.requirementsSnapshot === progress.acceptedEvidence?.requirementsSnapshot &&
+      JSON.stringify(assignment.inventory) === JSON.stringify(progress.acceptedEvidence?.files);
     if (
-      assignment.snapshot !== identity.snapshot ||
-      assignment.codeSnapshot !== identity.codeSnapshot ||
-      assignment.requirementsSnapshot !== identity.requirementsSnapshot
+      !integratedEvidence &&
+      (assignment.snapshot !== identity.snapshot ||
+        assignment.codeSnapshot !== identity.codeSnapshot ||
+        assignment.requirementsSnapshot !== identity.requirementsSnapshot)
     ) {
       return `Review assignment ${assignment.id} is stale for the current issue snapshot.`;
     }
@@ -4443,10 +4777,202 @@ export class SddCommand extends Service {
     return undefined;
   }
 
+  #acceptedInventory(progress: IssueProgress, issueId: string): string[] {
+    const corrective = progress.correctionAttempts?.at(-1)?.reviewAssignments ?? [];
+    const assignments = corrective.length > 0 ? corrective : (progress.reviewAssignments ?? []);
+    if (
+      assignments.length === 0 ||
+      assignments.some((assignment) => assignment.status !== "submitted")
+    ) {
+      throw new Error(`Issue ${issueId} has no complete frozen review inventory.`);
+    }
+    const inventory = assignments[0]!.inventory;
+    if (
+      assignments.some(
+        (assignment) => JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
+      )
+    ) {
+      throw new Error(`Issue ${issueId} review assignments disagree on the accepted inventory.`);
+    }
+    return [...inventory];
+  }
+
+  #assertAcceptedReportsCurrent(feature: FeaturePaths, progress: IssueProgress): void {
+    const implementationReports = [
+      progress.assignment,
+      ...(progress.correctionAttempts ?? []).flatMap((attempt) => [attempt.assignment]),
+    ].filter((assignment): assignment is ImplementationAssignment => !!assignment);
+    for (const assignment of implementationReports) {
+      if (assignment.status !== "submitted" || !assignment.reportSha256) {
+        throw new Error(`Implementation report for ${assignment.id} is not current and submitted.`);
+      }
+      if (this.#readReportDigest(feature, assignment.report) !== assignment.reportSha256) {
+        throw new Error(`Implementation report for ${assignment.id} changed after submission.`);
+      }
+    }
+    const reviewReports = [
+      ...(progress.reviewAssignments ?? []),
+      ...(progress.correctionAttempts ?? []).flatMap((attempt) => attempt.reviewAssignments ?? []),
+    ];
+    for (const assignment of reviewReports) {
+      if (
+        assignment.status !== "submitted" ||
+        !assignment.reportSha256 ||
+        this.#readReportDigest(feature, assignment.report) !== assignment.reportSha256
+      ) {
+        throw new Error(`Review report for ${assignment.id} is not current and submitted.`);
+      }
+    }
+  }
+
+  #assertSafeIntegrationChanges(
+    feature: FeaturePaths,
+    acceptedFiles: string[],
+    ledger: FeatureLedger,
+  ): void {
+    const allowed = new Set(acceptedFiles);
+    for (const path of this.#workflowDeliveryRecordPaths(feature, ledger)) allowed.add(path);
+    const lockPath = `.scratch/${feature.feature}/.sdd-issues.lock`;
+    const unrelated = this.#allGitChangePaths().filter(
+      (path) => path !== lockPath && !allowed.has(path),
+    );
+    if (unrelated.length > 0) {
+      throw new Error(
+        `Unsafe unrelated pending changes prevent integration: ${JSON.stringify(unrelated)}.`,
+      );
+    }
+  }
+
+  #allGitChangePaths(): string[] {
+    const paths = new Set<string>();
+    for (const args of [
+      ["diff", "--name-only", "-z", "--no-renames", "HEAD", "--", "."],
+      ["diff", "--cached", "--name-only", "-z", "--no-renames", "HEAD", "--", "."],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]) {
+      for (const path of this.#gitBuffer(args).toString("utf8").split("\0")) {
+        if (path) paths.add(path);
+      }
+    }
+    return [...paths].sort();
+  }
+
+  #deliveryRecordPaths(feature: FeaturePaths, ledger = this.#readLedger(feature)): string[] {
+    const lockPath = `.scratch/${feature.feature}/.sdd-issues.lock`;
+    const allowed = this.#workflowDeliveryRecordPaths(feature, ledger);
+    return this.#allGitChangePaths().filter((path) => path !== lockPath && allowed.has(path));
+  }
+
+  #workflowDeliveryRecordPaths(feature: FeaturePaths, ledger: FeatureLedger): Set<string> {
+    const root = realpathSync(this.app.workspaceRoot);
+    const featurePrefix = `.scratch/${feature.feature}/`;
+    const paths = new Set([
+      relative(root, feature.spec),
+      relative(root, feature.ledger),
+      ...ledger.issues.map((issue) => `${featurePrefix}issues/${issue.id}.md`),
+    ]);
+    const reports = join(feature.workspace, "reports");
+    const addReport = (report: string | undefined) => {
+      if (!report) return;
+      const path = isAbsolute(report) ? resolve(report) : resolve(feature.workspace, report);
+      if (isPathInside(reports, path) && /^[^/]+\.md$/.test(relative(reports, path))) {
+        paths.add(relative(root, path));
+      }
+    };
+    for (const issue of ledger.issues) {
+      addReport(issue.assignment?.report);
+      for (const assignment of [
+        ...(issue.reviewAssignments ?? []),
+        ...(issue.reviewHistory ?? []),
+      ]) {
+        addReport(assignment.report);
+      }
+      for (const attempt of issue.correctionAttempts ?? []) {
+        addReport(attempt.assignment.report);
+        addReport(attempt.priorAssignment?.report);
+        for (const assignment of attempt.reviewAssignments ?? []) addReport(assignment.report);
+      }
+      for (const finding of issue.findings ?? []) {
+        for (const provenance of finding.provenance) addReport(provenance.report);
+      }
+    }
+    return paths;
+  }
+
+  #worktreeContentDigest(paths: string[]): string {
+    const records = paths.map((path) => {
+      const location = join(this.app.workspaceRoot, path);
+      const entry = lstatIfPresent(location);
+      if (!entry) return [path, "deleted", ""];
+      if (entry.isSymbolicLink()) {
+        return [path, "120000", readlinkSync(location)];
+      }
+      if (!entry.isFile()) {
+        throw new Error(`Accepted path '${path}' is not a regular file or symlink.`);
+      }
+      const mode = entry.mode & 0o111 ? "100755" : "100644";
+      return [path, mode, readFileSync(location).toString("base64")];
+    });
+    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
+  }
+
+  #gitTreeContentDigest(commitSha: string, paths: string[]): string {
+    const records = paths.map((path) => {
+      const entries = this.#gitBuffer(["ls-tree", "-z", commitSha, "--", `:(literal)${path}`])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+      const exact = entries
+        .map((entry) => {
+          const [metadata, treePath] = entry.split("\t", 2);
+          const [mode, type, object] = (metadata ?? "").split(" ");
+          return treePath === path && mode && type === "blob" && object
+            ? { mode, object }
+            : undefined;
+        })
+        .find((entry) => entry !== undefined);
+      if (!exact) return [path, "deleted", ""];
+      const content = this.#gitBuffer(["cat-file", "blob", exact.object]).toString("base64");
+      return [path, exact.mode, content];
+    });
+    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
+  }
+
+  #gitIndexContentDigest(paths: string[]): string {
+    const records = paths.map((path) => {
+      const entries = this.#gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+      if (entries.length !== 1) return [path, "invalid-index-entry", ""];
+      const separator = entries[0]!.indexOf("\t");
+      if (separator < 0 || entries[0]!.slice(separator + 1) !== path) {
+        return [path, "invalid-index-entry", ""];
+      }
+      const [mode, object, stage] = entries[0]!.slice(0, separator).split(" ");
+      if (
+        stage !== "0" ||
+        !object ||
+        (mode !== "100644" && mode !== "100755" && mode !== "120000")
+      ) {
+        return [path, "invalid-index-entry", ""];
+      }
+      const content = this.#gitBuffer(["cat-file", "blob", object]).toString("base64");
+      return [path, mode, content];
+    });
+    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
+  }
+
   #cleanGitBaseline(feature: FeaturePaths): string {
     const root = realpathSync(this.app.workspaceRoot);
     const changes = this.#gitChangeSummary(feature);
     if (changes) {
+      const deliveryRecords = this.#deliveryRecordPaths(feature);
+      if (deliveryRecords.length > 0) {
+        throw new Error(
+          `Cannot claim while uncommitted delivery records remain; the caller must commit them first:\n${deliveryRecords.join("\n")}`,
+        );
+      }
       throw new Error(
         `Cannot claim from a dirty checkout; commit or otherwise resolve staged, unstaged, and untracked changes first:\n${changes}`,
       );
@@ -5213,6 +5739,15 @@ export class SddCommand extends Service {
               !!issue.owner.trim() &&
               typeof issue.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(issue.baseSha))) &&
+          (!Object.hasOwn(issue, "acceptedEvidence") ||
+            isAcceptedEvidence(issue.acceptedEvidence)) &&
+          (!Object.hasOwn(issue, "integration") ||
+            (issue.execution === "integrated" &&
+              isIntegrationRecord(issue.integration) &&
+              isAcceptedEvidence(issue.acceptedEvidence) &&
+              JSON.stringify(issue.integration.files) ===
+                JSON.stringify(issue.acceptedEvidence.files) &&
+              issue.integration.contentDigest === issue.acceptedEvidence.contentDigest)) &&
           (!Object.hasOwn(issue, "reviewRequirements") ||
             (Array.isArray(issue.reviewRequirements) &&
               issue.reviewRequirements.every(isSpecialistReviewRequirement) &&

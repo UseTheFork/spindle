@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.6.0
+    version: 1.6.1
 ---
 
 # Subagent-Driven Development
@@ -125,9 +125,17 @@ Use the ownership established in A.
 
 ### J. Integrate
 
-Read [integration](./references/integration.md) before changing integration state or committing.
+Read [caller-owned integration](./references/integration.md). Run `sdd integrate`
+to hand back the exact accepted inventory and pending delivery records. The
+caller creates a commit containing only those accepted files, then runs
+`sdd integrate --commit <sha>` to verify and record it. Commit the returned
+delivery-record changes separately before another claim. The CLI never mutates
+Git.
 
-**Complete when:** integration succeeds with a clean worktree, selecting K; unsafe pending files or failed commits select Q with a blocker.
+**Complete when:** confirmation records integration, resulting delivery
+records are caller-committed, and the checkout is clean before continuing.
+Then select K; unsafe pending files or a failed commit verification select Q
+with a blocker.
 
 ### K. More eligible?
 
