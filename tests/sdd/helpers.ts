@@ -25,6 +25,14 @@ export function fixture() {
   return { repo, git };
 }
 
+export function serviceFixture() {
+  const workspace = fixture();
+  const service = new SddCommand(
+    new App({ workspaceRoot: workspace.repo, blueprintSourceRoot: resolve("src/blueprints") }),
+  );
+  return { ...workspace, service };
+}
+
 export function execute(repo: string, run: (service: SddCommand) => unknown) {
   const command = new SddCommand(
     new App({
