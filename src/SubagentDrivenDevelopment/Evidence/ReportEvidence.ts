@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import type {
   ImplementationAssignment,
   ReviewAssignment,

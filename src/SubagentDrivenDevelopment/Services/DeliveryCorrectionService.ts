@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {

@@ -1,5 +1,5 @@
 import { GitService } from "@/Git/Services/GitService";
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 export class GitServiceProvider extends ServiceProvider {
   public register(): void {

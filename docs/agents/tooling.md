@@ -55,8 +55,8 @@ command options, for example `just tool pnpm run spindle sdd create --help`.
 
 Import `Application`, `ApplicationOptions`, and service/provider constructor types
 from `src/Foundation/Application.ts`, `Service` from
-`src/services/Service.ts`, and the abstract `ServiceProvider` from
-`src/services/ServiceProvider.ts`. There are no compatibility exports or old
+`src/Foundation/Service.ts`, and the abstract `ServiceProvider` from
+`src/Foundation/ServiceProvider.ts`. There are no compatibility exports or old
 `src/app.ts` module.
 Workspace and Blueprint roots and service/provider ownership are getter-only; backing
 references use TypeScript `private readonly` visibility.
@@ -194,11 +194,13 @@ on the application for bootstrap, so concurrent dispatches do not compete throug
 the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
-The production provider registers reconciliation and installation singletons,
-plus transient computed-context services. It also registers
-`SubagentDrivenDevelopmentServiceProvider`, which owns thin per-operation
-Commands and explicitly injected singleton Services, Persistence, Evidence, and
-Policies under `src/SubagentDrivenDevelopment/`. Git process execution lives in
+`runExecutable` supplies `ProductionServiceProvider` and
+`SubagentDrivenDevelopmentServiceProvider` as siblings in one provider list used
+for both CLI schema discovery and application registration. The production
+provider registers reconciliation and installation singletons, plus transient
+computed-context services. The SDD provider owns thin per-operation Commands
+and explicitly injected singleton Services, Persistence, Evidence, and Policies
+under `src/SubagentDrivenDevelopment/`. Git process execution lives in
 `src/Git/Services/GitService.ts`; SDD-specific content and report verification stays
 inside the SDD context. `WorkspaceTransaction.run` is the single issue/delivery
 lock, recovery, journal, and atomic-write boundary.

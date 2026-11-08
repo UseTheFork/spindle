@@ -22,7 +22,7 @@ import type {
   PreparedBlueprintFile,
 } from "@/installation/types";
 import type { RenderContext } from "@/render";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,

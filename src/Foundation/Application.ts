@@ -8,7 +8,7 @@ import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrappe
 import { Container } from "@/Foundation/Container";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { GitServiceProvider } from "@/Git/GitServiceProvider";
-import type { ServiceProvider } from "@/services/ServiceProvider";
+import type { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 export type { ServiceConstructor } from "@/Foundation/Container";
 

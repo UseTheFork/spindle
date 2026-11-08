@@ -5,7 +5,7 @@ import type {
   SpawnSyncReturns,
 } from "node:child_process";
 
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 
 export class GitService extends Service {
   public discoverRoot(startingDirectory: string): string {

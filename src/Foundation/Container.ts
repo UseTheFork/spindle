@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { Application } from "@/Foundation/Application";
-import { bootService, Service } from "@/services/Service";
+import { bootService, Service } from "@/Foundation/Service";
 
 export type Constructor<T = unknown> = new (...args: never[]) => T;
 export type AbstractConstructor<T = unknown> = abstract new (...args: never[]) => T;

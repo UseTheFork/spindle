@@ -19,7 +19,8 @@ import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { Repository } from "@/utilities/Repository";
 
@@ -212,11 +213,14 @@ test("Commander alone supplies validated repeated options to the executable comp
   await dispatch(
     raw,
     () => {
-      application = Application.configure(nested, [ProductionServiceProvider]).create();
+      application = Application.configure(nested, [
+        ProductionServiceProvider,
+        SubagentDrivenDevelopmentServiceProvider,
+      ]).create();
       return application;
     },
     "/installed/spindle",
-    [ProductionServiceProvider],
+    [ProductionServiceProvider, SubagentDrivenDevelopmentServiceProvider],
   );
   if (!application) throw new Error("Missing dispatched application.");
   expect(application.value("console.invocation")).toEqual({
@@ -266,11 +270,14 @@ test("Commander preserves a real positional action and nested command path witho
     dispatch(
       raw,
       () => {
-        application = Application.configure(nested, [ProductionServiceProvider]).create();
+        application = Application.configure(nested, [
+          ProductionServiceProvider,
+          SubagentDrivenDevelopmentServiceProvider,
+        ]).create();
         return application;
       },
       "spindle",
-      [ProductionServiceProvider],
+      [ProductionServiceProvider, SubagentDrivenDevelopmentServiceProvider],
     ),
   ).rejects.toBe(operationFailure);
   if (!application) throw new Error("Missing dispatched application.");

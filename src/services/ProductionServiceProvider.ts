@@ -5,21 +5,18 @@ import { UpdateCommand } from "@/Commands/update/update-command";
 import { ComputedContextService } from "@/computed/computed-context";
 import { InstallationService } from "@/installation/installation-service";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
-import { ServiceProvider } from "@/services/ServiceProvider";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 export class ProductionServiceProvider extends ServiceProvider {
   public static override commands(): readonly CommandConstructor[] {
     return [
       InitCommand,
       UpdateCommand,
-      ...SubagentDrivenDevelopmentServiceProvider.commands(),
       SetupProjectCommand,
     ];
   }
 
   public register(): void {
-    this.app.register(SubagentDrivenDevelopmentServiceProvider);
     this.app.singleton(BlueprintReconciliationService);
     this.app.singleton(InstallationService);
     this.app.bind(ComputedContextService);

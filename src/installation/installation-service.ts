@@ -2,7 +2,7 @@ import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promise
 import { basename, dirname, join } from "node:path";
 
 import type { Application } from "../Foundation/Application.js";
-import { Service } from "../services/Service.js";
+import { Service } from "../Foundation/Service.js";
 import { assertSingleFileDestination } from "../utilities/blueprint-files.js";
 import type { PreparedBlueprintFile } from "./types.js";
 

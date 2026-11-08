@@ -12,7 +12,7 @@ import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { Container } from "@/Foundation/Container";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 afterEach(() => {
   RegisterProviders.merge([]);

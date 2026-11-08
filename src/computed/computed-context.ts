@@ -1,5 +1,5 @@
 import type { RenderContext } from "../render.js";
-import { Service } from "../services/Service.js";
+import { Service } from "../Foundation/Service.js";
 import { computedVariableProviders } from "./computed-variable-providers.js";
 import type { ComputedVariableRegistry, ResolvedConfig } from "./provider.js";
 

@@ -1,4 +1,5 @@
 import { Application } from "@/Foundation/Application";
+import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export function applicationFixture(
@@ -9,5 +10,6 @@ export function applicationFixture(
   application.instance("path.workspace", workspaceRoot);
   application.instance("path.blueprints", blueprintSourceRoot);
   application.register(ProductionServiceProvider);
+  application.register(SubagentDrivenDevelopmentServiceProvider);
   return application;
 }

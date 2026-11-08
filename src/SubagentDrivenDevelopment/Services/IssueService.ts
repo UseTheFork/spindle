@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import matter from "gray-matter";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import type {
   IssueCreateOptions,
   IssueUpdateOptions,

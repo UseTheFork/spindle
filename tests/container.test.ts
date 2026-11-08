@@ -2,7 +2,7 @@ import { expect, expectTypeOf, test } from "vitest";
 
 import { Application } from "@/Foundation/Application";
 import { Container } from "@/Foundation/Container";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 
 test("class registrations preserve constructor types and string registrations stay unknown", () => {
   class Ordinary {

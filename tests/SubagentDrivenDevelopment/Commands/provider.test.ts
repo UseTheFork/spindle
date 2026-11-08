@@ -1,9 +1,16 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
+import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 import { serviceFixture } from "../helpers/helpers";
+
+test("production command declarations exclude SDD commands", () => {
+  for (const command of SubagentDrivenDevelopmentServiceProvider.commands()) {
+    expect(ProductionServiceProvider.commands()).not.toContain(command);
+  }
+});
 
 test("every executable operation is explicitly bound once as an application singleton", async () => {
   const { app } = await serviceFixture();

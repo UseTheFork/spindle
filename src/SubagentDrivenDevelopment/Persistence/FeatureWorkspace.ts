@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import {
   FEATURE_DIRECTORY,
   HISTORICAL_DATE_DIRECTORY,

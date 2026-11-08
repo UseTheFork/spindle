@@ -1,4 +1,4 @@
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 export class FoundationServiceProvider extends ServiceProvider {
   public register(): void {}

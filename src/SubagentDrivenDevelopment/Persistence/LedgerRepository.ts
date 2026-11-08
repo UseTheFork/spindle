@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { blueprintCatalog } from "@/blueprints/catalog";
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { FEATURE_DIRECTORY, EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,

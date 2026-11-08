@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import type {
   FeaturePaths,
   FeatureLedger,

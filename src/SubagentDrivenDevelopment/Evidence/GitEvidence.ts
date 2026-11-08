@@ -6,7 +6,7 @@ import matter from "gray-matter";
 
 import type { Application } from "@/Foundation/Application";
 import { GitService } from "@/Git/Services/GitService";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import type { IssueChecks, ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   IssueProgress,

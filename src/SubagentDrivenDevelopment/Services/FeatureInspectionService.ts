@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {

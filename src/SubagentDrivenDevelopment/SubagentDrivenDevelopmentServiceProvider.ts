@@ -1,6 +1,6 @@
 import type { CommandConstructor } from "@/Commands/Command";
 import { GitService } from "@/Git/Services/GitService";
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 import { AcceptCommand } from "@/SubagentDrivenDevelopment/Commands/AcceptCommand";
 import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ChecksRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";

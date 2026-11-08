@@ -1,5 +1,5 @@
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { ImplementationAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type { IssueProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";

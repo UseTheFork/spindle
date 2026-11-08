@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
 import { GitService } from "@/Git/Services/GitService";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 
 export class PathSafety extends Service {

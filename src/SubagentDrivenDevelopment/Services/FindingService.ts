@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 import matter from "gray-matter";
 
 import type { Application } from "@/Foundation/Application";
-import { Service } from "@/services/Service";
+import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {

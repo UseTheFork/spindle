@@ -7,7 +7,7 @@ import { Application } from "@/Foundation/Application";
 import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { ServiceProvider } from "@/services/ServiceProvider";
+import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
 import { fixture } from "../SubagentDrivenDevelopment/helpers/helpers";
 
