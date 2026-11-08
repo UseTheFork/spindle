@@ -137,6 +137,20 @@ test("packaged sdd create and status expose feature state outside the checkout",
     actions: [],
     pendingAssignments: [],
     blockers: [],
+    delivery: {
+      scope: "delivery",
+      execution: "unstarted",
+      action: "review",
+      retrospectiveRequired: false,
+      finished: false,
+      findings: [],
+      correctionAttempts: [],
+      reviewRequirements: [],
+      reviewAssignments: [],
+      requiredChecks: [],
+      checkRecords: [],
+      blockers: ["Aggregate evidence requires at least one issue."],
+    },
   };
   assert.equal(inspected.stdout, `${JSON.stringify(expectedStatus, null, 2)}\n`);
   assert.deepEqual(JSON.parse(inspected.stdout), expectedStatus);

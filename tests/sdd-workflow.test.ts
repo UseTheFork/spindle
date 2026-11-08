@@ -77,51 +77,74 @@ function commitAll(repo: string, git: (...args: string[]) => string, message: st
   git("commit", "-qm", message);
 }
 
-function prepareClaimableIssue(t: TestContext) {
+function prepareClaimableIssue(
+  t: TestContext,
+  options: { requireRetrospective?: boolean; issueCount?: number } = {},
+) {
   const { repo, git } = fixture(t);
-  const created = invoke(repo, ["create", "--title", "Claim flow", "--author", "maintainer"]);
+  const created = invoke(repo, [
+    "create",
+    "--title",
+    "Claim flow",
+    "--author",
+    "maintainer",
+    ...(options.requireRetrospective ? ["--require-retrospective"] : []),
+  ]);
   assert.equal(created.status, 0, created.stderr);
   const feature = JSON.parse(created.stdout) as { spec: string };
   commitAll(repo, git, "create feature");
 
-  const issue = invoke(repo, [
-    "issue",
-    "create",
-    "--spec",
-    feature.spec,
-    "--title",
-    "Implement the flow",
-    "--reporter",
-    "requester",
-    "--category",
-    "enhancement",
-    "--author",
-    "maintainer",
-  ]);
-  assert.equal(issue.status, 0, issue.stderr);
-  const triaged = invoke(repo, [
-    "triage",
-    "--spec",
-    feature.spec,
-    "--issue",
-    "I-0001",
-    "--status",
-    "ready-for-agent",
-    "--category",
-    "enhancement",
-    "--details",
-    "Requirements are complete.",
-    "--author",
-    "maintainer",
-  ]);
-  assert.equal(triaged.status, 0, triaged.stderr);
+  for (let index = 1; index <= (options.issueCount ?? 1); index++) {
+    const issueId = `I-${String(index).padStart(4, "0")}`;
+    const issue = invoke(repo, [
+      "issue",
+      "create",
+      "--spec",
+      feature.spec,
+      "--title",
+      `Implement the flow ${index}`,
+      "--reporter",
+      "requester",
+      "--category",
+      "enhancement",
+      "--author",
+      "maintainer",
+    ]);
+    assert.equal(issue.status, 0, issue.stderr);
+    const triaged = invoke(repo, [
+      "triage",
+      "--spec",
+      feature.spec,
+      "--issue",
+      issueId,
+      "--status",
+      "ready-for-agent",
+      "--category",
+      "enhancement",
+      "--details",
+      "Requirements are complete.",
+      "--author",
+      "maintainer",
+    ]);
+    assert.equal(triaged.status, 0, triaged.stderr);
+  }
   commitAll(repo, git, "prepare issue");
   const baseSha = git("rev-parse", "HEAD");
   return { repo, git, spec: feature.spec, baseSha };
 }
 
-function prepareImplementationForReview(t: TestContext) {
-  const { repo, git, spec } = prepareClaimableIssue(t);
+function prepareImplementationForReview(
+  t: TestContext,
+  options: {
+    requireRetrospective?: boolean;
+    issueCount?: number;
+    issueId?: string;
+    file?: string;
+  } = {},
+) {
+  const { repo, git, spec } = prepareClaimableIssue(t, options);
+  const issueId = options.issueId ?? "I-0001";
+  const file = options.file ?? "feature.ts";
   const command = "just test::test tests/feature.test.ts";
   const required = invoke(repo, [
     "checks",
@@ -129,7 +152,7 @@ function prepareImplementationForReview(t: TestContext) {
     "--spec",
     spec,
     "--issue",
-    "I-0001",
+    issueId,
     "--command",
     command,
     "--author",
@@ -143,19 +166,19 @@ function prepareImplementationForReview(t: TestContext) {
     "--spec",
     spec,
     "--issue",
-    "I-0001",
+    issueId,
     "--author",
     "controller",
   ]);
   assert.equal(claimed.status, 0, claimed.stderr);
-  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+  writeFileSync(join(repo, file), `export const feature = ${JSON.stringify(issueId)};\n`);
 
   const implemented = invoke(repo, [
     "implement",
     "--spec",
     spec,
     "--issue",
-    "I-0001",
+    issueId,
     "--author",
     "controller",
   ]);
@@ -169,7 +192,7 @@ function prepareImplementationForReview(t: TestContext) {
     "--spec",
     spec,
     "--issue",
-    "I-0001",
+    issueId,
     "--role",
     "implementation",
     "--report",
@@ -182,6 +205,8 @@ function prepareImplementationForReview(t: TestContext) {
     repo,
     git,
     spec,
+    issueId,
+    file,
     command,
     report: implementation.assignment.report,
     submission: JSON.parse(submitted.stdout) as {
@@ -198,6 +223,7 @@ function recordReviewCheck(
   command: string,
   snapshot: string,
   result: "passed" | "failed",
+  issueId = "I-0001",
 ) {
   return invoke(repo, [
     "checks",
@@ -205,7 +231,7 @@ function recordReviewCheck(
     "--spec",
     spec,
     "--issue",
-    "I-0001",
+    issueId,
     "--snapshot",
     snapshot,
     "--command",
@@ -218,14 +244,23 @@ function recordReviewCheck(
   ]);
 }
 
-function prepareReviewAssignment(t: TestContext) {
-  const prepared = prepareImplementationForReview(t);
+function prepareReviewAssignment(
+  t: TestContext,
+  options: {
+    requireRetrospective?: boolean;
+    issueCount?: number;
+    issueId?: string;
+    file?: string;
+  } = {},
+) {
+  const prepared = prepareImplementationForReview(t, options);
   const passingCheck = recordReviewCheck(
     prepared.repo,
     prepared.spec,
     prepared.command,
     prepared.submission.snapshot,
     "passed",
+    prepared.issueId,
   );
   assert.equal(passingCheck.status, 0, passingCheck.stderr);
   const dispatched = invoke(prepared.repo, [
@@ -233,9 +268,9 @@ function prepareReviewAssignment(t: TestContext) {
     "--spec",
     prepared.spec,
     "--issue",
-    "I-0001",
+    prepared.issueId,
     "--inventory",
-    JSON.stringify(["feature.ts"]),
+    JSON.stringify([prepared.file]),
     "--author",
     "controller",
   ]);
@@ -254,15 +289,23 @@ function prepareReviewAssignment(t: TestContext) {
   };
 }
 
-function prepareAcceptedIssue(t: TestContext) {
-  const prepared = prepareReviewAssignment(t);
+function prepareAcceptedIssue(
+  t: TestContext,
+  options: {
+    requireRetrospective?: boolean;
+    issueCount?: number;
+    issueId?: string;
+    file?: string;
+  } = {},
+) {
+  const prepared = prepareReviewAssignment(t, options);
   writeFileSync(prepared.assignment.report, "# Review report\n\nNo defects found.\n");
   const submitted = invoke(prepared.repo, [
     "submit",
     "--spec",
     prepared.spec,
     "--issue",
-    "I-0001",
+    prepared.issueId,
     "--role",
     "review",
     "--assignment",
@@ -281,12 +324,101 @@ function prepareAcceptedIssue(t: TestContext) {
     "--spec",
     prepared.spec,
     "--issue",
-    "I-0001",
+    prepared.issueId,
     "--author",
     "controller",
   ]);
   assert.equal(accepted.status, 0, accepted.stderr);
   return prepared;
+}
+
+function prepareDeliveryReady(t: TestContext, requireRetrospective = false) {
+  const prepared = prepareAcceptedIssue(t, { requireRetrospective });
+  prepared.git("add", "feature.ts");
+  prepared.git("commit", "-qm", "deliver accepted issue");
+  const integrated = invoke(prepared.repo, [
+    "integrate",
+    "--spec",
+    prepared.spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    prepared.git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const command = "just test::test tests/whole-feature.test.ts";
+  const required = invoke(prepared.repo, [
+    "checks",
+    "require",
+    "--spec",
+    prepared.spec,
+    "--scope",
+    "delivery",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  const snapshot = JSON.parse(required.stdout).snapshot as string;
+  const recorded = invoke(prepared.repo, [
+    "checks",
+    "record",
+    "--spec",
+    prepared.spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recorded.status, 0, recorded.stderr);
+
+  const review = invoke(prepared.repo, [
+    "review",
+    "--spec",
+    prepared.spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  const assignment = JSON.parse(review.stdout).assignments[0] as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Whole-feature review\n\nNo findings.\n");
+  const submitted = invoke(prepared.repo, [
+    "submit",
+    "--spec",
+    prepared.spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  return { ...prepared, deliveryCheck: command };
 }
 
 function refreshReviewCheck(repo: string, spec: string, command: string) {
@@ -3249,7 +3381,10 @@ test("integrate rejects a caller commit whose blob differs from accepted content
   ]);
 
   assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /commit content does not match/i);
+  assert.match(
+    rejected.stderr,
+    /commit content does not match|accepted file content changed after acceptance/i,
+  );
   assert.equal(git("rev-parse", "HEAD"), commitSha);
   assert.equal(git("status", "--porcelain"), statusBefore);
   assert.equal(
@@ -5763,4 +5898,1582 @@ test("concurrent dispatch and submission reuse one assignment and one history en
   assert.equal(ledger.issues[0].assignment.id, firstAssignment.id);
   assert.equal(ledger.issues[0].execution, "reviewing");
   assert.equal(git("rev-parse", "HEAD"), baseSha);
+});
+
+test("delivery review requires an exclusive delivery scope and assigns all required reviewers", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted issue");
+  const commitSha = git("rev-parse", "HEAD");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    commitSha,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const required = invoke(repo, [
+    "review",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--agent",
+    "sdd-code-reviewer",
+    "--details",
+    "Review compatibility across the integrated issue boundaries.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+
+  const conflictingScope = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(conflictingScope.status, 0);
+  assert.match(conflictingScope.stderr, /mutually exclusive|exactly one.*scope/i);
+
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const output = JSON.parse(dispatched.stdout) as {
+    scope: string;
+    assignments: {
+      id: string;
+      agent: string;
+      role: string;
+      scope: string;
+      snapshot: string;
+      report: string;
+      status: string;
+    }[];
+  };
+  assert.equal(output.scope, "delivery");
+  assert.deepEqual(
+    output.assignments.map(({ agent, role, scope, status }) => ({
+      agent,
+      role,
+      scope,
+      status,
+    })),
+    [
+      { agent: "sdd-reviewer", role: "review", scope: "delivery", status: "pending" },
+      { agent: "sdd-code-reviewer", role: "review", scope: "delivery", status: "pending" },
+    ],
+  );
+  assert.equal(new Set(output.assignments.map(({ id }) => id)).size, 2);
+  assert.equal(new Set(output.assignments.map(({ report }) => report)).size, 2);
+  assert.ok(output.assignments.every(({ snapshot }) => /^[0-9a-f]{64}$/.test(snapshot)));
+
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.equal(ledger.delivery.reviewAssignments.length, 2);
+  assert.ok(
+    ledger.issues[0].reviewAssignments.every(
+      (assignment: { scope: string }) => assignment.scope !== "delivery",
+    ),
+  );
+});
+
+test("delivery findings retain aggregate provenance and every required review submits idempotently", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted issue");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const requested = invoke(repo, [
+    "review",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--agent",
+    "sdd-code-reviewer",
+    "--details",
+    "Check cross-issue compatibility.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(requested.status, 0, requested.stderr);
+  const reviewed = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(reviewed.status, 0, reviewed.stderr);
+  const assignments = JSON.parse(reviewed.stdout).assignments as {
+    id: string;
+    agent: string;
+    snapshot: string;
+    report: string;
+  }[];
+  const comprehensive = assignments.find(({ agent }) => agent === "sdd-reviewer")!;
+  const specialist = assignments.find(({ agent }) => agent === "sdd-code-reviewer")!;
+  writeFileSync(comprehensive.report, "# Aggregate review\n\nCross-issue note.\n");
+  writeFileSync(specialist.report, "# Specialist review\n\nNo additional findings.\n");
+
+  const registered = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--source",
+    comprehensive.report,
+    "--snapshot",
+    comprehensive.snapshot,
+    "--severity",
+    "medium",
+    "--non-blocking",
+    "--summary",
+    "Cross-issue behavior needs documentation",
+    "--details",
+    "The integrated issues use inconsistent names for the same behavior.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(registered.status, 0, registered.stderr);
+  const finding = JSON.parse(registered.stdout).finding as {
+    id: string;
+    provenance: { report: string; snapshot: string }[];
+  };
+  assert.equal(finding.id, "F-0001");
+  assert.deepEqual(
+    finding.provenance.map(({ report, snapshot }) => ({ report, snapshot })),
+    [{ report: comprehensive.report, snapshot: comprehensive.snapshot }],
+  );
+
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    comprehensive.id,
+    "--report",
+    comprehensive.report,
+    "--result",
+    "passed",
+    "--findings",
+    "F-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const repeated = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    comprehensive.id,
+    "--report",
+    comprehensive.report,
+    "--result",
+    "passed",
+    "--findings",
+    "F-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+
+  const specialistSubmission = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    specialist.id,
+    "--report",
+    specialist.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(specialistSubmission.status, 0, specialistSubmission.stderr);
+  const confirmed = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+  assert.equal(JSON.parse(confirmed.stdout).finding.status, "confirmed");
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.deepEqual(
+    ledger.delivery.findings.map((item: { id: string }) => item.id),
+    ["F-0001"],
+  );
+  assert.equal(ledger.issues[0].findings, undefined);
+  assert.equal(ledger.delivery.findings[0].history.at(-1).action, "status:confirmed");
+  assert.deepEqual(
+    ledger.delivery.reviewAssignments.map((item: { status: string }) => item.status),
+    ["submitted", "submitted"],
+  );
+});
+
+test("delivery checks use their own current snapshot and stale aggregate checks block review", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted issue");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const command = "just test::test tests/whole-feature.test.ts";
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  const requiredIdentity = JSON.parse(required.stdout) as { snapshot: string };
+  assert.match(requiredIdentity.snapshot, /^[0-9a-f]{64}$/);
+
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    requiredIdentity.snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  assert.equal(JSON.parse(recorded.stdout).record.result, "passed");
+
+  writeFileSync(
+    join(repo, "feature.ts"),
+    "export const feature = 'changed after aggregate check';\n",
+  );
+  const staleRecord = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    requiredIdentity.snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(staleRecord.status, 0);
+  assert.match(staleRecord.stderr, /snapshot is stale/i);
+
+  const staleReview = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(staleReview.status, 0);
+  assert.match(staleReview.stderr, /delivery check .*stale/i);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.equal(ledger.delivery.checks.records.length, 1);
+  assert.equal(ledger.delivery.reviewAssignments, undefined);
+});
+
+test("delivery correction attempts resume independently with the same assignment and finding history", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted issue");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const assignment = JSON.parse(dispatched.stdout).assignments[0] as {
+    id: string;
+    snapshot: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Aggregate review\n\nA whole-feature blocker.\n");
+  const created = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Integrated behaviors disagree",
+    "--details",
+    "The independently accepted issue implementations conflict at their boundary.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(created.status, 0, created.stderr);
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The aggregate finding must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const confirmed = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+
+  const correction = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Reconcile the cross-issue behavior without weakening either criterion.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correction.status, 0, correction.stderr);
+  const output = JSON.parse(correction.stdout) as {
+    scope: string;
+    attempt: { number: number; findingIds: string[] };
+    assignment: { id: string; report: string; action: string };
+  };
+  assert.equal(output.scope, "delivery");
+  assert.equal(output.attempt.number, 1);
+  assert.deepEqual(output.attempt.findingIds, ["F-0001"]);
+  assert.equal(output.assignment.action, "correct");
+  assert.match(output.assignment.report, /final-round-1-fix\.md$/);
+
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const resumedOutput = JSON.parse(resumed.stdout) as {
+    scope: string;
+    nextAction: string;
+    assignment: { id: string };
+    correctionAttempts: { number: number; assignmentId: string }[];
+  };
+  assert.equal(resumedOutput.scope, "delivery");
+  assert.equal(resumedOutput.nextAction, "await-implementation-report");
+  assert.equal(resumedOutput.assignment.id, output.assignment.id);
+  assert.deepEqual(
+    resumedOutput.correctionAttempts.map(({ number }) => number),
+    [1],
+  );
+  assert.equal(resumedOutput.correctionAttempts[0]?.assignmentId, output.assignment.id);
+  writeFileSync(
+    join(repo, "feature.ts"),
+    "export const feature = 'corrected whole-spec behavior';\n",
+  );
+  writeFileSync(output.assignment.report, "# Delivery correction\n\nProgress recorded.\n");
+  const implementation = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "implementation",
+    "--report",
+    output.assignment.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(implementation.status, 0, implementation.stderr);
+  const correctiveReview = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correctiveReview.status, 0, correctiveReview.stderr);
+  const correctiveAssignment = JSON.parse(correctiveReview.stdout).assignments[0] as {
+    id: string;
+    attempt: number;
+    scope: string;
+    report: string;
+  };
+  assert.equal(correctiveAssignment.scope, "delivery");
+  assert.equal(correctiveAssignment.attempt, 1);
+  assert.match(correctiveAssignment.report, /final-round-1-review-/);
+  writeFileSync(correctiveAssignment.report, "# Corrective aggregate review\n\nNo regressions.\n");
+  const correctiveReviewSubmission = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    correctiveAssignment.id,
+    "--report",
+    correctiveAssignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correctiveReviewSubmission.status, 0, correctiveReviewSubmission.stderr);
+
+  const paused = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--decision",
+    "pause",
+    "--reason",
+    "no-progress",
+    "--details",
+    "The first correction attempt made no demonstrable progress.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(paused.status, 0, paused.stderr);
+  assert.equal(JSON.parse(paused.stdout).adjudication.status, "pending");
+  const adjudicationResume = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(adjudicationResume.status, 0, adjudicationResume.stderr);
+  const adjudicationState = JSON.parse(adjudicationResume.stdout) as {
+    nextAction: string;
+    adjudication: { status: string; reason: string };
+  };
+  assert.equal(adjudicationState.nextAction, "adjudicate");
+  assert.equal(adjudicationState.adjudication.status, "pending");
+  assert.equal(adjudicationState.adjudication.reason, "no-progress");
+
+  const continued = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Continue with an independently reviewed plan.",
+    "--decision",
+    "continue",
+    "--assessment",
+    "The revised plan isolates the cross-issue contract and can demonstrate progress.",
+    "--assessment-result",
+    "productive",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(continued.status, 0, continued.stderr);
+  const secondAttempt = JSON.parse(continued.stdout) as {
+    attempt: { number: number };
+    assignment: { id: string; report: string };
+    adjudication: { status: string };
+  };
+  assert.equal(secondAttempt.attempt.number, 2);
+  assert.match(secondAttempt.assignment.report, /final-round-2-fix\.md$/);
+  assert.equal(secondAttempt.adjudication.status, "resolved");
+  const resumedSecond = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumedSecond.status, 0, resumedSecond.stderr);
+  assert.equal(JSON.parse(resumedSecond.stdout).assignment.id, secondAttempt.assignment.id);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.equal(ledger.delivery.correctionAttempts.length, 2);
+  assert.equal(ledger.delivery.correctionAttempts[0].progressAssessment.result, "productive");
+  assert.equal(ledger.delivery.adjudication.status, "resolved");
+  assert.equal(ledger.issues[0].correctionAttempts, undefined);
+});
+
+test("delivery requirements rulings authorize only a freshly reviewed deferral", (t) => {
+  const { repo, git, spec } = prepareAcceptedIssue(t);
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted issue");
+  const integrated = invoke(repo, [
+    "integrate",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--commit",
+    git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(integrated.status, 0, integrated.stderr);
+  const checkCommand = "just test::test tests/whole-feature.test.ts";
+  const requiredBeforeReview = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--command",
+    checkCommand,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(requiredBeforeReview.status, 0, requiredBeforeReview.stderr);
+  const firstSnapshot = JSON.parse(requiredBeforeReview.stdout).snapshot as string;
+  const recordedBeforeReview = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    firstSnapshot,
+    "--command",
+    checkCommand,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recordedBeforeReview.status, 0, recordedBeforeReview.stderr);
+  const firstReview = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(firstReview.status, 0, firstReview.stderr);
+  const initialAssignment = JSON.parse(firstReview.stdout).assignments[0] as {
+    id: string;
+    snapshot: string;
+    report: string;
+  };
+  writeFileSync(
+    initialAssignment.report,
+    "# Initial aggregate review\n\nFinding recorded below.\n",
+  );
+  const findingResult = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--source",
+    initialAssignment.report,
+    "--snapshot",
+    initialAssignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "A feature acceptance requirement is no longer applicable",
+    "--details",
+    "The feature spec has not yet been amended to reflect the approved change.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(findingResult.status, 0, findingResult.stderr);
+  const findingId = JSON.parse(findingResult.stdout).finding.id as string;
+  const initialSubmission = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    initialAssignment.id,
+    "--report",
+    initialAssignment.report,
+    "--result",
+    "passed",
+    "--findings",
+    findingId,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(initialSubmission.status, 0, initialSubmission.stderr);
+  writeFileSync(
+    spec,
+    `${readFileSync(spec, "utf8")}\n## Approved delivery change\n\nThe affected behavior is out of scope.\n`,
+  );
+
+  const unapprovedDeferral = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    findingId,
+    "--status",
+    "deferred",
+    "--details",
+    "Attempted without a requirements ruling.",
+    "--follow-up",
+    "Feature proposal 17",
+    "--requirements-decision",
+    "R-9999",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(unapprovedDeferral.status, 0);
+
+  const decision = invoke(repo, [
+    "requirements",
+    "decide",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    findingId,
+    "--decision",
+    "approved",
+    "--details",
+    "The feature acceptance criteria were explicitly revised.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(decision.status, 0, decision.stderr);
+  const decisionId = JSON.parse(decision.stdout).decision.id as string;
+  assert.equal(decisionId, "R-0001");
+  const repeatedDecision = invoke(repo, [
+    "requirements",
+    "decide",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    findingId,
+    "--decision",
+    "approved",
+    "--details",
+    "The feature acceptance criteria were explicitly revised.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(repeatedDecision.status, 0, repeatedDecision.stderr);
+  assert.equal(JSON.parse(repeatedDecision.stdout).idempotent, true);
+
+  const beforeFreshReview = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    findingId,
+    "--status",
+    "deferred",
+    "--details",
+    "Attempted before fresh aggregate review.",
+    "--follow-up",
+    "Feature proposal 17",
+    "--requirements-decision",
+    decisionId,
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(beforeFreshReview.status, 0);
+  assert.match(beforeFreshReview.stderr, /fresh passing aggregate review/i);
+
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--command",
+    checkCommand,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  const currentSnapshot = JSON.parse(required.stdout).snapshot as string;
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    currentSnapshot,
+    "--command",
+    checkCommand,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  const review = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  const assignment = JSON.parse(review.stdout).assignments[0] as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Fresh aggregate review\n\nApproved scope change reviewed.\n");
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+
+  const deferred = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--finding",
+    findingId,
+    "--status",
+    "deferred",
+    "--details",
+    "The approved requirements change removes this behavior from delivery scope.",
+    "--follow-up",
+    "Feature proposal 17",
+    "--requirements-decision",
+    decisionId,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(deferred.status, 0, deferred.stderr);
+  const result = JSON.parse(deferred.stdout) as { finding: { status: string; followUp: string } };
+  assert.equal(result.finding.status, "deferred");
+  assert.equal(result.finding.followUp, "Feature proposal 17");
+});
+
+test("finish gates integrated delivery on current aggregate evidence and stored retrospective policy", (t) => {
+  const optional = prepareDeliveryReady(t);
+  const optionalFinish = invoke(optional.repo, [
+    "finish",
+    "--spec",
+    optional.spec,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(optionalFinish.status, 0, optionalFinish.stderr);
+  const optionalResult = JSON.parse(optionalFinish.stdout) as {
+    finished: boolean;
+    idempotent?: boolean;
+    retrospectiveRequired: boolean;
+    retrospective?: { report?: string };
+  };
+  assert.equal(optionalResult.finished, true);
+  assert.equal(optionalResult.retrospectiveRequired, false);
+  assert.equal(optionalResult.retrospective, undefined);
+  const repeatedOptional = invoke(optional.repo, [
+    "finish",
+    "--spec",
+    optional.spec,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(repeatedOptional.status, 0, repeatedOptional.stderr);
+  assert.equal(JSON.parse(repeatedOptional.stdout).idempotent, true);
+
+  const optionalWithReport = prepareDeliveryReady(t);
+  const optionalReport = join(
+    optionalWithReport.repo,
+    ".scratch",
+    "0001-claim-flow",
+    "reports",
+    "optional-retrospective.md",
+  );
+  writeFileSync(optionalReport, "# Optional retrospective\n\nAttached at finish.\n");
+  const attachedOptional = invoke(optionalWithReport.repo, [
+    "finish",
+    "--spec",
+    optionalWithReport.spec,
+    "--report",
+    optionalReport,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(attachedOptional.status, 0, attachedOptional.stderr);
+  assert.equal(JSON.parse(attachedOptional.stdout).retrospectiveRequired, false);
+  assert.equal(JSON.parse(attachedOptional.stdout).retrospective.report, optionalReport);
+
+  const required = prepareDeliveryReady(t, true);
+  const missingRetrospective = invoke(required.repo, [
+    "finish",
+    "--spec",
+    required.spec,
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(missingRetrospective.status, 0);
+  assert.match(missingRetrospective.stderr, /retrospective report is required/i);
+
+  const outsideReport = join(
+    required.repo,
+    ".scratch",
+    "other-feature",
+    "outside-retrospective.md",
+  );
+  mkdirSync(join(required.repo, ".scratch", "other-feature"), { recursive: true });
+  writeFileSync(outsideReport, "Must not be accepted outside reports/.\n");
+  const unsafeReport = invoke(required.repo, [
+    "finish",
+    "--spec",
+    required.spec,
+    "--report",
+    outsideReport,
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(unsafeReport.status, 0);
+  assert.match(unsafeReport.stderr, /inside feature reports/i);
+
+  const report = join(required.repo, ".scratch", "0001-claim-flow", "reports", "retrospective.md");
+  writeFileSync(report, "# Retrospective\n\nEvidence and outcomes are summarized here.\n");
+  const requiredFinish = invoke(required.repo, [
+    "finish",
+    "--spec",
+    required.spec,
+    "--report",
+    report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(requiredFinish.status, 0, requiredFinish.stderr);
+  const requiredResult = JSON.parse(requiredFinish.stdout) as {
+    finished: boolean;
+    retrospectiveRequired: boolean;
+    retrospective: { report: string; reportSha256: string };
+  };
+  assert.equal(requiredResult.finished, true);
+  assert.equal(requiredResult.retrospectiveRequired, true);
+  assert.equal(requiredResult.retrospective.report, report);
+  assert.match(requiredResult.retrospective.reportSha256, /^[0-9a-f]{64}$/);
+
+  const ledger = JSON.parse(
+    readFileSync(join(required.repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  );
+  assert.equal(ledger.retrospectiveRequired, true);
+  assert.equal(ledger.delivery.finished.report, report);
+  assert.equal(ledger.delivery.finished.reportSha256, requiredResult.retrospective.reportSha256);
+
+  writeFileSync(report, "# Changed after finish\n");
+  const alteredReport = invoke(required.repo, [
+    "finish",
+    "--spec",
+    required.spec,
+    "--report",
+    report,
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(alteredReport.status, 0);
+  assert.match(alteredReport.stderr, /already finished with different retrospective evidence/i);
+});
+
+test("aggregate review covers every integrated issue and stale requirements block finish", (t) => {
+  const first = prepareAcceptedIssue(t, { issueCount: 2 });
+  first.git("add", first.file);
+  first.git("commit", "-qm", "deliver first issue");
+  const firstIntegration = invoke(first.repo, [
+    "integrate",
+    "--spec",
+    first.spec,
+    "--issue",
+    first.issueId,
+    "--commit",
+    first.git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(firstIntegration.status, 0, firstIntegration.stderr);
+  commitAll(first.repo, first.git, "record first issue integration");
+
+  const secondId = "I-0002";
+  const secondFile = "feature-two.ts";
+  const command = "just test::test tests/feature.test.ts";
+  const required = invoke(first.repo, [
+    "checks",
+    "require",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--command",
+    command,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  commitAll(first.repo, first.git, "declare second issue check");
+  const claimed = invoke(first.repo, [
+    "claim",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(claimed.status, 0, claimed.stderr);
+  writeFileSync(join(first.repo, secondFile), "export const secondFeature = true;\n");
+  const implementation = invoke(first.repo, [
+    "implement",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(implementation.status, 0, implementation.stderr);
+  const implementationAssignment = JSON.parse(implementation.stdout).assignment as {
+    report: string;
+  };
+  writeFileSync(implementationAssignment.report, "# Implementation\n\nSecond issue complete.\n");
+  const submittedImplementation = invoke(first.repo, [
+    "submit",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--role",
+    "implementation",
+    "--report",
+    implementationAssignment.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submittedImplementation.status, 0, submittedImplementation.stderr);
+  const secondSnapshot = JSON.parse(submittedImplementation.stdout).snapshot as string;
+  const check = recordReviewCheck(
+    first.repo,
+    first.spec,
+    command,
+    secondSnapshot,
+    "passed",
+    secondId,
+  );
+  assert.equal(check.status, 0, check.stderr);
+  const review = invoke(first.repo, [
+    "review",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--inventory",
+    JSON.stringify([secondFile]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(review.status, 0, review.stderr);
+  const issueAssignment = JSON.parse(review.stdout).assignments[0] as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(issueAssignment.report, "# Issue review\n\nNo findings.\n");
+  const submittedReview = invoke(first.repo, [
+    "submit",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--role",
+    "review",
+    "--assignment",
+    issueAssignment.id,
+    "--report",
+    issueAssignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submittedReview.status, 0, submittedReview.stderr);
+  const accepted = invoke(first.repo, [
+    "accept",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  first.git("add", secondFile);
+  first.git("commit", "-qm", "deliver second issue");
+  const secondIntegration = invoke(first.repo, [
+    "integrate",
+    "--spec",
+    first.spec,
+    "--issue",
+    secondId,
+    "--commit",
+    first.git("rev-parse", "HEAD"),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(secondIntegration.status, 0, secondIntegration.stderr);
+  commitAll(first.repo, first.git, "record second issue integration");
+
+  const deliveryCommand = "just test::test tests/whole-feature.test.ts";
+  const deliveryCheck = invoke(first.repo, [
+    "checks",
+    "require",
+    "--spec",
+    first.spec,
+    "--scope",
+    "delivery",
+    "--command",
+    deliveryCommand,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(deliveryCheck.status, 0, deliveryCheck.stderr);
+  const deliverySnapshot = JSON.parse(deliveryCheck.stdout).snapshot as string;
+  const recordedDeliveryCheck = invoke(first.repo, [
+    "checks",
+    "record",
+    "--spec",
+    first.spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    deliverySnapshot,
+    "--command",
+    deliveryCommand,
+    "--result",
+    "passed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(recordedDeliveryCheck.status, 0, recordedDeliveryCheck.stderr);
+  const aggregate = invoke(first.repo, [
+    "review",
+    "--spec",
+    first.spec,
+    "--scope",
+    "delivery",
+    "--inventory",
+    JSON.stringify(["feature-two.ts", "feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(aggregate.status, 0, aggregate.stderr);
+  const aggregateAssignment = JSON.parse(aggregate.stdout).assignments[0] as {
+    id: string;
+    report: string;
+    inventory: string[];
+  };
+  assert.deepEqual(aggregateAssignment.inventory, ["feature-two.ts", "feature.ts"]);
+  writeFileSync(aggregateAssignment.report, "# Whole feature review\n\nNo findings.\n");
+  const aggregateSubmission = invoke(first.repo, [
+    "submit",
+    "--spec",
+    first.spec,
+    "--scope",
+    "delivery",
+    "--role",
+    "review",
+    "--assignment",
+    aggregateAssignment.id,
+    "--report",
+    aggregateAssignment.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(aggregateSubmission.status, 0, aggregateSubmission.stderr);
+
+  const secondIssuePath = join(
+    first.repo,
+    ".scratch",
+    "0001-claim-flow",
+    "issues",
+    `${secondId}.md`,
+  );
+  const originalIssue = readFileSync(secondIssuePath, "utf8");
+  writeFileSync(
+    secondIssuePath,
+    originalIssue.replace(
+      "## Acceptance Criteria\n\n",
+      "## Acceptance Criteria\n\nA whole-feature requirement added after aggregate review.\n\n",
+    ),
+  );
+  const staleFinish = invoke(first.repo, [
+    "finish",
+    "--spec",
+    first.spec,
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(staleFinish.status, 0);
+  assert.match(
+    staleFinish.stderr,
+    /final delivery checks are not current and passing|aggregate required reviews are not current and passing/i,
+  );
+  writeFileSync(secondIssuePath, originalIssue);
+  const finished = invoke(first.repo, ["finish", "--spec", first.spec, "--author", "controller"]);
+  assert.equal(finished.status, 0, finished.stderr);
+  assert.equal(JSON.parse(finished.stdout).finished, true);
+});
+
+test("status and next expose delivery assignments, blockers, and finish action without mutation", (t) => {
+  const { repo, git, spec } = prepareDeliveryReady(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+  const gitStatusBefore = git("status", "--porcelain");
+  const status = invoke(repo, ["status", "--spec", spec]);
+  const next = invoke(repo, ["next", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(next.status, 0, next.stderr);
+  const statusDelivery = JSON.parse(status.stdout).delivery as {
+    scope: string;
+    execution: string;
+    action: string;
+    snapshot: string;
+    retrospectiveRequired: boolean;
+    finished: boolean;
+    findings: unknown[];
+    reviewAssignments: { agent: string; status: string; report: string }[];
+    blockers: string[];
+  };
+  const nextDelivery = JSON.parse(next.stdout).delivery as typeof statusDelivery;
+  assert.equal(statusDelivery.scope, "delivery");
+  assert.equal(statusDelivery.execution, "reviewing");
+  assert.equal(statusDelivery.action, "finish");
+  assert.match(statusDelivery.snapshot, /^[0-9a-f]{64}$/);
+  assert.equal(statusDelivery.retrospectiveRequired, false);
+  assert.equal(statusDelivery.finished, false);
+  assert.deepEqual(statusDelivery.findings, []);
+  assert.deepEqual(
+    statusDelivery.reviewAssignments.map(({ agent, status }) => ({ agent, status })),
+    [{ agent: "sdd-reviewer", status: "submitted" }],
+  );
+  assert.deepEqual(statusDelivery.blockers, []);
+  assert.deepEqual(nextDelivery, statusDelivery);
+  assert.equal(readFileSync(ledgerPath, "utf8"), ledgerBefore);
+  assert.equal(git("status", "--porcelain"), gitStatusBefore);
+});
+
+test("finished delivery rejects failed check recording without changing its state", (t) => {
+  const { repo, git, spec, deliveryCheck } = prepareDeliveryReady(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const finish = invoke(repo, ["finish", "--spec", spec, "--author", "controller"]);
+  assert.equal(finish.status, 0, finish.stderr);
+  const before = readFileSync(ledgerPath, "utf8");
+  const gitBefore = git("status", "--porcelain");
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  const snapshot = JSON.parse(status.stdout).delivery.snapshot as string;
+
+  const recorded = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--snapshot",
+    snapshot,
+    "--command",
+    deliveryCheck,
+    "--result",
+    "failed",
+    "--details",
+    "Post-finish failure must not invalidate completion.",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(recorded.status, 0);
+  assert.match(recorded.stderr, /delivery is finished/i);
+  assert.equal(readFileSync(ledgerPath, "utf8"), before);
+  assert.equal(git("status", "--porcelain"), gitBefore);
+});
+
+test("finished delivery rejects new check requirements without changing its state", (t) => {
+  const { repo, git, spec } = prepareDeliveryReady(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const finish = invoke(repo, ["finish", "--spec", spec, "--author", "controller"]);
+  assert.equal(finish.status, 0, finish.stderr);
+  const before = readFileSync(ledgerPath, "utf8");
+  const gitBefore = git("status", "--porcelain");
+
+  const required = invoke(repo, [
+    "checks",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--command",
+    "just test::test tests/post-finish.test.ts",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(required.status, 0);
+  assert.match(required.stderr, /delivery is finished/i);
+  assert.equal(readFileSync(ledgerPath, "utf8"), before);
+  assert.equal(git("status", "--porcelain"), gitBefore);
+});
+
+test("delivery finish requires its recorded owner or an explicit confirmed handoff", (t) => {
+  const { repo, git, spec } = prepareDeliveryReady(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const finish = invoke(repo, ["finish", "--spec", spec, "--author", "controller"]);
+  assert.equal(finish.status, 0, finish.stderr);
+  const before = readFileSync(ledgerPath, "utf8");
+  const gitBefore = git("status", "--porcelain");
+
+  const replacementFinish = invoke(repo, [
+    "finish",
+    "--spec",
+    spec,
+    "--author",
+    "replacement",
+  ]);
+  assert.notEqual(replacementFinish.status, 0);
+  assert.match(replacementFinish.stderr, /recorded delivery owner|ownership handoff/i);
+  assert.equal(readFileSync(ledgerPath, "utf8"), before);
+  assert.equal(git("status", "--porcelain"), gitBefore);
+
+  const handoff = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--author",
+    "replacement",
+    "--confirm-handoff",
+  ]);
+  assert.equal(handoff.status, 0, handoff.stderr);
+  assert.equal(JSON.parse(handoff.stdout).handoffRecorded, true);
+  const replacementFinishAfterHandoff = invoke(repo, [
+    "finish",
+    "--spec",
+    spec,
+    "--author",
+    "replacement",
+  ]);
+  assert.equal(replacementFinishAfterHandoff.status, 0, replacementFinishAfterHandoff.stderr);
+  assert.equal(JSON.parse(replacementFinishAfterHandoff.stdout).idempotent, true);
+});
+
+test("finished delivery status, next, and resume expose completion and stale evidence", (t) => {
+  const { repo, git, spec } = prepareDeliveryReady(t);
+  const report = join(repo, ".scratch", "0001-claim-flow", "reports", "retrospective.md");
+  writeFileSync(report, "# Retrospective\n\nCompletion evidence.\n");
+  const finish = invoke(repo, [
+    "finish",
+    "--spec",
+    spec,
+    "--report",
+    report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finish.status, 0, finish.stderr);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const reviewPath = JSON.parse(readFileSync(ledgerPath, "utf8")).delivery.reviewAssignments[0]
+    .report as string;
+  const gitBefore = git("status", "--porcelain");
+
+  const assertValidCompletion = () => {
+    const status = invoke(repo, ["status", "--spec", spec]);
+    const next = invoke(repo, ["next", "--spec", spec]);
+    const resume = invoke(repo, [
+      "resume",
+      "--spec",
+      spec,
+      "--scope",
+      "delivery",
+      "--author",
+      "controller",
+    ]);
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(next.status, 0, next.stderr);
+    assert.equal(resume.status, 0, resume.stderr);
+    const statusDelivery = JSON.parse(status.stdout).delivery;
+    const nextDelivery = JSON.parse(next.stdout).delivery;
+    const resumed = JSON.parse(resume.stdout);
+    assert.equal(statusDelivery.finished, true);
+    assert.equal(statusDelivery.action, "finished");
+    assert.deepEqual(statusDelivery.blockers, []);
+    assert.deepEqual(nextDelivery, statusDelivery);
+    assert.equal(resumed.finished, true);
+    assert.equal(resumed.nextAction, "finished");
+    assert.equal(resumed.blocker, undefined);
+  };
+  const assertInvalidatedCompletion = () => {
+    const status = invoke(repo, ["status", "--spec", spec]);
+    const next = invoke(repo, ["next", "--spec", spec]);
+    const resume = invoke(repo, [
+      "resume",
+      "--spec",
+      spec,
+      "--scope",
+      "delivery",
+      "--author",
+      "controller",
+    ]);
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(next.status, 0, next.stderr);
+    assert.equal(resume.status, 0, resume.stderr);
+    const statusDelivery = JSON.parse(status.stdout).delivery;
+    const nextDelivery = JSON.parse(next.stdout).delivery;
+    const resumed = JSON.parse(resume.stdout);
+    assert.equal(statusDelivery.finished, true);
+    assert.equal(statusDelivery.action, "completion-invalidated");
+    assert.ok(statusDelivery.blockers.length > 0);
+    assert.deepEqual(nextDelivery, statusDelivery);
+    assert.equal(resumed.finished, true);
+    assert.equal(resumed.nextAction, "completion-invalidated");
+    assert.match(resumed.blocker, /finished|completion|evidence/i);
+  };
+
+  assertValidCompletion();
+
+  const featurePath = join(repo, "feature.ts");
+  const featureBefore = readFileSync(featurePath, "utf8");
+  writeFileSync(featurePath, `${featureBefore}// external change\n`);
+  assertInvalidatedCompletion();
+  writeFileSync(featurePath, featureBefore);
+  assertValidCompletion();
+
+  const specPath = join(repo, spec);
+  const specBefore = readFileSync(specPath, "utf8");
+  writeFileSync(specPath, `${specBefore}\n`);
+  assertInvalidatedCompletion();
+  writeFileSync(specPath, specBefore);
+  assertValidCompletion();
+
+  const reviewBefore = readFileSync(reviewPath, "utf8");
+  writeFileSync(reviewPath, `${reviewBefore}\nExternal review edit.\n`);
+  assertInvalidatedCompletion();
+  writeFileSync(reviewPath, reviewBefore);
+  assertValidCompletion();
+
+  const retrospectiveBefore = readFileSync(report, "utf8");
+  writeFileSync(report, `${retrospectiveBefore}\nExternal retrospective edit.\n`);
+  assertInvalidatedCompletion();
+  writeFileSync(report, retrospectiveBefore);
+  assertValidCompletion();
+  assert.equal(git("status", "--porcelain"), gitBefore);
 });

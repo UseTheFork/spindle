@@ -129,6 +129,20 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     actions: [],
     pendingAssignments: [],
     blockers: [],
+    delivery: {
+      scope: "delivery",
+      execution: "unstarted",
+      action: "review",
+      retrospectiveRequired: true,
+      finished: false,
+      findings: [],
+      correctionAttempts: [],
+      reviewRequirements: [],
+      reviewAssignments: [],
+      requiredChecks: [],
+      checkRecords: [],
+      blockers: ["Aggregate evidence requires at least one issue."],
+    },
   });
   assert.equal(state.retrospectiveRequired, true);
   assert.deepEqual(state.reviewPolicy, {

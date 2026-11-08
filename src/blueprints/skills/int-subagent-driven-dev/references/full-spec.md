@@ -1,62 +1,71 @@
-# Standalone full-spec delivery
+# Whole-spec delivery
 
-Parent: M - Full-spec branch. Enter only when all tickets in standalone full-spec scope are integrated and no eligible ticket remains. Restore aggregate findings, review coverage, and delivery correction history independently of ticket attempts.
+Use the feature's delivery scope only after every issue is integrated. It is an
+aggregate over the feature, not a substitute for issue acceptance or
+integration. Delivery commands reuse the issue workflow with `--scope delivery`
+instead of `--issue`; never supply both selectors.
 
-```mermaid
-flowchart TD
-    A[Freeze and aggregate or corrective review] -- Report current --> B{Spec and Quality pass?}
-    A -- Blocked --> X[Record adjudication or blocker]
-    B -- Yes --> D[Final verification]
-    B -- Actionable blockers --> C[Progress decision and batch fix]
-    B -- Coverage unavailable --> X
-    C -- Checked fix --> A
-    C -- Stalled or blocked --> X
-    D -- Evidence current --> E[Retrospective]
-    D -- Non-mechanical fix needed --> C
-    D -- Blocked --> X
-    E -- Available --> Q[Parent hand-back]
-    E -- Blocked --> X
-    X --> Q
-```
+## Aggregate review and final checks
 
-Child IDs are local to this diagram: announce `Step M.<ID> - Full-spec branch / <label>` before acting. Q denotes parent Q, not child work. Before returning, announce `Step M - Full-spec branch` as resumed and state the exit without restarting child work.
+Start with `spindle sdd status --spec <spec>` and
+`spindle sdd next --spec <spec>`. Establish required final checks with
+`spindle sdd checks require --scope delivery`, record their actual outcomes
+against the returned snapshot, then request the aggregate review with
+`spindle sdd review --scope delivery --inventory <json-array>`. The inventory
+must cover the Git-derived integrated feature changes. The comprehensive
+reviewer covers the whole spec and cross-issue behavior; any explicitly
+required, eligible specialists are assigned as a batch and must all submit
+current passing evidence.
 
-## A. Freeze and aggregate or corrective review
+Use `spindle sdd review require --scope delivery` to record a justified
+specialist before dispatch. Reports are individual and append-only:
+`final-review-<assignment-id>.md` for initial review, and
+`final-round-<round>-review-<assignment-id>.md` for corrective review. Register
+findings explicitly from their canonical reports and snapshots with
+`spindle sdd finding create --scope delivery`. Delivery findings have their
+own `F-0001` sequence, provenance, ruling history, and status; do not attach
+cross-issue findings to an arbitrary issue.
 
-Read [review inputs](review-inputs.md) and [aggregate scope](aggregate-review.md). Freeze the whole delivery, including cross-ticket behavior and parked findings. Assign `final-review.md` for the first aggregate review and `final-round-<R>-review.md` for delivery corrections; preserve earlier evidence.
+## Requirements decisions and delivery correction
 
-Dispatch one `sdd-reviewer` with the [reviewer template](../assets/reviewer-prompt.md) in `AGGREGATE` mode for initial whole-spec coverage. After a narrow checked fix, use `CORRECTIVE` mode with delivery scope, fix-only changes, prior/fixed identities, selected findings, prior aggregate verdicts/rulings, and fresh checks. Broader contract changes require expanded affected aggregate coverage. A scoped report cannot replace missing aggregate review.
+Use `spindle sdd finding update --scope delivery` for explicit rulings.
+Deferring a blocker requires rationale, a follow-up reference, and an approved
+delivery requirements decision. Record that decision with
+`spindle sdd requirements decide --scope delivery` only after a requirements
+change and completed prior review. Approval invalidates earlier aggregate
+assignments. A deferred finding cannot clear a blocker until required fresh
+aggregate reviewers have submitted passing reports against the changed
+requirements snapshot.
 
-**Complete when:** the report covers the assigned scope and findings are reconciled, selecting M.B; missing context or unavailable review selects M.X. Keep implementation frozen until the reviewer returns.
+For actionable delivery findings, use
+`spindle sdd correct --scope delivery` to persist each independent attempt
+before assigning batched corrective work. The delivery history is separate
+from issue attempts. Record focused passing checks against the changed
+delivery snapshot, submit the implementation report, and complete current
+corrective aggregate review. Continue only with an explicit productive
+progress assessment; pause unproductive work, recurring failures, or
+requirements disagreement for adjudication. Resume with
+`spindle sdd resume --scope delivery`; it preserves existing assignments,
+attempts, evidence, and adjudication. Do not reset counters or weaken
+acceptance to end retries.
 
-## B. Spec and Quality pass?
+## Finish and retrospective
 
-Evaluate current aggregate verdicts, corrected findings, unaffected coverage, and controller rulings.
+Run final required checks and aggregate reviews on the exact final content.
+Integrated feature changes and final corrections must be committed by the
+caller under the established commit permissions; the SDD command never stages,
+commits, or publishes. A change to integrated code or requirements invalidates
+the corresponding delivery evidence and requires fresh coverage.
 
-**Complete when:** Spec and Quality pass with no unresolved blocker selects M.D; actionable blockers select M.C. Missing required coverage selects M.X, not acceptance or an unfounded fix.
+Finish with `spindle sdd finish --spec <spec> --author <author>`. The command
+requires every issue integrated, current passing aggregate required reviews
+and checks, no unresolved delivery blockers, and no uncommitted code changes.
+The retrospective policy is stored at feature creation: when required, attach
+a Markdown report with `--report`; otherwise the report is optional. Any
+attached report must remain inside that feature's `reports/` directory.
+`finish` records completion only; it does not close issues or publish work.
 
-## C. Progress decision and batch fix
-
-Apply the [continuation decision](corrective-rounds.md#continuation-decision) to delivery history. There is no single-final-fix allowance: continue only with recorded progress or an explicit adjudicated revised plan. Persist the next delivery attempt before dispatching `sdd-implementer` with batched findings and [corrective inputs](implementer-corrections.md). Use the [implementer template](../assets/implementer-prompt.md), delivery scope, and append-only final implementation evidence.
-
-Wait for the focused-test handoff, then perform parent D controller checks on the fixed snapshot, reusing unaffected passing checks. Final fixes must be integrated under the established permissions before final hand-back; do not silently alter caller ownership or commit permissions.
-
-**Complete when:** current required checks cover the fix, selecting M.A for one scoped review; stalled progress, requirements disagreement, or failed/unavailable evidence selects M.X. Preserve the attempt and original aggregate coverage.
-
-## D. Final verification
-
-Confirm required evidence covers the final delivered snapshot, rerunning only invalidated or explicitly scheduled checks. Apply the existing [integration permissions](integration.md) to accepted final changes; record committed/delivered identity and confirm coverage survives integration.
-
-**Complete when:** final changes are safely integrated and required evidence is current and passing, selecting M.E; a new non-mechanical failure selects M.C; unsafe integration or unavailable evidence selects M.X.
-
-## E. Retrospective
-
-Load and follow the `int-retrospective` skill once for the full spec after final verification. Identify a `delivery` retrospective and supply verified evidence pointers. Preserve the current required-retrospective convention; do not add creation flags or command policy.
-
-**Complete when:** retrospective and final evidence are available; resume parent M and return to Q. Unavailable required retrospective output selects M.X.
-
-## X. Record adjudication or blocker
-
-Persist residual findings/rulings, progress assessment, and incomplete status while preserving checkout, reports, attempts, and gate. Use current triage for requirements decisions; do not weaken criteria to terminate corrections.
-
-**Complete when:** the decision needed or failed/unavailable evidence is explicit; resume parent M and return to Q.
+Use `status` and `next` to inspect aggregate blockers and the next permitted
+delivery action; use `resume --scope delivery` to restore interrupted aggregate
+work. These operations preserve separate issue and delivery histories;
+hand-back and acceptance remain controller-owned.

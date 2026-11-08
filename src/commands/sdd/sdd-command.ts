@@ -260,7 +260,7 @@ interface ReviewAssignment {
   id: string;
   agent: string;
   role: "review";
-  scope: "initial" | "corrective";
+  scope: "initial" | "corrective" | "delivery";
   attempt?: number;
   objective?: string;
   snapshot: string;
@@ -299,9 +299,29 @@ interface FeatureLedger {
     delivery: string[];
   };
   issues: IssueProgress[];
-  delivery: {
-    execution: ExecutionState;
-    history: DeliveryHistoryEntry[];
+  delivery: DeliveryProgress;
+}
+
+interface DeliveryProgress {
+  execution: ExecutionState;
+  history: DeliveryHistoryEntry[];
+  baseSha?: string;
+  owner?: string;
+  reviewRequirements?: SpecialistReviewRequirement[];
+  reviewAssignments?: ReviewAssignment[];
+  reviewHistory?: ReviewAssignment[];
+  assignment?: ImplementationAssignment;
+  requirementsDecisions?: RequirementsDecision[];
+  checks?: IssueChecks;
+  findings?: ReviewFinding[];
+  correctionAttempts?: CorrectionAttempt[];
+  adjudication?: CorrectionAdjudication;
+  acceptedEvidence?: AcceptedEvidence;
+  finished?: {
+    at: string;
+    author: string;
+    report?: string;
+    reportSha256?: string;
   };
 }
 
@@ -312,14 +332,33 @@ interface FeaturePaths {
   ledger: string;
 }
 
+interface RequiredReviewer {
+  agent: string;
+  details?: string;
+}
+
+function requiredReviewers(
+  policy: string[],
+  requirements: SpecialistReviewRequirement[] = [],
+): RequiredReviewer[] {
+  return [
+    ...policy.map((agent) => ({ agent })),
+    ...requirements.map(({ agent, details }) => ({ agent, details })),
+  ];
+}
+
 function requiredIssueReviewers(
   ledger: FeatureLedger,
   progress: IssueProgress,
-): { agent: string; details?: string }[] {
-  return [
-    ...ledger.reviewPolicy.issue.map((agent) => ({ agent })),
-    ...(progress.reviewRequirements ?? []).map(({ agent, details }) => ({ agent, details })),
-  ];
+): RequiredReviewer[] {
+  return requiredReviewers(ledger.reviewPolicy.issue, progress.reviewRequirements ?? []);
+}
+
+function requiredDeliveryReviewers(
+  ledger: FeatureLedger,
+  progress: DeliveryProgress,
+): RequiredReviewer[] {
+  return requiredReviewers(ledger.reviewPolicy.delivery, progress.reviewRequirements ?? []);
 }
 
 interface StatusOptions {
@@ -337,6 +376,13 @@ interface IssueCreateOptions {
 interface IssueSelection {
   spec: string;
   issue: string;
+  author: string;
+}
+
+interface ScopedSelection {
+  spec: string;
+  issue?: string;
+  scope?: string;
   author: string;
 }
 
@@ -366,6 +412,7 @@ type ClaimOptions = IssueSelection;
 type ImplementOptions = IssueSelection;
 
 interface CorrectOptions extends IssueSelection {
+  scope?: string;
   findings?: string[];
   checkFailure?: string;
   details: string;
@@ -376,6 +423,7 @@ interface CorrectOptions extends IssueSelection {
 }
 
 interface SubmitOptions extends IssueSelection {
+  scope?: string;
   role: string;
   report?: string;
   assignment?: string;
@@ -388,6 +436,7 @@ interface SubmitOptions extends IssueSelection {
 }
 
 interface FindingCreateOptions extends IssueSelection {
+  scope?: string;
   source: string;
   snapshot: string;
   severity: string;
@@ -399,6 +448,7 @@ interface FindingCreateOptions extends IssueSelection {
 }
 
 interface FindingUpdateOptions extends IssueSelection {
+  scope?: string;
   finding: string;
   status: string;
   details?: string;
@@ -407,17 +457,17 @@ interface FindingUpdateOptions extends IssueSelection {
   requirementsDecision?: string;
 }
 
-interface RequirementsDecideOptions extends IssueSelection {
+interface RequirementsDecideOptions extends ScopedSelection {
   finding: string;
   decision: string;
   details: string;
 }
 
-interface ReviewOptions extends IssueSelection {
+interface ReviewOptions extends ScopedSelection {
   inventory: string;
 }
 
-interface ReviewRequireOptions extends IssueSelection {
+interface ReviewRequireOptions extends ScopedSelection {
   agent: string;
   details: string;
 }
@@ -429,16 +479,25 @@ interface IntegrateOptions extends IssueSelection {
 }
 
 interface ResumeOptions extends IssueSelection {
+  scope?: string;
   confirmHandoff?: boolean;
 }
 
+interface FinishOptions {
+  spec: string;
+  author: string;
+  report?: string;
+}
+
 interface ChecksRequireOptions extends IssueSelection {
+  scope?: string;
   command: string;
   remove?: boolean;
   details?: string;
 }
 
 interface ChecksRecordOptions extends IssueSelection {
+  scope?: string;
   snapshot: string;
   command: string;
   result: string;
@@ -732,10 +791,13 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
     typeof value.agent !== "string" ||
     !value.agent.trim() ||
     value.role !== "review" ||
-    !["initial", "corrective"].includes(String(value.scope)) ||
+    !["initial", "corrective", "delivery"].includes(String(value.scope)) ||
     (value.scope === "corrective" &&
       (!Number.isSafeInteger(value.attempt) || Number(value.attempt) < 1)) ||
     (value.scope === "initial" && Object.hasOwn(value, "attempt")) ||
+    (value.scope === "delivery" &&
+      Object.hasOwn(value, "attempt") &&
+      (!Number.isSafeInteger(value.attempt) || Number(value.attempt) < 1)) ||
     typeof value.snapshot !== "string" ||
     !/^[0-9a-f]{64}$/i.test(value.snapshot) ||
     typeof value.codeSnapshot !== "string" ||
@@ -880,6 +942,68 @@ function isRequirementsDecision(value: unknown): value is RequirementsDecision {
     /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
     typeof value.recordedAt === "string" &&
     Number.isFinite(Date.parse(value.recordedAt))
+  );
+}
+
+function isDeliveryProgress(value: unknown): value is DeliveryProgress {
+  return (
+    isRecord(value) &&
+    typeof value.execution === "string" &&
+    EXECUTION_STATES.some((state) => state === value.execution) &&
+    Array.isArray(value.history) &&
+    value.history.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry.at === "string" &&
+        Number.isFinite(Date.parse(entry.at)) &&
+        typeof entry.author === "string" &&
+        !!entry.author.trim() &&
+        typeof entry.action === "string" &&
+        !!entry.action.trim(),
+    ) &&
+    (!Object.hasOwn(value, "baseSha") ||
+      (typeof value.baseSha === "string" && /^[0-9a-f]{40,64}$/i.test(value.baseSha))) &&
+    (!Object.hasOwn(value, "owner") || (typeof value.owner === "string" && !!value.owner.trim())) &&
+    (!Object.hasOwn(value, "reviewRequirements") ||
+      (Array.isArray(value.reviewRequirements) &&
+        value.reviewRequirements.every(isSpecialistReviewRequirement))) &&
+    (!Object.hasOwn(value, "reviewAssignments") ||
+      (Array.isArray(value.reviewAssignments) &&
+        value.reviewAssignments.every(isReviewAssignment))) &&
+    (!Object.hasOwn(value, "reviewHistory") ||
+      (Array.isArray(value.reviewHistory) && value.reviewHistory.every(isReviewAssignment))) &&
+    (!Object.hasOwn(value, "assignment") ||
+      (isImplementationAssignment(value.assignment) && value.assignment.action === "correct")) &&
+    (!Object.hasOwn(value, "requirementsDecisions") ||
+      (Array.isArray(value.requirementsDecisions) &&
+        value.requirementsDecisions.every(isRequirementsDecision))) &&
+    (!Object.hasOwn(value, "checks") ||
+      (isRecord(value.checks) &&
+        Array.isArray(value.checks.required) &&
+        value.checks.required.every(isCheckRequirement) &&
+        Array.isArray(value.checks.records) &&
+        value.checks.records.every(isCheckRecord) &&
+        (!Object.hasOwn(value.checks, "invalidations") ||
+          (Array.isArray(value.checks.invalidations) &&
+            value.checks.invalidations.every(isCheckGateInvalidation))))) &&
+    (!Object.hasOwn(value, "findings") ||
+      (Array.isArray(value.findings) && value.findings.every(isReviewFinding))) &&
+    (!Object.hasOwn(value, "correctionAttempts") ||
+      (Array.isArray(value.correctionAttempts) &&
+        value.correctionAttempts.every(isCorrectionAttempt))) &&
+    (!Object.hasOwn(value, "adjudication") || isCorrectionAdjudication(value.adjudication)) &&
+    (!Object.hasOwn(value, "acceptedEvidence") || isAcceptedEvidence(value.acceptedEvidence)) &&
+    (!Object.hasOwn(value, "finished") ||
+      (isRecord(value.finished) &&
+        typeof value.finished.at === "string" &&
+        Number.isFinite(Date.parse(value.finished.at)) &&
+        typeof value.finished.author === "string" &&
+        !!value.finished.author.trim() &&
+        (!Object.hasOwn(value.finished, "report") ||
+          (typeof value.finished.report === "string" && isAbsolute(value.finished.report))) &&
+        (!Object.hasOwn(value.finished, "reportSha256") ||
+          (typeof value.finished.reportSha256 === "string" &&
+            /^[0-9a-f]{64}$/i.test(value.finished.reportSha256)))))
   );
 }
 
@@ -1090,13 +1214,20 @@ export class SddCommand extends Service {
       .command("require")
       .description("Add or remove a required external check.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--command <command>", "Exact externally executed command", once("--command"))
       .option("--remove", "Remove the requirement; requires --details rationale")
       .option("--details <details>", "Removal rationale")
       .requiredOption("--author <author>", "Acting controller", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRequireOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("checks require needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.checksRequire(options), null, 2));
       });
@@ -1104,7 +1235,8 @@ export class SddCommand extends Service {
       .command("record")
       .description("Record an externally executed check against a current snapshot.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--snapshot <snapshot>",
         "CLI-returned content snapshot identity",
@@ -1121,6 +1253,12 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Acting controller", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRecordOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("checks record needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.checksRecord(options), null, 2));
       });
@@ -1139,9 +1277,12 @@ export class SddCommand extends Service {
 
     program
       .command("correct")
-      .description("Persist an issue-scoped correction attempt and return its fix assignment.")
+      .description(
+        "Persist an issue- or delivery-scoped correction attempt and return its fix assignment.",
+      )
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
       .option("--check-failure <command>", "Exact non-mechanical failed check command")
       .requiredOption(
@@ -1159,16 +1300,23 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: CorrectOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("correct needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.correct(options), null, 2));
       });
 
     program
       .command("review")
-      .description("Require a specialist or freeze the confirmed inventory for review.")
+      .description("Require a specialist or freeze issue/delivery inventory for review.")
       .argument("[action]", "Use 'require' to pin a justified specialist reviewer")
       .option("--spec <path>", "Feature spec path", once("--spec"))
       .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .option(
         "--inventory <json>",
         "Controller-confirmed Git-derived inventory as a JSON string array",
@@ -1184,15 +1332,16 @@ export class SddCommand extends Service {
           options: Partial<ReviewOptions & ReviewRequireOptions>,
         ) => {
           if (action === "require") {
-            if (
-              !options.spec ||
-              !options.issue ||
-              !options.agent ||
-              !options.details ||
-              !options.author
-            ) {
+            const deliveryScope = options.scope === "delivery";
+            if (options.scope !== undefined && !deliveryScope) {
+              throw new Error("--scope must be 'delivery'.");
+            }
+            if (Boolean(options.issue) === deliveryScope) {
+              throw new Error("review require needs exactly one of --issue or --scope delivery.");
+            }
+            if (!options.spec || !options.agent || !options.details || !options.author) {
               throw new Error(
-                "review require needs --spec, --issue, --agent, --details, and --author.",
+                "review require needs --spec, one scope selector, --agent, --details, and --author.",
               );
             }
             if (options.inventory)
@@ -1207,8 +1356,18 @@ export class SddCommand extends Service {
           if (options.agent || options.details) {
             throw new Error("--agent and --details are only valid with 'review require'.");
           }
-          if (!options.spec || !options.issue || !options.inventory || !options.author) {
-            throw new Error("review requires --spec, --issue, --inventory, and --author.");
+          if (options.scope !== undefined && options.scope !== "delivery") {
+            throw new Error("--scope must be 'delivery'.");
+          }
+          if (
+            !options.spec ||
+            Boolean(options.issue) === (options.scope === "delivery") ||
+            !options.inventory ||
+            !options.author
+          ) {
+            throw new Error(
+              "review requires --spec, exactly one of --issue or --scope delivery, --inventory, and --author.",
+            );
           }
           const command = await createApp().get(SddCommand);
           console.log(JSON.stringify(command.review(options as ReviewOptions), null, 2));
@@ -1222,7 +1381,8 @@ export class SddCommand extends Service {
       .command("create")
       .description("Register a review finding with its report and snapshot provenance.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--source <path>",
         "Assigned review report containing the finding",
@@ -1246,6 +1406,12 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Finding registration author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FindingCreateOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("finding create needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.findingCreate(options), null, 2));
       });
@@ -1253,7 +1419,8 @@ export class SddCommand extends Service {
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--finding <id>", "Canonical finding ID", once("--finding"))
       .requiredOption(
         "--status <status>",
@@ -1269,6 +1436,12 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Ruling author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FindingUpdateOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("finding update needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.findingUpdate(options), null, 2));
       });
@@ -1277,9 +1450,10 @@ export class SddCommand extends Service {
       .description("Record explicit requirements decisions before fresh review.");
     requirements
       .command("decide")
-      .description("Approve or reject an issue requirements change and invalidate prior review.")
+      .description("Approve or reject a requirements change and invalidate prior review.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--finding <id>",
         "Finding affected by the requirements decision",
@@ -1290,6 +1464,12 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Decision author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: RequirementsDecideOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("requirements decide needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.requirementsDecide(options), null, 2));
       });
@@ -1300,7 +1480,8 @@ export class SddCommand extends Service {
       .command("submit")
       .description("Register an implementation or review report.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--role <role>", "Assignment role")
       .option("--assignment <id>", "Exact review assignment ID", once("--assignment"))
       .option("--report <path>", "Implementation report path", once("--report"))
@@ -1323,6 +1504,12 @@ export class SddCommand extends Service {
     });
     submitCommand.action(async (options: SubmitOptions) => {
       const command = await createApp().get(SddCommand);
+      if (options.scope !== undefined && options.scope !== "delivery") {
+        throw new Error("--scope must be 'delivery'.");
+      }
+      if (Boolean(options.issue) === (options.scope === "delivery")) {
+        throw new Error("submit needs exactly one of --issue or --scope delivery.");
+      }
       if (findingsDeclared && noFindingsDeclared) {
         throw new Error("--findings and --no-findings cannot be combined.");
       }
@@ -1371,21 +1558,46 @@ export class SddCommand extends Service {
       });
 
     program
-      .command("resume")
-      .description("Restore the recorded issue gate and assignment.")
+      .command("finish")
+      .description(
+        "Finish whole-spec delivery after integration, current aggregate evidence, and the stored retrospective policy.",
+      )
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option(
+        "--report <path>",
+        "Optional or policy-required Markdown report inside feature reports/",
+        once("--report"),
+      )
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: FinishOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.finish(options), null, 2));
+      });
+
+    program
+      .command("resume")
+      .description("Restore the recorded issue or delivery gate and assignment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .option("--confirm-handoff", "Confirm the previous controller has stopped editing")
       .allowExcessArguments(false)
       .action(async (options: ResumeOptions) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.issue) === (options.scope === "delivery")) {
+          throw new Error("resume needs exactly one of --issue or --scope delivery.");
+        }
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.resume(options), null, 2));
       });
 
     program
       .command("next")
-      .description("Show the next permitted issue actions without changing state.")
+      .description("Show permitted issue and whole-spec delivery actions without changing state.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: NextOptions) => {
@@ -1528,6 +1740,26 @@ export class SddCommand extends Service {
       objective?: string;
     }[];
     blockers: { issue: string; reason: string }[];
+    delivery: {
+      scope: "delivery";
+      execution: ExecutionState;
+      action: string;
+      snapshot?: string;
+      codeSnapshot?: string;
+      requirementsSnapshot?: string;
+      baseSha?: string;
+      retrospectiveRequired: boolean;
+      finished: boolean;
+      findings: ReviewFinding[];
+      correctionAttempts: CorrectionAttempt[];
+      reviewRequirements: SpecialistReviewRequirement[];
+      reviewAssignments: ReviewAssignment[];
+      assignment?: ImplementationAssignment;
+      adjudication?: CorrectionAdjudication;
+      requiredChecks: CheckRequirement[];
+      checkRecords: CheckRecord[];
+      blockers: string[];
+    };
   } {
     if (!spec.trim()) throw new Error("Spec path must not be empty.");
     if (spec.includes("\\"))
@@ -1789,6 +2021,7 @@ export class SddCommand extends Service {
         blockers.push({ issue: issue.id, reason: "Issue has no ledger execution record." });
       }
     }
+    const delivery = this.#deliveryStatus(feature, feature.state, issues);
 
     return {
       ...feature,
@@ -1798,6 +2031,7 @@ export class SddCommand extends Service {
       actions,
       pendingAssignments,
       blockers,
+      delivery,
     };
   }
 
@@ -1854,7 +2088,8 @@ export class SddCommand extends Service {
   }
 
   checksRequire(options: ChecksRequireOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     checks: IssueChecks;
     idempotent?: boolean;
     invalidatedDecision?: { from: "accepted" | "integrated"; to: "reviewing" };
@@ -1863,6 +2098,12 @@ export class SddCommand extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryChecksRequire(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("checks require needs --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     const command = options.command.trim();
@@ -1941,11 +2182,86 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryChecksRequire(options: ChecksRequireOptions): {
+    scope: "delivery";
+    checks: IssueChecks;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateAuthor(options.author);
+    const command = options.command.trim();
+    if (!command) throw new Error("Check command must not be empty.");
+    if (options.remove && !options.details?.trim()) {
+      throw new Error("Removing a required check requires non-empty --details rationale.");
+    }
+    if (!options.remove && options.details !== undefined) {
+      throw new Error("--details is only valid when removing a required check.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (delivery.owner && delivery.owner !== options.author.trim()) {
+        throw new Error("Only the recorded delivery controller may change required checks.");
+      }
+      if (delivery.execution === "reviewing" && (delivery.reviewAssignments?.length ?? 0) > 0) {
+        throw new Error("Aggregate review is frozen; required delivery checks cannot change.");
+      }
+      delivery.owner = options.author.trim();
+      const checks = (delivery.checks ??= { required: [], records: [], invalidations: [] });
+      const active = checks.required.find(
+        (requirement) => requirement.command === command && !requirement.removedAt,
+      );
+      if (options.remove) {
+        if (!active) throw new Error(`Required delivery check is not declared: ${command}.`);
+        active.removedAt = new Date().toISOString();
+        active.removedBy = options.author.trim();
+        active.removalDetails = options.details!.trim();
+      } else {
+        if (active) {
+          const identity = this.#deliveryIdentity(
+            feature,
+            ledger,
+            this.#readIssues(feature.workspace),
+          );
+          return { scope: "delivery", checks, idempotent: true, ...identity };
+        }
+        checks.required.push({
+          command,
+          addedAt: new Date().toISOString(),
+          addedBy: options.author.trim(),
+        });
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `${options.remove ? "delivery-check-removed" : "delivery-check-required"}:${command}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return { scope: "delivery", checks, ...identity };
+    } finally {
+      release();
+    }
+  }
+
   checksRecord(options: ChecksRecordOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     record: CheckRecord;
     idempotent?: boolean;
   } & ContentIdentity {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryChecksRecord(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("checks record needs --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     const command = options.command.trim();
@@ -2052,6 +2368,93 @@ export class SddCommand extends Service {
       }
       this.#writeLedger(feature, ledger);
       return { issue: options.issue, record, ...identity };
+    } finally {
+      release();
+    }
+  }
+
+  #deliveryChecksRecord(options: ChecksRecordOptions): {
+    scope: "delivery";
+    record: CheckRecord;
+    idempotent?: boolean;
+  } & ContentIdentity {
+    validateAuthor(options.author);
+    const command = options.command.trim();
+    if (!command) throw new Error("Check command must not be empty.");
+    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
+      throw new Error("Snapshot must be a 64-character hexadecimal content identity.");
+    }
+    if (!["passed", "failed", "unavailable"].includes(options.result)) {
+      throw new Error(`Invalid check result: ${options.result}.`);
+    }
+    if (options.result !== "passed" && !options.details?.trim()) {
+      throw new Error("--details is required for failed or unavailable checks.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (!delivery.checks) throw new Error("No required checks are declared for delivery.");
+      if (delivery.owner !== options.author.trim()) {
+        throw new Error("Only the recorded delivery controller may record final checks.");
+      }
+      const requirement = delivery.checks.required.find(
+        (item) => item.command === command && !item.removedAt,
+      );
+      if (!requirement)
+        throw new Error(`Check command is not currently required for delivery: ${command}.`);
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      if (identity.snapshot !== options.snapshot) {
+        throw new Error(
+          `Snapshot is stale; current delivery identity is ${identity.snapshot}. No check result was recorded.`,
+        );
+      }
+      const prior = [...delivery.checks.records]
+        .reverse()
+        .find((record) => record.command === command);
+      if (
+        prior &&
+        prior.result === options.result &&
+        prior.author === options.author.trim() &&
+        prior.snapshot === identity.snapshot &&
+        prior.details === options.details?.trim()
+      ) {
+        return { scope: "delivery", record: prior, idempotent: true, ...identity };
+      }
+      const record: CheckRecord = {
+        command,
+        result: options.result as CheckRecord["result"],
+        author: options.author.trim(),
+        snapshot: identity.snapshot,
+        codeSnapshot: identity.codeSnapshot,
+        requirementsSnapshot: identity.requirementsSnapshot,
+        headSha: identity.headSha,
+        recordedAt: new Date().toISOString(),
+        ...(options.details?.trim() ? { details: options.details.trim() } : {}),
+      };
+      delivery.checks.records.push(record);
+      if (record.result !== "passed") delivery.execution = "changes-requested";
+      delivery.history.push({
+        at: record.recordedAt,
+        author: record.author,
+        action: `delivery-check-recorded:${command}:${record.result}`,
+      });
+      const confirmed = this.#deliveryIdentity(
+        feature,
+        ledger,
+        this.#readIssues(feature.workspace),
+      );
+      if (confirmed.snapshot !== identity.snapshot) {
+        delivery.checks.records.pop();
+        delivery.history.pop();
+        throw new Error(
+          "Content changed while recording the delivery check; retry with a fresh snapshot.",
+        );
+      }
+      this.#writeLedger(feature, ledger);
+      return { scope: "delivery", record, ...identity };
     } finally {
       release();
     }
@@ -2278,6 +2681,7 @@ export class SddCommand extends Service {
       progress.execution = "claimed";
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
+      ledger.delivery.baseSha ??= baseSha;
       const identity = this.#contentIdentity(feature, issue, baseSha, progress.checks);
       const afterIssue = matter.stringify(
         this.#appendAudit(
@@ -2370,7 +2774,8 @@ export class SddCommand extends Service {
   }
 
   correct(options: CorrectOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     execution: ExecutionState;
     attempt?: CorrectionAttempt;
     assignment?: ImplementationAssignment;
@@ -2382,6 +2787,12 @@ export class SddCommand extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryCorrect(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("correct requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
@@ -2674,12 +3085,298 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryCorrect(options: CorrectOptions): {
+    scope: "delivery";
+    execution: ExecutionState;
+    attempt?: CorrectionAttempt;
+    assignment?: ImplementationAssignment;
+    paused?: boolean;
+    adjudication?: CorrectionAdjudication;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateAuthor(options.author);
+    const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
+    if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
+      throw new Error("--findings must contain canonical finding IDs.");
+    }
+    const objective = options.details.trim();
+    if (!objective) throw new Error("--details must not be empty.");
+    if (options.decision !== undefined && !["continue", "pause"].includes(options.decision)) {
+      throw new Error("--decision must be 'continue' or 'pause'.");
+    }
+    if (options.decision !== "pause" && findingIds.length === 0 && !options.checkFailure?.trim()) {
+      throw new Error(
+        "correct requires actionable --findings or a non-mechanical --check-failure.",
+      );
+    }
+    if (options.decision === "pause") {
+      if (
+        ![
+          "no-progress",
+          "repeated-failure",
+          "recurring-blocker",
+          "requirements-disagreement",
+          "worker-blocked",
+        ].includes(options.reason ?? "")
+      ) {
+        throw new Error(
+          "--reason is required for a pause and must identify the adjudication category.",
+        );
+      }
+      if (options.assessment || options.assessmentResult) {
+        throw new Error("--assessment is only valid with --decision continue.");
+      }
+    } else if (options.reason) {
+      throw new Error("--reason is only valid with --decision pause.");
+    }
+    if (
+      options.decision === "continue" &&
+      (!options.assessment?.trim() || options.assessmentResult !== "productive")
+    ) {
+      throw new Error(
+        "--assessment and --assessment-result productive are required with --decision continue.",
+      );
+    }
+    if (options.assessmentResult && options.decision !== "continue") {
+      throw new Error("--assessment-result is only valid with --decision continue.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (delivery.owner !== options.author.trim()) {
+        throw new Error("Only the recorded delivery controller may dispatch a correction.");
+      }
+      const attempts = (delivery.correctionAttempts ??= []);
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const currentFailedCheck = (delivery.checks?.records ?? []).some(
+        (record) =>
+          record.snapshot === identity.snapshot &&
+          record.codeSnapshot === identity.codeSnapshot &&
+          record.requirementsSnapshot === identity.requirementsSnapshot &&
+          record.result === "failed",
+      );
+      if (options.decision === "pause") {
+        if (delivery.execution === "implementing" && delivery.assignment?.status !== "submitted") {
+          throw new Error(
+            "A pending delivery implementation assignment must be resumed, not paused.",
+          );
+        }
+        if (
+          attempts.length === 0 &&
+          delivery.execution !== "changes-requested" &&
+          !currentFailedCheck
+        ) {
+          throw new Error(
+            "Adjudication pause requires a recorded failed correction, check, or review.",
+          );
+        }
+        const adjudication: CorrectionAdjudication = {
+          status: "pending",
+          reason: options.reason!,
+          details: objective,
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+        if (
+          delivery.adjudication?.status === "pending" &&
+          delivery.adjudication.reason === adjudication.reason &&
+          delivery.adjudication.details === adjudication.details &&
+          delivery.adjudication.recordedBy === adjudication.recordedBy
+        ) {
+          return {
+            scope: "delivery",
+            execution: delivery.execution,
+            adjudication: delivery.adjudication,
+            paused: true,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        delivery.adjudication = adjudication;
+        delivery.execution = "changes-requested";
+        delivery.history.push({
+          at: adjudication.recordedAt,
+          author: adjudication.recordedBy,
+          action: `correction-paused:${adjudication.reason}`,
+        });
+        this.#writeLedger(feature, ledger);
+        return {
+          scope: "delivery",
+          execution: delivery.execution,
+          adjudication,
+          paused: true,
+          ...identity,
+        };
+      }
+      if (
+        delivery.execution === "implementing" &&
+        delivery.assignment?.action === "correct" &&
+        delivery.assignment.status !== "submitted" &&
+        delivery.assignment.findingIds?.join(",") === findingIds.join(",") &&
+        delivery.assignment.checkFailure === options.checkFailure?.trim() &&
+        delivery.assignment.objective === objective
+      ) {
+        const current = attempts.find((attempt) => attempt.number === delivery.assignment?.attempt);
+        if (!current)
+          throw new Error("Delivery correction assignment has no persisted attempt record.");
+        return {
+          scope: "delivery",
+          execution: "implementing",
+          attempt: current,
+          assignment: delivery.assignment,
+          idempotent: true,
+          ...identity,
+        };
+      }
+      if (delivery.adjudication?.status === "pending" && options.decision !== "continue") {
+        throw new Error(
+          `Delivery correction is paused for adjudication (${delivery.adjudication.reason}).`,
+        );
+      }
+      if (delivery.execution !== "changes-requested" && !currentFailedCheck) {
+        throw new Error(
+          "Delivery must have a failed aggregate review or current failed check before correction.",
+        );
+      }
+      if (delivery.assignment?.action === "correct" && delivery.assignment.status !== "submitted") {
+        throw new Error(
+          "The current delivery correction assignment must be resumed, not replaced.",
+        );
+      }
+      if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
+        if (options.decision !== "continue" || !options.assessment?.trim()) {
+          throw new Error(
+            "A subsequent delivery correction requires --decision continue and --assessment.",
+          );
+        }
+        const previous = attempts.at(-1)!;
+        previous.progressAssessment = {
+          decision: "continue",
+          result: "productive",
+          details: options.assessment.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+      } else if (options.decision || options.assessment) {
+        throw new Error("The first delivery correction does not accept a continuation assessment.");
+      }
+      for (const id of findingIds) {
+        if (
+          !delivery.findings?.some((finding) => finding.id === id && finding.status === "confirmed")
+        ) {
+          throw new Error(`Delivery finding ${id} is not an actionable unresolved finding.`);
+        }
+      }
+      const checkFailure = options.checkFailure?.trim();
+      if (checkFailure) {
+        const record = (delivery.checks?.records ?? [])
+          .filter(
+            (candidate) =>
+              candidate.command === checkFailure &&
+              candidate.snapshot === identity.snapshot &&
+              candidate.codeSnapshot === identity.codeSnapshot &&
+              candidate.requirementsSnapshot === identity.requirementsSnapshot,
+          )
+          .at(-1);
+        if (!record || record.result !== "failed") {
+          throw new Error(
+            `Delivery check failure '${checkFailure}' must be an explicitly recorded failed check for the current snapshot.`,
+          );
+        }
+      }
+      const number = attempts.length + 1;
+      const requestedAt = new Date().toISOString();
+      const assignment: ImplementationAssignment = {
+        id: randomUUID(),
+        role: "implementation",
+        action: "correct",
+        controller: options.author.trim(),
+        attempt: number,
+        findingIds,
+        ...(checkFailure ? { checkFailure } : {}),
+        objective,
+        report: join(feature.workspace, "reports", `final-round-${number}-fix.md`),
+        requestedAt,
+        status: "pending",
+        handoffs: [],
+      };
+      this.#assertReportPath(feature, assignment.report, false);
+      if (lstatIfPresent(assignment.report)) {
+        throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
+      }
+      const attempt: CorrectionAttempt = {
+        number,
+        findingIds,
+        ...(checkFailure ? { checkFailure } : {}),
+        objective,
+        startedAt: requestedAt,
+        startedBy: options.author.trim(),
+        assignmentId: assignment.id,
+        assignment,
+        ...(delivery.assignment ? { priorAssignment: delivery.assignment } : {}),
+        ...(checkFailure
+          ? {
+              checks: (delivery.checks?.records ?? []).filter(
+                (record) =>
+                  record.snapshot === identity.snapshot &&
+                  record.codeSnapshot === identity.codeSnapshot &&
+                  record.requirementsSnapshot === identity.requirementsSnapshot,
+              ),
+            }
+          : {}),
+      };
+      if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
+        attempt.progressAssessment = {
+          decision: "continue",
+          result: "productive",
+          details: options.assessment!.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+      }
+      attempts.push(attempt);
+      delivery.assignment = assignment;
+      delivery.execution = "implementing";
+      if (delivery.adjudication?.status === "pending") {
+        delivery.adjudication.status = "resolved";
+        delivery.adjudication.resolution = {
+          details: options.assessment!.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+      }
+      delivery.history.push({
+        at: requestedAt,
+        author: options.author.trim(),
+        action: `correction-dispatched:${number}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return {
+        scope: "delivery",
+        execution: "implementing",
+        attempt,
+        assignment,
+        ...(delivery.adjudication ? { adjudication: delivery.adjudication } : {}),
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
   reviewRequire(options: ReviewRequireOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     requirement: SpecialistReviewRequirement;
     idempotent?: boolean;
   } {
-    validateIssueId(options.issue);
     validateAuthor(options.author);
     const agent = options.agent.trim();
     const details = options.details.trim();
@@ -2692,6 +3389,59 @@ export class SddCommand extends Service {
     if (catalogEntry.canReview !== true) {
       throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
     }
+
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      const feature = this.#resolveFeature(options.spec);
+      const release = this.#acquireIssueLock(feature.workspace);
+      try {
+        this.#recoverWrites(feature.workspace);
+        const ledger = this.#readLedger(feature);
+        const delivery = ledger.delivery;
+        if (delivery.execution === "reviewing" || (delivery.reviewHistory?.length ?? 0) > 0) {
+          throw new Error("Delivery review assignments are already frozen.");
+        }
+        const existing = (delivery.reviewRequirements ?? []).find(
+          (requirement) => requirement.agent === agent,
+        );
+        if (existing) {
+          if (existing.details !== details || existing.author !== options.author.trim()) {
+            throw new Error(
+              `Delivery specialist review for '${agent}' is already pinned with different details or author.`,
+            );
+          }
+          return { scope: "delivery", requirement: existing, idempotent: true };
+        }
+        if (ledger.reviewPolicy.delivery.includes(agent)) {
+          throw new Error(
+            `Review agent '${agent}' is already required by the pinned delivery policy.`,
+          );
+        }
+        if (delivery.owner && delivery.owner !== options.author.trim()) {
+          throw new Error("Only the recorded delivery controller may require specialist reviews.");
+        }
+        delivery.owner = options.author.trim();
+        const requirement: SpecialistReviewRequirement = {
+          agent,
+          details,
+          author: options.author.trim(),
+          requestedAt: new Date().toISOString(),
+        };
+        (delivery.reviewRequirements ??= []).push(requirement);
+        delivery.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: `specialist-review-required:${agent}`,
+        });
+        this.#writeLedger(feature, ledger);
+        return { scope: "delivery", requirement };
+      } finally {
+        release();
+      }
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("Review require needs --issue or --scope delivery.");
+    validateIssueId(options.issue);
 
     const feature = this.#resolveFeature(options.spec);
     const release = this.#acquireIssueLock(feature.workspace);
@@ -2749,8 +3499,8 @@ export class SddCommand extends Service {
     }
   }
 
-  review(options: ReviewOptions): {
-    issue: string;
+  #deliveryReview(options: ReviewOptions): {
+    scope: "delivery";
     execution: "reviewing";
     assignments: ReviewAssignment[];
     idempotent?: boolean;
@@ -2759,8 +3509,180 @@ export class SddCommand extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    validateIssueId(options.issue);
+    if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+    let confirmedInventory: unknown;
+    try {
+      confirmedInventory = JSON.parse(options.inventory) as unknown;
+    } catch {
+      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
+    }
+    if (
+      !Array.isArray(confirmedInventory) ||
+      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
+      new Set(confirmedInventory).size !== confirmedInventory.length
+    ) {
+      throw new Error("--inventory must be a JSON string array without duplicate paths.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issues = this.#readIssues(feature.workspace);
+      const incomplete = ledger.issues
+        .filter((progress) => progress.execution !== "integrated")
+        .map((progress) => progress.id);
+      if (incomplete.length > 0) {
+        throw new Error(
+          `Aggregate review requires every issue integrated: ${incomplete.join(", ")}.`,
+        );
+      }
+      if (issues.length !== ledger.issues.length) {
+        throw new Error("Aggregate review requires every integrated issue document to be present.");
+      }
+      const delivery = ledger.delivery;
+      if (delivery.adjudication?.status === "pending") {
+        throw new Error("Delivery correction is paused for adjudication.");
+      }
+      if (delivery.owner && delivery.owner !== options.author.trim()) {
+        throw new Error("Only the recorded delivery controller may dispatch aggregate review.");
+      }
+      delivery.owner = options.author.trim();
+      const identity = this.#deliveryIdentity(feature, ledger, issues);
+      const blockers = this.#deliveryCheckBlockers(delivery, identity);
+      if (blockers.length > 0) throw new Error(blockers.join("\n"));
+      const baseline = delivery.baseSha!;
+      const inventory = this.#changedPaths(baseline);
+      const suppliedPaths = new Set(confirmedInventory);
+      if (
+        suppliedPaths.size !== inventory.length ||
+        inventory.some((path) => !suppliedPaths.has(path))
+      ) {
+        throw new Error(
+          `Controller-confirmed delivery inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
+        );
+      }
+      const required = requiredDeliveryReviewers(ledger, delivery);
+      const correctionNumber =
+        delivery.assignment?.action === "correct" ? delivery.assignment.attempt : undefined;
+      let existing = delivery.reviewAssignments ?? [];
+      if (existing.length > 0) {
+        if (
+          existing.length === required.length &&
+          existing.every(
+            (assignment, index) =>
+              assignment.scope === "delivery" &&
+              assignment.attempt === correctionNumber &&
+              assignment.agent === required[index]?.agent &&
+              assignment.objective === required[index]?.details &&
+              assignment.snapshot === identity.snapshot &&
+              assignment.codeSnapshot === identity.codeSnapshot &&
+              assignment.requirementsSnapshot === identity.requirementsSnapshot &&
+              JSON.stringify(assignment.inventory) === JSON.stringify(inventory),
+          )
+        ) {
+          for (const assignment of existing) {
+            const blocker = this.#reviewSnapshotBlocker(feature, delivery, assignment, identity);
+            if (blocker) throw new Error(blocker);
+          }
+          return {
+            scope: "delivery",
+            execution: "reviewing",
+            assignments: existing,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        delivery.reviewHistory = [...(delivery.reviewHistory ?? []), ...existing];
+        delivery.reviewAssignments = [];
+        existing = [];
+      }
+      const assignments = required.map(({ agent, details }) => {
+        if (blueprintCatalog.agents[agent]?.canReview !== true) {
+          throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+        }
+        const id = randomUUID();
+        const report = join(
+          feature.workspace,
+          "reports",
+          correctionNumber
+            ? `final-round-${correctionNumber}-review-${id}.md`
+            : `final-review-${id}.md`,
+        );
+        this.#assertReportPath(feature, report, false);
+        if (lstatIfPresent(report)) {
+          throw new Error(`Assigned report already exists and was preserved: ${report}.`);
+        }
+        return {
+          id,
+          agent,
+          role: "review" as const,
+          scope: "delivery" as const,
+          ...(correctionNumber ? { attempt: correctionNumber } : {}),
+          ...(details ? { objective: details } : {}),
+          snapshot: identity.snapshot,
+          codeSnapshot: identity.codeSnapshot,
+          requirementsSnapshot: identity.requirementsSnapshot,
+          headSha: identity.headSha,
+          inventory,
+          report,
+          requestedAt: new Date().toISOString(),
+          status: "pending" as const,
+        };
+      });
+      delivery.reviewAssignments = assignments;
+      if (correctionNumber) {
+        const attempt = delivery.correctionAttempts?.find(
+          (candidate) => candidate.number === correctionNumber,
+        );
+        if (!attempt) throw new Error("Delivery corrective review has no matching attempt record.");
+        attempt.reviewAssignments = assignments;
+      }
+      delivery.execution = "reviewing";
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: "aggregate-review-dispatched",
+      });
+      const confirmed = this.#deliveryIdentity(
+        feature,
+        ledger,
+        this.#readIssues(feature.workspace),
+      );
+      if (
+        confirmed.snapshot !== identity.snapshot ||
+        JSON.stringify(this.#changedPaths(baseline)) !== JSON.stringify(inventory)
+      ) {
+        delivery.reviewAssignments = [];
+        delivery.execution = "unstarted";
+        delivery.history.pop();
+        throw new Error(
+          "Feature content changed while freezing aggregate review; retry with a fresh inventory.",
+        );
+      }
+      this.#writeLedger(feature, ledger);
+      return { scope: "delivery", execution: "reviewing", assignments, ...identity };
+    } finally {
+      release();
+    }
+  }
+
+  review(options: ReviewOptions): {
+    issue?: string;
+    scope?: "delivery";
+    execution: "reviewing";
+    assignments: ReviewAssignment[];
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
     validateAuthor(options.author);
+    if (options.scope === "delivery") return this.#deliveryReview(options);
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("Review requires --issue or --scope delivery.");
+    validateIssueId(options.issue);
     let confirmedInventory: unknown;
     try {
       confirmedInventory = JSON.parse(options.inventory) as unknown;
@@ -3032,12 +3954,19 @@ export class SddCommand extends Service {
   }
 
   findingCreate(options: FindingCreateOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
     snapshot: string;
     headSha: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryFindingCreate(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("Finding creation requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     if (!["high", "medium", "low"].includes(options.severity)) {
@@ -3236,12 +4165,160 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryFindingCreate(options: FindingCreateOptions): {
+    scope: "delivery";
+    finding: ReviewFinding;
+    idempotent?: boolean;
+    snapshot: string;
+    headSha: string;
+  } {
+    validateAuthor(options.author);
+    if (!["high", "medium", "low"].includes(options.severity)) {
+      throw new Error(`Invalid finding severity: ${options.severity}.`);
+    }
+    if (options.blocking === options.nonBlocking) {
+      throw new Error("Choose exactly one of --blocking or --non-blocking.");
+    }
+    if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
+    if (!options.details.trim()) throw new Error("Finding details must not be empty.");
+    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
+      throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (!delivery.owner || delivery.owner !== options.author.trim()) {
+        throw new Error("Only the current delivery controller may register findings.");
+      }
+      const report = options.source
+        ? isAbsolute(options.source)
+          ? resolve(options.source)
+          : resolve(feature.workspace, options.source)
+        : "";
+      const assignment = delivery.reviewAssignments?.find(
+        (candidate) =>
+          candidate.report === report &&
+          candidate.snapshot === options.snapshot &&
+          candidate.scope === "delivery",
+      );
+      if (!assignment) {
+        throw new Error(
+          "Finding source report and snapshot must match a frozen delivery review assignment.",
+        );
+      }
+      if (assignment.status === "submitted") {
+        throw new Error("Findings must be registered before submitting the delivery assignment.");
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const stale = this.#reviewSnapshotBlocker(feature, delivery, assignment, identity);
+      if (stale) throw new Error(stale);
+      this.#readReportDigest(feature, report);
+      const source: FindingProvenance = {
+        report,
+        snapshot: options.snapshot,
+        author: options.author.trim(),
+        summary: options.summary.trim(),
+        details: options.details.trim(),
+      };
+      const findings = delivery.findings ?? [];
+      if (options.link !== undefined) {
+        const canonical = findings.find((finding) => finding.id === options.link);
+        if (!canonical) throw new Error(`Canonical delivery finding not found: ${options.link}.`);
+        const prior = canonical.provenance.find(
+          (item) => item.report === source.report && item.snapshot === source.snapshot,
+        );
+        if (prior) {
+          if (
+            prior.author !== source.author ||
+            prior.summary !== source.summary ||
+            prior.details !== source.details
+          ) {
+            throw new Error("This report and snapshot are already linked with different details.");
+          }
+          return { scope: "delivery", finding: canonical, idempotent: true, ...identity };
+        }
+        canonical.provenance.push(source);
+        canonical.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: "observation-linked",
+          details: `Linked observation from ${report} at snapshot ${options.snapshot}: ${source.summary} — ${source.details}`,
+        });
+        this.#writeLedger(feature, ledger);
+        return { scope: "delivery", finding: canonical, ...identity };
+      }
+      const duplicate = findings.find(
+        (finding) =>
+          finding.author === options.author.trim() &&
+          finding.severity === options.severity &&
+          finding.blocking === (options.blocking === true) &&
+          finding.summary === options.summary.trim() &&
+          finding.details === options.details.trim() &&
+          finding.provenance.some(
+            (item) =>
+              item.report === source.report &&
+              item.snapshot === source.snapshot &&
+              item.author === source.author &&
+              item.summary === source.summary &&
+              item.details === source.details,
+          ),
+      );
+      if (duplicate)
+        return { scope: "delivery", finding: duplicate, idempotent: true, ...identity };
+      const highest = findings.reduce((current, finding) => {
+        const match = /^F-(\d{4,})$/.exec(finding.id);
+        return match && BigInt(match[1]!) > current ? BigInt(match[1]!) : current;
+      }, 0n);
+      const at = new Date().toISOString();
+      const finding: ReviewFinding = {
+        id: `F-${String(highest + 1n).padStart(4, "0")}`,
+        severity: options.severity as FindingSeverity,
+        blocking: options.blocking === true,
+        status: "open",
+        summary: options.summary.trim(),
+        details: options.details.trim(),
+        author: options.author.trim(),
+        createdAt: at,
+        provenance: [source],
+        history: [
+          {
+            at,
+            author: options.author.trim(),
+            action: "registered",
+            details: `Registered from ${report} at snapshot ${options.snapshot}.`,
+          },
+        ],
+      };
+      delivery.findings = findings;
+      findings.push(finding);
+      delivery.history.push({
+        at,
+        author: options.author.trim(),
+        action: `finding-registered:${finding.id}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return { scope: "delivery", finding, snapshot: identity.snapshot, headSha: identity.headSha };
+    } finally {
+      release();
+    }
+  }
+
   findingUpdate(options: FindingUpdateOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
     snapshot: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryFindingUpdate(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("Finding update requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
@@ -3430,6 +4507,10 @@ export class SddCommand extends Service {
       const audit = [
         `Finding ${finding.id} disposition recorded: ${options.status}`,
         rulingDetails ? `details=${rulingDetails}` : undefined,
+        finding.followUp ? `follow-up=${finding.followUp}` : undefined,
+        finding.requirementsDecision
+          ? `requirements-decision=${finding.requirementsDecision}`
+          : undefined,
         followUp ? `follow-up=${followUp}` : undefined,
         verification ? `verification=${verification.snapshot}` : undefined,
       ]
@@ -3446,19 +4527,195 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryFindingUpdate(options: FindingUpdateOptions): {
+    scope: "delivery";
+    finding: ReviewFinding;
+    idempotent?: boolean;
+    snapshot: string;
+  } {
+    validateAuthor(options.author);
+    if (!/^F-\d{4,}$/.test(options.finding)) {
+      throw new Error(`Invalid finding ID: ${options.finding}.`);
+    }
+    if (!["open", "confirmed", "fixed", "dismissed", "deferred"].includes(options.status)) {
+      throw new Error(`Invalid finding status: ${options.status}.`);
+    }
+    if (["dismissed", "deferred"].includes(options.status) && !options.details?.trim()) {
+      throw new Error(`--details is required for a ${options.status} finding disposition.`);
+    }
+    if (options.status === "deferred" && !options.followUp?.trim()) {
+      throw new Error("--follow-up is required for a deferred delivery finding.");
+    }
+    if (options.status === "deferred" && !options.requirementsDecision?.trim()) {
+      throw new Error("--requirements-decision is required for a deferred delivery finding.");
+    }
+    if (options.status === "fixed" && !options.evidence?.trim()) {
+      throw new Error("--evidence is required to mark a finding fixed.");
+    }
+    if (
+      options.status !== "deferred" &&
+      (options.followUp !== undefined || options.requirementsDecision !== undefined)
+    ) {
+      throw new Error(
+        "--follow-up and --requirements-decision are only valid for a deferred finding.",
+      );
+    }
+    if (options.status !== "fixed" && options.evidence !== undefined) {
+      throw new Error("--evidence is only valid for a fixed finding.");
+    }
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (delivery.owner !== options.author.trim()) {
+        throw new Error("Only the current delivery controller may record a finding ruling.");
+      }
+      const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
+      if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const rulingDetails = options.details?.trim();
+      let requirementsDecision: RequirementsDecision | undefined;
+      if (options.status === "deferred") {
+        requirementsDecision = delivery.requirementsDecisions?.find(
+          (decision) =>
+            decision.id === options.requirementsDecision &&
+            decision.finding === finding.id &&
+            decision.status === "approved" &&
+            decision.requirementsSnapshot === identity.requirementsSnapshot,
+        );
+        if (!requirementsDecision) {
+          throw new Error(
+            "--requirements-decision must identify an approved decision for this finding and current requirements.",
+          );
+        }
+        const requiredReviewers = requiredDeliveryReviewers(ledger, delivery);
+        const assignments = delivery.reviewAssignments ?? [];
+        for (const { agent } of requiredReviewers) {
+          const matching = assignments.filter(
+            (assignment) =>
+              assignment.agent === agent &&
+              assignment.snapshot === identity.snapshot &&
+              assignment.requirementsSnapshot === identity.requirementsSnapshot,
+          );
+          if (
+            matching.length !== 1 ||
+            matching[0]!.status !== "submitted" ||
+            matching[0]!.result !== "passed" ||
+            this.#reviewAssignmentBlocker(feature, delivery, matching[0]!, identity)
+          ) {
+            throw new Error(
+              `A deferred delivery finding requires fresh passing aggregate review from '${agent}'.`,
+            );
+          }
+        }
+      }
+      let verification: ReviewFinding["verification"];
+      if (options.status === "fixed") {
+        if (!/^[0-9a-f]{64}$/i.test(options.evidence!)) {
+          throw new Error("--evidence must be a CLI-returned content snapshot.");
+        }
+        if (options.evidence !== identity.snapshot) {
+          throw new Error("Verification evidence must match the current delivery snapshot.");
+        }
+        if (finding.provenance.some((source) => source.snapshot === identity.snapshot)) {
+          throw new Error(
+            "Verification evidence must reflect changed content since every finding observation.",
+          );
+        }
+        const checks = this.#deliveryCheckBlockers(delivery, identity);
+        const required = delivery.checks?.required.filter((check) => !check.removedAt) ?? [];
+        if (required.length === 0 || checks.length > 0) {
+          throw new Error(
+            `Verification evidence is insufficient:\n${checks.join("\n") || "No required delivery checks are declared."}`,
+          );
+        }
+        verification = {
+          snapshot: identity.snapshot,
+          checkCommands: required.map((check) => check.command),
+          verifiedAt: new Date().toISOString(),
+          verifiedBy: options.author.trim(),
+        };
+      }
+      const last = finding.history.at(-1);
+      if (
+        finding.status === options.status &&
+        finding.rulingDetails === rulingDetails &&
+        last?.action === `status:${options.status}` &&
+        last.author === options.author.trim()
+      ) {
+        return { scope: "delivery", finding, idempotent: true, snapshot: identity.snapshot };
+      }
+      const current = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      if (current.snapshot !== identity.snapshot) {
+        throw new Error("Delivery content changed while recording the finding ruling.");
+      }
+      const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
+      finding.status = options.status as FindingStatus;
+      if (["dismissed", "deferred"].includes(options.status))
+        finding.rulingDetails = rulingDetails!;
+      else delete finding.rulingDetails;
+      if (options.status === "deferred") {
+        finding.followUp = options.followUp!.trim();
+        finding.requirementsDecision = requirementsDecision!.id;
+      } else {
+        delete finding.followUp;
+        delete finding.requirementsDecision;
+      }
+      if (verification) finding.verification = verification;
+      else delete finding.verification;
+      const details =
+        rulingDetails ?? (verification ? `Verified at ${verification.snapshot}.` : options.status);
+      finding.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `status:${options.status}`,
+        details,
+      });
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `finding-${options.status}:${finding.id}`,
+      });
+      if (wasBlocking && ["fixed", "dismissed"].includes(options.status)) {
+        delivery.execution = "reviewing";
+      } else if (finding.blocking && options.status === "deferred") {
+        delivery.execution =
+          this.#deliveryFindingBlockers(feature, ledger, delivery, identity).length > 0
+            ? "changes-requested"
+            : "reviewing";
+      } else if (finding.blocking && !["fixed", "dismissed"].includes(options.status)) {
+        delivery.execution = "changes-requested";
+      }
+      this.#writeLedger(feature, ledger);
+      return { scope: "delivery", finding, snapshot: identity.snapshot };
+    } finally {
+      release();
+    }
+  }
+
   requirementsDecide(options: RequirementsDecideOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     execution: ExecutionState;
     decision: RequirementsDecision;
     idempotent?: boolean;
     snapshot: string;
     requirementsSnapshot: string;
   } {
-    validateIssueId(options.issue);
     validateAuthor(options.author);
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryRequirementsDecide(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("requirements decide needs --issue or --scope delivery.");
+    validateIssueId(options.issue);
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
     }
+
     if (!["approved", "rejected"].includes(options.decision)) {
       throw new Error(`Invalid requirements decision: ${options.decision}.`);
     }
@@ -3577,8 +4834,133 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryRequirementsDecide(options: RequirementsDecideOptions): {
+    scope: "delivery";
+    execution: ExecutionState;
+    decision: RequirementsDecision;
+    idempotent?: boolean;
+    snapshot: string;
+    requirementsSnapshot: string;
+  } {
+    if (!/^F-\d{4,}$/.test(options.finding)) {
+      throw new Error(`Invalid finding ID: ${options.finding}.`);
+    }
+    if (!["approved", "rejected"].includes(options.decision)) {
+      throw new Error(`Invalid requirements decision: ${options.decision}.`);
+    }
+    const details = options.details.trim();
+    if (!details) throw new Error("Requirements decision details must not be empty.");
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (delivery.owner !== options.author.trim()) {
+        throw new Error("Only the current delivery controller may record a requirements decision.");
+      }
+      const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
+      if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
+      if (!delivery.baseSha) {
+        throw new Error("Delivery requirements decisions require a recorded Git baseline.");
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const decisions = (delivery.requirementsDecisions ??= []);
+      const existing = decisions.find(
+        (decision) =>
+          decision.finding === finding.id &&
+          decision.status === options.decision &&
+          decision.details === details &&
+          decision.author === options.author.trim() &&
+          decision.requirementsSnapshot === identity.requirementsSnapshot,
+      );
+      if (existing) {
+        return {
+          scope: "delivery",
+          execution: delivery.execution,
+          decision: existing,
+          idempotent: true,
+          snapshot: identity.snapshot,
+          requirementsSnapshot: identity.requirementsSnapshot,
+        };
+      }
+      const priorAssignments = [
+        ...(delivery.reviewHistory ?? []),
+        ...(delivery.reviewAssignments ?? []),
+      ];
+      if (
+        priorAssignments.every(
+          (assignment) => assignment.requirementsSnapshot === identity.requirementsSnapshot,
+        )
+      ) {
+        throw new Error(
+          "A delivery requirements decision requires an explicit requirements change after review.",
+        );
+      }
+      if (
+        (delivery.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
+      ) {
+        throw new Error(
+          "Resolve pending delivery review assignments before recording a requirements decision.",
+        );
+      }
+
+      let highest = 0n;
+      for (const decision of decisions) {
+        const match = /^R-(\d{4,})$/.exec(decision.id);
+        if (match && BigInt(match[1]!) > highest) highest = BigInt(match[1]!);
+      }
+      const decision: RequirementsDecision = {
+        id: `R-${String(highest + 1n).padStart(4, "0")}`,
+        finding: finding.id,
+        status: options.decision as RequirementsDecision["status"],
+        details,
+        author: options.author.trim(),
+        requirementsSnapshot: identity.requirementsSnapshot,
+        recordedAt: new Date().toISOString(),
+      };
+      decisions.push(decision);
+      if (decision.status === "approved") {
+        delivery.reviewHistory = [
+          ...(delivery.reviewHistory ?? []),
+          ...(delivery.reviewAssignments ?? []),
+        ];
+        delete delivery.reviewAssignments;
+        delivery.execution = "reviewing";
+      }
+      const confirmed = this.#deliveryIdentity(
+        feature,
+        ledger,
+        this.#readIssues(feature.workspace),
+      );
+      if (
+        confirmed.snapshot !== identity.snapshot ||
+        confirmed.requirementsSnapshot !== identity.requirementsSnapshot
+      ) {
+        throw new Error("Delivery requirements changed while recording the requirements decision.");
+      }
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `requirements-${decision.status}:${decision.id}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return {
+        scope: "delivery",
+        execution: delivery.execution,
+        decision,
+        snapshot: identity.snapshot,
+        requirementsSnapshot: identity.requirementsSnapshot,
+      };
+    } finally {
+      release();
+    }
+  }
+
   submit(options: SubmitOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     execution: ExecutionState;
     assignment: ImplementationAssignment | ReviewAssignment;
     report?: string;
@@ -3590,6 +4972,13 @@ export class SddCommand extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.role === "implementation") return this.#submitDeliveryImplementation(options);
+      return this.#submitDeliveryReview(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("Submit requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     if (options.role === "review") return this.#submitReview(options);
@@ -3731,6 +5120,302 @@ export class SddCommand extends Service {
       return {
         issue: options.issue,
         execution: progress.execution,
+        assignment,
+        report: assignment.report,
+        reportSha256,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  #submitDeliveryImplementation(options: SubmitOptions): {
+    scope: "delivery";
+    execution: ExecutionState;
+    assignment: ImplementationAssignment;
+    report?: string;
+    reportSha256?: string;
+    unavailable?: boolean;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    if (
+      options.assignment !== undefined ||
+      options.result !== undefined ||
+      options.noFindings ||
+      options.findings !== undefined
+    ) {
+      throw new Error("Review assignment, result, and findings options require role review.");
+    }
+    if (options.unavailable && !options.details?.trim()) {
+      throw new Error(
+        "--details is required when the delivery implementation report is unavailable.",
+      );
+    }
+    if (options.unavailable && options.report !== undefined) {
+      throw new Error("--report cannot be combined with --unavailable.");
+    }
+    if (!options.unavailable && options.details !== undefined) {
+      throw new Error("--details is only valid with --unavailable.");
+    }
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      const assignment = delivery.assignment;
+      if (!assignment || assignment.action !== "correct" || assignment.role !== "implementation") {
+        throw new Error("No matching delivery correction implementation assignment is pending.");
+      }
+      if (
+        delivery.owner !== options.author.trim() ||
+        assignment.controller !== options.author.trim()
+      ) {
+        throw new Error(
+          "Only the current delivery controller may submit this implementation report.",
+        );
+      }
+      const attempt = delivery.correctionAttempts?.find(
+        (candidate) => candidate.number === assignment.attempt,
+      );
+      if (!attempt || attempt.assignmentId !== assignment.id) {
+        throw new Error("Delivery correction assignment has no matching persisted attempt.");
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      if (options.unavailable) {
+        const details = options.details!.trim();
+        if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
+          return {
+            scope: "delivery",
+            execution: delivery.execution,
+            assignment,
+            unavailable: true,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        if (!["pending", "unavailable"].includes(assignment.status)) {
+          throw new Error("The delivery implementation assignment is no longer awaiting a report.");
+        }
+        assignment.status = "unavailable";
+        assignment.unavailableDetails = details;
+        this.#writeLedger(feature, ledger);
+        return {
+          scope: "delivery",
+          execution: delivery.execution,
+          assignment,
+          unavailable: true,
+          ...identity,
+        };
+      }
+      if (!options.report) throw new Error("Delivery implementation submission requires --report.");
+      if (assignment.status === "submitted") {
+        const digest = this.#readReportDigest(
+          feature,
+          this.#submissionReportPath(feature, assignment, options.report),
+        );
+        if (digest !== assignment.reportSha256) {
+          throw new Error(
+            "The registered delivery implementation report changed after submission.",
+          );
+        }
+        return {
+          scope: "delivery",
+          execution: delivery.execution,
+          assignment,
+          report: assignment.report,
+          reportSha256: digest,
+          idempotent: true,
+          ...identity,
+        };
+      }
+      if (!["pending", "unavailable"].includes(assignment.status)) {
+        throw new Error("The delivery implementation assignment is not awaiting a report.");
+      }
+      const report = this.#submissionReportPath(feature, assignment, options.report);
+      const reportSha256 = this.#readReportDigest(feature, report);
+      assignment.status = "submitted";
+      assignment.reportSha256 = reportSha256;
+      assignment.submittedAt = new Date().toISOString();
+      assignment.submittedBy = options.author.trim();
+      delete assignment.unavailableDetails;
+      attempt.assignment = assignment;
+      delivery.execution = "reviewing";
+      delivery.history.push({
+        at: assignment.submittedAt,
+        author: options.author.trim(),
+        action: `correction-report-submitted:${assignment.id}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return {
+        scope: "delivery",
+        execution: delivery.execution,
+        assignment,
+        report: assignment.report,
+        reportSha256,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  #submitDeliveryReview(options: SubmitOptions): {
+    scope: "delivery";
+    execution: ExecutionState;
+    assignment: ReviewAssignment;
+    report: string;
+    reportSha256: string;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    if (options.role !== "review") {
+      throw new Error(
+        "Delivery implementation submissions require an active corrective assignment.",
+      );
+    }
+    if (!options.assignment?.trim()) throw new Error("Review submission requires --assignment.");
+    if (!options.report) throw new Error("Review submission requires --report.");
+    if (!options.result) throw new Error("Review submission requires explicit --result.");
+    if (!["passed", "failed", "unavailable"].includes(options.result)) {
+      throw new Error(`Invalid review result: ${options.result}.`);
+    }
+    const findingIds = options.findingIds?.map((id) => id.trim());
+    if (options.noFindings === true && findingIds !== undefined) {
+      throw new Error("--findings and --no-findings cannot be combined.");
+    }
+    if (
+      findingIds !== undefined &&
+      (findingIds.length === 0 ||
+        findingIds.some((id) => !/^F-\d{4,}$/.test(id)) ||
+        new Set(findingIds).size !== findingIds.length)
+    ) {
+      throw new Error("--findings must contain unique canonical finding IDs.");
+    }
+    if (options.noFindings !== true && findingIds === undefined) {
+      throw new Error("Review submission requires either --findings or exclusive --no-findings.");
+    }
+    if (options.result === "passed" && options.details !== undefined) {
+      throw new Error("--details is only valid for failed or unavailable review results.");
+    }
+    if (options.result !== "passed" && !options.details?.trim()) {
+      throw new Error("--details is required for failed or unavailable reviews.");
+    }
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      if (!delivery.owner || delivery.owner !== options.author.trim()) {
+        throw new Error("Only the current delivery controller may submit aggregate review.");
+      }
+      const assignment = delivery.reviewAssignments?.find(
+        (candidate) => candidate.id === options.assignment,
+      );
+      if (!assignment || assignment.scope !== "delivery") {
+        throw new Error(`No delivery review assignment matches ID ${options.assignment}.`);
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const blockers = this.#deliveryCheckBlockers(delivery, identity);
+      if (blockers.length > 0) throw new Error(blockers.join("\n"));
+      const snapshotBlocker = this.#reviewSnapshotBlocker(feature, delivery, assignment, identity);
+      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      const report = this.#submissionReportPath(feature, assignment, options.report);
+      const reportSha256 = this.#readReportDigest(feature, report);
+      const reported = (delivery.findings ?? [])
+        .filter((finding) =>
+          finding.provenance.some(
+            (source) =>
+              source.report === assignment.report && source.snapshot === assignment.snapshot,
+          ),
+        )
+        .map((finding) => finding.id);
+      if (options.noFindings === true && reported.length > 0) {
+        throw new Error(
+          `Review report has registered findings and cannot declare --no-findings: ${reported.join(", ")}.`,
+        );
+      }
+      if (findingIds !== undefined) {
+        const missing = reported.filter((id) => !findingIds.includes(id));
+        const unknown = findingIds.filter((id) => !reported.includes(id));
+        if (missing.length > 0 || unknown.length > 0) {
+          throw new Error(
+            `--findings must exactly list canonical findings registered from this delivery report and snapshot; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
+          );
+        }
+      }
+      if (assignment.status === "submitted") {
+        if (
+          assignment.result === options.result &&
+          assignment.noFindings === (options.noFindings === true ? true : undefined) &&
+          JSON.stringify(assignment.findingIds) === JSON.stringify(findingIds) &&
+          assignment.submittedBy === options.author.trim() &&
+          assignment.details === options.details?.trim() &&
+          assignment.reportSha256 === reportSha256
+        ) {
+          return {
+            scope: "delivery",
+            execution: delivery.execution,
+            assignment,
+            report: assignment.report,
+            reportSha256,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        throw new Error("The delivery review assignment already has a different submitted result.");
+      }
+      if (assignment.status !== "pending") {
+        throw new Error("The delivery review assignment is not awaiting a report.");
+      }
+      if (
+        JSON.stringify(this.#changedPaths(delivery.baseSha!)) !==
+        JSON.stringify(assignment.inventory)
+      ) {
+        throw new Error("Aggregate review inventory changed while submitting the report.");
+      }
+      assignment.status = "submitted";
+      assignment.result = options.result as ReviewResult;
+      if (options.noFindings === true) assignment.noFindings = true;
+      else delete assignment.noFindings;
+      if (findingIds !== undefined) assignment.findingIds = findingIds;
+      else delete assignment.findingIds;
+      assignment.reportSha256 = reportSha256;
+      assignment.submittedAt = new Date().toISOString();
+      assignment.submittedBy = options.author.trim();
+      if (options.details?.trim()) assignment.details = options.details.trim();
+      const unresolvedBlocking = (assignment.findingIds ?? []).some((id) =>
+        delivery.findings?.some(
+          (finding) =>
+            finding.id === id &&
+            finding.blocking &&
+            finding.status !== "fixed" &&
+            finding.status !== "dismissed",
+        ),
+      );
+      if (assignment.result !== "passed" || unresolvedBlocking) {
+        delivery.execution = "changes-requested";
+      }
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `aggregate-review-submitted:${assignment.id}:${assignment.result}`,
+      });
+      this.#writeLedger(feature, ledger);
+      return {
+        scope: "delivery",
+        execution: delivery.execution,
         assignment,
         report: assignment.report,
         reportSha256,
@@ -4258,7 +5943,8 @@ export class SddCommand extends Service {
   }
 
   resume(options: ResumeOptions): {
-    issue: string;
+    issue?: string;
+    scope?: "delivery";
     gate: ExecutionState;
     nextAction: string;
     owner?: string;
@@ -4273,6 +5959,12 @@ export class SddCommand extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
+    if (options.scope === "delivery") {
+      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      return this.#deliveryResume(options);
+    }
+    if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (!options.issue) throw new Error("resume requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);
     const feature = this.#resolveFeature(options.spec);
@@ -4351,6 +6043,265 @@ export class SddCommand extends Service {
     }
   }
 
+  #deliveryResume(options: ResumeOptions): {
+    scope: "delivery";
+    gate: ExecutionState;
+    nextAction: string;
+    owner?: string;
+    assignment?: ImplementationAssignment;
+    correctionAttempts: CorrectionAttempt[];
+    adjudication?: CorrectionAdjudication;
+    reviewAssignments?: ReviewAssignment[];
+    handoffRecorded?: boolean;
+    blocker?: string;
+    retrospectiveRequired: boolean;
+    finished: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      let handoffRecorded = false;
+      if (delivery.owner && delivery.owner !== options.author.trim()) {
+        if (!options.confirmHandoff) {
+          throw new Error(
+            `Ownership handoff from ${delivery.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
+          );
+        }
+        const previousOwner = delivery.owner;
+        delivery.owner = options.author.trim();
+        if (delivery.assignment) {
+          delivery.assignment.controller = options.author.trim();
+          delivery.assignment.handoffs.push({
+            at: new Date().toISOString(),
+            from: previousOwner,
+            to: options.author.trim(),
+            confirmedStopped: true,
+          });
+        }
+        delivery.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: `controller-handoff:${previousOwner}`,
+        });
+        this.#writeLedger(feature, ledger);
+        handoffRecorded = true;
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const checkBlocker = this.#deliveryCheckBlockers(delivery, identity)[0];
+      let blocker =
+        delivery.adjudication?.status === "pending"
+          ? `Delivery correction is paused for adjudication (${delivery.adjudication.reason}).`
+          : checkBlocker;
+      let nextAction: string;
+      if (delivery.adjudication?.status === "pending") {
+        nextAction = "adjudicate";
+      } else if (
+        delivery.assignment &&
+        ["pending", "unavailable"].includes(delivery.assignment.status)
+      ) {
+        nextAction = "await-implementation-report";
+      } else if (
+        delivery.reviewAssignments?.some((assignment) => assignment.status === "pending")
+      ) {
+        nextAction = "await-review-report";
+      } else if (checkBlocker) {
+        nextAction = "record-final-checks";
+      } else if (delivery.execution === "changes-requested") {
+        nextAction = "correct";
+      } else if (delivery.execution === "reviewing") {
+        nextAction = "review-or-finish";
+      } else {
+        nextAction = "review";
+      }
+      return {
+        scope: "delivery",
+        gate: delivery.execution,
+        nextAction,
+        ...(delivery.owner ? { owner: delivery.owner } : {}),
+        ...(delivery.assignment ? { assignment: delivery.assignment } : {}),
+        correctionAttempts: delivery.correctionAttempts ?? [],
+        ...(delivery.adjudication ? { adjudication: delivery.adjudication } : {}),
+        ...(delivery.reviewAssignments ? { reviewAssignments: delivery.reviewAssignments } : {}),
+        ...(handoffRecorded ? { handoffRecorded: true } : {}),
+        ...(blocker ? { blocker } : {}),
+        retrospectiveRequired: ledger.retrospectiveRequired,
+        finished: !!delivery.finished,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  finish(options: FinishOptions): {
+    scope: "delivery";
+    finished: true;
+    idempotent?: boolean;
+    retrospectiveRequired: boolean;
+    retrospective?: { report: string; reportSha256: string };
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateAuthor(options.author);
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const delivery = ledger.delivery;
+      const issues = this.#readIssues(feature.workspace);
+      const missing = ledger.issues
+        .filter((progress) => progress.execution !== "integrated")
+        .map((progress) => progress.id);
+      if (missing.length > 0) {
+        throw new Error(`Cannot finish; every issue must be integrated: ${missing.join(", ")}.`);
+      }
+      if (issues.length !== ledger.issues.length) {
+        throw new Error("Cannot finish; one or more integrated issue documents are missing.");
+      }
+      if (delivery.adjudication?.status === "pending") {
+        throw new Error(
+          `Cannot finish; delivery correction is paused for adjudication (${delivery.adjudication.reason}).`,
+        );
+      }
+      const identity = this.#deliveryIdentity(feature, ledger, issues);
+      const checkBlockers = this.#deliveryCheckBlockers(delivery, identity);
+      if (checkBlockers.length > 0) {
+        throw new Error(
+          `Cannot finish; final delivery checks are not current and passing:\n${checkBlockers.join("\n")}`,
+        );
+      }
+      const reviewers = requiredDeliveryReviewers(ledger, delivery);
+      const assignments = delivery.reviewAssignments ?? [];
+      const reviewBlockers: string[] = [];
+      if (assignments.length !== reviewers.length) {
+        reviewBlockers.push("Aggregate review assignment batch is incomplete.");
+      }
+      for (const required of reviewers) {
+        const matching = assignments.filter(
+          (assignment) =>
+            assignment.agent === required.agent &&
+            assignment.objective === required.details &&
+            assignment.scope === "delivery",
+        );
+        if (matching.length !== 1) {
+          reviewBlockers.push(
+            `Required aggregate reviewer '${required.agent}' has no unique current assignment.`,
+          );
+          continue;
+        }
+        const assignment = matching[0]!;
+        if (assignment.status !== "submitted" || assignment.result !== "passed") {
+          reviewBlockers.push(
+            `Required aggregate review '${required.agent}' is ${assignment.status === "pending" ? "pending" : (assignment.result ?? "incomplete")}.`,
+          );
+          continue;
+        }
+        const blocker = this.#reviewAssignmentBlocker(feature, delivery, assignment, identity);
+        if (blocker) reviewBlockers.push(blocker);
+      }
+      if (reviewBlockers.length > 0) {
+        throw new Error(
+          `Cannot finish; aggregate required reviews are not current and passing:\n${reviewBlockers.join("\n")}`,
+        );
+      }
+      const findingBlockers = this.#deliveryFindingBlockers(feature, ledger, delivery, identity);
+      if (findingBlockers.length > 0) {
+        throw new Error(
+          `Cannot finish; unresolved delivery blockers remain:\n${findingBlockers.join("\n")}`,
+        );
+      }
+      const uncommitted = this.#changedPaths(this.#headSha());
+      if (uncommitted.length > 0) {
+        throw new Error(
+          `Cannot finish; caller must commit final delivery changes before completion:\n${uncommitted.join("\n")}`,
+        );
+      }
+      if (ledger.retrospectiveRequired && !options.report) {
+        throw new Error(
+          "A retrospective report is required by the feature's stored creation policy.",
+        );
+      }
+      let retrospective: { report: string; reportSha256: string } | undefined;
+      if (options.report) {
+        const report = isAbsolute(options.report)
+          ? resolve(options.report)
+          : resolve(feature.workspace, options.report);
+        this.#assertReportPath(feature, report, true);
+        const content = readFileSync(report);
+        if (content.length === 0 || !content.toString("utf8").trim()) {
+          throw new Error("Retrospective report must not be empty.");
+        }
+        retrospective = {
+          report,
+          reportSha256: createHash("sha256").update(content).digest("hex"),
+        };
+      }
+      if (delivery.finished) {
+        const same =
+          delivery.finished.report === retrospective?.report &&
+          delivery.finished.reportSha256 === retrospective?.reportSha256;
+        if (!same) {
+          throw new Error(
+            "Full-spec delivery is already finished with different retrospective evidence.",
+          );
+        }
+        return {
+          scope: "delivery",
+          finished: true,
+          idempotent: true,
+          retrospectiveRequired: ledger.retrospectiveRequired,
+          ...(retrospective ? { retrospective } : {}),
+          ...identity,
+        };
+      }
+      const confirmed = this.#deliveryIdentity(
+        feature,
+        ledger,
+        this.#readIssues(feature.workspace),
+      );
+      if (
+        confirmed.snapshot !== identity.snapshot ||
+        this.#deliveryCheckBlockers(delivery, confirmed).length > 0
+      ) {
+        throw new Error(
+          "Aggregate content or check evidence changed while finishing; resume and revalidate delivery.",
+        );
+      }
+      delivery.execution = "integrated";
+      delivery.finished = {
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        ...retrospective,
+      };
+      delivery.history.push({
+        at: delivery.finished.at,
+        author: delivery.finished.author,
+        action: "delivery-finished",
+      });
+      this.#writeLedger(feature, ledger);
+      return {
+        scope: "delivery",
+        finished: true,
+        retrospectiveRequired: ledger.retrospectiveRequired,
+        ...(retrospective ? { retrospective } : {}),
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
   next(options: NextOptions) {
     const status = this.status(options);
     return {
@@ -4362,6 +6313,147 @@ export class SddCommand extends Service {
       actions: status.actions,
       pendingAssignments: status.pendingAssignments,
       blockers: status.blockers,
+      delivery: status.delivery,
+    };
+  }
+
+  #deliveryStatus(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    issues: IssueDocument[],
+  ): {
+    scope: "delivery";
+    execution: ExecutionState;
+    action: string;
+    snapshot?: string;
+    codeSnapshot?: string;
+    requirementsSnapshot?: string;
+    baseSha?: string;
+    retrospectiveRequired: boolean;
+    finished: boolean;
+    findings: ReviewFinding[];
+    correctionAttempts: CorrectionAttempt[];
+    reviewRequirements: SpecialistReviewRequirement[];
+    reviewAssignments: ReviewAssignment[];
+    assignment?: ImplementationAssignment;
+    adjudication?: CorrectionAdjudication;
+    requiredChecks: CheckRequirement[];
+    checkRecords: CheckRecord[];
+    blockers: string[];
+  } {
+    const delivery = ledger.delivery;
+    const blockers: string[] = [];
+    const allIntegrated = ledger.issues.every((issue) => issue.execution === "integrated");
+    let identity: ContentIdentity | undefined;
+    if (!allIntegrated) {
+      const missing = ledger.issues
+        .filter((issue) => issue.execution !== "integrated")
+        .map((issue) => issue.id);
+      blockers.push(`Issues are not integrated: ${missing.join(", ") || "no issues"}.`);
+    } else {
+      try {
+        identity = this.#deliveryIdentity(feature, ledger, issues);
+        blockers.push(...this.#deliveryCheckBlockers(delivery, identity));
+        if (delivery.adjudication?.status === "pending") {
+          blockers.push(`Correction is paused for adjudication (${delivery.adjudication.reason}).`);
+        }
+        blockers.push(...this.#deliveryFindingBlockers(feature, ledger, delivery, identity));
+        const required = requiredDeliveryReviewers(ledger, delivery);
+        const assignments = delivery.reviewAssignments ?? [];
+        if (assignments.length !== required.length) {
+          blockers.push("Aggregate review assignment batch is incomplete.");
+        }
+        for (const item of required) {
+          const matching = assignments.filter(
+            (assignment) =>
+              assignment.agent === item.agent &&
+              assignment.objective === item.details &&
+              assignment.scope === "delivery",
+          );
+          if (matching.length !== 1) {
+            blockers.push(
+              `Required aggregate reviewer '${item.agent}' has no unique current assignment.`,
+            );
+            continue;
+          }
+          const assignment = matching[0]!;
+          if (assignment.status !== "submitted" || assignment.result !== "passed") {
+            blockers.push(
+              `Required aggregate review '${item.agent}' is ${assignment.status === "pending" ? "pending" : (assignment.result ?? "incomplete")}.`,
+            );
+          } else {
+            const reason = this.#reviewAssignmentBlocker(feature, delivery, assignment, identity);
+            if (reason) blockers.push(reason);
+          }
+        }
+        const uncommitted = this.#changedPaths(this.#headSha());
+        if (uncommitted.length > 0) {
+          blockers.push(`Caller must commit final delivery changes: ${uncommitted.join(", ")}.`);
+        }
+      } catch (error) {
+        blockers.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    let action: string;
+    if (delivery.finished) action = "finished";
+    else if (!allIntegrated) action = "integrate-issues";
+    else if (delivery.adjudication?.status === "pending") action = "adjudicate";
+    else if (
+      delivery.assignment &&
+      ["pending", "unavailable"].includes(delivery.assignment.status)
+    ) {
+      action = "await-implementation-report";
+    } else if (
+      this.#deliveryCheckBlockers(
+        delivery,
+        identity ?? {
+          snapshot: "",
+          codeSnapshot: "",
+          requirementsSnapshot: "",
+          headSha: "",
+        },
+      ).length > 0
+    ) {
+      action = "record-final-checks";
+    } else if (
+      !(delivery.reviewAssignments ?? []).length ||
+      blockers.some((reason) => /aggregate review|reviewer|Review assignment/i.test(reason))
+    ) {
+      action = "review";
+    } else if (
+      (delivery.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
+    ) {
+      action = "await-review-report";
+    } else if (
+      this.#deliveryFindingBlockers(
+        feature,
+        ledger,
+        delivery,
+        identity ?? { snapshot: "", codeSnapshot: "", requirementsSnapshot: "", headSha: "" },
+      ).length > 0
+    ) {
+      action = "correct";
+    } else if (blockers.some((reason) => reason.startsWith("Caller must commit"))) {
+      action = "commit-final-delivery-changes";
+    } else if (blockers.length > 0) action = "review";
+    else action = "finish";
+    return {
+      scope: "delivery",
+      execution: delivery.execution,
+      action,
+      ...identity,
+      ...(delivery.baseSha ? { baseSha: delivery.baseSha } : {}),
+      retrospectiveRequired: ledger.retrospectiveRequired,
+      finished: !!delivery.finished,
+      findings: delivery.findings ?? [],
+      correctionAttempts: delivery.correctionAttempts ?? [],
+      reviewRequirements: delivery.reviewRequirements ?? [],
+      reviewAssignments: delivery.reviewAssignments ?? [],
+      ...(delivery.assignment ? { assignment: delivery.assignment } : {}),
+      ...(delivery.adjudication ? { adjudication: delivery.adjudication } : {}),
+      requiredChecks: (delivery.checks?.required ?? []).filter((check) => !check.removedAt),
+      checkRecords: delivery.checks?.records ?? [],
+      blockers,
     };
   }
 
@@ -4436,7 +6528,11 @@ export class SddCommand extends Service {
       });
   }
 
-  #integrationPreservesEvidence(progress: IssueProgress, identity: ContentIdentity): boolean {
+  #integrationPreservesEvidence(
+    progress: IssueProgress | DeliveryProgress,
+    identity: ContentIdentity,
+  ): boolean {
+    if (!("id" in progress)) return false;
     const accepted = progress.acceptedEvidence;
     if (
       progress.execution !== "integrated" ||
@@ -4508,10 +6604,20 @@ export class SddCommand extends Service {
 
   #reviewAssignmentBlocker(
     feature: FeaturePaths,
-    progress: IssueProgress,
+    progress: IssueProgress | DeliveryProgress,
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
+    if (assignment.status !== "pending") {
+      try {
+        const currentDigest = this.#readReportDigest(feature, assignment.report);
+        if (currentDigest !== assignment.reportSha256) {
+          return `The registered review report for assignment ${assignment.id} changed after submission.`;
+        }
+      } catch {
+        return `The registered review report for assignment ${assignment.id} is missing or unavailable.`;
+      }
+    }
     const snapshotBlocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
     if (snapshotBlocker) return snapshotBlocker;
     if (assignment.status === "pending") return undefined;
@@ -4526,11 +6632,12 @@ export class SddCommand extends Service {
 
   #reviewSnapshotBlocker(
     feature: FeaturePaths,
-    progress: IssueProgress,
+    progress: IssueProgress | DeliveryProgress,
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
     const integratedEvidence =
+      assignment.scope !== "delivery" &&
       this.#integrationPreservesEvidence(progress, identity) &&
       assignment.snapshot === progress.acceptedEvidence?.snapshot &&
       assignment.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
@@ -5074,6 +7181,95 @@ export class SddCommand extends Service {
       .update(JSON.stringify([codeSnapshot, requirementsSnapshot]))
       .digest("hex");
     return { snapshot, codeSnapshot, requirementsSnapshot, headSha };
+  }
+
+  #deliveryIdentity(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    issues: IssueDocument[],
+  ): ContentIdentity {
+    if (issues.length === 0) throw new Error("Aggregate evidence requires at least one issue.");
+    const delivery = ledger.delivery;
+    delivery.baseSha ??= ledger.issues.find((progress) => progress.baseSha)?.baseSha;
+    if (!delivery.baseSha) {
+      throw new Error("Aggregate evidence requires the first issue's recorded Git baseline.");
+    }
+    const codeIdentity = this.#contentIdentity(feature, issues[0]!, delivery.baseSha);
+    const requirementsSnapshot = createHash("sha256")
+      .update(
+        JSON.stringify([
+          readFileSync(feature.spec, "utf8"),
+          issues.map((issue) => [issue.id, this.#issueRequirements(issue.raw)]),
+          (delivery.checks?.required ?? []).filter((requirement) => !requirement.removedAt),
+        ]),
+      )
+      .digest("hex");
+    const snapshot = createHash("sha256")
+      .update(JSON.stringify([codeIdentity.codeSnapshot, requirementsSnapshot]))
+      .digest("hex");
+    return {
+      snapshot,
+      codeSnapshot: codeIdentity.codeSnapshot,
+      requirementsSnapshot,
+      headSha: codeIdentity.headSha,
+    };
+  }
+
+  #deliveryCheckBlockers(delivery: DeliveryProgress, identity: ContentIdentity): string[] {
+    return (delivery.checks?.required ?? [])
+      .filter((requirement) => !requirement.removedAt)
+      .flatMap((requirement) => {
+        const records = (delivery.checks?.records ?? []).filter(
+          (record) =>
+            record.command === requirement.command &&
+            record.snapshot === identity.snapshot &&
+            record.codeSnapshot === identity.codeSnapshot &&
+            record.requirementsSnapshot === identity.requirementsSnapshot,
+        );
+        const latest = records.at(-1);
+        if (!latest) return [`Required delivery check ${requirement.command} is missing or stale.`];
+        if (latest.result !== "passed") {
+          return [`Required delivery check ${requirement.command} is ${latest.result}.`];
+        }
+        return [];
+      });
+  }
+
+  #deliveryFindingBlockers(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    delivery: DeliveryProgress,
+    identity: ContentIdentity,
+  ): string[] {
+    return (delivery.findings ?? [])
+      .filter((finding) => {
+        if (!finding.blocking || ["fixed", "dismissed"].includes(finding.status)) return false;
+        if (finding.status !== "deferred" || !finding.requirementsDecision) return true;
+        const decision = delivery.requirementsDecisions?.find(
+          (candidate) =>
+            candidate.id === finding.requirementsDecision &&
+            candidate.finding === finding.id &&
+            candidate.status === "approved" &&
+            candidate.requirementsSnapshot === identity.requirementsSnapshot,
+        );
+        if (!decision) return true;
+        const required = requiredDeliveryReviewers(ledger, delivery);
+        return required.some(({ agent }) => {
+          const matching = (delivery.reviewAssignments ?? []).filter(
+            (assignment) =>
+              assignment.agent === agent &&
+              assignment.status === "submitted" &&
+              assignment.result === "passed" &&
+              assignment.snapshot === identity.snapshot &&
+              assignment.requirementsSnapshot === identity.requirementsSnapshot,
+          );
+          return (
+            matching.length !== 1 ||
+            !!this.#reviewAssignmentBlocker(feature, delivery, matching[0]!, identity)
+          );
+        });
+      })
+      .map((finding) => `Delivery finding ${finding.id} remains ${finding.status}.`);
   }
 
   #changedPaths(baseSha: string): string[] {
@@ -5979,6 +8175,139 @@ export class SddCommand extends Service {
       throw new Error(
         "Feature delivery history records must contain a valid timestamp, author, and action.",
       );
+    }
+    const delivery = value.delivery;
+    if (
+      (Object.hasOwn(delivery, "baseSha") &&
+        (typeof delivery.baseSha !== "string" || !/^[0-9a-f]{40,64}$/i.test(delivery.baseSha))) ||
+      (Object.hasOwn(delivery, "owner") &&
+        (typeof delivery.owner !== "string" || !delivery.owner.trim())) ||
+      (Object.hasOwn(delivery, "reviewRequirements") &&
+        (!Array.isArray(delivery.reviewRequirements) ||
+          !delivery.reviewRequirements.every(isSpecialistReviewRequirement) ||
+          new Set(delivery.reviewRequirements.map((item) => item.agent)).size !==
+            delivery.reviewRequirements.length)) ||
+      (Object.hasOwn(delivery, "reviewAssignments") &&
+        (!Array.isArray(delivery.reviewAssignments) ||
+          !delivery.reviewAssignments.every(
+            (assignment) =>
+              isReviewAssignment(assignment) &&
+              assignment.scope === "delivery" &&
+              blueprintCatalog.agents[assignment.agent]?.canReview === true &&
+              assignment.report ===
+                join(
+                  this.app.workspaceRoot,
+                  ".scratch",
+                  feature,
+                  "reports",
+                  assignment.attempt
+                    ? `final-round-${assignment.attempt}-review-${assignment.id}.md`
+                    : `final-review-${assignment.id}.md`,
+                ),
+          ))) ||
+      (Object.hasOwn(delivery, "reviewHistory") &&
+        (!Array.isArray(delivery.reviewHistory) ||
+          !delivery.reviewHistory.every(
+            (assignment) =>
+              isReviewAssignment(assignment) &&
+              assignment.scope === "delivery" &&
+              blueprintCatalog.agents[assignment.agent]?.canReview === true,
+          ))) ||
+      (Object.hasOwn(delivery, "requirementsDecisions") &&
+        (!Array.isArray(delivery.requirementsDecisions) ||
+          !delivery.requirementsDecisions.every(isRequirementsDecision) ||
+          new Set(delivery.requirementsDecisions.map((decision) => decision.id)).size !==
+            delivery.requirementsDecisions.length)) ||
+      (Object.hasOwn(delivery, "findings") &&
+        (!Array.isArray(delivery.findings) || !delivery.findings.every(isReviewFinding))) ||
+      (Object.hasOwn(delivery, "assignment") &&
+        (!isImplementationAssignment(delivery.assignment) ||
+          delivery.assignment.action !== "correct" ||
+          !Number.isSafeInteger(delivery.assignment.attempt) ||
+          delivery.assignment.report !==
+            join(
+              this.app.workspaceRoot,
+              ".scratch",
+              feature,
+              "reports",
+              `final-round-${delivery.assignment.attempt}-fix.md`,
+            ))) ||
+      (Object.hasOwn(delivery, "checks") &&
+        (!isRecord(delivery.checks) ||
+          !Array.isArray(delivery.checks.required) ||
+          !delivery.checks.required.every(isCheckRequirement) ||
+          !Array.isArray(delivery.checks.records) ||
+          !delivery.checks.records.every(isCheckRecord))) ||
+      (Object.hasOwn(delivery, "correctionAttempts") &&
+        (!Array.isArray(delivery.correctionAttempts) ||
+          !delivery.correctionAttempts.every(isCorrectionAttempt) ||
+          delivery.correctionAttempts.some(
+            (attempt, index) =>
+              attempt.number !== index + 1 ||
+              attempt.assignment.action !== "correct" ||
+              attempt.assignment.report !==
+                join(
+                  this.app.workspaceRoot,
+                  ".scratch",
+                  feature,
+                  "reports",
+                  `final-round-${attempt.number}-fix.md`,
+                ) ||
+              (attempt.reviewAssignments ?? []).some(
+                (assignment) =>
+                  assignment.scope !== "delivery" ||
+                  assignment.attempt !== attempt.number ||
+                  assignment.report !==
+                    join(
+                      this.app.workspaceRoot,
+                      ".scratch",
+                      feature,
+                      "reports",
+                      `final-round-${attempt.number}-review-${assignment.id}.md`,
+                    ),
+              ),
+          ) ||
+          !hasMatchingCorrectionAttempt(delivery))) ||
+      (Object.hasOwn(delivery, "adjudication") && !isCorrectionAdjudication(delivery.adjudication))
+    ) {
+      throw new Error("Feature delivery evidence or assignment records are invalid.");
+    }
+    if (!isDeliveryProgress(delivery)) {
+      throw new Error("Feature delivery progress does not match the delivery ledger schema.");
+    }
+    const deliveryFindingIds = delivery.findings?.map((finding) => finding.id) ?? [];
+    if (new Set(deliveryFindingIds).size !== deliveryFindingIds.length) {
+      throw new Error("Delivery finding IDs must be unique.");
+    }
+    for (const finding of delivery.findings ?? []) {
+      if (
+        finding.requirementsDecision &&
+        !delivery.requirementsDecisions?.some(
+          (decision) =>
+            decision.id === finding.requirementsDecision &&
+            decision.finding === finding.id &&
+            decision.status === "approved",
+        )
+      ) {
+        throw new Error(
+          `Delivery finding ${finding.id} references an invalid requirements decision.`,
+        );
+      }
+    }
+    const allReviewAssignmentIds = [
+      ...reviewAssignmentIds,
+      ...(Array.isArray(delivery.reviewHistory) ? delivery.reviewHistory : []).map((assignment) =>
+        isRecord(assignment) ? assignment.id : undefined,
+      ),
+      ...(Array.isArray(delivery.reviewAssignments) ? delivery.reviewAssignments : []).map(
+        (assignment) => (isRecord(assignment) ? assignment.id : undefined),
+      ),
+    ];
+    if (
+      allReviewAssignmentIds.some((assignmentId) => typeof assignmentId !== "string") ||
+      new Set(allReviewAssignmentIds).size !== allReviewAssignmentIds.length
+    ) {
+      throw new Error("Feature review assignment IDs must be unique.");
     }
 
     return value as unknown as FeatureLedger;
