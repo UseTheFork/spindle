@@ -101,10 +101,19 @@ controller-confirmed Git-derived inventory as a JSON string array. The CLI
 compares that inventory with the current changed paths, then freezes the
 snapshot and persists one unique initial `review` assignment per required
 reviewer before returning the agent, scope, ID, snapshot, and absolute report
-destination. Supply the inventory exactly; `.scratch` ledgers and reports are
-not part of the code inventory. Repeating dispatch returns the same assignment.
-After dispatch, required checks cannot be changed through the CLI; later gates
-revalidate the content, inventory, and submitted report digest to detect
+destination. A controller may first pin a justified specialist with
+`just spindle::run sdd review require --spec <absolute-spec-path> --issue I-0001 --agent <catalog-agent> --details "<specialist objective>" --author controller`.
+Only a known agent with `canReview: true` is eligible; this is separate from
+the controller's required check that the agent is actually callable in the
+current harness. The CLI neither checks callability nor adds a default
+specialist batch. Each reviewer keeps a distinct `review` assignment and
+report destination, and the specialist objective is carried on that
+assignment. Requirement registration is allowed only before assignments are
+frozen, is idempotent for identical input, and has no removal operation.
+Supply the inventory exactly; `.scratch` ledgers and reports are not part of
+the code inventory. Repeating dispatch returns the same assignments. After
+dispatch, required checks cannot be changed through the CLI; later gates
+revalidate the content, inventory, and submitted report digests to detect
 external edits.
 
 Register each finding explicitly before submitting its source review report.
@@ -147,11 +156,11 @@ just spindle::run sdd requirements decide --spec <absolute-spec-path> --issue I-
 ```
 
 `accept` requires current passing required checks, complete passing initial
-review coverage for every reviewer pinned in the feature policy, and no
+review coverage for the default reviewer and every pinned specialist, and no
 unresolved blocking finding. Reviews may attest to `--no-findings` or list
 their canonical findings. Missing declarations, pending/failed/unavailable
-results, stale or altered evidence, and unresolved blockers prevent
-acceptance. A review with blocking findings routes the issue to
+results, stale or altered evidence, mismatched assignment provenance, and
+unresolved blockers prevent acceptance. A review with blocking findings routes the issue to
 `changes-requested`; `next` and `status` expose findings, blockers, and
 requirements decisions. `resume` returns saved review assignments and the next
 action after an interrupted dispatch or submission. The `sdd-reviewer` Agent

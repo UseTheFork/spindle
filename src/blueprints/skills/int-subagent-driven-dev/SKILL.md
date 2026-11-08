@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.5.0
+    version: 1.6.0
 ---
 
 # Subagent-Driven Development
@@ -13,10 +13,16 @@ Controller for assigned tickets or dependency graphs; the brief governs. The con
 
 **First action:** Confirm invocation access to `sdd-implementer` and `sdd-reviewer`. Files existing is not proof of access. If access is unavailable or unconfirmed, stop and identify the missing agents. Use the assigned agents, not substitutes.
 
-| Assignment                                             | Agent             | Required template                             |
-| ------------------------------------------------------ | ----------------- | --------------------------------------------- |
-| Implementation and batched fixes                       | `sdd-implementer` | [implementer](./assets/implementer-prompt.md) |
-| Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`    | [reviewer](./assets/reviewer-prompt.md)       |
+Only when a concrete risk warrants a specialist, separately confirm the
+selected agent is callable in the current harness before dispatch. Catalog
+`canReview: true` means eligible, not available; the CLI deliberately does not
+check harness access.
+
+| Assignment                                             | Agent               | Required template                             |
+| ------------------------------------------------------ | ------------------- | --------------------------------------------- |
+| Implementation and batched fixes                       | `sdd-implementer`   | [implementer](./assets/implementer-prompt.md) |
+| Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`      | [reviewer](./assets/reviewer-prompt.md)       |
+| Justified specialist code-review objective             | `sdd-code-reviewer` | The CLI-pinned specialist assignment          |
 
 Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Use the SDD ledger and workflow commands as the execution authority; Markdown remains the requirements, comments, and report record. Workflow commands persist intent and validate gates but never launch agents, execute checks, or mutate Git.
 
@@ -85,11 +91,13 @@ Apply formatting, then applicable lint, type, and ticket-wide regression checks.
 
 ### E. Freeze and review
 
-Before preparing the assignment, read [review inputs](./references/review-inputs.md). Set `Execution: in-review`, freeze the snapshot, and dispatch one independent `sdd-reviewer` using the reviewer template in `INITIAL` mode. Supply complete requirements, change and same-snapshot evidence, implementation report, concerns/dependencies, prior findings/rulings or `NONE`, and assigned destination. Reference existing durable inputs rather than copying logs.
+Before preparing assignments, read [review inputs](./references/review-inputs.md). Use one independent `sdd-reviewer` as the comprehensive default in `INITIAL` mode. Add a specialist only for a recorded, justified risk. Before the review snapshot is frozen, register its objective with `sdd review require --spec <path> --issue <id> --agent <name> --details <objective> --author <controller>`. The command records intent but does not check agent callability; confirm actual harness access separately before dispatch.
+
+Run `sdd review` to freeze the snapshot and get one distinct `review` assignment and report path per pinned reviewer. Preserve each assignment's ID, agent, objective, snapshot, inventory, and exact destination; pass those fields without substitution. Give the default reviewer the comprehensive review template and each specialist only its recorded objective plus its own assignment provenance. Submit each exact assignment ID and report path. Acceptance waits for the full recorded batch; a missing, pending, failed, unavailable, stale, or mismatched assignment blocks. The CLI has no default specialist batch or requirement-removal operation.
 
 Wait for its report, reconcile stable finding IDs, and record controller rulings. A demonstrated defect proceeds to correction; missing context or unavailable required review evidence is a blocker, not a clean report.
 
-**Complete when:** the comprehensive report covers Spec and Quality on the frozen snapshot and findings are ruled, selecting F. Missing/inconsistent review context or unavailable review selects Q after the reviewer returns.
+**Complete when:** the comprehensive report covers Spec and Quality, every recorded specialist objective has distinct current evidence, and findings are ruled on the frozen snapshot, selecting F. Missing/inconsistent review context or unavailable review selects Q after the reviewer returns.
 
 ### F. Accepted?
 

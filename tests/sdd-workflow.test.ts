@@ -395,6 +395,260 @@ test("review requires current passing checks and confirmed inventory and reuses 
   assert.equal(issueText.match(/Initial review assignment recorded/g)?.length, 1);
 });
 
+test("required specialist reviews are justified, distinct, provenance-bound, and gate acceptance", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
+  const requireReview = (agent: string, details: string) =>
+    invoke(repo, [
+      "review",
+      "require",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--agent",
+      agent,
+      "--details",
+      details,
+      "--author",
+      "controller",
+    ]);
+
+  const originalLedger = readFileSync(ledgerPath, "utf8");
+  const originalIssue = readFileSync(issuePath, "utf8");
+  const unknownAgent = requireReview("not-in-catalog", "Inspect generated source API usage.");
+  assert.notEqual(unknownAgent.status, 0);
+  assert.match(unknownAgent.stderr, /unknown.*agent|catalog/i);
+  assert.equal(readFileSync(ledgerPath, "utf8"), originalLedger);
+  assert.equal(readFileSync(issuePath, "utf8"), originalIssue);
+
+  const ineligibleAgent = requireReview("sdd-implementer", "Inspect generated source API usage.");
+  assert.notEqual(ineligibleAgent.status, 0);
+  assert.match(ineligibleAgent.stderr, /not explicitly marked review-eligible/i);
+  assert.equal(readFileSync(ledgerPath, "utf8"), originalLedger);
+  assert.equal(readFileSync(issuePath, "utf8"), originalIssue);
+
+  const details = "Check that generated TypeScript declarations preserve exported API contracts.";
+  const required = requireReview("sdd-code-reviewer", details);
+  assert.equal(required.status, 0, required.stderr);
+  const requirement = JSON.parse(required.stdout).requirement as {
+    agent: string;
+    details: string;
+    author: string;
+  };
+  assert.equal(requirement.agent, "sdd-code-reviewer");
+  assert.equal(requirement.details, details);
+  assert.equal(requirement.author, "controller");
+
+  const repeated = requireReview("sdd-code-reviewer", details);
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).idempotent, true);
+  const conflicting = requireReview(
+    "sdd-code-reviewer",
+    "Replace the original objective with an unrelated review.",
+  );
+  assert.notEqual(conflicting.status, 0);
+  assert.match(conflicting.stderr, /already pinned/i);
+  const registeredLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  assert.equal(registeredLedger.issues[0].reviewRequirements.length, 1);
+  assert.equal(registeredLedger.issues[0].reviewRequirements[0].details, details);
+  assert.match(readFileSync(issuePath, "utf8"), /Specialist review required/);
+
+  const check = recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  assert.equal(check.status, 0, check.stderr);
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const assignments = JSON.parse(dispatched.stdout).assignments as {
+    id: string;
+    agent: string;
+    role: string;
+    objective?: string;
+    report: string;
+    status: string;
+  }[];
+  assert.deepEqual(
+    assignments.map(({ agent, role, objective }) => ({
+      agent,
+      role,
+      objective,
+    })),
+    [
+      { agent: "sdd-reviewer", role: "review", objective: undefined },
+      { agent: "sdd-code-reviewer", role: "review", objective: details },
+    ],
+  );
+  assert.equal(new Set(assignments.map((assignment) => assignment.id)).size, 2);
+  assert.equal(new Set(assignments.map((assignment) => assignment.report)).size, 2);
+  assert.ok(assignments.every((assignment) => assignment.status === "pending"));
+  const status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  assert.equal(
+    JSON.parse(status.stdout).pendingAssignments.find(
+      (assignment: { agent?: string }) => assignment.agent === "sdd-code-reviewer",
+    ).objective,
+    details,
+  );
+
+  const lateRequirement = requireReview("sdd-reviewer", "Check for an unrelated concern.");
+  assert.notEqual(lateRequirement.status, 0);
+  assert.match(lateRequirement.stderr, /review.*already.*assigned|frozen/i);
+  assert.equal(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].reviewRequirements.length, 1);
+
+  const defaultReviewer = assignments.find((assignment) => assignment.agent === "sdd-reviewer")!;
+  const specialist = assignments.find((assignment) => assignment.agent === "sdd-code-reviewer")!;
+  writeFileSync(defaultReviewer.report, "# Comprehensive review\n\nNo defects found.\n");
+  writeFileSync(specialist.report, "# Specialist review\n\nNo API defects found.\n");
+
+  const substitutedSource = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    specialist.id,
+    "--report",
+    defaultReviewer.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(substitutedSource.status, 0);
+  assert.match(substitutedSource.stderr, /assigned destination|assignment/i);
+
+  const submit = (assignment: (typeof assignments)[number]) =>
+    invoke(repo, [
+      "submit",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--role",
+      "review",
+      "--assignment",
+      assignment.id,
+      "--report",
+      assignment.report,
+      "--result",
+      "passed",
+      "--no-findings",
+      "--author",
+      "controller",
+    ]);
+  const defaultSubmitted = submit(defaultReviewer);
+  assert.equal(defaultSubmitted.status, 0, defaultSubmitted.stderr);
+  const incompleteAcceptance = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.notEqual(incompleteAcceptance.status, 0);
+  assert.match(incompleteAcceptance.stderr, /pending|coverage/i);
+
+  const specialistSubmitted = submit(specialist);
+  assert.equal(specialistSubmitted.status, 0, specialistSubmitted.stderr);
+  const accepted = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.deepEqual(
+    JSON.parse(accepted.stdout).reviews.map((review: { agent: string }) => review.agent),
+    ["sdd-reviewer", "sdd-code-reviewer"],
+  );
+});
+
+test("unavailable specialist submissions preserve the pinned objective separately from result details", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const required = invoke(repo, [
+    "review",
+    "require",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--agent",
+    "sdd-code-reviewer",
+    "--details",
+    "Check generated declarations against the exported runtime API.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(required.status, 0, required.stderr);
+  const check = recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  assert.equal(check.status, 0, check.stderr);
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const assignment = JSON.parse(dispatched.stdout).assignments.find(
+    (candidate: { agent: string }) => candidate.agent === "sdd-code-reviewer",
+  ) as { id: string; report: string };
+  writeFileSync(assignment.report, "# Specialist review\n\nCould not complete the assessment.\n");
+  const failureDetails = "The generated declaration fixture is unavailable.";
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "unavailable",
+    "--no-findings",
+    "--details",
+    failureDetails,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const stored = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+  ).issues[0].reviewAssignments.find(
+    (candidate: { agent: string }) => candidate.agent === "sdd-code-reviewer",
+  );
+  assert.equal(stored.role, "review");
+  assert.equal(stored.objective, "Check generated declarations against the exported runtime API.");
+  assert.equal(stored.details, failureDetails);
+});
+
 test("review accepts a Git-derived mixed-case inventory in its supplied order", (t) => {
   const { repo, spec, command } = prepareImplementationForReview(t);
   writeFileSync(join(repo, "B.ts"), "export const upper = true;\n");

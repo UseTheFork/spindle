@@ -21,7 +21,12 @@ export interface BlueprintCatalogDefinition {
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {
     general: { path: "general.agent.md", status: "active", stacks: [] },
-    "sdd-code-reviewer": { path: "sdd-code-reviewer.agent.md", status: "active", stacks: [] },
+    "sdd-code-reviewer": {
+      path: "sdd-code-reviewer.agent.md",
+      status: "active",
+      stacks: [],
+      canReview: true,
+    },
     "sdd-code-slop-reviewer": {
       path: "sdd-code-slop-reviewer.agent.md",
       status: "active",

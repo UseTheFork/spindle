@@ -116,6 +116,13 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
       canReview: true,
     },
   );
+  assert.equal(blueprintCatalog.agents["sdd-reviewer"]?.canReview, true);
+  assert.equal(blueprintCatalog.agents["sdd-code-reviewer"]?.canReview, true);
+  assert.equal(
+    validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: false } }, {}, {}))
+      .agents[0]?.canReview,
+    false,
+  );
   assert.throws(
     () => validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: "yes" } }, {}, {})),
     /canReview.*boolean/,
@@ -808,10 +815,17 @@ test("the shipped Blueprint collection installs its flattened catalog sources", 
       join(project, ".github", "agents", "sdd-reviewer.agent.md"),
       "utf8",
     );
+    const specialist = await readFile(
+      join(project, ".github", "agents", "sdd-code-reviewer.agent.md"),
+      "utf8",
+    );
     assert.match(reviewer, /version: 1\.2\.0/);
     assert.match(reviewer, /requirements, correctness, regressions, tests, maintainability/);
     assert.match(reviewer, /initial issue, corrective issue\/delivery, and aggregate full-spec/);
     assert.match(reviewer, /assigned report/);
+    assert.match(specialist, /version: 1\.3\.0/);
+    assert.match(specialist, /specialist objective/);
+    assert.match(specialist, /not a routine second review or a replacement for/);
     assert.equal((await readdir(join(project, ".github", "skills"))).length, 30);
   } finally {
     await rm(project, { recursive: true, force: true });

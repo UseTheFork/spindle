@@ -115,11 +115,19 @@ interface IssueProgress {
   owner?: string;
   baseSha?: string;
   assignment?: ImplementationAssignment;
+  reviewRequirements?: SpecialistReviewRequirement[];
   reviewAssignments?: ReviewAssignment[];
   reviewHistory?: ReviewAssignment[];
   requirementsDecisions?: RequirementsDecision[];
   checks?: IssueChecks;
   findings?: ReviewFinding[];
+}
+
+interface SpecialistReviewRequirement {
+  agent: string;
+  details: string;
+  author: string;
+  requestedAt: string;
 }
 
 interface CheckRequirement {
@@ -186,6 +194,7 @@ interface ReviewAssignment {
   agent: string;
   role: "review";
   scope: "initial";
+  objective?: string;
   snapshot: string;
   codeSnapshot: string;
   requirementsSnapshot: string;
@@ -233,6 +242,16 @@ interface FeaturePaths {
   workspace: string;
   spec: string;
   ledger: string;
+}
+
+function requiredIssueReviewers(
+  ledger: FeatureLedger,
+  progress: IssueProgress,
+): { agent: string; details?: string }[] {
+  return [
+    ...ledger.reviewPolicy.issue.map((agent) => ({ agent })),
+    ...(progress.reviewRequirements ?? []).map(({ agent, details }) => ({ agent, details })),
+  ];
 }
 
 interface StatusOptions {
@@ -318,6 +337,11 @@ interface RequirementsDecideOptions extends IssueSelection {
 
 interface ReviewOptions extends IssueSelection {
   inventory: string;
+}
+
+interface ReviewRequireOptions extends IssueSelection {
+  agent: string;
+  details: string;
 }
 
 type AcceptOptions = IssueSelection;
@@ -456,6 +480,10 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
     !Array.isArray(value.inventory) ||
     !value.inventory.every((path) => typeof path === "string" && path.length > 0) ||
     new Set(value.inventory).size !== value.inventory.length ||
+    (Object.hasOwn(value, "objective") &&
+      (typeof value.objective !== "string" || !value.objective.trim())) ||
+    (Object.hasOwn(value, "details") &&
+      (typeof value.details !== "string" || !value.details.trim())) ||
     typeof value.report !== "string" ||
     !isAbsolute(value.report) ||
     typeof value.requestedAt !== "string" ||
@@ -481,6 +509,20 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
     typeof value.submittedBy === "string" &&
     !!value.submittedBy.trim() &&
     (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
+  );
+}
+
+function isSpecialistReviewRequirement(value: unknown): value is SpecialistReviewRequirement {
+  return (
+    isRecord(value) &&
+    typeof value.agent === "string" &&
+    !!value.agent.trim() &&
+    typeof value.details === "string" &&
+    !!value.details.trim() &&
+    typeof value.author === "string" &&
+    !!value.author.trim() &&
+    typeof value.requestedAt === "string" &&
+    Number.isFinite(Date.parse(value.requestedAt))
   );
 }
 
@@ -816,20 +858,55 @@ export class SddCommand extends Service {
 
     program
       .command("review")
-      .description("Freeze the confirmed change inventory and persist review assignments.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
-      .requiredOption(
+      .description("Require a specialist or freeze the confirmed inventory for review.")
+      .argument("[action]", "Use 'require' to pin a justified specialist reviewer")
+      .option("--spec <path>", "Feature spec path", once("--spec"))
+      .option("--issue <id>", "Issue ID", once("--issue"))
+      .option(
         "--inventory <json>",
         "Controller-confirmed Git-derived inventory as a JSON string array",
         once("--inventory"),
       )
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .option("--author <author>", "Controller author", once("--author"))
+      .option("--agent <name>", "Known review-eligible Blueprint agent", once("--agent"))
+      .option("--details <text>", "Justified specialist review objective", once("--details"))
       .allowExcessArguments(false)
-      .action(async (options: ReviewOptions) => {
-        const command = await createApp().get(SddCommand);
-        console.log(JSON.stringify(command.review(options), null, 2));
-      });
+      .action(
+        async (
+          action: string | undefined,
+          options: Partial<ReviewOptions & ReviewRequireOptions>,
+        ) => {
+          if (action === "require") {
+            if (
+              !options.spec ||
+              !options.issue ||
+              !options.agent ||
+              !options.details ||
+              !options.author
+            ) {
+              throw new Error(
+                "review require needs --spec, --issue, --agent, --details, and --author.",
+              );
+            }
+            if (options.inventory)
+              throw new Error("--inventory is not valid with 'review require'.");
+            const command = await createApp().get(SddCommand);
+            console.log(
+              JSON.stringify(command.reviewRequire(options as ReviewRequireOptions), null, 2),
+            );
+            return;
+          }
+          if (action !== undefined) throw new Error(`Unknown review action: ${action}.`);
+          if (options.agent || options.details) {
+            throw new Error("--agent and --details are only valid with 'review require'.");
+          }
+          if (!options.spec || !options.issue || !options.inventory || !options.author) {
+            throw new Error("review requires --spec, --issue, --inventory, and --author.");
+          }
+          const command = await createApp().get(SddCommand);
+          console.log(JSON.stringify(command.review(options as ReviewOptions), null, 2));
+        },
+      );
 
     const finding = program
       .command("finding")
@@ -1128,6 +1205,7 @@ export class SddCommand extends Service {
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
       scope?: ReviewAssignment["scope"];
+      objective?: string;
     }[];
     blockers: { issue: string; reason: string }[];
   } {
@@ -1176,6 +1254,7 @@ export class SddCommand extends Service {
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
       scope?: ReviewAssignment["scope"];
+      objective?: string;
     }[] = [];
     const blockers: { issue: string; reason: string }[] = [];
 
@@ -1298,6 +1377,7 @@ export class SddCommand extends Service {
               status: assignment.status,
               agent: assignment.agent,
               scope: assignment.scope,
+              ...(assignment.objective ? { objective: assignment.objective } : {}),
             });
           }
           const assignmentBlocker = this.#reviewAssignmentBlocker(
@@ -1906,6 +1986,81 @@ export class SddCommand extends Service {
     }
   }
 
+  reviewRequire(options: ReviewRequireOptions): {
+    issue: string;
+    requirement: SpecialistReviewRequirement;
+    idempotent?: boolean;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const agent = options.agent.trim();
+    const details = options.details.trim();
+    if (!agent) throw new Error("Review agent must not be empty.");
+    if (!details) throw new Error("Specialist review details must not be empty.");
+    const catalogEntry = blueprintCatalog.agents[agent];
+    if (!catalogEntry) {
+      throw new Error(`Unknown review agent '${agent}' in the Blueprint Catalog.`);
+    }
+    if (catalogEntry.canReview !== true) {
+      throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (!progress.owner || progress.owner !== options.author.trim()) {
+        throw new Error("Only the recorded issue controller may require specialist reviews.");
+      }
+
+      const existing = (progress.reviewRequirements ?? []).find(
+        (requirement) => requirement.agent === agent,
+      );
+      if (existing) {
+        if (existing.details !== details || existing.author !== options.author.trim()) {
+          throw new Error(
+            `Specialist review for '${agent}' is already pinned with different details or author.`,
+          );
+        }
+        return { issue: options.issue, requirement: existing, idempotent: true };
+      }
+      if (
+        (progress.reviewAssignments?.length ?? 0) > 0 ||
+        (progress.reviewHistory?.length ?? 0) > 0
+      ) {
+        throw new Error(
+          "Review assignments are already frozen; specialist requirements cannot be added.",
+        );
+      }
+      if (ledger.reviewPolicy.issue.includes(agent)) {
+        throw new Error(`Review agent '${agent}' is already required by the pinned issue policy.`);
+      }
+
+      const requirement: SpecialistReviewRequirement = {
+        agent,
+        details,
+        author: options.author.trim(),
+        requestedAt: new Date().toISOString(),
+      };
+      (progress.reviewRequirements ??= []).push(requirement);
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Specialist review required for '${agent}': ${details}.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return { issue: options.issue, requirement };
+    } finally {
+      release();
+    }
+  }
+
   review(options: ReviewOptions): {
     issue: string;
     execution: "reviewing";
@@ -1965,13 +2120,15 @@ export class SddCommand extends Service {
         );
       }
 
+      const requiredReviewers = requiredIssueReviewers(ledger, progress);
       const existing = progress.reviewAssignments ?? [];
       if (existing.length > 0) {
         if (
-          existing.length !== ledger.reviewPolicy.issue.length ||
+          existing.length !== requiredReviewers.length ||
           existing.some(
             (assignment, index) =>
-              assignment.agent !== ledger.reviewPolicy.issue[index] ||
+              assignment.agent !== requiredReviewers[index]?.agent ||
+              assignment.objective !== requiredReviewers[index]?.details ||
               assignment.snapshot !== identity.snapshot ||
               assignment.codeSnapshot !== identity.codeSnapshot ||
               assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
@@ -1995,7 +2152,7 @@ export class SddCommand extends Service {
         };
       }
 
-      const assignments = ledger.reviewPolicy.issue.map((agent) => {
+      const assignments = requiredReviewers.map(({ agent, details }) => {
         const catalogEntry = blueprintCatalog.agents[agent];
         if (!catalogEntry || catalogEntry.canReview !== true) {
           throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
@@ -2011,6 +2168,7 @@ export class SddCommand extends Service {
           agent,
           role: "review" as const,
           scope: "initial" as const,
+          ...(details ? { objective: details } : {}),
           snapshot: identity.snapshot,
           codeSnapshot: identity.codeSnapshot,
           requirementsSnapshot: identity.requirementsSnapshot,
@@ -2327,12 +2485,13 @@ export class SddCommand extends Service {
           );
         }
         const assignments = progress.reviewAssignments ?? [];
-        for (const agent of ledger.reviewPolicy.issue) {
+        for (const { agent, details } of requiredIssueReviewers(ledger, progress)) {
           const coverage = assignments.filter(
             (assignment) => assignment.agent === agent && assignment.scope === "initial",
           );
           if (
             coverage.length !== 1 ||
+            coverage[0]!.objective !== details ||
             coverage[0]!.status !== "submitted" ||
             coverage[0]!.result !== "passed" ||
             this.#reviewAssignmentBlocker(feature, progress, coverage[0]!, identity)
@@ -2421,12 +2580,14 @@ export class SddCommand extends Service {
         this.#findingBlockers(progress, identity).length === 0
       ) {
         const assignments = progress.reviewAssignments ?? [];
+        const requiredReviewers = requiredIssueReviewers(ledger, progress);
         const freshCoverage =
-          assignments.length === ledger.reviewPolicy.issue.length &&
-          ledger.reviewPolicy.issue.every((agent) => {
+          assignments.length === requiredReviewers.length &&
+          requiredReviewers.every(({ agent, details }) => {
             const matching = assignments.filter((assignment) => assignment.agent === agent);
             return (
               matching.length === 1 &&
+              matching[0]!.objective === details &&
               matching[0]!.status === "submitted" &&
               matching[0]!.result === "passed" &&
               this.#reviewAssignmentBlocker(feature, progress, matching[0]!, identity) === undefined
@@ -2973,9 +3134,12 @@ export class SddCommand extends Service {
       if (blockers.length > 0) {
         throw new Error(`Issue ${options.issue} cannot be accepted:\n${blockers.join("\n")}`);
       }
-      const reviews = ledger.reviewPolicy.issue.map((agent) => {
+      const reviews = requiredIssueReviewers(ledger, progress).map(({ agent, details }) => {
         const assignment = progress.reviewAssignments!.find(
-          (candidate) => candidate.agent === agent && candidate.scope === "initial",
+          (candidate) =>
+            candidate.agent === agent &&
+            candidate.objective === details &&
+            candidate.scope === "initial",
         )!;
         return {
           agent,
@@ -3277,7 +3441,14 @@ export class SddCommand extends Service {
     if (implementationBlocker) blockers.push(implementationBlocker);
 
     const assignments = progress.reviewAssignments ?? [];
-    for (const agent of ledger.reviewPolicy.issue) {
+    const requiredReviewers = requiredIssueReviewers(ledger, progress);
+    if (
+      new Set(assignments.map((assignment) => assignment.id)).size !== assignments.length ||
+      new Set(assignments.map((assignment) => assignment.report)).size !== assignments.length
+    ) {
+      blockers.push("Initial review assignments must have distinct IDs and report destinations.");
+    }
+    for (const { agent, details } of requiredReviewers) {
       const coverage = assignments.filter(
         (assignment) => assignment.agent === agent && assignment.scope === "initial",
       );
@@ -3285,10 +3456,12 @@ export class SddCommand extends Service {
         blockers.push(`Required initial review coverage for '${agent}' is missing.`);
       } else if (coverage.length > 1) {
         blockers.push(`Required initial review coverage for '${agent}' is duplicated.`);
+      } else if (coverage[0]!.objective !== details) {
+        blockers.push(`Review assignment for '${agent}' does not match its pinned objective.`);
       }
     }
     for (const assignment of assignments) {
-      if (!ledger.reviewPolicy.issue.includes(assignment.agent)) {
+      if (!requiredReviewers.some((reviewer) => reviewer.agent === assignment.agent)) {
         blockers.push(
           `Review assignment ${assignment.id} is not part of the pinned review policy.`,
         );
@@ -4145,6 +4318,11 @@ export class SddCommand extends Service {
               !!issue.owner.trim() &&
               typeof issue.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(issue.baseSha))) &&
+          (!Object.hasOwn(issue, "reviewRequirements") ||
+            (Array.isArray(issue.reviewRequirements) &&
+              issue.reviewRequirements.every(isSpecialistReviewRequirement) &&
+              new Set(issue.reviewRequirements.map((requirement) => requirement.agent)).size ===
+                issue.reviewRequirements.length)) &&
           (!Object.hasOwn(issue, "checks") ||
             (isRecord(issue.checks) &&
               Array.isArray(issue.checks.required) &&
@@ -4211,6 +4389,20 @@ export class SddCommand extends Service {
       throw new Error("Feature ledger issue IDs must be unique.");
     }
     for (const issue of value.issues as IssueProgress[]) {
+      for (const requirement of issue.reviewRequirements ?? []) {
+        if (blueprintCatalog.agents[requirement.agent]?.canReview !== true) {
+          throw new Error(
+            `Required specialist agent '${requirement.agent}' is not explicitly marked review-eligible.`,
+          );
+        }
+        if (
+          (value.reviewPolicy as FeatureLedger["reviewPolicy"]).issue.includes(requirement.agent)
+        ) {
+          throw new Error(
+            `Specialist reviewer '${requirement.agent}' duplicates the pinned issue review policy.`,
+          );
+        }
+      }
       const findingIds = issue.findings?.map((finding) => finding.id) ?? [];
       if (new Set(findingIds).size !== findingIds.length) {
         throw new Error(`Finding IDs must be unique within issue ${issue.id}.`);
