@@ -59,6 +59,56 @@ interface CreateOptions {
 
 type ExecutionState = (typeof EXECUTION_STATES)[number];
 
+type FindingSeverity = "high" | "medium" | "low";
+type FindingStatus = "open" | "confirmed" | "fixed" | "dismissed" | "deferred";
+
+interface FindingProvenance {
+  report: string;
+  snapshot: string;
+  author: string;
+  summary: string;
+  details: string;
+}
+
+interface FindingHistoryEntry {
+  at: string;
+  author: string;
+  action: string;
+  details: string;
+}
+
+interface RequirementsDecision {
+  id: string;
+  finding: string;
+  status: "approved" | "rejected";
+  details: string;
+  author: string;
+  requirementsSnapshot: string;
+  recordedAt: string;
+}
+
+interface ReviewFinding {
+  id: string;
+  severity: FindingSeverity;
+  blocking: boolean;
+  status: FindingStatus;
+  summary: string;
+  details: string;
+  author: string;
+  createdAt: string;
+  provenance: FindingProvenance[];
+  history: FindingHistoryEntry[];
+  rulingDetails?: string;
+  followUp?: string;
+  requirementsDecision?: string;
+  verification?: {
+    snapshot: string;
+    checkCommands: string[];
+    verifiedAt: string;
+    verifiedBy: string;
+  };
+}
+
 interface IssueProgress {
   id: string;
   execution: ExecutionState;
@@ -66,7 +116,10 @@ interface IssueProgress {
   baseSha?: string;
   assignment?: ImplementationAssignment;
   reviewAssignments?: ReviewAssignment[];
+  reviewHistory?: ReviewAssignment[];
+  requirementsDecisions?: RequirementsDecision[];
   checks?: IssueChecks;
+  findings?: ReviewFinding[];
 }
 
 interface CheckRequirement {
@@ -143,6 +196,7 @@ interface ReviewAssignment {
   status: "pending" | "submitted";
   result?: ReviewResult;
   noFindings?: true;
+  findingIds?: string[];
   reportSha256?: string;
   submittedAt?: string;
   submittedBy?: string;
@@ -230,9 +284,36 @@ interface SubmitOptions extends IssueSelection {
   assignment?: string;
   result?: string;
   noFindings?: boolean;
-  findings?: boolean;
+  findingIds?: string[];
+  findings?: string[] | boolean;
   unavailable?: boolean;
   details?: string;
+}
+
+interface FindingCreateOptions extends IssueSelection {
+  source: string;
+  snapshot: string;
+  severity: string;
+  blocking?: boolean;
+  nonBlocking?: boolean;
+  summary: string;
+  details: string;
+  link?: string;
+}
+
+interface FindingUpdateOptions extends IssueSelection {
+  finding: string;
+  status: string;
+  details?: string;
+  followUp?: string;
+  evidence?: string;
+  requirementsDecision?: string;
+}
+
+interface RequirementsDecideOptions extends IssueSelection {
+  finding: string;
+  decision: string;
+  details: string;
 }
 
 interface ReviewOptions extends IssueSelection {
@@ -386,9 +467,13 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
   if (value.status === "pending") return true;
   return (
     ["passed", "failed", "unavailable"].includes(String(value.result)) &&
-    (value.result === "passed"
-      ? value.noFindings === true
-      : value.noFindings === undefined || value.noFindings === true) &&
+    (value.noFindings === true
+      ? value.findingIds === undefined
+      : value.noFindings === undefined &&
+        Array.isArray(value.findingIds) &&
+        value.findingIds.length > 0 &&
+        value.findingIds.every((id) => typeof id === "string" && /^F-\d{4,}$/.test(id)) &&
+        new Set(value.findingIds).size === value.findingIds.length) &&
     typeof value.reportSha256 === "string" &&
     /^[0-9a-f]{64}$/i.test(value.reportSha256) &&
     typeof value.submittedAt === "string" &&
@@ -396,6 +481,96 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
     typeof value.submittedBy === "string" &&
     !!value.submittedBy.trim() &&
     (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
+  );
+}
+
+function isReviewFinding(value: unknown): value is ReviewFinding {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    /^F-\d{4,}$/.test(value.id) &&
+    ["high", "medium", "low"].includes(String(value.severity)) &&
+    typeof value.blocking === "boolean" &&
+    ["open", "confirmed", "fixed", "dismissed", "deferred"].includes(String(value.status)) &&
+    typeof value.summary === "string" &&
+    !!value.summary.trim() &&
+    typeof value.details === "string" &&
+    !!value.details.trim() &&
+    typeof value.author === "string" &&
+    !!value.author.trim() &&
+    typeof value.createdAt === "string" &&
+    Number.isFinite(Date.parse(value.createdAt)) &&
+    Array.isArray(value.provenance) &&
+    value.provenance.length > 0 &&
+    value.provenance.every(
+      (source) =>
+        isRecord(source) &&
+        typeof source.report === "string" &&
+        isAbsolute(source.report) &&
+        typeof source.snapshot === "string" &&
+        /^[0-9a-f]{64}$/i.test(source.snapshot) &&
+        typeof source.author === "string" &&
+        !!source.author.trim() &&
+        typeof source.summary === "string" &&
+        !!source.summary.trim() &&
+        typeof source.details === "string" &&
+        !!source.details.trim(),
+    ) &&
+    Array.isArray(value.history) &&
+    value.history.every(
+      (entry) =>
+        isRecord(entry) &&
+        typeof entry.at === "string" &&
+        Number.isFinite(Date.parse(entry.at)) &&
+        typeof entry.author === "string" &&
+        !!entry.author.trim() &&
+        typeof entry.action === "string" &&
+        !!entry.action.trim() &&
+        typeof entry.details === "string" &&
+        !!entry.details.trim(),
+    ) &&
+    (value.status !== "dismissed" ||
+      (typeof value.rulingDetails === "string" && !!value.rulingDetails.trim())) &&
+    (value.status !== "deferred" ||
+      (typeof value.rulingDetails === "string" &&
+        !!value.rulingDetails.trim() &&
+        typeof value.followUp === "string" &&
+        !!value.followUp.trim())) &&
+    (!Object.hasOwn(value, "requirementsDecision") ||
+      (typeof value.requirementsDecision === "string" &&
+        /^R-\d{4,}$/.test(value.requirementsDecision))) &&
+    (value.status !== "fixed" ||
+      (isRecord(value.verification) &&
+        typeof value.verification.snapshot === "string" &&
+        /^[0-9a-f]{64}$/i.test(value.verification.snapshot) &&
+        Array.isArray(value.verification.checkCommands) &&
+        value.verification.checkCommands.length > 0 &&
+        value.verification.checkCommands.every(
+          (command) => typeof command === "string" && !!command.trim(),
+        ) &&
+        typeof value.verification.verifiedAt === "string" &&
+        Number.isFinite(Date.parse(value.verification.verifiedAt)) &&
+        typeof value.verification.verifiedBy === "string" &&
+        !!value.verification.verifiedBy.trim()))
+  );
+}
+
+function isRequirementsDecision(value: unknown): value is RequirementsDecision {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    /^R-\d{4,}$/.test(value.id) &&
+    typeof value.finding === "string" &&
+    /^F-\d{4,}$/.test(value.finding) &&
+    ["approved", "rejected"].includes(String(value.status)) &&
+    typeof value.details === "string" &&
+    !!value.details.trim() &&
+    typeof value.author === "string" &&
+    !!value.author.trim() &&
+    typeof value.requirementsSnapshot === "string" &&
+    /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
+    typeof value.recordedAt === "string" &&
+    Number.isFinite(Date.parse(value.recordedAt))
   );
 }
 
@@ -656,7 +831,88 @@ export class SddCommand extends Service {
         console.log(JSON.stringify(command.review(options), null, 2));
       });
 
-    program
+    const finding = program
+      .command("finding")
+      .description("Register canonical review findings and explicit rulings.");
+    finding
+      .command("create")
+      .description("Register a review finding with its report and snapshot provenance.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption(
+        "--source <path>",
+        "Assigned review report containing the finding",
+        once("--source"),
+      )
+      .requiredOption(
+        "--snapshot <snapshot>",
+        "Reviewed snapshot returned by the CLI",
+        once("--snapshot"),
+      )
+      .requiredOption(
+        "--severity <severity>",
+        "Finding severity: high, medium, low",
+        once("--severity"),
+      )
+      .option("--blocking", "Mark the finding as blocking")
+      .option("--non-blocking", "Mark the finding as non-blocking")
+      .option("--link <id>", "Explicitly link this observation to a canonical finding")
+      .requiredOption("--summary <summary>", "Concise finding summary", once("--summary"))
+      .requiredOption("--details <details>", "Full finding details", once("--details"))
+      .requiredOption("--author <author>", "Finding registration author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: FindingCreateOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.findingCreate(options), null, 2));
+      });
+    finding
+      .command("update")
+      .description("Record an explicit, attributed finding disposition.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--finding <id>", "Canonical finding ID", once("--finding"))
+      .requiredOption(
+        "--status <status>",
+        "Finding status: open, confirmed, fixed, dismissed, deferred",
+      )
+      .option("--details <details>", "Ruling explanation or rationale")
+      .option("--follow-up <reference>", "Required follow-up reference for a deferral")
+      .option(
+        "--requirements-decision <id>",
+        "Approved requirements decision covering a scope change",
+      )
+      .option("--evidence <snapshot>", "Current CLI snapshot with passing verification checks")
+      .requiredOption("--author <author>", "Ruling author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: FindingUpdateOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.findingUpdate(options), null, 2));
+      });
+    const requirements = program
+      .command("requirements")
+      .description("Record explicit requirements decisions before fresh review.");
+    requirements
+      .command("decide")
+      .description("Approve or reject an issue requirements change and invalidate prior review.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption(
+        "--finding <id>",
+        "Finding affected by the requirements decision",
+        once("--finding"),
+      )
+      .requiredOption("--decision <decision>", "Decision: approved or rejected")
+      .requiredOption("--details <details>", "Decision rationale", once("--details"))
+      .requiredOption("--author <author>", "Decision author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: RequirementsDecideOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.requirementsDecide(options), null, 2));
+      });
+
+    let findingsDeclared = false;
+    let noFindingsDeclared = false;
+    const submitCommand = program
       .command("submit")
       .description("Register an implementation or review report.")
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
@@ -665,6 +921,7 @@ export class SddCommand extends Service {
       .option("--assignment <id>", "Exact review assignment ID", once("--assignment"))
       .option("--report <path>", "Implementation report path", once("--report"))
       .option("--result <result>", "Review result: passed, failed, unavailable", once("--result"))
+      .option("--findings <ids...>", "Complete canonical finding ID list for this report")
       .option("--no-findings", "Explicitly attest that the review report has no findings")
       .option("--unavailable", "Record that the assigned report is unavailable")
       .option(
@@ -673,21 +930,36 @@ export class SddCommand extends Service {
         once("--details"),
       )
       .requiredOption("--author <author>", "Controller author", once("--author"))
-      .allowExcessArguments(false)
-      .action(async (options: SubmitOptions) => {
-        const command = await createApp().get(SddCommand);
-        const { findings, ...submission } = options;
-        console.log(
-          JSON.stringify(
-            command.submit({
-              ...submission,
-              ...(options.role === "review" ? { noFindings: findings === false } : {}),
-            }),
-            null,
-            2,
-          ),
-        );
-      });
+      .allowExcessArguments(false);
+    submitCommand.on("option:findings", () => {
+      findingsDeclared = true;
+    });
+    submitCommand.on("option:no-findings", () => {
+      noFindingsDeclared = true;
+    });
+    submitCommand.action(async (options: SubmitOptions) => {
+      const command = await createApp().get(SddCommand);
+      if (findingsDeclared && noFindingsDeclared) {
+        throw new Error("--findings and --no-findings cannot be combined.");
+      }
+      const { findings, ...submission } = options;
+      console.log(
+        JSON.stringify(
+          command.submit({
+            ...submission,
+            ...(options.role === "review"
+              ? findings === false
+                ? { noFindings: true }
+                : Array.isArray(findings)
+                  ? { findingIds: findings }
+                  : {}
+              : {}),
+          }),
+          null,
+          2,
+        ),
+      );
+    });
 
     program
       .command("accept")
@@ -844,6 +1116,8 @@ export class SddCommand extends Service {
   status({ spec }: StatusOptions): FeaturePaths & {
     state: FeatureLedger;
     snapshots: ({ issue: string } & ContentIdentity)[];
+    findings: { issue: string; finding: ReviewFinding }[];
+    requirementsDecisions: { issue: string; decision: RequirementsDecision }[];
     actions: { issue: string; action: string }[];
     pendingAssignments: {
       issue: string;
@@ -891,6 +1165,8 @@ export class SddCommand extends Service {
     }
     const actions: { issue: string; action: string }[] = [];
     const snapshots: ({ issue: string } & ContentIdentity)[] = [];
+    const findings: { issue: string; finding: ReviewFinding }[] = [];
+    const requirementsDecisions: { issue: string; decision: RequirementsDecision }[] = [];
     const pendingAssignments: {
       issue: string;
       id: string;
@@ -911,8 +1187,26 @@ export class SddCommand extends Service {
       }
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
       snapshots.push({ issue: progress.id, ...identity });
+      for (const finding of progress.findings ?? []) {
+        findings.push({ issue: progress.id, finding });
+      }
+      for (const decision of progress.requirementsDecisions ?? []) {
+        requirementsDecisions.push({ issue: progress.id, decision });
+        if (
+          decision.status === "rejected" &&
+          decision.requirementsSnapshot === identity.requirementsSnapshot
+        ) {
+          blockers.push({
+            issue: progress.id,
+            reason: `Requirements decision ${decision.id} was rejected; acceptance requires an approved decision and fresh review.`,
+          });
+        }
+      }
       const checkBlockers = this.#checkBlockers(progress, identity);
       for (const reason of checkBlockers) blockers.push({ issue: progress.id, reason });
+      for (const reason of this.#findingBlockers(progress, identity)) {
+        blockers.push({ issue: progress.id, reason });
+      }
       if (progress.execution === "unstarted") {
         if (issue.status !== "ready-for-agent") {
           blockers.push({ issue: progress.id, reason: `Triage status is ${issue.status}.` });
@@ -1021,15 +1315,33 @@ export class SddCommand extends Service {
           } else if (
             assignments.every(
               (assignment) => assignment.status === "submitted" && assignment.result === "passed",
+            ) &&
+            assignments.every(
+              (assignment) =>
+                this.#reviewAssignmentBlocker(feature, progress, assignment, identity) ===
+                undefined,
             )
           ) {
-            actions.push({ issue: progress.id, action: "accept" });
+            actions.push({
+              issue: progress.id,
+              action:
+                this.#findingBlockers(progress, identity).length > 0
+                  ? "resolve-findings"
+                  : "accept",
+            });
           }
         }
       } else if (progress.execution === "changes-requested") {
         blockers.push({
           issue: progress.id,
           reason: "A correction decision is required before another implementation dispatch.",
+        });
+        actions.push({
+          issue: progress.id,
+          action:
+            this.#findingBlockers(progress, identity).length > 0
+              ? "adjudicate-findings"
+              : "controller-correction-decision",
         });
       } else if (progress.execution === "blocked") {
         blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
@@ -1052,7 +1364,15 @@ export class SddCommand extends Service {
       }
     }
 
-    return { ...feature, snapshots, actions, pendingAssignments, blockers };
+    return {
+      ...feature,
+      snapshots,
+      findings,
+      requirementsDecisions,
+      actions,
+      pendingAssignments,
+      blockers,
+    };
   }
 
   issueCreate(options: IssueCreateOptions): { issue: string; path: string } {
@@ -1742,6 +2062,540 @@ export class SddCommand extends Service {
     }
   }
 
+  findingCreate(options: FindingCreateOptions): {
+    issue: string;
+    finding: ReviewFinding;
+    idempotent?: boolean;
+    snapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (!["high", "medium", "low"].includes(options.severity)) {
+      throw new Error(`Invalid finding severity: ${options.severity}.`);
+    }
+    if (options.blocking === options.nonBlocking) {
+      throw new Error("Choose exactly one of --blocking or --non-blocking.");
+    }
+    if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
+    if (!options.details.trim()) throw new Error("Finding details must not be empty.");
+    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
+      throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the current issue controller may register findings.");
+      }
+      const report = options.source
+        ? isAbsolute(options.source)
+          ? resolve(options.source)
+          : resolve(feature.workspace, options.source)
+        : "";
+      const assignment = progress.reviewAssignments?.find(
+        (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
+      );
+      if (!assignment) {
+        throw new Error(
+          "Finding source report and snapshot must match a frozen review assignment for this issue.",
+        );
+      }
+      if (assignment.status === "submitted") {
+        throw new Error("Findings must be registered before submitting the review assignment.");
+      }
+      if (!progress.baseSha)
+        throw new Error("Finding registration requires a recorded Git baseline.");
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const snapshotBlocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
+      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      this.#readReportDigest(feature, report);
+      const source: FindingProvenance = {
+        report,
+        snapshot: options.snapshot,
+        author: options.author.trim(),
+        summary: options.summary.trim(),
+        details: options.details.trim(),
+      };
+      const findings = progress.findings ?? [];
+      if (options.link !== undefined) {
+        if (!/^F-\d{4,}$/.test(options.link)) {
+          throw new Error(`Invalid canonical finding ID to link: ${options.link}.`);
+        }
+        const canonical = findings.find((finding) => finding.id === options.link);
+        if (!canonical) throw new Error(`Canonical finding not found: ${options.link}.`);
+        const priorSource = canonical.provenance.find(
+          (provenance) =>
+            provenance.report === source.report && provenance.snapshot === source.snapshot,
+        );
+        if (priorSource) {
+          if (
+            priorSource.author !== source.author ||
+            priorSource.summary !== source.summary ||
+            priorSource.details !== source.details
+          ) {
+            throw new Error("This report and snapshot are already linked with different details.");
+          }
+          return {
+            issue: options.issue,
+            finding: canonical,
+            idempotent: true,
+            snapshot: identity.snapshot,
+            headSha: identity.headSha,
+          };
+        }
+        canonical.provenance.push(source);
+        canonical.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: "observation-linked",
+          details: `Linked observation from ${report} at snapshot ${options.snapshot}: ${source.summary} — ${source.details}`,
+        });
+        if (canonical.status === "fixed" || canonical.status === "dismissed") {
+          canonical.status = "open";
+          delete canonical.rulingDetails;
+          delete canonical.followUp;
+          delete canonical.requirementsDecision;
+          delete canonical.verification;
+          canonical.history.push({
+            at: new Date().toISOString(),
+            author: options.author.trim(),
+            action: "observation-reopened",
+            details: `New observation from ${report} at snapshot ${options.snapshot} requires renewed adjudication.`,
+          });
+        }
+        const afterIssue = matter.stringify(
+          this.#appendAudit(
+            issue.body,
+            options.author,
+            `Observation linked to finding ${canonical.id}: source=${report}; snapshot=${options.snapshot}; summary=${source.summary}.`,
+          ),
+          this.#metadata(issue),
+        );
+        this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+        return {
+          issue: options.issue,
+          finding: canonical,
+          snapshot: identity.snapshot,
+          headSha: identity.headSha,
+        };
+      }
+      const existing = findings.find(
+        (finding) =>
+          finding.author === options.author.trim() &&
+          finding.severity === options.severity &&
+          finding.blocking === (options.blocking === true) &&
+          finding.summary === options.summary.trim() &&
+          finding.details === options.details.trim() &&
+          finding.provenance.some(
+            (provenance) =>
+              provenance.report === source.report &&
+              provenance.snapshot === source.snapshot &&
+              provenance.author === source.author &&
+              provenance.summary === source.summary &&
+              provenance.details === source.details,
+          ),
+      );
+      if (existing) {
+        return {
+          issue: options.issue,
+          finding: existing,
+          idempotent: true,
+          snapshot: identity.snapshot,
+          headSha: identity.headSha,
+        };
+      }
+
+      let highest = 0n;
+      for (const candidate of findings) {
+        const match = /^F-(\d{4,})$/.exec(candidate.id);
+        if (match && BigInt(match[1]!) > highest) highest = BigInt(match[1]!);
+      }
+      const at = new Date().toISOString();
+      progress.findings = findings;
+      const finding: ReviewFinding = {
+        id: `F-${String(highest + 1n).padStart(4, "0")}`,
+        severity: options.severity as FindingSeverity,
+        blocking: options.blocking === true,
+        status: "open",
+        summary: options.summary.trim(),
+        details: options.details.trim(),
+        author: options.author.trim(),
+        createdAt: at,
+        provenance: [source],
+        history: [
+          {
+            at,
+            author: options.author.trim(),
+            action: "registered",
+            details: `Registered from ${report} at snapshot ${options.snapshot}.`,
+          },
+        ],
+      };
+      findings.push(finding);
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Finding ${finding.id} registered by ${options.author.trim()}: ${finding.summary}; source=${report}; snapshot=${options.snapshot}.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        finding,
+        snapshot: identity.snapshot,
+        headSha: identity.headSha,
+      };
+    } finally {
+      release();
+    }
+  }
+
+  findingUpdate(options: FindingUpdateOptions): {
+    issue: string;
+    finding: ReviewFinding;
+    idempotent?: boolean;
+    snapshot: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (!/^F-\d{4,}$/.test(options.finding)) {
+      throw new Error(`Invalid finding ID: ${options.finding}.`);
+    }
+    if (!["open", "confirmed", "fixed", "dismissed", "deferred"].includes(options.status)) {
+      throw new Error(`Invalid finding status: ${options.status}.`);
+    }
+    if (["dismissed", "deferred"].includes(options.status) && !options.details?.trim()) {
+      throw new Error(`--details is required for a ${options.status} finding disposition.`);
+    }
+    if (options.status === "deferred" && !options.followUp?.trim()) {
+      throw new Error("--follow-up is required for a deferred finding.");
+    }
+    if (options.status === "fixed" && !options.evidence?.trim()) {
+      throw new Error("--evidence is required to mark a finding fixed.");
+    }
+    if (options.status !== "deferred" && options.followUp !== undefined) {
+      throw new Error("--follow-up is only valid for a deferred finding.");
+    }
+    if (options.status !== "deferred" && options.requirementsDecision !== undefined) {
+      throw new Error("--requirements-decision is only valid for a deferred finding.");
+    }
+    if (options.status !== "fixed" && options.evidence !== undefined) {
+      throw new Error("--evidence is only valid for a fixed finding.");
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
+      if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
+      const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the current issue controller may record a finding ruling.");
+      }
+      if (!progress.baseSha) throw new Error("Finding rulings require a recorded Git baseline.");
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      let verification: ReviewFinding["verification"];
+      let requirementsDecision: RequirementsDecision | undefined;
+      if (options.status === "deferred" && finding.blocking) {
+        if (!options.requirementsDecision) {
+          throw new Error(
+            `Blocking finding ${finding.id} requires an approved requirements decision and fresh review before deferral.`,
+          );
+        }
+        requirementsDecision = progress.requirementsDecisions?.find(
+          (decision) =>
+            decision.id === options.requirementsDecision &&
+            decision.finding === finding.id &&
+            decision.status === "approved" &&
+            decision.requirementsSnapshot === identity.requirementsSnapshot,
+        );
+        if (!requirementsDecision) {
+          throw new Error(
+            "Blocking finding deferral requires a matching approved requirements decision for the current requirements snapshot.",
+          );
+        }
+        const assignments = progress.reviewAssignments ?? [];
+        for (const agent of ledger.reviewPolicy.issue) {
+          const coverage = assignments.filter(
+            (assignment) => assignment.agent === agent && assignment.scope === "initial",
+          );
+          if (
+            coverage.length !== 1 ||
+            coverage[0]!.status !== "submitted" ||
+            coverage[0]!.result !== "passed" ||
+            this.#reviewAssignmentBlocker(feature, progress, coverage[0]!, identity)
+          ) {
+            throw new Error(
+              `Blocking finding deferral requires fresh passing review coverage for '${agent}'.`,
+            );
+          }
+        }
+      }
+      if (options.status === "fixed") {
+        if (!/^[0-9a-f]{64}$/i.test(options.evidence!)) {
+          throw new Error("--evidence must be a CLI-returned content snapshot.");
+        }
+        if (options.evidence !== identity.snapshot) {
+          throw new Error("Verification evidence must match the current issue snapshot.");
+        }
+        if (finding.provenance.some((observation) => observation.snapshot === identity.snapshot)) {
+          throw new Error(
+            "Verification evidence must reflect changed content since every finding observation; dismiss an invalid finding with --details.",
+          );
+        }
+        const required = progress.checks?.required.filter((check) => !check.removedAt) ?? [];
+        if (required.length === 0) {
+          throw new Error("Verification requires at least one current passing required check.");
+        }
+        const checkBlockers = this.#checkBlockers(progress, identity);
+        if (checkBlockers.length > 0) {
+          throw new Error(`Verification evidence is insufficient:\n${checkBlockers.join("\n")}`);
+        }
+        verification = {
+          snapshot: identity.snapshot,
+          checkCommands: required.map((check) => check.command),
+          verifiedAt: new Date().toISOString(),
+          verifiedBy: options.author.trim(),
+        };
+      }
+
+      const rulingDetails = options.details?.trim();
+      const followUp = options.followUp?.trim();
+      const last = finding.history.at(-1);
+      if (
+        finding.status === options.status &&
+        finding.rulingDetails === rulingDetails &&
+        finding.followUp === followUp &&
+        finding.requirementsDecision === requirementsDecision?.id &&
+        last?.action === `status:${options.status}` &&
+        last.author === options.author.trim() &&
+        last.details ===
+          (rulingDetails ??
+            (verification ? `Verified at ${verification.snapshot}.` : options.status)) &&
+        (options.status !== "fixed" || finding.verification?.snapshot === verification?.snapshot)
+      ) {
+        return { issue: options.issue, finding, idempotent: true, snapshot: identity.snapshot };
+      }
+
+      const before = identity.snapshot;
+      const currentIdentity = this.#contentIdentity(
+        feature,
+        this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+        progress.baseSha,
+        progress.checks,
+      );
+      if (currentIdentity.snapshot !== before) {
+        throw new Error("Issue content changed while recording the finding ruling.");
+      }
+      finding.status = options.status as FindingStatus;
+      if (["dismissed", "deferred"].includes(options.status)) {
+        finding.rulingDetails = rulingDetails!;
+      } else {
+        delete finding.rulingDetails;
+      }
+      if (options.status === "deferred") finding.followUp = followUp!;
+      else delete finding.followUp;
+      if (options.status === "deferred" && requirementsDecision) {
+        finding.requirementsDecision = requirementsDecision.id;
+      } else {
+        delete finding.requirementsDecision;
+      }
+      if (verification) finding.verification = verification;
+      else delete finding.verification;
+      if (
+        progress.execution === "changes-requested" &&
+        wasBlocking &&
+        ["fixed", "dismissed"].includes(options.status) &&
+        this.#findingBlockers(progress, identity).length === 0
+      ) {
+        const assignments = progress.reviewAssignments ?? [];
+        const freshCoverage =
+          assignments.length === ledger.reviewPolicy.issue.length &&
+          ledger.reviewPolicy.issue.every((agent) => {
+            const matching = assignments.filter((assignment) => assignment.agent === agent);
+            return (
+              matching.length === 1 &&
+              matching[0]!.status === "submitted" &&
+              matching[0]!.result === "passed" &&
+              this.#reviewAssignmentBlocker(feature, progress, matching[0]!, identity) === undefined
+            );
+          });
+        if (!freshCoverage) {
+          progress.reviewHistory = [...(progress.reviewHistory ?? []), ...assignments];
+          delete progress.reviewAssignments;
+        }
+        progress.execution = "reviewing";
+      }
+      const historyDetails =
+        rulingDetails ?? (verification ? `Verified at ${verification.snapshot}.` : options.status);
+      finding.history.push({
+        at: new Date().toISOString(),
+        author: options.author.trim(),
+        action: `status:${options.status}`,
+        details: historyDetails,
+      });
+      const audit = [
+        `Finding ${finding.id} disposition recorded: ${options.status}`,
+        rulingDetails ? `details=${rulingDetails}` : undefined,
+        followUp ? `follow-up=${followUp}` : undefined,
+        verification ? `verification=${verification.snapshot}` : undefined,
+      ]
+        .filter((entry): entry is string => entry !== undefined)
+        .join("; ");
+      const afterIssue = matter.stringify(
+        this.#appendAudit(issue.body, options.author, `${audit}.`),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return { issue: options.issue, finding, snapshot: identity.snapshot };
+    } finally {
+      release();
+    }
+  }
+
+  requirementsDecide(options: RequirementsDecideOptions): {
+    issue: string;
+    execution: ExecutionState;
+    decision: RequirementsDecision;
+    idempotent?: boolean;
+    snapshot: string;
+    requirementsSnapshot: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    if (!/^F-\d{4,}$/.test(options.finding)) {
+      throw new Error(`Invalid finding ID: ${options.finding}.`);
+    }
+    if (!["approved", "rejected"].includes(options.decision)) {
+      throw new Error(`Invalid requirements decision: ${options.decision}.`);
+    }
+    if (!options.details.trim())
+      throw new Error("Requirements decision details must not be empty.");
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the current issue controller may record a requirements decision.");
+      }
+      const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
+      if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
+      if (!progress.baseSha) {
+        throw new Error("Requirements decisions require a recorded Git baseline.");
+      }
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const decisions = (progress.requirementsDecisions ??= []);
+      const existing = decisions.find(
+        (decision) =>
+          decision.finding === finding.id &&
+          decision.status === options.decision &&
+          decision.details === options.details.trim() &&
+          decision.author === options.author.trim() &&
+          decision.requirementsSnapshot === identity.requirementsSnapshot,
+      );
+      if (existing) {
+        return {
+          issue: options.issue,
+          execution: progress.execution,
+          decision: existing,
+          idempotent: true,
+          snapshot: identity.snapshot,
+          requirementsSnapshot: identity.requirementsSnapshot,
+        };
+      }
+      const priorAssignments = [
+        ...(progress.reviewHistory ?? []),
+        ...(progress.reviewAssignments ?? []),
+      ];
+      if (
+        priorAssignments.every(
+          (assignment) => assignment.requirementsSnapshot === identity.requirementsSnapshot,
+        )
+      ) {
+        throw new Error(
+          "A requirements decision requires an explicit requirements change after review.",
+        );
+      }
+      if (
+        (progress.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
+      ) {
+        throw new Error(
+          "Resolve pending review assignments before recording a requirements decision.",
+        );
+      }
+
+      let highest = 0n;
+      for (const decision of decisions) {
+        const match = /^R-(\d{4,})$/.exec(decision.id);
+        if (match && BigInt(match[1]!) > highest) highest = BigInt(match[1]!);
+      }
+      const decision: RequirementsDecision = {
+        id: `R-${String(highest + 1n).padStart(4, "0")}`,
+        finding: finding.id,
+        status: options.decision as RequirementsDecision["status"],
+        details: options.details.trim(),
+        author: options.author.trim(),
+        requirementsSnapshot: identity.requirementsSnapshot,
+        recordedAt: new Date().toISOString(),
+      };
+      decisions.push(decision);
+      if (decision.status === "approved") {
+        progress.reviewHistory = [
+          ...(progress.reviewHistory ?? []),
+          ...(progress.reviewAssignments ?? []),
+        ];
+        delete progress.reviewAssignments;
+        progress.execution = "reviewing";
+      }
+      const currentIdentity = this.#contentIdentity(
+        feature,
+        this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+        progress.baseSha,
+        progress.checks,
+      );
+      if (
+        currentIdentity.snapshot !== identity.snapshot ||
+        currentIdentity.requirementsSnapshot !== identity.requirementsSnapshot
+      ) {
+        throw new Error("Issue requirements changed while recording the requirements decision.");
+      }
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `[SDD-SCOPE-RULING id=${decision.id} status=${decision.status}] ${decision.details}.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: progress.execution,
+        decision,
+        snapshot: identity.snapshot,
+        requirementsSnapshot: identity.requirementsSnapshot,
+      };
+    } finally {
+      release();
+    }
+  }
+
   submit(options: SubmitOptions): {
     issue: string;
     execution: ExecutionState;
@@ -1899,7 +2753,7 @@ export class SddCommand extends Service {
 
   #submitReview(options: SubmitOptions): {
     issue: string;
-    execution: "reviewing";
+    execution: ExecutionState;
     assignment: ReviewAssignment;
     report: string;
     reportSha256: string;
@@ -1917,13 +2771,20 @@ export class SddCommand extends Service {
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
       throw new Error(`Invalid review result: ${options.result}.`);
     }
-    if (options.result === "passed" && options.noFindings !== true) {
-      throw new Error(
-        "Finding registration is unavailable; finding-free review submission requires exclusive --no-findings.",
-      );
+    const findingIds = options.findingIds?.map((id) => id.trim());
+    if (options.noFindings === true && findingIds !== undefined) {
+      throw new Error("--findings and --no-findings cannot be combined.");
     }
-    if (options.result !== "passed" && options.noFindings === true) {
-      throw new Error("--no-findings is only valid for a passed review result.");
+    if (
+      findingIds !== undefined &&
+      (findingIds.length === 0 ||
+        findingIds.some((id) => !/^F-\d{4,}$/.test(id)) ||
+        new Set(findingIds).size !== findingIds.length)
+    ) {
+      throw new Error("--findings must contain unique canonical finding IDs.");
+    }
+    if (options.noFindings !== true && findingIds === undefined) {
+      throw new Error("Review submission requires either --findings or exclusive --no-findings.");
     }
     if (options.unavailable) {
       throw new Error("Use --result unavailable, not --unavailable, for review submissions.");
@@ -1942,7 +2803,7 @@ export class SddCommand extends Service {
       const ledger = this.#readLedger(feature);
       const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const progress = this.#requireProgress(ledger, options.issue);
-      if (progress.execution !== "reviewing" || !progress.owner) {
+      if (!["reviewing", "changes-requested"].includes(progress.execution) || !progress.owner) {
         throw new Error(`Issue ${options.issue} is not awaiting review submission.`);
       }
       if (progress.owner !== options.author.trim()) {
@@ -1954,6 +2815,9 @@ export class SddCommand extends Service {
       if (!assignment || assignment.role !== "review") {
         throw new Error(`No review assignment matches ID ${options.assignment}.`);
       }
+      if (progress.execution === "changes-requested" && assignment.status !== "submitted") {
+        throw new Error(`Issue ${options.issue} is awaiting a controller correction decision.`);
+      }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
       const checkBlockers = this.#reviewCheckBlockers(progress, identity);
@@ -1962,17 +2826,40 @@ export class SddCommand extends Service {
       if (snapshotBlocker) throw new Error(snapshotBlocker);
       const reportPath = this.#submissionReportPath(feature, assignment, options.report);
       const reportSha256 = this.#readReportDigest(feature, reportPath);
+      const registeredFromReport = (progress.findings ?? [])
+        .filter((finding) =>
+          finding.provenance.some(
+            (source) =>
+              source.report === assignment.report && source.snapshot === assignment.snapshot,
+          ),
+        )
+        .map((finding) => finding.id);
+      if (options.noFindings === true && registeredFromReport.length > 0) {
+        throw new Error(
+          `Review report has registered findings and cannot declare --no-findings: ${registeredFromReport.join(", ")}.`,
+        );
+      }
+      if (findingIds !== undefined) {
+        const missing = registeredFromReport.filter((id) => !findingIds.includes(id));
+        const unknown = findingIds.filter((id) => !registeredFromReport.includes(id));
+        if (missing.length > 0 || unknown.length > 0) {
+          throw new Error(
+            `--findings must exactly list canonical findings registered from this report and snapshot; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
+          );
+        }
+      }
 
       if (assignment.status === "submitted") {
         if (
           assignment.result === options.result &&
-          assignment.noFindings === (options.result === "passed" ? true : undefined) &&
+          assignment.noFindings === (options.noFindings === true ? true : undefined) &&
+          JSON.stringify(assignment.findingIds) === JSON.stringify(findingIds) &&
           assignment.submittedBy === options.author.trim() &&
           assignment.details === options.details?.trim()
         ) {
           return {
             issue: options.issue,
-            execution: "reviewing",
+            execution: progress.execution,
             assignment,
             report: assignment.report,
             reportSha256,
@@ -2004,24 +2891,38 @@ export class SddCommand extends Service {
 
       assignment.status = "submitted";
       assignment.result = options.result as ReviewResult;
-      if (options.result === "passed") assignment.noFindings = true;
+      if (options.noFindings === true) assignment.noFindings = true;
       else delete assignment.noFindings;
+      if (findingIds !== undefined) assignment.findingIds = findingIds;
+      else delete assignment.findingIds;
       assignment.reportSha256 = reportSha256;
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
+      const submittedFindings = (assignment.findingIds ?? [])
+        .map((id) => progress.findings?.find((finding) => finding.id === id))
+        .filter((finding): finding is ReviewFinding => finding !== undefined);
+      if (
+        assignment.result !== "passed" ||
+        submittedFindings.some(
+          (finding) =>
+            finding.blocking && finding.status !== "fixed" && finding.status !== "dismissed",
+        )
+      ) {
+        progress.execution = "changes-requested";
+      }
       const afterIssue = matter.stringify(
         this.#appendAudit(
           issue.body,
           options.author,
-          `Review report submitted for assignment ${assignment.id}: result=${assignment.result}${assignment.noFindings === true ? "; no-findings explicitly declared" : ""}; report=${assignment.report} (sha256 ${reportSha256}).`,
+          `Review report submitted for assignment ${assignment.id}: result=${assignment.result}${assignment.noFindings === true ? "; no-findings explicitly declared" : `; findings=${(assignment.findingIds ?? []).join(",")}`}; report=${assignment.report} (sha256 ${reportSha256}).`,
         ),
         this.#metadata(issue),
       );
       this.#writeWorkflowState(feature, issue, afterIssue, ledger);
       return {
         issue: options.issue,
-        execution: "reviewing",
+        execution: progress.execution,
         assignment,
         report: assignment.report,
         reportSha256,
@@ -2039,7 +2940,8 @@ export class SddCommand extends Service {
       agent: string;
       assignment: string;
       result: "passed";
-      noFindings: true;
+      noFindings?: true;
+      findingIds?: string[];
     }[];
     idempotent?: boolean;
     snapshot: string;
@@ -2056,7 +2958,11 @@ export class SddCommand extends Service {
       const ledger = this.#readLedger(feature);
       const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const progress = this.#requireProgress(ledger, options.issue);
-      if (progress.execution !== "reviewing" && progress.execution !== "accepted") {
+      if (
+        progress.execution !== "reviewing" &&
+        progress.execution !== "changes-requested" &&
+        progress.execution !== "accepted"
+      ) {
         throw new Error(`Issue ${options.issue} must be reviewing before it can be accepted.`);
       }
       if (!progress.owner || progress.owner !== options.author.trim()) {
@@ -2075,7 +2981,9 @@ export class SddCommand extends Service {
           agent,
           assignment: assignment.id,
           result: "passed" as const,
-          noFindings: true as const,
+          ...(assignment.noFindings === true
+            ? { noFindings: true as const }
+            : { findingIds: assignment.findingIds }),
         };
       });
       if (progress.execution === "accepted") {
@@ -2209,6 +3117,8 @@ export class SddCommand extends Service {
       feature: status.feature,
       spec: status.spec,
       snapshots: status.snapshots,
+      findings: status.findings,
+      requirementsDecisions: status.requirementsDecisions,
       actions: status.actions,
       pendingAssignments: status.pendingAssignments,
       blockers: status.blockers,
@@ -2250,6 +3160,39 @@ export class SddCommand extends Service {
       });
   }
 
+  #findingBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+    return (progress.findings ?? [])
+      .filter(
+        (finding) =>
+          finding.blocking &&
+          finding.status !== "fixed" &&
+          finding.status !== "dismissed" &&
+          !(
+            finding.status === "deferred" &&
+            finding.requirementsDecision &&
+            progress.requirementsDecisions?.some(
+              (decision) =>
+                decision.id === finding.requirementsDecision &&
+                decision.finding === finding.id &&
+                decision.status === "approved" &&
+                decision.requirementsSnapshot === identity.requirementsSnapshot,
+            ) &&
+            (progress.reviewAssignments?.length ?? 0) > 0 &&
+            progress.reviewAssignments!.every(
+              (assignment) =>
+                assignment.status === "submitted" &&
+                assignment.result === "passed" &&
+                assignment.snapshot === identity.snapshot &&
+                assignment.requirementsSnapshot === identity.requirementsSnapshot,
+            )
+          ),
+      )
+      .map(
+        (finding) =>
+          `Finding ${finding.id} is unresolved and blocking acceptance (severity=${finding.severity}, status=${finding.status}).`,
+      );
+  }
+
   #reviewCheckBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
     const activeRequirements =
       progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
@@ -2271,8 +3214,8 @@ export class SddCommand extends Service {
     if (assignment.result !== "passed") {
       return `Review assignment ${assignment.id} is ${assignment.result}.${assignment.details ? ` Details: ${assignment.details}` : ""}`;
     }
-    if (assignment.noFindings !== true) {
-      return `Review assignment ${assignment.id} has no explicit no-findings declaration.`;
+    if (assignment.noFindings !== true && (assignment.findingIds?.length ?? 0) === 0) {
+      return `Review assignment ${assignment.id} has no explicit findings declaration.`;
     }
     return undefined;
   }
@@ -2319,6 +3262,17 @@ export class SddCommand extends Service {
     identity: ContentIdentity,
   ): string[] {
     const blockers = this.#reviewCheckBlockers(progress, identity);
+    blockers.push(...this.#findingBlockers(progress, identity));
+    for (const decision of progress.requirementsDecisions ?? []) {
+      if (
+        decision.status === "rejected" &&
+        decision.requirementsSnapshot === identity.requirementsSnapshot
+      ) {
+        blockers.push(
+          `Requirements decision ${decision.id} was rejected; acceptance requires an approved decision and fresh review.`,
+        );
+      }
+    }
     const implementationBlocker = this.#implementationReportBlocker(feature, progress.assignment);
     if (implementationBlocker) blockers.push(implementationBlocker);
 
@@ -2364,6 +3318,7 @@ export class SddCommand extends Service {
       return "await-implementation-report";
     }
     if (progress.execution === "reviewing") {
+      if (blocker?.startsWith("Finding ")) return "resolve-findings";
       if (blocker?.startsWith("Required check ")) return "record-current-checks";
       const reviews = progress.reviewAssignments ?? [];
       if (reviews.length > 0) {
@@ -2379,7 +3334,11 @@ export class SddCommand extends Service {
       }
       return blocker ? "restore-implementation-report" : "review";
     }
-    if (progress.execution === "changes-requested") return "controller-correction-decision";
+    if (progress.execution === "changes-requested") {
+      return blocker?.startsWith("Finding ")
+        ? "adjudicate-findings"
+        : "controller-correction-decision";
+    }
     if (progress.execution === "accepted") return blocker ? "resolve-check-blocker" : "integrate";
     if (progress.execution === "integrated") return blocker ? "resolve-check-blocker" : "complete";
     return "resolve-blocker";
@@ -2628,7 +3587,10 @@ export class SddCommand extends Service {
         const decisions = body
           .slice(start, end)
           .split(/\n[ \t]*\n/)
-          .filter((entry) => /\brequirements? decision\b/i.test(entry))
+          .filter(
+            (entry) =>
+              !entry.startsWith("[SDD-SCOPE-RULING ") && /\brequirements? decision\b/i.test(entry),
+          )
           .map((entry) => entry.trim());
         sections.set("requirements decisions", decisions.join("\n\n"));
       }
@@ -3216,7 +4178,27 @@ export class SddCommand extends Service {
                       "reports",
                       `${issue.id}-review-${assignment.id}.md`,
                     ),
-              ))),
+              ))) &&
+          (!Object.hasOwn(issue, "reviewHistory") ||
+            (Array.isArray(issue.reviewHistory) &&
+              issue.reviewHistory.every(
+                (assignment) =>
+                  isReviewAssignment(assignment) &&
+                  blueprintCatalog.agents[assignment.agent]?.canReview === true &&
+                  assignment.report ===
+                    join(
+                      this.app.workspaceRoot,
+                      ".scratch",
+                      feature,
+                      "reports",
+                      `${issue.id}-review-${assignment.id}.md`,
+                    ),
+              ))) &&
+          (!Object.hasOwn(issue, "requirementsDecisions") ||
+            (Array.isArray(issue.requirementsDecisions) &&
+              issue.requirementsDecisions.every(isRequirementsDecision))) &&
+          (!Object.hasOwn(issue, "findings") ||
+            (Array.isArray(issue.findings) && issue.findings.every(isReviewFinding))),
       )
     ) {
       throw new Error(
@@ -3228,11 +4210,75 @@ export class SddCommand extends Service {
     ) {
       throw new Error("Feature ledger issue IDs must be unique.");
     }
-    const reviewAssignmentIds = value.issues.flatMap((issue) =>
-      isRecord(issue) && Array.isArray(issue.reviewAssignments)
-        ? issue.reviewAssignments.map((assignment) =>
-            isRecord(assignment) ? assignment.id : undefined,
+    for (const issue of value.issues as IssueProgress[]) {
+      const findingIds = issue.findings?.map((finding) => finding.id) ?? [];
+      if (new Set(findingIds).size !== findingIds.length) {
+        throw new Error(`Finding IDs must be unique within issue ${issue.id}.`);
+      }
+      const decisionIds = issue.requirementsDecisions?.map((decision) => decision.id) ?? [];
+      if (new Set(decisionIds).size !== decisionIds.length) {
+        throw new Error(`Requirements decision IDs must be unique within issue ${issue.id}.`);
+      }
+      for (const finding of issue.findings ?? []) {
+        if (
+          finding.requirementsDecision &&
+          !issue.requirementsDecisions?.some(
+            (decision) =>
+              decision.id === finding.requirementsDecision &&
+              decision.finding === finding.id &&
+              decision.status === "approved",
           )
+        ) {
+          throw new Error(`Finding ${finding.id} references an invalid requirements decision.`);
+        }
+      }
+      for (const assignment of [
+        ...(issue.reviewHistory ?? []),
+        ...(issue.reviewAssignments ?? []),
+      ]) {
+        const reported = (issue.findings ?? []).filter((finding) =>
+          finding.provenance.some(
+            (source) =>
+              source.report === assignment.report && source.snapshot === assignment.snapshot,
+          ),
+        );
+        if (assignment.noFindings === true && reported.length > 0) {
+          throw new Error(
+            `Review assignment ${assignment.id} declares no findings despite registered provenance.`,
+          );
+        }
+        for (const id of assignment.findingIds ?? []) {
+          const finding = (issue.findings ?? []).find((candidate) => candidate.id === id);
+          if (
+            !finding ||
+            !finding.provenance.some(
+              (source) =>
+                source.report === assignment.report && source.snapshot === assignment.snapshot,
+            )
+          ) {
+            throw new Error(
+              `Review assignment ${assignment.id} references finding ${id} without matching provenance.`,
+            );
+          }
+        }
+        if (
+          assignment.status === "submitted" &&
+          assignment.findingIds &&
+          (reported.length !== assignment.findingIds.length ||
+            reported.some((finding) => !assignment.findingIds!.includes(finding.id)))
+        ) {
+          throw new Error(
+            `Review assignment ${assignment.id} does not list the complete canonical findings set.`,
+          );
+        }
+      }
+    }
+    const reviewAssignmentIds = value.issues.flatMap((issue) =>
+      isRecord(issue)
+        ? [
+            ...(Array.isArray(issue.reviewHistory) ? issue.reviewHistory : []),
+            ...(Array.isArray(issue.reviewAssignments) ? issue.reviewAssignments : []),
+          ].map((assignment) => (isRecord(assignment) ? assignment.id : undefined))
         : [],
     );
     if (

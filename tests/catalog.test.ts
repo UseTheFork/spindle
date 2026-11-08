@@ -808,7 +808,7 @@ test("the shipped Blueprint collection installs its flattened catalog sources", 
       join(project, ".github", "agents", "sdd-reviewer.agent.md"),
       "utf8",
     );
-    assert.match(reviewer, /version: 1\.1\.0/);
+    assert.match(reviewer, /version: 1\.2\.0/);
     assert.match(reviewer, /requirements, correctness, regressions, tests, maintainability/);
     assert.match(reviewer, /initial issue, corrective issue\/delivery, and aggregate full-spec/);
     assert.match(reviewer, /assigned report/);

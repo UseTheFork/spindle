@@ -107,26 +107,56 @@ After dispatch, required checks cannot be changed through the CLI; later gates
 revalidate the content, inventory, and submitted report digest to detect
 external edits.
 
-Review `submit` requires the exact `--assignment`, its assigned `--report`,
-and `--result passed|failed|unavailable`. A `passed` result requires explicit
-`--no-findings`. `failed` and `unavailable` results instead require `--details`
-and must not claim `--no-findings`; neither result satisfies acceptance. The
-CLI does not infer a verdict or no-findings declaration from report prose.
-Finding registration is not available in this workflow slice: `--findings` is
-rejected, and a report that identifies findings cannot be submitted as
-finding-free coverage. Such an assignment remains unaccepted rather than
-silently clearing the gate.
-Repeated identical submission reuses its recorded result; changed report
-content or snapshot is rejected.
+Register each finding explicitly before submitting its source review report.
+Use the assignment's absolute report path and frozen snapshot; the CLI validates
+both against that issue's review assignment and does not parse report prose.
+IDs restart at `F-0001` for each issue. Severity (`high`, `medium`, `low`) and
+blocking (`--blocking` or `--non-blocking`) are independent:
 
-`accept` requires current passing required checks and complete passing initial
-review coverage for every reviewer pinned in the feature policy. Each accepted
-review must attest to `--no-findings`; missing, pending, failed, unavailable,
-stale, or altered review evidence blocks acceptance. `resume` returns saved
-review assignments and the next action after an interrupted dispatch or
-submission. The `sdd-reviewer` Agent Blueprint describes initial, corrective,
-and aggregate review contracts; this CLI slice implements only initial
-issue-scoped review and acceptance.
+```sh
+just spindle::run sdd finding create --spec <absolute-spec-path> --issue I-0001 --source <assigned-review-report> --snapshot <snapshot> --severity high --blocking --summary "..." --details "..." --author controller
+just spindle::run sdd finding create --spec <absolute-spec-path> --issue I-0001 --source <another-assigned-review-report> --snapshot <snapshot> --severity medium --non-blocking --summary "..." --details "..." --link F-0001 --author controller
+```
+
+Only explicitly use `--link F-0001` when observations describe the same
+canonical finding; each report and snapshot remain attributed provenance.
+Similar prose is not deduplicated. Review `submit` requires the exact
+`--assignment`, assigned `--report`, explicit `--result`, and either the
+complete canonical `--findings F-0001 F-0002` list or exclusive
+`--no-findings`. Findings listed at submission must have been registered from
+that report and frozen snapshot. The CLI never infers findings, results, or a
+finding-free declaration from report prose. Failed/unavailable results also
+require an explicit findings declaration plus `--details`, and do not satisfy
+acceptance. Repeating an identical registration or submission is idempotent;
+changed report content or snapshot is rejected.
+
+Record explicit finding rulings with `finding update`. `confirmed` remains
+unresolved; `fixed` requires a current CLI snapshot with passing required
+checks that differs from every snapshot where the finding was observed;
+`dismissed` requires an invalidity explanation in `--details`;
+`deferred` requires rationale and `--follow-up`. A blocking finding cannot be
+deferred around an acceptance criterion. Scope changes require an approved
+`requirements decide` record and fresh passing review coverage before a
+blocking finding may be deferred. `wontfix` remains an issue-triage status,
+not a finding disposition:
+
+```sh
+just spindle::run sdd finding update --spec <absolute-spec-path> --issue I-0001 --finding F-0001 --status fixed --evidence <current-snapshot> --author controller
+just spindle::run sdd finding update --spec <absolute-spec-path> --issue I-0001 --finding F-0002 --status dismissed --details "The report's claim is invalid because ..." --author controller
+just spindle::run sdd requirements decide --spec <absolute-spec-path> --issue I-0001 --finding F-0001 --decision approved --details "The acceptance criterion was explicitly revised." --author controller
+```
+
+`accept` requires current passing required checks, complete passing initial
+review coverage for every reviewer pinned in the feature policy, and no
+unresolved blocking finding. Reviews may attest to `--no-findings` or list
+their canonical findings. Missing declarations, pending/failed/unavailable
+results, stale or altered evidence, and unresolved blockers prevent
+acceptance. A review with blocking findings routes the issue to
+`changes-requested`; `next` and `status` expose findings, blockers, and
+requirements decisions. `resume` returns saved review assignments and the next
+action after an interrupted dispatch or submission. The `sdd-reviewer` Agent
+Blueprint describes initial, corrective, and aggregate review contracts; later
+corrective and aggregate command gates remain separately scoped.
 
 `resume` returns the recorded gate and assignment without resetting evidence
 or history. A changed controller must use `--confirm-handoff` only after
