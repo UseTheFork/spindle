@@ -2,11 +2,11 @@ import { constants, copyFileSync, lstatSync, mkdirSync, realpathSync, statSync }
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Command } from "commander";
+import type { Command as CommanderCommand } from "commander";
 
+import { Command } from "@/commands/Command";
 import { once } from "@/commands/shared-options";
 import type { Application } from "@/foundation/Application";
-import { Service } from "@/services/Service";
 
 export interface SetupProjectInput {
   workspacePath: string;
@@ -26,8 +26,8 @@ function validateWorkspacePath(workspacePath: string): void {
   }
 }
 
-export class SetupProjectCommand extends Service {
-  public static register(program: Command, createApp: () => Promise<Application>): void {
+export class SetupProjectCommand extends Command {
+  public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
     program
       .command("setup-project")
       .description("Create project documentation directories and missing Spindle defaults.")

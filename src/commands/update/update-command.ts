@@ -2,16 +2,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
-import type { Command } from "commander";
+import type { Command as CommanderCommand } from "commander";
 
 import { blueprintHandlers } from "@/blueprints/registry";
 import type { BlueprintHandler } from "@/blueprints/types";
+import { Command } from "@/commands/Command";
 import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
 import type { Application } from "@/foundation/Application";
 import type { ConflictPolicy } from "@/installation/types";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "@/prompts";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
-import { Service } from "@/services/Service";
 import { parseConflictPolicy } from "@/utilities/conflict-policy";
 import { validateStacks } from "@/utilities/stacks";
 import { loadVariableDefinitions } from "@/variables";
@@ -86,11 +86,11 @@ async function resolveVariables(
   return { context: { stacks: config.stacks, variables }, prompted };
 }
 
-export class UpdateCommand extends Service {
+export class UpdateCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
   private reconciliationService!: BlueprintReconciliationService;
 
-  public static register(program: Command, createApp: () => Promise<Application>): void {
+  public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
     program
       .command("update")
       .description(

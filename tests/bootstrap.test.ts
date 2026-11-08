@@ -2,9 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import type { Command as CommanderCommand } from "commander";
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 
 import { dispatch } from "@/cli";
+import { Command, type CommandConstructor } from "@/commands/Command";
 import { InitCommand } from "@/commands/init/init-command";
 import { SddCommand } from "@/commands/sdd/sdd-command";
 import { Application } from "@/foundation/Application";
@@ -14,6 +16,7 @@ import { LoadConsoleArgs } from "@/foundation/bootstrap/LoadConsoleArgs";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
 import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
 import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
+import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
 import { Kernel } from "@/foundation/Kernel";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { ServiceProvider } from "@/services/ServiceProvider";
@@ -211,6 +214,7 @@ test("Commander alone supplies validated repeated options to the executable comp
       return application;
     },
     "/installed/spindle",
+    [ProductionServiceProvider],
   );
   if (!application) throw new Error("Missing dispatched application.");
   expect(application.value("console.invocation")).toEqual({
@@ -257,10 +261,15 @@ test("Commander preserves a real positional action and nested command path witho
     "maintainer",
   ];
   await expect(
-    dispatch(raw, () => {
-      application = Application.configure(nested, [ProductionServiceProvider]).create();
-      return application;
-    }),
+    dispatch(
+      raw,
+      () => {
+        application = Application.configure(nested, [ProductionServiceProvider]).create();
+        return application;
+      },
+      "spindle",
+      [ProductionServiceProvider],
+    ),
   ).rejects.toBe(operationFailure);
   if (!application) throw new Error("Missing dispatched application.");
   expect(application.value("console.invocation")).toMatchObject({
@@ -273,10 +282,179 @@ test("Commander preserves a real positional action and nested command path witho
 test("semantic invalid input fails before Application construction or Git bootstrap", async () => {
   let constructions = 0;
   await expect(
-    dispatch(["init", "--stack", "unsupported", "--no-interactive"], () => {
-      constructions++;
-      return Application.configure("/missing").create();
-    }),
+    dispatch(
+      ["init", "--stack", "unsupported", "--no-interactive"],
+      () => {
+        constructions++;
+        return Application.configure("/missing").create();
+      },
+      "spindle",
+      [ProductionServiceProvider],
+    ),
   ).rejects.toThrow(/stack/i);
   expect(constructions).toBe(0);
+});
+
+test("provider declarations supply CLI schemas and singleton services without calling super.register", async () => {
+  const { nested } = workspace();
+  let constructions = 0;
+  let registrations = 0;
+  let boots = 0;
+  let observed: Application | undefined;
+  class CustomCommand extends Command {
+    public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
+      program
+        .command("custom")
+        .requiredOption("--value <value>")
+        .action(async () => {
+          observed = await createApp();
+          const first = await observed.make(CustomCommand);
+          expect(await observed.make(CustomCommand)).toBe(first);
+        });
+    }
+
+    public override async boot(): Promise<void> {
+      boots++;
+    }
+  }
+  class CustomProvider extends ServiceProvider {
+    public constructor(app: Application) {
+      super(app);
+      constructions++;
+    }
+    public static override commands(): readonly CommandConstructor[] {
+      return [CustomCommand, CustomCommand];
+    }
+    public register(): void {
+      registrations++;
+      expect(this.app.bound(CustomCommand)).toBe(true);
+    }
+    public async boot(): Promise<void> {}
+  }
+  class AnotherProvider extends ServiceProvider {
+    public static override commands(): readonly CommandConstructor[] {
+      return [CustomCommand];
+    }
+    public register(): void {}
+    public async boot(): Promise<void> {}
+  }
+  const supplied = [CustomProvider, AnotherProvider, CustomProvider];
+  await dispatch(
+    ["custom", "--value", "hello"],
+    (_invocation, providers) => Application.configure(nested, providers).create(),
+    "custom-cli",
+    supplied,
+  );
+  expect(constructions).toBe(1);
+  expect(registrations).toBe(1);
+  expect(boots).toBe(1);
+  expect(observed?.value("console.invocation")).toMatchObject({
+    commandPath: ["custom"],
+    options: { value: "hello" },
+    script: "custom-cli",
+  });
+  expect(supplied).toHaveLength(3);
+});
+
+test("the command constructor contract requires a static schema method", () => {
+  class MissingSchema extends Command {}
+  const declarations = (): readonly CommandConstructor[] => [
+    // @ts-expect-error Command constructors must declare static register.
+    MissingSchema,
+  ];
+  expect(typeof declarations).toBe("function");
+  expect(ServiceProvider.commands()).toEqual([]);
+});
+
+test("foundation command declarations participate in both parsing and registration", async () => {
+  const { nested } = workspace();
+  let resolved = false;
+  class FoundationCommand extends Command {
+    public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
+      program.command("foundation-test").action(async () => {
+        await (await createApp()).make(FoundationCommand);
+        resolved = true;
+      });
+    }
+  }
+  vi.spyOn(FoundationServiceProvider, "commands").mockReturnValue([FoundationCommand]);
+  await dispatch(["foundation-test"], () => Application.configure(nested).create());
+  expect(resolved).toBe(true);
+});
+
+test("distinct declared commands cannot define the same Commander command", async () => {
+  let constructed = false;
+  class FirstCommand extends Command {
+    public static register(program: CommanderCommand): void {
+      program.command("duplicate");
+    }
+  }
+  class SecondCommand extends Command {
+    public static register(program: CommanderCommand): void {
+      program.command("duplicate");
+    }
+  }
+  class Provider extends ServiceProvider {
+    public static override commands(): readonly CommandConstructor[] {
+      return [FirstCommand, SecondCommand];
+    }
+    public register(): void {}
+    public async boot(): Promise<void> {}
+  }
+  await expect(
+    dispatch(
+      ["duplicate"],
+      () => {
+        constructed = true;
+        return Application.configure("/missing").create();
+      },
+      "spindle",
+      [Provider],
+    ),
+  ).rejects.toThrow(/cannot add command.*duplicate/);
+  expect(constructed).toBe(false);
+});
+
+test("concurrent dispatches retain their own provider selections", async () => {
+  const { nested } = workspace();
+  const resolved: string[] = [];
+  class FirstCommand extends Command {
+    public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
+      program.command("first").action(async () => {
+        await (await createApp()).make(FirstCommand);
+        resolved.push("first");
+      });
+    }
+  }
+  class SecondCommand extends Command {
+    public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
+      program.command("second").action(async () => {
+        await (await createApp()).make(SecondCommand);
+        resolved.push("second");
+      });
+    }
+  }
+  class FirstProvider extends ServiceProvider {
+    public static override commands(): readonly CommandConstructor[] {
+      return [FirstCommand];
+    }
+    public register(): void {}
+    public async boot(): Promise<void> {}
+  }
+  class SecondProvider extends ServiceProvider {
+    public static override commands(): readonly CommandConstructor[] {
+      return [SecondCommand];
+    }
+    public register(): void {}
+    public async boot(): Promise<void> {}
+  }
+  const createApp = (
+    _invocation: ConsoleInvocation,
+    providers: readonly (typeof FirstProvider)[],
+  ) => Application.configure(nested, providers).create();
+  await Promise.all([
+    dispatch(["first"], createApp, "spindle", [FirstProvider]),
+    dispatch(["second"], createApp, "spindle", [SecondProvider]),
+  ]);
+  expect(resolved.sort()).toEqual(["first", "second"]);
 });

@@ -1,3 +1,4 @@
+import type { CommandConstructor } from "@/commands/Command";
 import type { Application } from "@/foundation/Application";
 
 export abstract class ServiceProvider {
@@ -9,6 +10,10 @@ export abstract class ServiceProvider {
 
   public get app(): Application {
     return this._app;
+  }
+
+  public static commands(): readonly CommandConstructor[] {
+    return [];
   }
 
   public abstract register(): void;

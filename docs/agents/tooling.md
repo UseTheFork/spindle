@@ -133,8 +133,10 @@ There are no `get`/`create` resolver methods or global containers. Singleton
 initialization coalesces and can retry after failure; dependency cycles are
 detected even across concurrent shared initializations.
 
-`app.register(ProviderClass)` constructs and registers each provider once, queuing
-its instance for boot. Register before calling `app.boot()`; there are no phase
+`app.register(ProviderClass)` constructs and registers each provider once, binds
+its declared commands as singletons, and queues its instance for boot. Command
+class identities repeated across declarations are bound once; conflicting class
+names still fail container registration. Register before calling `app.boot()`; there are no phase
 gates. Boot hooks run sequentially, sharing and caching success or failure.
 Configuration is available before provider construction.
 The constructor first binds itself under `app`, `Application`, and `Container`,
@@ -171,8 +173,21 @@ operation. Help/version/invalid arguments require no Application or Git.
 `options`, and `positionals`; it never reparses or reads `process.argv`.
 The `ConsoleInvocation` type lives in `@/foundation/ConsoleInvocation`.
 
-The production provider explicitly registers command, reconciliation and
-installation singletons, plus transient computed-context services.
+Providers declare command classes once in static `commands()`; the inherited
+default is empty. Each class extends `Command` from `src/commands/Command.ts`
+and must satisfy `CommandConstructor`, including static
+`register(program, createApp)` for its Commander schema and action. TypeScript
+cannot enforce abstract static methods on the base class, so the constructor type
+enforces this contract at declaration. A command may register a leaf or an entire
+command group. Dispatch receives the provider classes used for bootstrap, includes
+the foundation provider, and registers each distinct command schema before parsing
+without constructing providers or an application. Dispatch snapshots that selection
+on the application for bootstrap, so concurrent dispatches do not compete through
+the builder's global provider selection. Conflicting Commander command
+names fail during schema registration. Commands are automatically bound before
+their provider's `register()` hook, which explicitly binds their dependencies.
+The production provider registers reconciliation and installation singletons,
+plus transient computed-context services.
 Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
 Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so
 the emitted ESM runs with Node. Build validation must include the packaged CLI

@@ -21,13 +21,13 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import type { Command } from "commander";
+import type { Command as CommanderCommand } from "commander";
 import matter from "gray-matter";
 
 import { blueprintCatalog } from "@/blueprints/catalog";
+import { Command } from "@/commands/Command";
 import { once } from "@/commands/shared-options";
 import type { Application } from "@/foundation/Application";
-import { Service } from "@/services/Service";
 
 const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const HISTORICAL_DATE_DIRECTORY = /^\d{4}-\d{2}-\d{2}-/;
@@ -1114,8 +1114,12 @@ function waitBriefly(): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
 }
 
-export class SddCommand extends Service {
-  public static register(program: Command, createApp: () => Promise<Application>): void {
+export class SddCommand extends Command {
+  public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
+    const program = root
+      .command("sdd")
+      .description("Subagent-driven development workflow")
+      .allowExcessArguments(false);
     program
       .command("create")
       .description("Create a numbered SDD feature workspace and initial ledger.")

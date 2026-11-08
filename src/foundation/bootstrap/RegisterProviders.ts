@@ -9,6 +9,8 @@ export class RegisterProviders extends Bootstrapper {
   }
 
   public bootstrap(application: Application): void {
-    for (const Provider of RegisterProviders.providers) application.register(Provider);
+    for (const Provider of application.bootstrapProviders(RegisterProviders.providers)) {
+      application.register(Provider);
+    }
   }
 }

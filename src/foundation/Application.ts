@@ -1,6 +1,7 @@
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { CommandConstructor } from "@/commands/Command";
 import { Config } from "@/config/Config";
 import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import type { BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
@@ -14,14 +15,17 @@ export interface ApplicationOptions {
   basePath: string;
 }
 
-export type ServiceProviderConstructor<T extends ServiceProvider = ServiceProvider> = new (
-  app: Application,
-) => T;
+export type ServiceProviderConstructor<T extends ServiceProvider = ServiceProvider> = {
+  new (app: Application): T;
+  commands(): readonly CommandConstructor[];
+};
 
 export class Application extends Container {
   public readonly config = new Config();
   private readonly _basePath: string;
   private readonly providers = new Map<ServiceProviderConstructor, ServiceProvider>();
+  private readonly commands = new Set<CommandConstructor>();
+  private selectedBootstrapProviders: readonly ServiceProviderConstructor[] | undefined;
   private readonly bootableProviders: ServiceProvider[] = [];
   private bootstrapPromise: Promise<void> | undefined;
   private _hasBeenBootstrapped = false;
@@ -77,10 +81,26 @@ export class Application extends Container {
     return this._hasBeenBootstrapped;
   }
 
+  public selectBootstrapProviders(providers: readonly ServiceProviderConstructor[]): void {
+    this.selectedBootstrapProviders = [...new Set(providers)];
+  }
+
+  public bootstrapProviders(
+    fallback: readonly ServiceProviderConstructor[],
+  ): readonly ServiceProviderConstructor[] {
+    return this.selectedBootstrapProviders ?? fallback;
+  }
+
   public register(Provider: ServiceProviderConstructor): void {
     if (this.providers.has(Provider)) return;
     const provider = new Provider(this);
     this.providers.set(Provider, provider);
+    for (const Command of Provider.commands()) {
+      if (!this.commands.has(Command)) {
+        this.singleton(Command);
+        this.commands.add(Command);
+      }
+    }
     provider.register();
     this.bootableProviders.push(provider);
   }

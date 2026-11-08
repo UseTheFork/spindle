@@ -37,7 +37,13 @@ reference-counted dependency graph, including cycles between concurrently starte
 shared initializations. Factories and service hooks run inside the same asynchronous
 resolution context.
 
-Commands, reconciliation, and installation are explicit production singletons.
+Providers declare command classes in static `commands()`; the inherited default
+is empty. Declared commands extend `Command` and satisfy `CommandConstructor`,
+which requires a static Commander schema registration method. TypeScript cannot
+declare an abstract static method, so the constructor contract enforces it at
+the provider boundary. Application binds each distinct command class as a singleton
+before its provider's register hook; providers explicitly bind dependencies.
+Reconciliation and installation are explicit production singletons.
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
 runs. Config, prompt answers, plans, and operational mutable state remain per-run.
@@ -93,11 +99,12 @@ Bootstrap failure prevents any partial provider queue from booting through Kerne
 provider boot failure does not undo successful bootstrap.
 
 `RegisterProviders.merge(list)` replaces its private, process-global provider list
-with a fresh ordered, deduplicated, nullish-filtered array. Bootstrap loops directly
-over that list and calls `application.register`. This global list is configuration,
+with a fresh ordered, deduplicated, nullish-filtered array. Bootstrap ordinarily
+loops over that list and calls `application.register`; dispatch instead supplies
+an application-specific snapshot of its provider selection, preserving consistency
+across concurrent invocations. This global list is configuration,
 not a container: builders deliberately replace it, and tests reset it with
-`merge([])`. There are no provider-list snapshots, registration gates, or hidden
-bootstrap-list normalization.
+`merge([])`. There are no registration gates or hidden bootstrap-list normalization.
 
 `ApplicationBuilder` offers fluent `withKernels`, `withProviders`, and `create`.
 `withKernels` idempotently registers an ordinary Kernel singleton with an explicit
@@ -106,7 +113,11 @@ returns a builder preconfigured with kernels and the supplied providers. Default
 provider arrays are fresh, and omission clears the previous global selection.
 The executable explicitly supplies the concrete production service provider.
 
-Commander remains the sole parser. Only a parsed command action supplies an
+Commander remains the sole parser. Before constructing an application or
+discovering Git, dispatch registers command schemas from the same explicitly
+supplied provider selection used for bootstrap, including the foundation provider.
+Repeated command class identities are deduplicated; conflicting command names
+fail when Commander registers them. Only a parsed command action supplies an
 invocation containing raw argument strings, script, command path, parsed options,
 and positional arguments. Existing command-specific validation happens before
 application construction. Dispatch composes the application, resolves Kernel,

@@ -11,8 +11,9 @@ import { ProductionServiceProvider } from "@/services/ProductionServiceProvider"
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
   await dispatch(
     args,
-    () => Application.configure(startingDirectory, [ProductionServiceProvider]).create(),
+    (_invocation, providers) => Application.configure(startingDirectory, providers).create(),
     process.argv[1] ?? "spindle",
+    [ProductionServiceProvider],
   );
 }
 
