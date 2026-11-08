@@ -6,8 +6,8 @@ import { expect, test } from "vitest";
 import { serviceFixture } from "./helpers.ts";
 import { issueFixture } from "./issue-helpers.ts";
 
-test("sdd status reads the explicitly selected feature policy and progress without mutation", () => {
-  const { repo, git, service } = serviceFixture();
+test("sdd status reads the explicitly selected feature policy and progress without mutation", async () => {
+  const { repo, git, service } = await serviceFixture();
   service.create({ title: "First Feature", author: "maintainer" });
   const second = service.create({
     title: "Second Feature",
@@ -56,8 +56,8 @@ test("sdd status reads the explicitly selected feature policy and progress witho
   expect(git("status", "--porcelain=v1")).toBe(beforeStatus);
 });
 
-test("sdd status rejects normalized traversal paths and legacy feature layouts", () => {
-  const { repo, service, feature } = issueFixture("Current Feature");
+test("sdd status rejects normalized traversal paths and legacy feature layouts", async () => {
+  const { repo, service, feature } = await issueFixture("Current Feature");
   const linkedFeature = join(repo, ".scratch", "0002-linked-feature");
   symlinkSync(feature.workspace, linkedFeature);
   const legacy = join(repo, ".scratch", "2026-11-06-legacy-feature");
@@ -74,8 +74,8 @@ test("sdd status rejects normalized traversal paths and legacy feature layouts",
   }
 });
 
-test("sdd status reads a stored policy version without substituting current defaults", () => {
-  const { service, feature } = issueFixture("Pinned Policy");
+test("sdd status reads a stored policy version without substituting current defaults", async () => {
+  const { service, feature } = await issueFixture("Pinned Policy");
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
   ledger.reviewPolicy = {
     version: 7,
@@ -88,8 +88,8 @@ test("sdd status reads a stored policy version without substituting current defa
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
 });
 
-test("sdd status rejects unsupported ledger schema versions without rewriting the ledger", () => {
-  const { service, feature } = issueFixture("Versioned Feature");
+test("sdd status rejects unsupported ledger schema versions without rewriting the ledger", async () => {
+  const { service, feature } = await issueFixture("Versioned Feature");
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
   ledger.schemaVersion = 2;
   writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
@@ -100,8 +100,8 @@ test("sdd status rejects unsupported ledger schema versions without rewriting th
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
 });
 
-test("sdd status validates v1 issue and delivery history records without rewriting the ledger", () => {
-  const { service, feature } = issueFixture("Nested Records");
+test("sdd status validates v1 issue and delivery history records without rewriting the ledger", async () => {
+  const { service, feature } = await issueFixture("Nested Records");
   const original = JSON.parse(readFileSync(feature.ledger, "utf8"));
   const malformedLedgers = [
     { ...original, issues: [null] },

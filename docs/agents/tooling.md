@@ -33,7 +33,8 @@ from the repository root. Replace `<args>` with optional command arguments.
 
 - `pnpm exec vitest run <args>` - Run migrated Vitest tests once.
 - `pnpm exec vitest run tests/app.test.ts` - Run the migrated application tests.
-- `pnpm exec vitest run tests/sdd/*.test.ts` - Run only the migrated SDD workflow tests.
+- `pnpm exec vitest run tests/app.test.ts tests/container.test.ts tests/bootstrap.test.ts` - Run application composition and bootstrap tests.
+- `pnpm exec vitest run tests/sdd/create.test.ts tests/sdd/status.test.ts` - Run explicitly selected SDD workflow tests.
 - `pnpm exec vitest <args>` - Run Vitest in watch mode during local development.
 - `pnpm exec vitest run --coverage <args>` - Run migrated tests with coverage; requires a compatible Vitest coverage provider.
 
@@ -84,45 +85,64 @@ missing intermediate objects; all operations throw when traversing an existing
 non-plain-object intermediate, rather than overwriting it or silently falling
 back. Path validation completes before mutation.
 
-Supply an optional readonly array of provider constructors in `ApplicationOptions.providers`.
-The application constructs its own fixed provider instances immediately, passing
-itself to each constructor. `app.registerProviders()` synchronously registers all
-providers once, in supplied order. Registration success and failure are distinct
-states: failures are cached and rethrown without retry, including non-Error thrown
-values. Reentrant registration is explicitly rejected.
+Construct with only `new Application({ basePath })`. The normalized absolute
+starting path is immutable; workspace and Blueprint source roots are separate
+instance values bound during bootstrap. Do not read ambient cwd in services.
+The executable alone supplies cwd as the base path.
 
-Import the extendable `Kernel` from `src/foundation/Kernel.ts`. It holds a
-`public readonly app` reference. Its protected `bootstrappers()` returns
-`[RegisterProviders]` by default; override it to choose an ordered readonly
-constructor list. `Bootstrapper` and `BootstrapperConstructor` live in
-`src/foundation/bootstrap/Bootstrapper.ts`; `RegisterProviders` lives alongside
-them. Bootstrappers are independent of `Service`, take no required constructor
-arguments, and implement `bootstrap(application): void | Promise<void>`.
+Import `Container`, `ValueToken`, `Key`, and `Factory` from
+`@/foundation/Container`. `app.bind(key, factory)` registers a transient;
+`app.singleton(key, factory)` registers a shared value;
+`app.instance(key, value)` supplies an existing value.
+Service constructors may omit factories, defaulting to construction with the
+owning application. Ordinary constructors require explicit factories.
+Factories may return values or promises. `await app.make(key)` requires an
+explicit binding and automatically boots only Service instances before returning.
+Supplied Service instances must already be booted. Duplicate bindings of any
+kind throw, and `app.bound(key)` checks all registration kinds.
+There are no `get`/`create` resolver methods, global containers, or string aliases.
+Singleton initialization coalesces and can retry after failure; dependency cycles
+are detected even across concurrent shared initializations.
 
-`await kernel.bootstrap()` delegates to `app.bootstrapWith(list)`. The first call
-captures the list, directly constructs each bootstrapper, and awaits each hook
-before constructing the next. Execution starts on a microtask, allowing concurrent
-and non-awaited reentrant calls to share one initialization. State belongs to the
-application, not the kernel: later calls, even from another kernel with a different
-list, reuse that first result. `app.hasBeenBootstrapped` becomes true only after
-every hook succeeds; failures stay cached without retry and leave it false.
-An empty bootstrap list succeeds but does not register providers.
+`app.register(ProviderClass)` constructs and registers each provider once, queuing
+its instance for boot. Register before calling `app.boot()`; there are no phase
+gates. Boot hooks run sequentially, sharing and caching success or failure.
+Configuration is available before provider construction.
 
-`await kernel.boot()` first awaits bootstrap completion, then calls `app.boot()`.
-Application boot only awaits provider boot hooks sequentially, after registration
-has completed; it never registers providers itself. Calls before or during
-registration explicitly reject without poisoning a later valid boot. After failed
-registration they reject with the cached registration failure. Valid boot calls
-share one initialization and cache success or failure without retry. A provider
-boot failure does not undo successful bootstrap completion. Omitting providers or
-supplying an empty array is valid, but still requires registration before boot.
-Direct callers may register providers and boot without using a kernel.
+`Application.configure(basePath, providers = [])` returns a fluent
+`ApplicationBuilder` preconfigured with `withKernels()` and `withProviders()`.
+`create()` returns the application. Kernel is an ordinary explicitly registered
+singleton; `make(Kernel)` never boots it. Repeated `withKernels()` on the same
+builder is idempotent, while duplicate container registration still throws.
+`withProviders()` delegates to `RegisterProviders.merge(list)`, which replaces a
+process-global ordered deduplicated nullish-filtered provider selection, not an
+application container. Builder configuration replaces previous selection; tests
+must reset it with `RegisterProviders.merge([])`.
 
-This lifecycle does not add command dispatch, environment/configuration loading,
-or handle/terminate hooks. Existing CLI command execution remains unchanged.
+The extendable Kernel's protected `bootstrappers()` defaults to
+`[LoadConsoleArgs, DiscoverGitRoot, ResolveBlueprintSourceRoot, RegisterProviders]`.
+Override the ordered list directly; it is not normalized.
+Bootstrappers are independent of Service and implement asynchronous or synchronous
+hooks. `app.bootstrapWith(list)` captures the first list and sequentially constructs
+and awaits hooks, sharing one cached result across kernels.
+`hasBeenBootstrapped` is true only after complete success. Failure remains cached
+and prevents partial provider boot through Kernel.
 
-`app.get(ServiceType)` still shares a booted singleton per application, and
-`app.create(ServiceType)` still boots a fresh instance. Service initialization
-marks `isBooted` only after successful boot and rejects dependency cycles;
-failed singleton service initialization can retry on a later `get` call,
-independently of the one-shot application provider lifecycle.
+`await kernel.boot(invocation)` first supplies the validated `ConsoleInvocation`
+token, then bootstraps and boots providers. Commander alone parses raw arguments;
+dispatch constructs the application only after parsing and command validation,
+then resolves Kernel, boots the invocation, resolves the command and runs its
+operation. Help/version/invalid arguments require no Application or Git.
+`LoadConsoleArgs` binds a Repository with `raw`, `script`, `commandPath`,
+`options`, and `positionals`; it never reparses or reads `process.argv`.
+Root and invocation tokens live in `@/foundation/tokens`. `app.value(token)`
+provides synchronous access only to explicitly supplied instance values.
+
+The production provider explicitly registers command, reconciliation and
+installation singletons, plus transient computed-context services.
+Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
+Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so
+the emitted ESM runs with Node. Build validation must include the packaged CLI
+and preserved Blueprint/setup-project assets, not only source tests.
+
+See [ADR 0004](../adr/0004-application-owned-services.md) for lifecycle rationale.

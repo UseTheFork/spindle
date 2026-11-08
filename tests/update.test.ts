@@ -1,9 +1,10 @@
-import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+
+import { afterAll, beforeAll, test, expect, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 import {
   makeTempDir,
@@ -14,7 +15,7 @@ import {
 
 let stubs: string;
 
-before(async () => {
+beforeAll(async () => {
   stubs = await makeTempDir("spindle-update-stubs-");
   const stubSkills: Record<string, string> = {
     newer: "2.0.0",
@@ -33,7 +34,7 @@ before(async () => {
   }
 });
 
-after(async () => {
+afterAll(async () => {
   await rm(stubs, { recursive: true, force: true });
 });
 
@@ -54,7 +55,7 @@ interface CliResult {
 async function withProject(
   setup: Setup,
   args: string[],
-  check: (project: string, result: CliResult) => Promise<void>,
+  check: (project: string, result: CliResult) => void | Promise<void>,
   stubsDir = stubs,
   runner: (
     project: string,
@@ -114,26 +115,22 @@ test("update copies a Skill's stacks directory as ordinary recursive content", a
       { config: goodConfig, skills: { demo: skill("1.0.0") } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stderr);
-        assert.equal(
-          await readFile(join(project, ".github/skills/demo/shared.txt"), "utf8"),
+        expect(result.status, result.stderr).toBe(0);
+        expect(await readFile(join(project, ".github/skills/demo/shared.txt"), "utf8")).toBe(
           "shared content\n",
         );
-        assert.equal(
+        expect(
           await readFile(join(project, ".github/skills/demo/stacks/python/python.txt"), "utf8"),
-          "python content\n",
-        );
-        assert.equal(
+        ).toBe("python content\n");
+        expect(
           await readFile(
             join(project, ".github/skills/demo/stacks/typescript/typescript.txt"),
             "utf8",
           ),
-          "typescript content\n",
-        );
-        assert.equal(
+        ).toBe("typescript content\n");
+        expect(
           await readFile(join(project, ".github/skills/demo/stacks/php-laravel/php.txt"), "utf8"),
-          "php content\n",
-        );
+        ).toBe("php content\n");
       },
       blueprints,
     );
@@ -153,8 +150,8 @@ test("update reads Skill metadata from its catalog-selected root entry", async (
       { config: { stacks: ["python"], variables: {} }, skills: { demo: skill("1.0.0") } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stderr);
-        assert.equal(await read(project, "demo"), skill("2.0.0", "new"));
+        expect(result.status, result.stderr).toBe(0);
+        expect(await read(project, "demo")).toBe(skill("2.0.0", "new"));
       },
       blueprints,
     );
@@ -186,22 +183,20 @@ test("update preserves paths for duplicate basenames in a Skill's stacks directo
       { config: goodConfig, skills: { demo: skill("1.0.0") } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stderr);
-        assert.match(await read(project, "demo"), /version: 2\.0\.0/);
-        assert.equal(
+        expect(result.status, result.stderr).toBe(0);
+        expect(await read(project, "demo")).toMatch(/version: 2\.0\.0/);
+        expect(
           await readFile(
             join(project, ".github/skills/demo/stacks/python/shared-path.txt"),
             "utf8",
           ),
-          "python content\n",
-        );
-        assert.equal(
+        ).toBe("python content\n");
+        expect(
           await readFile(
             join(project, ".github/skills/demo/stacks/typescript/shared-path.txt"),
             "utf8",
           ),
-          "typescript content\n",
-        );
+        ).toBe("typescript content\n");
       },
       blueprints,
     );
@@ -225,21 +220,20 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(
-        await read(project, "newer"),
+      expect(result.status, result.stderr).toBe(0);
+      expect(await read(project, "newer")).toBe(
         "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=core stacks=python;typescript;\n",
       );
-      assert.equal(await read(project, "equal"), skill("1.0.0"));
-      assert.equal(await read(project, "lower"), skill("9.0.0"));
-      assert.equal(await read(project, "missing"), skill(null));
-      assert.equal(await read(project, "bad"), skill("v1"));
-      await assert.rejects(readFile(join(project, ".github/skills/newer/extra.txt")));
-      await assert.rejects(read(project, "absent"));
-      assert.equal(await readFile(join(project, ".github/spindle.json"), "utf8"), configText);
-      assert.match(result.stderr, /missing.*no version/);
-      assert.match(result.stderr, /bad.*non-semver version 'v1'/);
-      assert.match(result.stdout, /Added 0, updated 1, skipped 3, up to date 2 skill\(s\)/);
+      expect(await read(project, "equal")).toBe(skill("1.0.0"));
+      expect(await read(project, "lower")).toBe(skill("9.0.0"));
+      expect(await read(project, "missing")).toBe(skill(null));
+      expect(await read(project, "bad")).toBe(skill("v1"));
+      await expect(readFile(join(project, ".github/skills/newer/extra.txt"))).rejects.toThrow();
+      await expect(read(project, "absent")).rejects.toThrow();
+      expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(configText);
+      expect(result.stderr).toMatch(/missing.*no version/);
+      expect(result.stderr).toMatch(/bad.*non-semver version 'v1'/);
+      expect(result.stdout).toMatch(/Added 0, updated 1, skipped 3, up to date 2 skill\(s\)/);
     },
   );
 });
@@ -271,9 +265,8 @@ test("update reads a Nunjucks-rendered nested Skill version", async () => {
       },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stderr);
-        assert.equal(
-          await read(project, "demo"),
+        expect(result.status, result.stderr).toBe(0);
+        expect(await read(project, "demo")).toBe(
           "---\nmetadata:\n  vendor:\n    version: 8.0.0\n  spindle:\n    version: 2.0.0\n---\nrendered 2.0.0\n",
         );
       },
@@ -294,9 +287,9 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
       { config: goodConfig, skills: { demo: skill("1.0.0") } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.notEqual(result.status, 0);
-        assert.match(result.stderr, /no valid semver version/);
-        assert.equal(await read(project, "demo"), skill("1.0.0"));
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/no valid semver version/);
+        expect(await read(project, "demo")).toBe(skill("1.0.0"));
       },
       blueprints,
     );
@@ -307,9 +300,9 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
       { config: goodConfig, skills: { demo: legacyInstalled } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stderr);
-        assert.match(result.stderr, /Skill 'demo'.*no version/);
-        assert.equal(await read(project, "demo"), legacyInstalled);
+        expect(result.status, result.stderr).toBe(0);
+        expect(result.stderr).toMatch(/Skill 'demo'.*no version/);
+        expect(await read(project, "demo")).toBe(legacyInstalled);
       },
       blueprints,
     );
@@ -338,10 +331,10 @@ test("update renders a complete static Skill entry before checking an equal vers
       SPINDLE_BLUEPRINTS_DIR: blueprints,
     });
 
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /undefined|not_supplied/i);
-    assert.equal(await readFile(installed, "utf8"), original);
-    assert.equal(await readFile(join(project, ".github", "spindle.json"), "utf8"), configText);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/undefined|not_supplied/i);
+    expect(await readFile(installed, "utf8")).toBe(original);
+    expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(configText);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -380,9 +373,9 @@ test("update refuses to install a Skill entry changed after version planning", a
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
-    assert.notEqual(result.status, 0);
-    assert.match(`${result.stdout}\n${result.stderr}`, /changed while planning/);
-    assert.equal(await readFile(installed, "utf8"), original);
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toMatch(/changed while planning/);
+    expect(await readFile(installed, "utf8")).toBe(original);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -404,15 +397,14 @@ test("update aborts on malformed installed Skill YAML before replacing another S
       { config, skills: { "a-outdated": skill("1.0.0", "local"), "z-broken": malformed } },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
-        assert.notEqual(result.status, 0);
-        assert.match(result.stderr, /flow collection|end of the stream|YAML/i);
-        assert.equal(await read(project, "a-outdated"), skill("1.0.0", "local"));
-        assert.equal(await read(project, "z-broken"), malformed);
-        assert.equal(
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/flow collection|end of the stream|YAML/i);
+        expect(await read(project, "a-outdated")).toBe(skill("1.0.0", "local"));
+        expect(await read(project, "z-broken")).toBe(malformed);
+        expect(
           await readFile(join(project, ".github", "skills", "a-outdated", "extra.txt"), "utf8"),
-          "stale",
-        );
-        assert.equal(await readFile(join(project, ".github", "spindle.json"), "utf8"), config);
+        ).toBe("stale");
+        expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(config);
       },
       blueprints,
     );
@@ -426,9 +418,9 @@ test("--on-conflict skip leaves outdated skills untouched", async () => {
     { config: goodConfig, skills: { newer: skill("1.0.0") } },
     ["--no-interactive", "--on-conflict", "skip"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
-      assert.match(result.stdout, /Added 0, updated 0, skipped 6, up to date 0 skill\(s\)/);
+      expect(result.status, result.stderr).toBe(0);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
+      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 6, up to date 0 skill\(s\)/);
     },
   );
 });
@@ -438,9 +430,9 @@ test("non-interactive without a policy errors naming the flag and writes nothing
     { config: goodConfig, skills: { newer: skill("1.0.0") } },
     ["--no-interactive"],
     async (project, result) => {
-      assert.equal(result.status, 1);
-      assert.match(result.stderr, /--on-conflict/);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/--on-conflict/);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
     },
   );
 });
@@ -450,10 +442,10 @@ test("--include-new does not waive the outdated-Skill conflict policy", async ()
     { config: goodConfig, skills: { newer: skill("1.0.0") } },
     ["--no-interactive", "--include-new"],
     async (project, result) => {
-      assert.equal(result.status, 1);
-      assert.match(result.stderr, /--on-conflict/);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
-      await assert.rejects(read(project, "absent"));
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/--on-conflict/);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
+      await expect(read(project, "absent")).rejects.toThrow();
     },
   );
 });
@@ -463,8 +455,8 @@ test("nothing outdated needs no policy", async () => {
     { config: goodConfig, skills: { equal: skill("1.0.0") } },
     ["--no-interactive"],
     async (_project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout, /Added 0, updated 0, skipped 5, up to date 1 skill\(s\)/);
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 5, up to date 1 skill\(s\)/);
     },
   );
 });
@@ -481,9 +473,9 @@ test("no-op updates do not require missing Variables", async () => {
     { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
     ["--no-interactive"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stdout, /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
-      assert.equal(await read(project, "newer"), skill("2.0.0"));
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
+      expect(await read(project, "newer")).toBe(skill("2.0.0"));
     },
   );
 });
@@ -504,12 +496,11 @@ test(
       { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
       [],
       async (_project, result) => {
-        assert.equal(result.status, 0, result.stdout);
-        assert.doesNotMatch(
-          result.stdout,
+        expect(result.status, result.stdout).toBe(0);
+        expect(result.stdout).not.toMatch(
           /owner: Team owner|lint_command: Lint command|Which new Skills/,
         );
-        assert.match(result.stdout, /Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
+        expect(result.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
       },
       stubs,
       (project, args, searchPath, env) => runCliInteractive(project, args, searchPath, [], env),
@@ -531,12 +522,12 @@ test("one skipped total includes conflict, invalid-version, and unselected new S
     },
     ["--no-interactive", "--on-conflict", "skip"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(result.stderr, /missing.*no version/);
-      assert.match(result.stderr, /bad.*non-semver version 'v1'/);
-      assert.match(result.stdout, /Added 0, updated 0, skipped 4, up to date 2 skill\(s\)/);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
-      await assert.rejects(read(project, "absent"));
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stderr).toMatch(/missing.*no version/);
+      expect(result.stderr).toMatch(/bad.*non-semver version 'v1'/);
+      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 4, up to date 2 skill\(s\)/);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
+      await expect(read(project, "absent")).rejects.toThrow();
     },
   );
 });
@@ -553,12 +544,11 @@ test("--include-new installs new Skills and reports them separately from updates
     { config: goodConfig, skills: currentSkills },
     ["--no-interactive", "--include-new"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(
-        await read(project, "absent"),
+      expect(result.status, result.stderr).toBe(0);
+      expect(await read(project, "absent")).toMatch(
         /fresh absent owner=core stacks=python;typescript;/,
       );
-      assert.match(result.stdout, /Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/);
+      expect(result.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/);
     },
   );
 });
@@ -575,9 +565,9 @@ test("non-interactive update skips new Skills by default and counts them as skip
     { config: goodConfig, skills: currentSkills },
     ["--no-interactive"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      await assert.rejects(read(project, "absent"));
-      assert.match(result.stdout, /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
+      expect(result.status, result.stderr).toBe(0);
+      await expect(read(project, "absent")).rejects.toThrow();
+      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/);
     },
   );
 });
@@ -601,17 +591,15 @@ test(
         { config: goodConfig, skills: currentSkills },
         [],
         async (project, result) => {
-          assert.equal(result.status, 0, result.stdout);
-          assert.equal(
+          expect(result.status, result.stdout).toBe(0);
+          expect(
             await readFile(join(project, ".github/skills/absent/SKILL.md"), "utf8").then(
               () => true,
               () => false,
             ),
-            selected,
             result.stdout,
-          );
-          assert.match(
-            result.stdout,
+          ).toBe(selected);
+          expect(result.stdout).toMatch(
             selected
               ? /Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/
               : /Added 0, updated 0, skipped 1, up to date 5 skill\(s\)/,
@@ -659,18 +647,15 @@ test(
         },
         [],
         async (project, result) => {
-          assert.equal(result.status, 0, result.stdout);
-          assert.match(result.stdout, /Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
-          assert.match(
-            await read(project, "newer"),
+          expect(result.status, result.stdout).toBe(0);
+          expect(result.stdout).toMatch(/Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
+          expect(await read(project, "newer")).toMatch(
             /fresh newer owner=configured lint=just lint stacks=python;/,
           );
-          assert.match(
-            await read(project, "absent"),
+          expect(await read(project, "absent")).toMatch(
             /fresh absent owner=configured lint=just lint stacks=python;/,
           );
-          assert.deepEqual(
-            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+          expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
             projectConfig,
           );
         },
@@ -729,12 +714,15 @@ test(
         { config: originalConfig, skills: currentSkills },
         [],
         async (project, result) => {
-          assert.notEqual(result.status, 0);
-          assert.match(`${result.stdout}\n${result.stderr}`, /undefined|undefinedValue/i);
-          await assert.rejects(readFile(join(project, ".github/skills/alpha-new/SKILL.md")));
-          await assert.rejects(readFile(join(project, ".github/skills/zeta-new/SKILL.md")));
-          assert.deepEqual(
-            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+          expect(result.status).not.toBe(0);
+          expect(`${result.stdout}\n${result.stderr}`).toMatch(/undefined|undefinedValue/i);
+          await expect(
+            readFile(join(project, ".github/skills/alpha-new/SKILL.md")),
+          ).rejects.toThrow();
+          await expect(
+            readFile(join(project, ".github/skills/zeta-new/SKILL.md")),
+          ).rejects.toThrow();
+          expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
             originalConfig,
           );
         },
@@ -775,11 +763,10 @@ test(
       { config: originalConfig, skills: currentSkills },
       ["--include-new"],
       async (project, result) => {
-        assert.equal(result.status, 0, result.stdout);
-        assert.doesNotMatch(result.stdout, /forced Config write failure/);
-        assert.match(await read(project, "absent"), /fresh absent owner=configured/);
-        assert.deepEqual(
-          JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+        expect(result.status, result.stdout).toBe(0);
+        expect(result.stdout).not.toMatch(/forced Config write failure/);
+        expect(await read(project, "absent")).toMatch(/fresh absent owner=configured/);
+        expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
           originalConfig,
         );
       },
@@ -808,9 +795,9 @@ test(
       { config: goodConfig, skills: currentSkills },
       [],
       async (project, result) => {
-        assert.notEqual(result.status, 0);
-        assert.equal(await read(project, "newer"), skill("1.0.0"));
-        await assert.rejects(read(project, "absent"));
+        expect(result.status).not.toBe(0);
+        expect(await read(project, "newer")).toBe(skill("1.0.0"));
+        await expect(read(project, "absent")).rejects.toThrow();
       },
       stubs,
       (project, args, searchPath, env) =>
@@ -836,8 +823,8 @@ test("a hand-edited spindle.json is re-resolved on each run", async () => {
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(await read(project, "newer"), /owner=edited stacks=php-laravel;/);
+      expect(result.status, result.stderr).toBe(0);
+      expect(await read(project, "newer")).toMatch(/owner=edited stacks=php-laravel;/);
     },
   );
 });
@@ -850,8 +837,8 @@ test("variables missing from the config fall back to product defaults", async ()
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
-      assert.equal(result.status, 0, result.stderr);
-      assert.match(await read(project, "newer"), /owner=nobody/);
+      expect(result.status, result.stderr).toBe(0);
+      expect(await read(project, "newer")).toMatch(/owner=nobody/);
     },
   );
 });
@@ -864,9 +851,9 @@ test("invalid stack ids in the config are rejected", async () => {
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
-      assert.equal(result.status, 1);
-      assert.match(result.stderr, /Invalid stack 'cobol'/);
-      assert.equal(await read(project, "newer"), skill("1.0.0"));
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Invalid stack 'cobol'/);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
     },
   );
 });
@@ -886,56 +873,56 @@ test("missing or malformed config points to init", async () => {
       { config, skills: { newer: skill("1.0.0") } },
       ["--no-interactive"],
       async (project, result) => {
-        assert.equal(result.status, 1);
-        assert.match(result.stderr, /spindle init/);
-        assert.equal(await read(project, "newer"), skill("1.0.0"));
+        expect(result.status).toBe(1);
+        expect(result.stderr).toMatch(/spindle init/);
+        expect(await read(project, "newer")).toBe(skill("1.0.0"));
       },
     );
   }
 });
 
 test("update Commander help accepts -h and help update outside Git", async () => {
-  const project = await mkdtemp(join(tmpdir(), "spindle-update-help-"));
+  const project = await mkdtemp(join(process.cwd(), "spindle-update-help-"));
   try {
     for (const args of [
       ["update", "-h"],
       ["help", "update"],
     ]) {
       const result = runCliRaw(project, args, process.env.PATH ?? "");
-      assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
-      assert.equal(result.stderr, "");
-      assert.match(result.stdout, /Usage: spindle update/);
-      assert.match(result.stdout, /-h, --help/);
+      expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toMatch(/Usage: spindle update/);
+      expect(result.stdout).toMatch(/-h, --help/);
     }
-    assert.deepEqual(await readdir(project), []);
+    expect(await readdir(project)).toEqual([]);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
 });
 
 test("update reports invalid arguments before Git discovery outside a working tree", async () => {
-  const project = await mkdtemp(join(tmpdir(), "spindle-update-invalid-no-git-"));
+  const project = await mkdtemp(join(process.cwd(), "spindle-update-invalid-no-git-"));
   try {
     const result = runCliRaw(project, ["update", "--stack", "python"], "");
-    assert.notEqual(result.status, 0);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /unknown option.*--stack/i);
-    assert.doesNotMatch(result.stderr, /Git working-tree root/i);
-    assert.deepEqual(await readdir(project), []);
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toMatch(/unknown option.*--stack/i);
+    expect(result.stderr).not.toMatch(/Git working-tree root/i);
+    expect(await readdir(project)).toEqual([]);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
 });
 
 test("valid update requires Git discovery outside a working tree", async () => {
-  const project = await mkdtemp(join(tmpdir(), "spindle-update-valid-no-git-"));
+  const project = await mkdtemp(join(process.cwd(), "spindle-update-valid-no-git-"));
   try {
     for (const searchPath of [process.env.PATH ?? "", ""]) {
       const result = runCliRaw(project, ["update", "--no-interactive"], searchPath);
-      assert.notEqual(result.status, 0);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /Git working-tree root/i);
-      assert.deepEqual(await readdir(project), []);
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toMatch(/Git working-tree root/i);
+      expect(await readdir(project)).toEqual([]);
     }
   } finally {
     await rm(project, { recursive: true, force: true });
@@ -951,22 +938,22 @@ test("update rejects inapplicable options, unexpected arguments, and invalid con
 
   for (const [args, error] of invalidInvocations) {
     await withProject({}, args, (_project, result) => {
-      assert.notEqual(result.status, 0, args.join(" "));
-      assert.equal(result.stdout, "", args.join(" "));
-      assert.match(result.stderr, error, args.join(" "));
+      expect(result.status, args.join(" ")).not.toBe(0);
+      expect(result.stdout, args.join(" ")).toBe("");
+      expect(result.stderr, args.join(" ")).toMatch(error);
     });
   }
 });
 
 test("update --help documents its flags", async () => {
   await withProject({}, ["--help"], async (_project, result) => {
-    assert.equal(result.status, 0);
+    expect(result.status).toBe(0);
     for (const flag of ["--on-conflict", "--include-new", "--no-interactive", "--help"]) {
-      assert.ok(result.stdout.includes(flag), flag);
+      expect(result.stdout.includes(flag), flag).toBeTruthy();
     }
-    assert.match(result.stdout, /spindle update/);
-    assert.match(result.stdout, /Reads stacks and variables from \.github\/spindle\.json/);
-    assert.match(result.stdout, /run `spindle init` first/);
+    expect(result.stdout).toMatch(/spindle update/);
+    expect(result.stdout).toMatch(/Reads stacks and variables from \.github\/spindle\.json/);
+    expect(result.stdout).toMatch(/run `spindle init` first/);
   });
 });
 
@@ -1013,18 +1000,17 @@ test(
             SPINDLE_BLUEPRINTS_DIR: stubs,
           },
         );
-        assert.notEqual(result.status, 0, label);
-        assert.match(result.stderr, /symbolic link/i, label);
-        assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep", label);
+        expect(result.status, label).not.toBe(0);
+        expect(result.stderr, label).toMatch(/symbolic link/i);
+        expect(await readFile(join(outside, "sentinel"), "utf8"), label).toBe("keep");
         if (link === "github") {
-          assert.equal(
-            await readFile(join(outside, "skills", "newer", "SKILL.md"), "utf8"),
+          expect(await readFile(join(outside, "skills", "newer", "SKILL.md"), "utf8")).toBe(
             skill("1.0.0"),
           );
         } else if (link === "skills") {
-          assert.equal(await readFile(join(outside, "newer", "SKILL.md"), "utf8"), skill("1.0.0"));
+          expect(await readFile(join(outside, "newer", "SKILL.md"), "utf8")).toBe(skill("1.0.0"));
         } else {
-          assert.equal(await readFile(join(outside, "SKILL.md"), "utf8"), skill("1.0.0"));
+          expect(await readFile(join(outside, "SKILL.md"), "utf8")).toBe(skill("1.0.0"));
         }
       } finally {
         await rm(project, { recursive: true, force: true });

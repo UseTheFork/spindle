@@ -3,24 +3,24 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command } from "commander";
 
-import { blueprintHandlers } from "../../blueprints/registry.js";
-import type { BlueprintHandler } from "../../blueprints/types.js";
-import type { Application } from "../../foundation/Application.js";
-import type { ConflictPolicy } from "../../installation/types.js";
-import { promptConflict, promptStacks, promptVariable } from "../../prompts.js";
-import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
-import { Service } from "../../services/Service.js";
-import { exists } from "../../utilities/blueprint-files.js";
-import { parseConflictPolicy } from "../../utilities/conflict-policy.js";
-import { supportedStacks, validateStacks } from "../../utilities/stacks.js";
-import { loadVariableDefinitions, parseVariableFlags } from "../../variables.js";
-import { conflictPolicyOption, noInteractiveOption } from "../shared-options.js";
+import { blueprintHandlers } from "@/blueprints/registry";
+import type { BlueprintHandler } from "@/blueprints/types";
+import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
+import type { Application } from "@/foundation/Application";
+import type { ConflictPolicy } from "@/installation/types";
+import { promptConflict, promptStacks, promptVariable } from "@/prompts";
+import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
+import { Service } from "@/services/Service";
+import { exists } from "@/utilities/blueprint-files";
+import { parseConflictPolicy } from "@/utilities/conflict-policy";
+import { supportedStacks, validateStacks } from "@/utilities/stacks";
+import { loadVariableDefinitions, parseVariableFlags } from "@/variables";
 
 export class InitCommand extends Service {
-  #handlers: readonly BlueprintHandler[] = [];
-  #reconciliationService!: BlueprintReconciliationService;
+  private handlers: readonly BlueprintHandler[] = [];
+  private reconciliationService!: BlueprintReconciliationService;
 
-  static register(program: Command, createApp: () => Application): void {
+  public static register(program: Command, createApp: () => Promise<Application>): void {
     program
       .command("init")
       .description(
@@ -83,22 +83,22 @@ Run \`spindle --version\` to print the installed version.
             }
           }
           await (
-            await createApp().get(InitCommand)
+            await (await createApp()).make(InitCommand)
           ).run(options.stack, options.var, interactive, policy);
         },
       );
   }
 
-  constructor(app: Application) {
+  public constructor(app: Application) {
     super(app);
   }
 
-  override async boot(): Promise<void> {
-    this.#handlers = blueprintHandlers;
-    this.#reconciliationService = await this.app.get(BlueprintReconciliationService);
+  public override async boot(): Promise<void> {
+    this.handlers = blueprintHandlers;
+    this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  async run(
+  public async run(
     stackArguments: string[],
     variableArguments: string[],
     interactive: boolean,
@@ -141,7 +141,7 @@ Run \`spindle --version\` to print the installed version.
     }
 
     const config = { stacks, variables };
-    const outcomes = await this.#reconciliationService.reconcile(this.#handlers, {
+    const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
       context: config,
       config,

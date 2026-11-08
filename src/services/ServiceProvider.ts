@@ -1,4 +1,4 @@
-import type { Application } from "../foundation/Application.js";
+import type { Application } from "@/foundation/Application";
 
 export abstract class ServiceProvider {
   private readonly _app: Application;

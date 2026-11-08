@@ -4,8 +4,9 @@ import { join, resolve } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { SddCommand } from "@/commands/sdd/sdd-command.js";
-import { Application } from "@/foundation/Application.js";
+import { SddCommand } from "@/commands/sdd/sdd-command";
+
+import { applicationFixture } from "../application-fixture";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -25,26 +26,20 @@ export function fixture() {
   return { repo, git };
 }
 
-export function serviceFixture() {
+export async function serviceFixture() {
   const workspace = fixture();
-  const service = new SddCommand(
-    new Application({
-      workspaceRoot: workspace.repo,
-      blueprintSourceRoot: resolve("src/blueprints"),
-    }),
-  );
+  const app = applicationFixture(workspace.repo, resolve("src/blueprints"));
+  await app.boot();
+  const service = await app.make(SddCommand);
   return { ...workspace, service };
 }
 
-export function execute(repo: string, run: (service: SddCommand) => unknown) {
-  const command = new SddCommand(
-    new Application({
-      workspaceRoot: repo,
-      blueprintSourceRoot: resolve(process.cwd(), "src/blueprints"),
-    }),
-  );
+export async function execute(repo: string, run: (service: SddCommand) => unknown) {
+  const app = applicationFixture(repo, resolve(process.cwd(), "src/blueprints"));
+  await app.boot();
+  const command = await app.make(SddCommand);
   try {
-    const result = run(command);
+    const result = await run(command);
     return { status: 0, stdout: JSON.stringify(result, null, 2), stderr: "" };
   } catch (error) {
     return {
@@ -72,7 +67,7 @@ export function invokeAsync(
     childArgs.push(command, "sdd", ...args);
     const child = spawn(process.execPath, childArgs, {
       cwd: repo,
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: { ...process.env, TSX_TSCONFIG_PATH: resolve("tsconfig.json"), FORCE_COLOR: "0" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const timer = setTimeout(() => {
@@ -120,11 +115,11 @@ export function commitAll(repo: string, git: (...args: string[]) => string, mess
   git("commit", "-qm", message);
 }
 
-export function prepareClaimableIssue(
+export async function prepareClaimableIssue(
   options: { requireRetrospective?: boolean; issueCount?: number } = {},
 ) {
   const { repo, git } = fixture();
-  const created = execute(repo, (service) =>
+  const created = await execute(repo, (service) =>
     service.create({
       title: "Claim flow",
       author: "maintainer",
@@ -137,7 +132,7 @@ export function prepareClaimableIssue(
 
   for (let index = 1; index <= (options.issueCount ?? 1); index++) {
     const issueId = `I-${String(index).padStart(4, "0")}`;
-    const issue = execute(repo, (service) =>
+    const issue = await execute(repo, (service) =>
       service.issueCreate({
         spec: feature.spec,
         title: `Implement the flow ${index}`,
@@ -147,7 +142,7 @@ export function prepareClaimableIssue(
       }),
     );
     expect(issue.status, issue.stderr).toBe(0);
-    const triaged = execute(repo, (service) =>
+    const triaged = await execute(repo, (service) =>
       service.triage({
         spec: feature.spec,
         issue: issueId,
@@ -164,7 +159,7 @@ export function prepareClaimableIssue(
   return { repo, git, spec: feature.spec, baseSha };
 }
 
-export function prepareImplementationForReview(
+export async function prepareImplementationForReview(
   options: {
     requireRetrospective?: boolean;
     issueCount?: number;
@@ -172,23 +167,23 @@ export function prepareImplementationForReview(
     file?: string;
   } = {},
 ) {
-  const { repo, git, spec } = prepareClaimableIssue(options);
+  const { repo, git, spec } = await prepareClaimableIssue(options);
   const issueId = options.issueId ?? "I-0001";
   const file = options.file ?? "feature.ts";
   const command = "just test::test tests/feature.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: issueId, command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
 
-  const claimed = execute(repo, (service) =>
+  const claimed = await execute(repo, (service) =>
     service.claim({ spec, issue: issueId, author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
   writeFileSync(join(repo, file), `export const feature = ${JSON.stringify(issueId)};\n`);
 
-  const implemented = execute(repo, (service) =>
+  const implemented = await execute(repo, (service) =>
     service.implement({ spec, issue: issueId, author: "controller" }),
   );
   expect(implemented.status, implemented.stderr).toBe(0);
@@ -196,7 +191,7 @@ export function prepareImplementationForReview(
     assignment: { report: string };
   };
   writeFileSync(implementation.assignment.report, "# Implementation report\n\nCompleted.\n");
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: issueId,
@@ -222,7 +217,7 @@ export function prepareImplementationForReview(
   };
 }
 
-export function recordReviewCheck(
+export async function recordReviewCheck(
   repo: string,
   spec: string,
   command: string,
@@ -230,7 +225,7 @@ export function recordReviewCheck(
   result: "passed" | "failed",
   issueId = "I-0001",
 ) {
-  return execute(repo, (service) =>
+  return await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: issueId,
@@ -243,7 +238,7 @@ export function recordReviewCheck(
   );
 }
 
-export function prepareReviewAssignment(
+export async function prepareReviewAssignment(
   options: {
     requireRetrospective?: boolean;
     issueCount?: number;
@@ -251,8 +246,8 @@ export function prepareReviewAssignment(
     file?: string;
   } = {},
 ) {
-  const prepared = prepareImplementationForReview(options);
-  const passingCheck = recordReviewCheck(
+  const prepared = await prepareImplementationForReview(options);
+  const passingCheck = await recordReviewCheck(
     prepared.repo,
     prepared.spec,
     prepared.command,
@@ -261,7 +256,7 @@ export function prepareReviewAssignment(
     prepared.issueId,
   );
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
-  const dispatched = execute(prepared.repo, (service) =>
+  const dispatched = await execute(prepared.repo, (service) =>
     service.review({
       spec: prepared.spec,
       issue: prepared.issueId,
@@ -284,7 +279,7 @@ export function prepareReviewAssignment(
   };
 }
 
-export function prepareAcceptedIssue(
+export async function prepareAcceptedIssue(
   options: {
     requireRetrospective?: boolean;
     issueCount?: number;
@@ -292,9 +287,9 @@ export function prepareAcceptedIssue(
     file?: string;
   } = {},
 ) {
-  const prepared = prepareReviewAssignment(options);
+  const prepared = await prepareReviewAssignment(options);
   writeFileSync(prepared.assignment.report, "# Review report\n\nNo defects found.\n");
-  const submitted = execute(prepared.repo, (service) =>
+  const submitted = await execute(prepared.repo, (service) =>
     service.submit({
       spec: prepared.spec,
       issue: prepared.issueId,
@@ -307,18 +302,18 @@ export function prepareAcceptedIssue(
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const accepted = execute(prepared.repo, (service) =>
+  const accepted = await execute(prepared.repo, (service) =>
     service.accept({ spec: prepared.spec, issue: prepared.issueId, author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   return prepared;
 }
 
-export function prepareDeliveryReady(requireRetrospective = false) {
-  const prepared = prepareAcceptedIssue({ requireRetrospective });
+export async function prepareDeliveryReady(requireRetrospective = false) {
+  const prepared = await prepareAcceptedIssue({ requireRetrospective });
   prepared.git("add", "feature.ts");
   prepared.git("commit", "-qm", "deliver accepted issue");
-  const integrated = execute(prepared.repo, (service) =>
+  const integrated = await execute(prepared.repo, (service) =>
     service.integrate({
       spec: prepared.spec,
       issue: "I-0001",
@@ -329,7 +324,7 @@ export function prepareDeliveryReady(requireRetrospective = false) {
   expect(integrated.status, integrated.stderr).toBe(0);
 
   const command = "just test::test tests/whole-feature.test.ts";
-  const required = execute(prepared.repo, (service) =>
+  const required = await execute(prepared.repo, (service) =>
     service.checksRequire({
       issue: "",
       spec: prepared.spec,
@@ -340,7 +335,7 @@ export function prepareDeliveryReady(requireRetrospective = false) {
   );
   expect(required.status, required.stderr).toBe(0);
   const snapshot = JSON.parse(required.stdout).snapshot as string;
-  const recorded = execute(prepared.repo, (service) =>
+  const recorded = await execute(prepared.repo, (service) =>
     service.checksRecord({
       issue: "",
       spec: prepared.spec,
@@ -353,7 +348,7 @@ export function prepareDeliveryReady(requireRetrospective = false) {
   );
   expect(recorded.status, recorded.stderr).toBe(0);
 
-  const review = execute(prepared.repo, (service) =>
+  const review = await execute(prepared.repo, (service) =>
     service.review({
       spec: prepared.spec,
       scope: "delivery",
@@ -367,7 +362,7 @@ export function prepareDeliveryReady(requireRetrospective = false) {
     report: string;
   };
   writeFileSync(assignment.report, "# Whole-feature review\n\nNo findings.\n");
-  const submitted = execute(prepared.repo, (service) =>
+  const submitted = await execute(prepared.repo, (service) =>
     service.submit({
       issue: "",
       spec: prepared.spec,
@@ -384,9 +379,9 @@ export function prepareDeliveryReady(requireRetrospective = false) {
   return { ...prepared, deliveryCheck: command };
 }
 
-export function refreshReviewCheck(repo: string, spec: string, command: string) {
-  const status = execute(repo, (service) => service.status({ spec }));
+export async function refreshReviewCheck(repo: string, spec: string, command: string) {
+  const status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   const snapshot = JSON.parse(status.stdout).snapshots[0].snapshot as string;
-  return recordReviewCheck(repo, spec, command, snapshot, "passed");
+  return await recordReviewCheck(repo, spec, command, snapshot, "passed");
 }

@@ -55,6 +55,11 @@ _Avoid_: Settings file, manifest
 **Application Configuration**:
 The settings used by the running Spindle application, distinct from a project's selected Stacks and Variables in Config.
 
+**Project workspace**:
+The Git working tree whose `.github` directory Spindle maintains. Invocation from
+a nested directory still targets this working-tree root, not that directory.
+This is distinct from an SDD Feature workspace within the project.
+
 **Feature workspace**:
 A repository-identified collection of a feature's specification, issues,
 reports, and delivery history.

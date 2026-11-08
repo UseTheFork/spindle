@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { blueprintCatalog } from "../src/blueprints/catalog.ts";
+import { blueprintCatalog } from "@/blueprints/catalog";
 
 const path = process.env.SPINDLE_TEST_CATALOG;
 if (!path) throw new Error("Missing test catalog fixture path.");

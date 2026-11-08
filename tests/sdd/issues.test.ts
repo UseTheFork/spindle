@@ -16,8 +16,8 @@ import { expect, test } from "vitest";
 import { runCli } from "../helpers.ts";
 import { createIssue, issueFixture } from "./issue-helpers.ts";
 
-test("issue create persists attributed metadata and unstarted progress without overwriting", () => {
-  const { service, feature } = issueFixture("Issue Lifecycle");
+test("issue create persists attributed metadata and unstarted progress without overwriting", async () => {
+  const { service, feature } = await issueFixture("Issue Lifecycle");
   const options = {
     spec: feature.spec,
     title: "Preserve issue requirements",
@@ -59,8 +59,8 @@ test("issue create persists attributed metadata and unstarted progress without o
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues).toHaveLength(2);
 });
 
-test("issue IDs restart independently for each feature", () => {
-  const { service, feature } = issueFixture("First Feature");
+test("issue IDs restart independently for each feature", async () => {
+  const { service, feature } = await issueFixture("First Feature");
   const second = service.create({ title: "Second Feature", author: "maintainer" });
   for (const item of [feature, second]) {
     expect(
@@ -76,8 +76,8 @@ test("issue IDs restart independently for each feature", () => {
   }
 });
 
-test("issue creation rejects invalid categories and missing attribution without creating files", () => {
-  const { repo, service, feature } = issueFixture("Invalid Issue Inputs");
+test("issue creation rejects invalid categories and missing attribution without creating files", async () => {
+  const { repo, service, feature } = await issueFixture("Invalid Issue Inputs");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   expect(() =>
@@ -113,8 +113,8 @@ test("issue creation rejects invalid categories and missing attribution without 
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
 });
 
-test("issue creation rejects ignored destinations without changing issue or ledger files", () => {
-  const { repo, service, feature } = issueFixture("Ignored Issue");
+test("issue creation rejects ignored destinations without changing issue or ledger files", async () => {
+  const { repo, service, feature } = await issueFixture("Ignored Issue");
   writeFileSync(join(repo, ".gitignore"), ".scratch/*/issues/I-*.md\n");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
@@ -123,8 +123,8 @@ test("issue creation rejects ignored destinations without changing issue or ledg
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 });
 
-test("issue creation rejects a symlinked issues directory without touching outside content", () => {
-  const { repo, service, feature } = issueFixture("Unsafe Issue Path");
+test("issue creation rejects a symlinked issues directory without touching outside content", async () => {
+  const { repo, service, feature } = await issueFixture("Unsafe Issue Path");
   const outside = join(repo, "..", "outside-issues");
   mkdirSync(outside);
   writeFileSync(join(outside, "keep.md"), "outside content\n");
@@ -138,8 +138,8 @@ test("issue creation rejects a symlinked issues directory without touching outsi
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 });
 
-test("issue creation preserves a non-regular lock path and its target", () => {
-  const { repo, service, feature } = issueFixture("Unsafe Issue Lock");
+test("issue creation preserves a non-regular lock path and its target", async () => {
+  const { repo, service, feature } = await issueFixture("Unsafe Issue Lock");
   const outside = join(repo, "outside-lock");
   writeFileSync(outside, "preserve this file\n");
   const lockPath = join(feature.workspace, ".sdd-issues.lock");
@@ -152,8 +152,8 @@ test("issue creation preserves a non-regular lock path and its target", () => {
   expect(existsSync(join(feature.workspace, "issues", "I-0001.md"))).toBe(false);
 });
 
-test("issue update changes descriptive fields and dependencies while preserving triage and body", () => {
-  const { service, feature } = issueFixture("Issue Update");
+test("issue update changes descriptive fields and dependencies while preserving triage and body", async () => {
+  const { service, feature } = await issueFixture("Issue Update");
   createIssue(service, feature.spec, "Foundation");
   createIssue(service, feature.spec, "Follow-up");
   const target = join(feature.workspace, "issues", "I-0002.md");
@@ -201,8 +201,8 @@ test("issue update changes descriptive fields and dependencies while preserving 
   expect(matter(readFileSync(target, "utf8")).data.blocked_by).toEqual([]);
 });
 
-test("triage accepts every category/status pair and appends attributed UTC rationales", () => {
-  const { service, feature } = issueFixture("Issue Triage");
+test("triage accepts every category/status pair and appends attributed UTC rationales", async () => {
+  const { service, feature } = await issueFixture("Issue Triage");
   createIssue(service, feature.spec, "Triage every valid state");
   const path = join(feature.workspace, "issues", "I-0001.md");
   const statuses = ["needs-triage", "needs-info", "ready-for-agent", "ready-for-human", "wontfix"];
@@ -249,8 +249,8 @@ test("triage accepts every category/status pair and appends attributed UTC ratio
   ).toThrow(/category/i);
 });
 
-test("issue comment appends explicit UTC attribution without inferring reporter", () => {
-  const { repo, service, feature } = issueFixture("Issue Comments");
+test("issue comment appends explicit UTC attribution without inferring reporter", async () => {
+  const { repo, service, feature } = await issueFixture("Issue Comments");
   service.issueCreate({
     spec: feature.spec,
     title: "Record discussion",

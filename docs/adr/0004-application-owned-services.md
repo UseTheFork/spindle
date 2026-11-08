@@ -1,117 +1,106 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Application-owned services
 
-Replace the function-based application composition with an `Application` that owns
-command and workflow services. Child services receive the application through
-a shared base-class constructor rather than inheriting from `Application`. Keep a thin
-executable entrypoint, separate Init and Update classes in their own folders,
-and a shared installation service. All existing CLI commands use this
-application/service structure rather than retaining separate construction paths.
-Stateless utilities remain functions in focused files under a dedicated
-utilities folder. Migrate consumers and tests directly to the new APIs without
-compatibility exports, preserving CLI behavior except for the root-discovery
-changes below.
+Each `Application` composes its own reusable `Container`. Registration is explicit:
+`bind` creates transient values, `singleton` shares initialization and its successful
+result, and `instance` supplies an existing value. Keys are constructor identities
+or typed `ValueToken`s, never strings. Every duplicate registration throws, and
+`bound` recognizes all registration kinds. Unbound resolution throws; there is no
+implicit construction, global container, flush API, or compatibility resolver.
+`make` is asynchronous for every key. Ordinary classes require explicit sync or
+async factories receiving the application. Service constructors may omit the
+factory, defaulting to `application => new ServiceType(application)`.
 
-Init and Update delegate shared Blueprint lifecycle planning, preparation, and
-application to an application-owned reconciliation service. It resolves the
-installation service during asynchronous boot; each reconciliation keeps its
-Config, prompt answers, plans, and mutable state local to that run. It creates a
-fresh computed-context service per run, preserving memoization within a run
-without retaining computed values across runs.
+Only `Service` instances are automatically booted before resolution returns.
+Booted-state tracking is module-private, and successful boot alone marks a service
+usable. Supplied service instances must already be booted; ordinary objects with
+`boot` methods are not lifecycle participants. Concurrent singleton requests
+coalesce, failed initialization can retry, and isolated applications never share
+container caches. The extracted resolver retains ancestor-cycle detection and a
+reference-counted dependency graph, including cycles between concurrently started
+shared initializations. Factories and service hooks run inside the same asynchronous
+resolution context.
 
-The refactor includes shared Blueprint reconciliation and computed-variable
-resolution, not just command wrappers around existing workflow functions.
-Existing computed provider classes remain, and computed-context caches retain
-their per-run lifetime rather than becoming application-wide state.
+Commands, reconciliation, and installation are explicit production singletons.
+`ComputedContextService` is transient: reconciliation resolves a fresh instance per
+run, retaining memoization within that run without carrying computed values between
+runs. Config, prompt answers, plans, and operational mutable state remain per-run.
+Stateless utilities remain standalone functions, not artificial services.
 
-The application provides asynchronous `get(Service)` for an application-local
-singleton and `create(Service)` for a fresh instance. Separate applications never
-share instances or cached Config. Concurrent requests for a singleton share its
-initialization. Constructors only receive and store the application; dependencies
-are resolved during `boot()`, and operational work follows initialization.
+`Application` requires only `{ basePath }`. This explicit invocation starting path
+is normalized to an absolute path and never changes. Workspace and Blueprint source
+roots are separate typed values bound by bootstrap, not constructor arguments.
+Getter-only root accessors use instance-token synchronous access for filesystem
+consumers. Application does not read `process.cwd()`; the executable supplies it.
+Its initially empty mutable `config` is isolated between applications and available
+before provider construction. Application Configuration is distinct from the
+project's `.github/spindle.json` Config; no file-loading configuration bootstrapper
+is introduced.
 
-The shared base class provides an empty asynchronous `boot(): Promise<void>`
-and a read-only `isBooted` flag managed by the application. The application calls
-the hook after construction, when derived fields exist, and marks the instance
-booted only after success. Failed instances are not retained as usable singletons.
-Circular dependencies fail explicitly with the dependency chain rather than
-exposing partially initialized services.
+`register(ProviderClass)` constructs and synchronously registers each provider once,
+then queues its instance for boot. Providers receive getter-only application
+ownership. There are no registration phase gates or completion markers: callers
+control registration-before-boot ordering. `Application.boot()` only awaits queued
+provider hooks sequentially. Concurrent and non-awaited reentrant calls share one
+initialization, retaining either success or failure without retry.
 
-`Application` and `ApplicationOptions` live in `src/foundation/Application.ts`;
-the old application module and names have no compatibility exports.
-`Service` lives in `src/services/Service.ts`. Type-only application imports in the service and provider modules avoid
-runtime circular dependencies. Booted-state tracking stays module-private, shared
-by the base service and the application's initialization helper.
+The independent `Bootstrapper` abstraction implements
+`bootstrap(application): void | Promise<void>` with no required constructor
+arguments. `Application.bootstrapWith(list)` captures the first list and constructs
+and awaits each hook sequentially, starting on a microtask. State belongs to the
+application, including across kernels. Success sets getter-only
+`hasBeenBootstrapped`; failure stops the sequence, remains cached, and leaves the
+flag false. An empty list succeeds without implicitly registering providers.
 
-Applications may receive a readonly constructor array of `ServiceProvider`
-subclasses from `src/services/ServiceProvider.ts`. Each provider receives its
-owning application through a getter-only reference and implements synchronous
-`register(): void` and asynchronous `boot(): Promise<void>` hooks. The application
-constructs a fixed collection once during application construction.
-`Application.registerProviders()` synchronously registers all providers in supplied
-order, once only. It distinguishes pending, in-progress, successful, and failed
-registration. Reentrant registration rejects explicitly. Registration failures,
-including arbitrary thrown values, propagate and are cached without retry; later
-providers are not registered and no providers are booted.
+The ordinary, extendable `Kernel` defaults to the explicit ordered list
+`LoadConsoleArgs`, `DiscoverGitRoot`, `ResolveBlueprintSourceRoot`,
+`RegisterProviders`. Its protected list can be overridden without normalization.
+`boot(invocation)` supplies the validated invocation token before bootstrap, then
+awaits application provider boot. Subsequent calls retain the first invocation.
+Bootstrap failure prevents any partial provider queue from booting through Kernel;
+provider boot failure does not undo successful bootstrap.
 
-`Bootstrapper` is an independent abstract class, not a service, in
-`src/foundation/bootstrap/Bootstrapper.ts`. Its typed constructor list accepts
-classes with no required constructor arguments. Each implements
-`bootstrap(application: Application): void | Promise<void>`.
-`Application.bootstrapWith(list)` captures the first list, directly constructs
-each class, and sequentially awaits its hook before constructing the next.
-Initialization begins on a microtask so concurrent and non-awaited reentrant
-requests share the same initialization. The application retains its first result,
-even if later calls supply a different list. Constructor and hook failures stop
-the sequence and stay cached without retry. The getter-only
-`hasBeenBootstrapped` becomes true only after the entire sequence succeeds;
-failure leaves it false. An empty list succeeds without implicitly registering
-providers.
+`RegisterProviders.merge(list)` replaces its private, process-global provider list
+with a fresh ordered, deduplicated, nullish-filtered array. Bootstrap loops directly
+over that list and calls `application.register`. This global list is configuration,
+not a container: builders deliberately replace it, and tests reset it with
+`merge([])`. There are no provider-list snapshots, registration gates, or hidden
+bootstrap-list normalization.
 
-The extendable `Kernel` in `src/foundation/Kernel.ts` owns a public readonly
-application reference. Its protected `bootstrappers()` defaults to
-`[RegisterProviders]`, whose synchronous hook calls `registerProviders()`.
-Subclasses may replace or extend this list. `Kernel.bootstrap()` delegates to
-application bootstrap; `Kernel.boot()` awaits bootstrap, then application boot.
-Multiple kernels for the same application share all lifecycle state.
+`ApplicationBuilder` offers fluent `withKernels`, `withProviders`, and `create`.
+`withKernels` idempotently registers an ordinary Kernel singleton with an explicit
+factory; resolving it never boots it. `Application.configure(basePath, providers = [])`
+returns a builder preconfigured with kernels and the supplied providers. Default
+provider arrays are fresh, and omission clears the previous global selection.
+The executable explicitly supplies the concrete production service provider.
 
-`Application.boot()` only boots providers sequentially after registration has
-completed; it never registers them. Premature calls (including during registration)
-explicitly reject without caching that misuse as a boot failure. Failed registration
-instead rejects with its cached failure. Valid boot calls share one initialization
-across concurrent requests and retain success or failure without retry. A failed
-provider boot leaves successful bootstrap completion intact and skips later boot
-hooks. Empty provider collections are valid but must still be registered. Direct
-application callers may register and boot without a kernel.
+Commander remains the sole parser. Only a parsed command action supplies an
+invocation containing raw argument tokens, script, command path, parsed options,
+and positional arguments. Existing command-specific validation happens before
+application construction. Dispatch composes the application, resolves Kernel,
+boots that invocation, resolves the command, then invokes its operation.
+`LoadConsoleArgs` copies the validated structure into a `Repository` value token;
+it never reads or reparses `process.argv`. Help, version, and malformed arguments
+do not construct an application or discover Git.
 
-These one-shot lifecycle failures differ intentionally from retryable singleton
-service failures. No command execution integration, handle/terminate hooks,
-environment/configuration loading, or no-op bootstrappers are introduced.
-Application, kernel, bootstrapper, service, and provider members use explicit
-TypeScript visibility; root and service/provider ownership backing references
-remain private and readonly. These are architecture concepts, not domain glossary
-terms.
+Git discovery starts at the immutable base path and binds the working-tree root
+as the project workspace, with explicit failure and no current-directory fallback.
+Blueprint source discovery preserves the environment override anchored to that
+workspace and the packaged asset layout relative to the helper module. Mandatory
+Git discovery intentionally changes workspace command behavior outside working
+trees and when invoked from nested directories. Programmatic fixtures can bind
+explicit root values without Git discovery.
 
-The application owns immutable workspace and Blueprint source roots. Services
-use those roots instead of ambient working-directory state; production code must
-not independently derive paths from `process.cwd()`. The executable bootstrap
-may use the current directory only as the starting point for discovering the
-Git working-tree root, which becomes the application's workspace root. CLI
-workspace operations require successful Git root discovery and fail explicitly
-if it is unavailable; there is no current-directory fallback. Programmatic
-callers and tests may supply an explicit root. Per-run data stays outside
-long-lived services.
+Source imports use extensionless `@/` aliases with TypeScript Bundler resolution.
+The production build rewrites aliases and file extensions for Node ESM, preserves
+the Blueprint bundle and setup-project templates, and is verified as an executable
+package. Source subprocess runners explicitly select the repository tsconfig when
+their fixture working directory is elsewhere.
 
-Help and version output remain available without Git root discovery because
-they do not operate on a workspace.
-
-This trades direct function calls and explicit dependency arguments for a shared
-application dependency and asynchronous service resolution. Application-local
-ownership supports isolated projects and tests, while retaining standalone
-utilities avoids turning stateless helpers into artificial services.
-
-Mandatory Git root discovery intentionally changes CLI behavior outside Git
-working trees and when invoked from a nested directory.
+This trades direct function calls and implicit resolution for explicit composition
+and application-local lifecycle ownership, while retaining standalone utilities.
+There are no handle/terminate hooks, root constructor providers, string aliases,
+legacy `get`/`create` methods, or old application-module compatibility exports.

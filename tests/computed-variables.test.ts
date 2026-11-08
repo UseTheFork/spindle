@@ -1,19 +1,22 @@
-import assert from "node:assert/strict";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { test } from "node:test";
+
+import { test, expect, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
-import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
-import { blueprintCatalog } from "../src/blueprints/catalog.ts";
-import { InitCommand } from "../src/commands/init/init-command.ts";
-import { UpdateCommand } from "../src/commands/update/update-command.ts";
-import { ComputedContextService } from "../src/computed/computed-context.ts";
-import { ComputedVariableProvider, type ResolvedConfig } from "../src/computed/provider.ts";
-import { Application } from "../src/foundation/Application.ts";
-import { renderText } from "../src/render.ts";
-import { loadVariableDefinitions } from "../src/variables.ts";
+import type { BlueprintCatalogDefinition } from "@/blueprints/catalog";
+import { blueprintCatalog } from "@/blueprints/catalog";
+import { InitCommand } from "@/commands/init/init-command";
+import { UpdateCommand } from "@/commands/update/update-command";
+import { ComputedContextService } from "@/computed/computed-context";
+import { ComputedVariableProvider, type ResolvedConfig } from "@/computed/provider";
+import { renderText } from "@/render";
+import { loadVariableDefinitions } from "@/variables";
+
+import { applicationFixture } from "./application-fixture";
 import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "./helpers.ts";
 
 const description =
@@ -129,11 +132,10 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
 
     for (const name of shippedInternalSkills) {
       const source = await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8");
-      assert.equal(
+      expect(
         matter(source).data.description,
-        "{{ computed.internal_skill_description }}",
         `${name} frontmatter must use the shared computed description`,
-      );
+      ).toBe("{{ computed.internal_skill_description }}");
     }
 
     const initialized = runCliWithCatalog(
@@ -142,7 +144,7 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
       process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
-    assert.equal(initialized.status, 0, initialized.stderr);
+    expect(initialized.status, initialized.stderr).toBe(0);
 
     const installedPath = (name: string) => join(project, ".github", "skills", name, "SKILL.md");
     const currentSkill = "int-code-review";
@@ -154,18 +156,16 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
       const source = matter(await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8"));
       const generated = await readFile(installedPath(name), "utf8");
       const parsed = matter(generated);
-      assert.equal(parsed.data.description, description, `${name} generated description`);
-      assert.equal(
-        parsed.data.metadata.spindle.version,
+      expect(parsed.data.description, `${name} generated description`).toBe(description);
+      expect(parsed.data.metadata.spindle.version, `${name} retains its Blueprint version`).toBe(
         source.data.metadata.spindle.version,
-        `${name} retains its Blueprint version`,
       );
-      assert.doesNotMatch(generated, /{{|}}/, `${name} has no unresolved interpolation`);
+      expect(generated, `${name} has no unresolved interpolation`).not.toMatch(/{{|}}/);
       if (name === "int-writing-skills") {
-        assert.ok(
+        expect(
           parsed.content.includes(description),
           "the unrelated Internal visibility guidance in the body remains literal",
-        );
+        ).toBeTruthy();
       }
     }
 
@@ -180,17 +180,16 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
       process.env.PATH ?? "",
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
-    assert.equal(updated.status, 0, updated.stderr);
+    expect(updated.status, updated.stderr).toBe(0);
 
     const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
-    assert.notEqual(refreshed, outdatedBefore, "the outdated Skill is updated");
-    assert.equal(matter(refreshed).data.description, description);
-    assert.equal(matter(refreshed).data.metadata.spindle.version, "2.0.0");
-    assert.equal(
+    expect(refreshed, "the outdated Skill is updated").not.toBe(outdatedBefore);
+    expect(matter(refreshed).data.description).toBe(description);
+    expect(matter(refreshed).data.metadata.spindle.version).toBe("2.0.0");
+    expect(
       await readFile(installedPath(currentSkill), "utf8"),
-      currentBeforeUpdate,
       "an otherwise-current matching Skill remains byte-identical",
-    );
+    ).toBe(currentBeforeUpdate);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -209,21 +208,20 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
-    assert.equal(result.status, 0, result.stderr);
+    expect(result.status, result.stderr).toBe(0);
     const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
-    assert.deepEqual(config, {
+    expect(config).toEqual({
       stacks: ["python"],
       variables: { lint_command: "just lint", owner: "core" },
     });
 
     const skillPath = join(project, ".github/skills/demo/SKILL.md");
     const skill = await readFile(skillPath, "utf8");
-    assert.equal(matter(skill).data.description, description);
-    assert.equal(matter(skill).data.metadata.spindle.version, "1.0.0");
-    assert.equal(matter(skill).content, "\nOwner=core; stacks=python;\n");
-    assert.doesNotMatch(skill, /{{|}}/);
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/supporting.txt"), "utf8"),
+    expect(matter(skill).data.description).toBe(description);
+    expect(matter(skill).data.metadata.spindle.version).toBe("1.0.0");
+    expect(matter(skill).content).toBe("\nOwner=core; stacks=python;\n");
+    expect(skill).not.toMatch(/{{|}}/);
+    expect(await readFile(join(project, ".github/skills/demo/supporting.txt"), "utf8")).toBe(
       `Skill: ${description}\n`,
     );
 
@@ -233,16 +231,15 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
     ]) {
       const path = join(project, `.github/${kind}/${entry}`);
       const content = await readFile(path, "utf8");
-      assert.equal(matter(content).data.description, description);
-      assert.equal(matter(content).data.metadata.spindle.version, "1.0.0");
-      assert.equal(matter(content).content, `\n${body} ${description}\n`);
-      assert.doesNotMatch(content, /{{|}}/);
-      assert.equal(
-        await readFile(join(project, `.github/${kind}/${support}`), "utf8"),
+      expect(matter(content).data.description).toBe(description);
+      expect(matter(content).data.metadata.spindle.version).toBe("1.0.0");
+      expect(matter(content).content).toBe(`\n${body} ${description}\n`);
+      expect(content).not.toMatch(/{{|}}/);
+      expect(await readFile(join(project, `.github/${kind}/${support}`), "utf8")).toBe(
         `${kind === "agents" ? "Agent" : "Instruction"} file: ${description}\n`,
       );
     }
-    assert.doesNotMatch(JSON.stringify(config), /computed|internal_skill_description/);
+    expect(JSON.stringify(config)).not.toMatch(/computed|internal_skill_description/);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -299,18 +296,17 @@ test("update reuses computed output and leaves Config and version metadata intac
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
-    assert.equal(result.status, 0, result.stderr);
+    expect(result.status, result.stderr).toBe(0);
     const updated = await readFile(join(github, "skills/demo/SKILL.md"), "utf8");
-    assert.equal(matter(updated).data.description, description);
-    assert.equal(matter(updated).data.metadata.spindle.version, "2.0.0");
-    assert.equal(matter(updated).content, "\nOwner=existing; stacks=typescript;\n");
-    assert.doesNotMatch(updated, /{{|}}/);
-    assert.equal(
-      await readFile(join(github, "skills/demo/supporting.txt"), "utf8"),
+    expect(matter(updated).data.description).toBe(description);
+    expect(matter(updated).data.metadata.spindle.version).toBe("2.0.0");
+    expect(matter(updated).content).toBe("\nOwner=existing; stacks=typescript;\n");
+    expect(updated).not.toMatch(/{{|}}/);
+    expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
       `Update: ${description}\n`,
     );
-    assert.deepEqual(await readFile(join(github, "spindle.json")), configBytes);
-    assert.doesNotMatch(configBytes.toString("utf8"), /computed|internal_skill_description/);
+    expect(await readFile(join(github, "spindle.json"))).toEqual(configBytes);
+    expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -369,19 +365,19 @@ test("update identifies a missing computed output and applies no planned changes
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
-    assert.notEqual(result.status, 0, result.stdout);
-    assert.deepEqual(await readFile(configPath), configBytes);
-    assert.deepEqual(await readFile(currentEntry), currentBytes);
-    assert.equal(
-      await readFile(join(github, "skills/current/local.txt"), "utf8"),
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(await readFile(configPath)).toEqual(configBytes);
+    expect(await readFile(currentEntry)).toEqual(currentBytes);
+    expect(await readFile(join(github, "skills/current/local.txt"), "utf8")).toBe(
       "keep destination-only file\n",
     );
-    assert.equal(
-      await readFile(join(github, "skills/retired/local.txt"), "utf8"),
+    expect(await readFile(join(github, "skills/retired/local.txt"), "utf8")).toBe(
       "keep retired Skill\n",
     );
-    await assert.rejects(readFile(join(github, "agents/planned.agent.md")), { code: "ENOENT" });
-    assert.match(result.stderr, /not_registered/);
+    await expect(readFile(join(github, "agents/planned.agent.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(result.stderr).toMatch(/not_registered/);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -399,7 +395,7 @@ test("repeated Updates through one App render fresh Config with computed outputs
     join(process.cwd(), "src/blueprints/skills", skillName, "SKILL.md"),
     "utf8",
   );
-  const app = new Application({ workspaceRoot: project, blueprintSourceRoot: blueprints });
+  const app = applicationFixture(project, blueprints);
 
   try {
     await cp(join(process.cwd(), "src/blueprints"), blueprints, { recursive: true });
@@ -407,16 +403,16 @@ test("repeated Updates through one App render fresh Config with computed outputs
     source.content += "\nRun owner={{ variables.owner }}\n";
     await writeFile(sourcePath, matter.stringify(source.content, source.data));
 
-    await (await app.get(InitCommand)).run(["python"], ["owner=first-run"], false, "overwrite");
-    const update = await app.get(UpdateCommand);
+    await (await app.make(InitCommand)).run(["python"], ["owner=first-run"], false, "overwrite");
+    const update = await app.make(UpdateCommand);
 
     const assertRendered = async (owner: string, version: string) => {
       const generated = matter(await readFile(installedPath, "utf8"));
-      assert.equal(generated.data.description, description);
-      assert.equal(generated.data.metadata.spindle.version, version);
-      assert.ok(generated.content.includes(`Run owner=${owner}`));
+      expect(generated.data.description).toBe(description);
+      expect(generated.data.metadata.spindle.version).toBe(version);
+      expect(generated.content.includes(`Run owner=${owner}`)).toBeTruthy();
       const config = await readFile(join(github, "spindle.json"), "utf8");
-      assert.doesNotMatch(config, /computed|internal_skill_description/);
+      expect(config).not.toMatch(/computed|internal_skill_description/);
     };
 
     const updateSource = async (version: string, owner: string) => {
@@ -472,8 +468,8 @@ test("providers receive immutable resolved Config once per run and refresh acros
     count: CountingProvider,
   };
 
-  const app = new Application({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
-  const firstRun = await app.create(ComputedContextService);
+  const app = applicationFixture("/project", "/blueprints");
+  const firstRun = await app.make(ComputedContextService);
   let inputResolutions = 0;
   const [firstContext, repeatedContext] = await Promise.all([
     firstRun.resolve(async () => {
@@ -491,19 +487,20 @@ test("providers receive immutable resolved Config once per run and refresh acros
       };
     }, registry),
   ]);
-  assert.ok(firstContext);
-  assert.strictEqual(repeatedContext, firstContext);
-  assert.equal(inputResolutions, 1, "a run resolves its base Config once");
-  assert.equal(firstContext.computed.config_summary, "python,typescript:nobody:just lint");
-  assert.equal(firstContext.computed.count, "evaluation-1");
-  assert.ok(providerConfig);
-  assert.notStrictEqual(providerConfig.stacks, config.stacks);
-  assert.notStrictEqual(providerConfig.variables, config.variables);
-  assert.ok(Object.isFrozen(providerConfig.stacks));
-  assert.ok(Object.isFrozen(providerConfig.variables));
-  assert.throws(() => (providerConfig!.stacks as string[]).push("php-laravel"), TypeError);
-  assert.throws(
-    () => ((providerConfig!.variables as Record<string, string>).owner = "changed"),
+  expect(firstContext).toBeTruthy();
+  if (!firstContext?.computed) throw new Error("Missing resolved computed context.");
+  expect(repeatedContext).toBe(firstContext);
+  expect(inputResolutions, "a run resolves its base Config once").toBe(1);
+  expect(firstContext.computed.config_summary).toBe("python,typescript:nobody:just lint");
+  expect(firstContext.computed.count).toBe("evaluation-1");
+  expect(providerConfig).toBeTruthy();
+  if (!providerConfig) throw new Error("Missing computed provider configuration.");
+  expect(providerConfig.stacks).not.toBe(config.stacks);
+  expect(providerConfig.variables).not.toBe(config.variables);
+  expect(Object.isFrozen(providerConfig.stacks)).toBeTruthy();
+  expect(Object.isFrozen(providerConfig.variables)).toBeTruthy();
+  expect(() => (providerConfig!.stacks as string[]).push("php-laravel")).toThrow(TypeError);
+  expect(() => ((providerConfig!.variables as Record<string, string>).owner = "changed")).toThrow(
     TypeError,
   );
   const renderContext = {
@@ -517,17 +514,16 @@ test("providers receive immutable resolved Config once per run and refresh acros
       internal_skill_description: description,
     },
   };
-  assert.equal(
+  expect(
     renderText(
       "{{ computed.internal_skill_description }} | {{ variables.internal_skill_description }}",
       renderContext,
     ),
-    `${description} | user value`,
-  );
-  assert.equal(renderText("{{ computed.count }}", renderContext), "evaluation-1");
-  assert.equal(evaluations, 1, "reusing resolved values does not render the provider again");
+  ).toBe(`${description} | user value`);
+  expect(renderText("{{ computed.count }}", renderContext)).toBe("evaluation-1");
+  expect(evaluations, "reusing resolved values does not render the provider again").toBe(1);
 
-  const secondRun = await app.create(ComputedContextService);
+  const secondRun = await app.make(ComputedContextService);
   const secondContext = await secondRun.resolve(
     async () => ({
       stacks: ["typescript"],
@@ -535,16 +531,14 @@ test("providers receive immutable resolved Config once per run and refresh acros
     }),
     registry,
   );
-  assert.ok(secondContext);
-  assert.equal(secondContext.computed.config_summary, "typescript:another project:just lint");
-  assert.equal(secondContext.computed.count, "evaluation-2");
-  assert.equal(evaluations, 2, "a separate run renders a fresh value");
+  expect(secondContext).toBeTruthy();
+  if (!secondContext?.computed) throw new Error("Missing second computed context.");
+  expect(secondContext.computed.config_summary).toBe("typescript:another project:just lint");
+  expect(secondContext.computed.count).toBe("evaluation-2");
+  expect(evaluations, "a separate run renders a fresh value").toBe(2);
 
-  const otherApp = new Application({
-    workspaceRoot: "/other-project",
-    blueprintSourceRoot: "/blueprints",
-  });
-  const isolatedRun = await otherApp.create(ComputedContextService);
+  const otherApp = applicationFixture("/other-project", "/blueprints");
+  const isolatedRun = await otherApp.make(ComputedContextService);
   const isolatedContext = await isolatedRun.resolve(
     async () => ({
       stacks: ["python"],
@@ -552,10 +546,11 @@ test("providers receive immutable resolved Config once per run and refresh acros
     }),
     registry,
   );
-  assert.ok(isolatedContext);
-  assert.equal(isolatedContext.computed.config_summary, "python:isolated project:just lint");
-  assert.equal(isolatedContext.computed.count, "evaluation-3");
-  assert.equal(evaluations, 3, "a separate App starts with a distinct fresh run");
+  expect(isolatedContext).toBeTruthy();
+  if (!isolatedContext?.computed) throw new Error("Missing isolated computed context.");
+  expect(isolatedContext.computed.config_summary).toBe("python:isolated project:just lint");
+  expect(isolatedContext.computed.count).toBe("evaluation-3");
+  expect(evaluations, "a separate App starts with a distinct fresh run").toBe(3);
 });
 
 test("provider failures stop context resolution with the public key and original error", async () => {
@@ -565,18 +560,14 @@ test("provider failures stop context resolution with the public key and original
     }
   }
 
-  const app = new Application({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
-  const contextService = await app.create(ComputedContextService);
+  const app = applicationFixture("/project", "/blueprints");
+  const contextService = await app.make(ComputedContextService);
   const resolvedContext = contextService.resolve(async () => ({ stacks: [], variables: {} }), {
     public_failure_name: FailingProvider,
   });
-  await assert.rejects(
-    resolvedContext,
-    (error: unknown) =>
-      error instanceof Error &&
-      error.message.includes("public_failure_name") &&
-      error.message.includes("original provider failure") &&
-      error.cause instanceof Error &&
-      error.cause.message === "original provider failure",
-  );
+  await expect(resolvedContext).rejects.toMatchObject({
+    message: expect.stringContaining("public_failure_name"),
+    cause: expect.objectContaining({ message: "original provider failure" }),
+  });
+  await expect(resolvedContext).rejects.toThrow(/original provider failure/);
 });

@@ -24,10 +24,9 @@ import { Application } from "@/foundation/Application";
 
 test("retains its workspace root", () => {
   const app = new Application({
-    workspaceRoot: "/workspace",
-    blueprintSourceRoot: "/blueprints",
+    basePath: "/workspace",
   });
 
-  expect(app.workspaceRoot).toBe("/workspace");
+  expect(app.basePath).toBe("/workspace");
 });
 ```

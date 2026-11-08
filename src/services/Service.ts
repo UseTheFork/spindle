@@ -1,4 +1,4 @@
-import type { Application } from "../foundation/Application.js";
+import type { Application } from "@/foundation/Application";
 
 const bootedServices = new WeakSet<Service>();
 

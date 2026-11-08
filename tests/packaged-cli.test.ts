@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   cpSync,
@@ -11,9 +10,11 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { test, type TestContext } from "node:test";
+
+import { test, expect, onTestFinished, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
@@ -25,40 +26,45 @@ const setupTemplates = [
   ["tooling.md", "docs/agents/tooling.md"],
 ] as const;
 
-function packagedCli(t: TestContext) {
-  const packageRoot = mkdtempSync(join(tmpdir(), "spindle-packaged-cli-"));
-  t.after(() => rmSync(packageRoot, { recursive: true, force: true }));
+function packagedCli() {
+  const packageRoot = mkdtempSync(join(process.cwd(), "spindle-packaged-cli-"));
+  onTestFinished(() => rmSync(packageRoot, { recursive: true, force: true }));
   cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
   cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
   // Use installed runtime dependencies as an installed package would, while keeping
   // the executable and all of its package assets outside the checkout.
   symlinkSync(join(checkout, "node_modules"), join(packageRoot, "node_modules"), "dir");
 
-  assert.equal(existsSync(join(packageRoot, "src")), false);
-  assert.equal(existsSync(join(packageRoot, ".github", "scripts")), false);
-  assert.equal(existsSync(join(packageRoot, "build", "index.js")), true);
+  expect(existsSync(join(packageRoot, "src"))).toBe(false);
+  expect(existsSync(join(packageRoot, ".github", "scripts"))).toBe(false);
+  expect(existsSync(join(packageRoot, "build", "index.js"))).toBe(true);
   for (const [template] of setupTemplates) {
-    assert.equal(
-      existsSync(join(packageRoot, "build", "setup-project", "templates", template)),
+    expect(existsSync(join(packageRoot, "build", "setup-project", "templates", template))).toBe(
       true,
     );
   }
 
   return {
     root: packageRoot,
-    run(project: string, args: string[], env: Record<string, string> = {}) {
+    run(project: string, args: readonly string[], env: Record<string, string> = {}) {
       return spawnSync(process.execPath, [join(packageRoot, "build", "index.js"), ...args], {
         cwd: project,
         encoding: "utf8",
-        env: { ...process.env, ...env, FORCE_COLOR: "0" },
+        env: {
+          ...process.env,
+          TSX_TSCONFIG_PATH: resolve("tsconfig.json"),
+          GIT_CEILING_DIRECTORIES: resolve(process.cwd()),
+          ...env,
+          FORCE_COLOR: "0",
+        },
       });
     },
   };
 }
 
-function tempDirectory(t: TestContext, prefix: string) {
-  const directory = mkdtempSync(join(tmpdir(), prefix));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+function tempDirectory(prefix: string) {
+  const directory = mkdtempSync(join(process.cwd(), prefix));
+  onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
 
@@ -80,9 +86,9 @@ function makeGitWorkspace(directory: string) {
   return { git };
 }
 
-test("packaged sdd create and status expose feature state outside the checkout", (t) => {
-  const cli = packagedCli(t);
-  const gitWorkspace = tempDirectory(t, "spindle-packaged-git-");
+test("packaged sdd create and status expose feature state outside the checkout", () => {
+  const cli = packagedCli();
+  const gitWorkspace = tempDirectory("spindle-packaged-git-");
   const { git } = makeGitWorkspace(gitWorkspace);
 
   const created = cli.run(gitWorkspace, [
@@ -93,8 +99,8 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "--author",
     "maintainer",
   ]);
-  assert.equal(created.status, 0, created.stderr);
-  assert.equal(created.stderr, "");
+  expect(created.status, created.stderr).toBe(0);
+  expect(created.stderr).toBe("");
   const featureDirectory = join(gitWorkspace, ".scratch", "0001-packaged-feature");
   const expected = {
     feature: "0001-packaged-feature",
@@ -102,10 +108,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
     spec: join(featureDirectory, "spec.md"),
     ledger: join(featureDirectory, "sdd.json"),
   };
-  assert.equal(created.stdout, `${JSON.stringify(expected, null, 2)}\n`);
-  assert.deepEqual(JSON.parse(created.stdout), expected);
-  assert.equal(readFileSync(expected.spec, "utf8"), "# Packaged Feature\n");
-  assert.deepEqual(readdirSync(featureDirectory).sort(), [
+  expect(created.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`);
+  expect(JSON.parse(created.stdout)).toEqual(expected);
+  expect(readFileSync(expected.spec, "utf8")).toBe("# Packaged Feature\n");
+  expect(readdirSync(featureDirectory).sort()).toEqual([
     "issues",
     "reports",
     "sdd.json",
@@ -114,17 +120,17 @@ test("packaged sdd create and status expose feature state outside the checkout",
 
   const ledgerBeforeStatus = readFileSync(expected.ledger, "utf8");
   const ledger = JSON.parse(ledgerBeforeStatus);
-  assert.deepEqual(ledger.reviewPolicy, {
+  expect(ledger.reviewPolicy).toEqual({
     version: 1,
     issue: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
-  assert.deepEqual(ledger.delivery, { execution: "unstarted", history: [] });
-  assert.deepEqual(ledger.issues, []);
+  expect(ledger.delivery).toEqual({ execution: "unstarted", history: [] });
+  expect(ledger.issues).toEqual([]);
   const statusBefore = git("status", "--porcelain=v1");
   const inspected = cli.run(gitWorkspace, ["sdd", "status", "--spec", expected.spec]);
-  assert.equal(inspected.status, 0, inspected.stderr);
-  assert.equal(inspected.stderr, "");
+  expect(inspected.status, inspected.stderr).toBe(0);
+  expect(inspected.stderr).toBe("");
   const expectedStatus = {
     feature: expected.feature,
     workspace: featureDirectory,
@@ -152,18 +158,18 @@ test("packaged sdd create and status expose feature state outside the checkout",
       blockers: ["Aggregate evidence requires at least one issue."],
     },
   };
-  assert.equal(inspected.stdout, `${JSON.stringify(expectedStatus, null, 2)}\n`);
-  assert.deepEqual(JSON.parse(inspected.stdout), expectedStatus);
-  assert.equal(readFileSync(expected.ledger, "utf8"), ledgerBeforeStatus);
-  assert.equal(git("status", "--porcelain=v1"), statusBefore);
+  expect(inspected.stdout).toBe(`${JSON.stringify(expectedStatus, null, 2)}\n`);
+  expect(JSON.parse(inspected.stdout)).toEqual(expectedStatus);
+  expect(readFileSync(expected.ledger, "utf8")).toBe(ledgerBeforeStatus);
+  expect(git("status", "--porcelain=v1")).toBe(statusBefore);
 
-  const invocationWorkspace = tempDirectory(t, "spindle-packaged-setup-invocation-");
+  const invocationWorkspace = tempDirectory("spindle-packaged-setup-invocation-");
   makeGitWorkspace(invocationWorkspace);
-  const setupWorkspace = tempDirectory(t, "spindle-packaged-setup-");
-  assert.equal(existsSync(join(setupWorkspace, ".git")), false);
-  assert.equal(existsSync(join(setupWorkspace, ".github", "spindle.json")), false);
+  const setupWorkspace = tempDirectory("spindle-packaged-setup-");
+  expect(existsSync(join(setupWorkspace, ".git"))).toBe(false);
+  expect(existsSync(join(setupWorkspace, ".github", "spindle.json"))).toBe(false);
   const setup = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
-  assert.equal(setup.status, 0, setup.stderr);
+  expect(setup.status, setup.stderr).toBe(0);
 
   const expectedSetup = {
     workspace: setupWorkspace,
@@ -179,13 +185,12 @@ test("packaged sdd create and status expose feature state outside the checkout",
     ],
     preserved: [],
   };
-  assert.equal(setup.stdout, `${JSON.stringify(expectedSetup, null, 2)}\n`);
-  assert.deepEqual(JSON.parse(setup.stdout), expectedSetup);
-  assert.equal(setup.stderr, "");
+  expect(setup.stdout).toBe(`${JSON.stringify(expectedSetup, null, 2)}\n`);
+  expect(JSON.parse(setup.stdout)).toEqual(expectedSetup);
+  expect(setup.stderr).toBe("");
 
   for (const [template, destination] of setupTemplates) {
-    assert.deepEqual(
-      readFileSync(join(setupWorkspace, destination)),
+    expect(readFileSync(join(setupWorkspace, destination))).toEqual(
       readFileSync(join(cli.root, "build", "setup-project", "templates", template)),
     );
   }
@@ -193,8 +198,8 @@ test("packaged sdd create and status expose feature state outside the checkout",
   const customDomain = Buffer.from("custom setup guidance\r\n");
   writeFileSync(join(setupWorkspace, "docs/agents/domain.md"), customDomain);
   const repeated = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
-  assert.equal(repeated.status, 0, repeated.stderr);
-  assert.deepEqual(JSON.parse(repeated.stdout), {
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout)).toEqual({
     workspace: setupWorkspace,
     created: [],
     preserved: [
@@ -208,23 +213,23 @@ test("packaged sdd create and status expose feature state outside the checkout",
       "docs/agents/tooling.md",
     ],
   });
-  assert.deepEqual(readFileSync(join(setupWorkspace, "docs/agents/domain.md")), customDomain);
+  expect(readFileSync(join(setupWorkspace, "docs/agents/domain.md"))).toEqual(customDomain);
 });
-test("packaged command discovery and help remain intact", (t) => {
-  const cli = packagedCli(t);
-  const setupWorkspace = tempDirectory(t, "spindle-packaged-help-setup-");
+test("packaged command discovery and help remain intact", () => {
+  const cli = packagedCli();
+  const setupWorkspace = tempDirectory("spindle-packaged-help-setup-");
 
   const rootHelp = cli.run(setupWorkspace, ["--help"]);
-  assert.equal(rootHelp.status, 0, rootHelp.stderr);
-  assert.match(rootHelp.stdout, /^\s*sdd\b/m);
-  assert.match(rootHelp.stdout, /^\s*setup-project\b/m);
-  assert.equal(rootHelp.stderr, "");
+  expect(rootHelp.status, rootHelp.stderr).toBe(0);
+  expect(rootHelp.stdout).toMatch(/^\s*sdd\b/m);
+  expect(rootHelp.stdout).toMatch(/^\s*setup-project\b/m);
+  expect(rootHelp.stderr).toBe("");
 
   const sddHelp = cli.run(setupWorkspace, ["sdd", "--help"]);
-  assert.equal(sddHelp.status, 0, sddHelp.stderr);
-  assert.match(sddHelp.stdout, /^\s+create\s/m);
-  assert.match(sddHelp.stdout, /^\s+status\s/m);
-  assert.equal(sddHelp.stderr, "");
+  expect(sddHelp.status, sddHelp.stderr).toBe(0);
+  expect(sddHelp.stdout).toMatch(/^\s+create\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+status\s/m);
+  expect(sddHelp.stderr).toBe("");
 
   for (const [args, expectedContent] of [
     [
@@ -235,17 +240,20 @@ test("packaged command discovery and help remain intact", (t) => {
     [["setup-project", "--help"], ["--workspace"]],
   ] as const) {
     const result = cli.run(setupWorkspace, args);
-    assert.equal(result.status, 0, result.stderr);
+    expect(result.status, result.stderr).toBe(0);
     for (const content of expectedContent) {
-      assert.ok(result.stdout.includes(content), `${args.join(" ")} should describe ${content}`);
+      expect(
+        result.stdout.includes(content),
+        `${args.join(" ")} should describe ${content}`,
+      ).toBeTruthy();
     }
-    assert.equal(result.stderr, "");
+    expect(result.stderr).toBe("");
   }
 });
 
-test("packaged init from a nested directory targets the Git worktree root", (t) => {
-  const cli = packagedCli(t);
-  const project = tempDirectory(t, "spindle-packaged-git-root-");
+test("packaged init from a nested directory targets the Git worktree root", () => {
+  const cli = packagedCli();
+  const project = tempDirectory("spindle-packaged-git-root-");
   makeGitWorkspace(project);
   const nested = join(project, "packages", "nested");
   mkdirSync(nested, { recursive: true });
@@ -253,7 +261,7 @@ test("packaged init from a nested directory targets the Git worktree root", (t) 
   const env = { SPINDLE_BLUEPRINTS_DIR: join(cli.root, "build", "blueprints") };
 
   const fromRoot = cli.run(project, args, env);
-  assert.equal(fromRoot.status, 0, fromRoot.stderr);
+  expect(fromRoot.status, fromRoot.stderr).toBe(0);
   const rootConfig = readFileSync(join(project, ".github", "spindle.json"), "utf8");
   const rootSkill = readFileSync(
     join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
@@ -262,24 +270,23 @@ test("packaged init from a nested directory targets the Git worktree root", (t) 
   rmSync(join(project, ".github"), { recursive: true });
 
   const fromNested = cli.run(nested, args, env);
-  assert.equal(fromNested.status, 0, fromNested.stderr);
-  assert.equal(fromNested.stdout, fromRoot.stdout);
-  assert.equal(readFileSync(join(project, ".github", "spindle.json"), "utf8"), rootConfig);
-  assert.equal(
+  expect(fromNested.status, fromNested.stderr).toBe(0);
+  expect(fromNested.stdout).toBe(fromRoot.stdout);
+  expect(readFileSync(join(project, ".github", "spindle.json"), "utf8")).toBe(rootConfig);
+  expect(
     readFileSync(
       join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
       "utf8",
     ),
-    rootSkill,
-  );
-  assert.deepEqual(readdirSync(nested), []);
+  ).toBe(rootSkill);
+  expect(readdirSync(nested)).toEqual([]);
 });
 
-test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", (t) => {
-  const cli = packagedCli(t);
-  const project = tempDirectory(t, "spindle-packaged-computed-project-");
+test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", () => {
+  const cli = packagedCli();
+  const project = tempDirectory("spindle-packaged-computed-project-");
   execFileSync("git", ["init", "-q"], { cwd: project });
-  const blueprintRoot = tempDirectory(t, "spindle-packaged-computed-blueprints-");
+  const blueprintRoot = tempDirectory("spindle-packaged-computed-blueprints-");
   const packagedBlueprints = join(blueprintRoot, "blueprints");
   cpSync(join(cli.root, "build", "blueprints"), packagedBlueprints, { recursive: true });
 
@@ -291,43 +298,39 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   );
   const source = readFileSync(shippedSkill, "utf8");
   const sourceFrontmatter = matter(source).data;
-  assert.equal(
+  expect(
     sourceFrontmatter.description,
-    "{{ computed.internal_skill_description }}",
     "the packaged shipped asset must contain the migrated description template",
-  );
+  ).toBe("{{ computed.internal_skill_description }}");
 
   const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"], {
     SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
   });
-  assert.equal(result.status, 0, result.stderr);
+  expect(result.status, result.stderr).toBe(0);
 
   const installed = readFileSync(
     join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
     "utf8",
   );
-  assert.equal(
-    matter(installed).data.description,
+  expect(matter(installed).data.description).toBe(
     "This is an internal skill do not load it unless explicitly required by the user or another skill.",
   );
-  assert.equal(
-    matter(installed).data.metadata.spindle.version,
+  expect(matter(installed).data.metadata.spindle.version).toBe(
     sourceFrontmatter.metadata.spindle.version,
   );
-  assert.doesNotMatch(installed, /{{|}}/);
+  expect(installed).not.toMatch(/{{|}}/);
 
   const shippedDirectory = join(packagedBlueprints, "skills", "int-test-driven-development");
   const installedDirectory = join(project, ".github", "skills", "int-test-driven-development");
   for (const name of ["tests.md", "mocking.md"]) {
     const reference = join("references", name);
-    assert.equal(existsSync(join(shippedDirectory, name)), false);
-    assert.equal(existsSync(join(installedDirectory, name)), false);
-    assert.equal(
+    expect(existsSync(join(shippedDirectory, name))).toBe(false);
+    expect(existsSync(join(installedDirectory, name))).toBe(false);
+    expect(
       readFileSync(join(installedDirectory, reference), "utf8"),
-      readFileSync(join(shippedDirectory, reference), "utf8"),
       `the packaged ${reference} must install without changing its content`,
-    );
-    assert.ok(installed.includes(`(./references/${name})`));
+    ).toBe(readFileSync(join(shippedDirectory, reference), "utf8"));
+    expect(installed.includes(`(./references/${name})`)).toBeTruthy();
   }
 
   const domainShippedDirectory = join(packagedBlueprints, "skills", "int-domain-modeling");
@@ -335,46 +338,43 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   const domainSkill = readFileSync(join(domainInstalledDirectory, "SKILL.md"), "utf8");
   const domainSourceSkill = readFileSync(join(domainShippedDirectory, "SKILL.md"), "utf8");
   const domainSourceVersion = matter(domainSourceSkill).data.metadata.spindle.version;
-  assert.equal(domainSourceVersion, "1.0.1");
-  assert.equal(matter(domainSkill).data.metadata.spindle.version, domainSourceVersion);
+  expect(domainSourceVersion).toBe("1.0.1");
+  expect(matter(domainSkill).data.metadata.spindle.version).toBe(domainSourceVersion);
   for (const name of ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]) {
     const reference = join("references", name);
-    assert.equal(existsSync(join(domainShippedDirectory, name)), false);
-    assert.equal(existsSync(join(domainInstalledDirectory, name)), false);
-    assert.equal(
+    expect(existsSync(join(domainShippedDirectory, name))).toBe(false);
+    expect(existsSync(join(domainInstalledDirectory, name))).toBe(false);
+    expect(
       readFileSync(join(domainInstalledDirectory, reference), "utf8"),
-      readFileSync(join(domainShippedDirectory, reference), "utf8"),
       `the packaged ${reference} must install without changing its content`,
-    );
-    assert.ok(domainSkill.includes(`(./references/${name})`));
+    ).toBe(readFileSync(join(domainShippedDirectory, reference), "utf8"));
+    expect(domainSkill.includes(`(./references/${name})`)).toBeTruthy();
   }
 
   const designShippedDirectory = join(packagedBlueprints, "skills", "int-codebase-design");
   const designInstalledDirectory = join(project, ".github", "skills", "int-codebase-design");
   const designSkill = readFileSync(join(designInstalledDirectory, "SKILL.md"), "utf8");
   const designSourceSkill = readFileSync(join(designShippedDirectory, "SKILL.md"), "utf8");
-  assert.equal(
-    matter(designSkill).data.metadata.spindle.version,
+  expect(matter(designSkill).data.metadata.spindle.version).toBe(
     matter(designSourceSkill).data.metadata.spindle.version,
   );
-  assert.equal(matter(designSkill).data.metadata.spindle.version, "1.1.1");
-  assert.doesNotMatch(designSkill, /{%[^%]*\bstacks\b|```(?:typescript|python|php)\n/);
+  expect(matter(designSkill).data.metadata.spindle.version).toBe("1.1.1");
+  expect(designSkill).not.toMatch(/{%[^%]*\bstacks\b|```(?:typescript|python|php)\n/);
   for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     const reference = join("references", name);
-    assert.equal(existsSync(join(designShippedDirectory, name)), false);
-    assert.equal(existsSync(join(designInstalledDirectory, name)), false);
-    assert.equal(
+    expect(existsSync(join(designShippedDirectory, name))).toBe(false);
+    expect(existsSync(join(designInstalledDirectory, name))).toBe(false);
+    expect(
       readFileSync(join(designInstalledDirectory, reference), "utf8"),
-      readFileSync(join(designShippedDirectory, reference), "utf8"),
       `the packaged ${reference} must install without changing its content`,
-    );
-    assert.ok(designSkill.includes(`(./references/${name})`));
+    ).toBe(readFileSync(join(designShippedDirectory, reference), "utf8"));
+    expect(designSkill.includes(`(./references/${name})`)).toBeTruthy();
   }
   for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     const reference = readFileSync(join(designInstalledDirectory, "references", name), "utf8");
-    assert.ok(reference.includes("(../SKILL.md)"));
+    expect(reference.includes("(../SKILL.md)")).toBeTruthy();
     if (name === "DESIGN-IT-TWICE.md") {
-      assert.ok(reference.includes("(DEEPENING.md)"));
+      expect(reference.includes("(DEEPENING.md)")).toBeTruthy();
     }
   }
 
@@ -395,21 +395,20 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   const updated = cli.run(project, ["update", "--no-interactive", "--on-conflict", "overwrite"], {
     SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
   });
-  assert.equal(updated.status, 0, updated.stderr);
+  expect(updated.status, updated.stderr).toBe(0);
   for (const name of ["tests.md", "mocking.md"]) {
-    assert.equal(existsSync(join(installedDirectory, name)), false);
-    assert.equal(
-      readFileSync(join(installedDirectory, "references", name), "utf8"),
+    expect(existsSync(join(installedDirectory, name))).toBe(false);
+    expect(readFileSync(join(installedDirectory, "references", name), "utf8")).toBe(
       readFileSync(join(shippedDirectory, "references", name), "utf8"),
     );
   }
 });
 
-test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", (t) => {
-  const cli = packagedCli(t);
-  const gitWorkspace = tempDirectory(t, "spindle-packaged-invalid-git-");
+test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", () => {
+  const cli = packagedCli();
+  const gitWorkspace = tempDirectory("spindle-packaged-invalid-git-");
   const { git } = makeGitWorkspace(gitWorkspace);
-  const setupWorkspace = tempDirectory(t, "spindle-packaged-invalid-setup-");
+  const setupWorkspace = tempDirectory("spindle-packaged-invalid-setup-");
   const beforeStatus = git("status", "--porcelain=v1");
 
   const invalidCases = [
@@ -441,15 +440,13 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
 
   for (const [args, workingDirectory] of invalidCases) {
     const result = cli.run(workingDirectory, args);
-    assert.notEqual(result.status, 0, args.join(" "));
-    assert.equal(result.stdout, "", args.join(" "));
-    assert.notEqual(result.stderr.trim(), "", args.join(" "));
-    assert.doesNotMatch(
-      result.stderr,
+    expect(result.status, args.join(" ")).not.toBe(0);
+    expect(result.stdout, args.join(" ")).toBe("");
+    expect(result.stderr.trim(), args.join(" ")).not.toBe("");
+    expect(result.stderr, args.join(" ")).not.toMatch(
       /Unable to discover the Git working-tree root/,
-      args.join(" "),
     );
-    assert.equal(readdirSync(setupWorkspace).length, 0);
-    assert.equal(git("status", "--porcelain=v1"), beforeStatus);
+    expect(readdirSync(setupWorkspace).length).toBe(0);
+    expect(git("status", "--porcelain=v1")).toBe(beforeStatus);
   }
 });

@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import {
   existsSync,
   mkdirSync,
@@ -10,9 +9,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+
+import { test, expect, onTestFinished, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 import { runCli } from "./helpers.ts";
 
@@ -23,14 +24,14 @@ const copies = [
   ["tooling.md", "docs/agents/tooling.md"],
 ] as const;
 
-function fixture(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "setup-project-test-"));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+function fixture() {
+  const directory = mkdtempSync(join(process.cwd(), "setup-project-test-"));
+  onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
   return directory;
 }
 
-test("setup-project creates the required directories and exact defaults", async (t) => {
-  const workspace = fixture(t);
+test("setup-project creates the required directories and exact defaults", async () => {
+  const workspace = fixture();
 
   const result = runCli(
     workspace,
@@ -38,7 +39,7 @@ test("setup-project creates the required directories and exact defaults", async 
     process.env.PATH ?? "",
   );
 
-  assert.equal(result.status, 0, result.stderr);
+  expect(result.status, result.stderr).toBe(0);
   const expected = {
     workspace,
     created: [
@@ -53,24 +54,23 @@ test("setup-project creates the required directories and exact defaults", async 
     ],
     preserved: [],
   };
-  assert.deepEqual(JSON.parse(result.stdout), expected);
-  assert.equal(result.stdout, `${JSON.stringify(expected, null, 2)}\n`);
+  expect(JSON.parse(result.stdout)).toEqual(expected);
+  expect(result.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`);
   for (const directory of ["docs/adr", ".scratch", "docs/agents"]) {
-    assert.equal(existsSync(join(workspace, directory)), true);
+    expect(existsSync(join(workspace, directory))).toBe(true);
   }
   for (const [source, destination] of copies) {
-    assert.equal(
-      readFileSync(join(workspace, destination), "utf8"),
+    expect(readFileSync(join(workspace, destination), "utf8")).toBe(
       readFileSync(join(process.cwd(), "src/setup-project/templates", source), "utf8"),
     );
   }
-  assert.equal(existsSync(join(workspace, "GLOSSARY.md")), false);
-  assert.equal(existsSync(join(workspace, ".github")), false);
+  expect(existsSync(join(workspace, "GLOSSARY.md"))).toBe(false);
+  expect(existsSync(join(workspace, ".github"))).toBe(false);
 });
 
-test("setup-project honors an explicit target outside the invocation repository", async (t) => {
-  const invocation = fixture(t);
-  const workspace = fixture(t);
+test("setup-project honors an explicit target outside the invocation repository", async () => {
+  const invocation = fixture();
+  const workspace = fixture();
 
   const result = runCli(
     invocation,
@@ -78,14 +78,14 @@ test("setup-project honors an explicit target outside the invocation repository"
     process.env.PATH ?? "",
   );
 
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).workspace, workspace);
-  assert.equal(existsSync(join(workspace, "docs/agents/domain.md")), true);
-  assert.equal(existsSync(join(invocation, "docs")), false);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).workspace).toBe(workspace);
+  expect(existsSync(join(workspace, "docs/agents/domain.md"))).toBe(true);
+  expect(existsSync(join(invocation, "docs"))).toBe(false);
 });
 
-test("setup-project preserves custom files byte-for-byte on repeated runs", async (t) => {
-  const workspace = fixture(t);
+test("setup-project preserves custom files byte-for-byte on repeated runs", async () => {
+  const workspace = fixture();
   mkdirSync(join(workspace, "docs/agents"), { recursive: true });
   const customDomain = Buffer.from([0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x00, 0xff]);
   const customTooling = Buffer.from("custom tooling\r\n");
@@ -97,15 +97,15 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
     ["setup-project", "--workspace", workspace],
     process.env.PATH ?? "",
   );
-  assert.equal(first.status, 0, first.stderr);
+  expect(first.status, first.stderr).toBe(0);
   const firstResult = JSON.parse(first.stdout);
-  assert.deepEqual(firstResult.created, [
+  expect(firstResult.created).toEqual([
     "docs/adr",
     ".scratch",
     "docs/agents/issue-tracker.md",
     "docs/agents/triage-labels.md",
   ]);
-  assert.deepEqual(firstResult.preserved, [
+  expect(firstResult.preserved).toEqual([
     "docs",
     "docs/agents",
     "docs/agents/domain.md",
@@ -118,10 +118,10 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
     ["setup-project", "--workspace", workspace],
     process.env.PATH ?? "",
   );
-  assert.equal(second.status, 0, second.stderr);
+  expect(second.status, second.stderr).toBe(0);
   const secondResult = JSON.parse(second.stdout);
-  assert.deepEqual(secondResult.created, []);
-  assert.deepEqual(secondResult.preserved, [
+  expect(secondResult.created).toEqual([]);
+  expect(secondResult.preserved).toEqual([
     "docs",
     "docs/adr",
     ".scratch",
@@ -131,16 +131,13 @@ test("setup-project preserves custom files byte-for-byte on repeated runs", asyn
     "docs/agents/triage-labels.md",
     "docs/agents/tooling.md",
   ]);
-  assert.deepEqual(
-    copies.map(([, relative]) => readFileSync(join(workspace, relative))),
-    before,
-  );
-  assert.deepEqual(readFileSync(join(workspace, "docs/agents/domain.md")), customDomain);
-  assert.deepEqual(readFileSync(join(workspace, "docs/agents/tooling.md")), customTooling);
+  expect(copies.map(([, relative]) => readFileSync(join(workspace, relative)))).toEqual(before);
+  expect(readFileSync(join(workspace, "docs/agents/domain.md"))).toEqual(customDomain);
+  expect(readFileSync(join(workspace, "docs/agents/tooling.md"))).toEqual(customTooling);
 });
 
-test("setup-project rejects directory and dangling file symlink destinations", async (t) => {
-  const workspace = fixture(t);
+test("setup-project rejects directory and dangling file symlink destinations", async () => {
+  const workspace = fixture();
   const outside = join(workspace, "outside");
   mkdirSync(outside);
   symlinkSync(outside, join(workspace, "docs"));
@@ -150,10 +147,10 @@ test("setup-project rejects directory and dangling file symlink destinations", a
     ["setup-project", "--workspace", workspace],
     process.env.PATH ?? "",
   );
-  assert.notEqual(directoryLink.status, 0);
-  assert.equal(directoryLink.stdout, "");
-  assert.match(directoryLink.stderr, /spindle:.*symlink/);
-  assert.deepEqual(await readdir(outside), []);
+  expect(directoryLink.status).not.toBe(0);
+  expect(directoryLink.stdout).toBe("");
+  expect(directoryLink.stderr).toMatch(/spindle:.*symlink/);
+  expect(await readdir(outside)).toEqual([]);
 
   unlinkSync(join(workspace, "docs"));
   mkdirSync(join(workspace, "docs/agents"), { recursive: true });
@@ -164,14 +161,14 @@ test("setup-project rejects directory and dangling file symlink destinations", a
     ["setup-project", "--workspace", workspace],
     process.env.PATH ?? "",
   );
-  assert.notEqual(fileLink.status, 0);
-  assert.equal(fileLink.stdout, "");
-  assert.match(fileLink.stderr, /spindle:.*symlink/);
-  assert.equal(existsSync(danglingTarget), false);
+  expect(fileLink.status).not.toBe(0);
+  expect(fileLink.stdout).toBe("");
+  expect(fileLink.stderr).toMatch(/spindle:.*symlink/);
+  expect(existsSync(danglingTarget)).toBe(false);
 });
 
-test("setup-project retains partial setup when a later default conflicts with a directory", async (t) => {
-  const workspace = fixture(t);
+test("setup-project retains partial setup when a later default conflicts with a directory", async () => {
+  const workspace = fixture();
   mkdirSync(join(workspace, "docs/agents/triage-labels.md"), { recursive: true });
 
   const result = runCli(
@@ -180,18 +177,18 @@ test("setup-project retains partial setup when a later default conflicts with a 
     process.env.PATH ?? "",
   );
 
-  assert.notEqual(result.status, 0);
-  assert.equal(result.stdout, "");
-  assert.match(result.stderr, /spindle:.*regular file/);
-  assert.equal(existsSync(join(workspace, "docs/adr")), true);
-  assert.equal(existsSync(join(workspace, ".scratch")), true);
-  assert.equal(existsSync(join(workspace, "docs/agents/domain.md")), true);
-  assert.equal(existsSync(join(workspace, "docs/agents/issue-tracker.md")), true);
-  assert.equal(existsSync(join(workspace, "docs/agents/triage-labels.md")), true);
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toMatch(/spindle:.*regular file/);
+  expect(existsSync(join(workspace, "docs/adr"))).toBe(true);
+  expect(existsSync(join(workspace, ".scratch"))).toBe(true);
+  expect(existsSync(join(workspace, "docs/agents/domain.md"))).toBe(true);
+  expect(existsSync(join(workspace, "docs/agents/issue-tracker.md"))).toBe(true);
+  expect(existsSync(join(workspace, "docs/agents/triage-labels.md"))).toBe(true);
 });
 
-test("setup-project rejects malformed CLI arguments and workspace conflicts", async (t) => {
-  const workspace = fixture(t);
+test("setup-project rejects malformed CLI arguments and workspace conflicts", async () => {
+  const workspace = fixture();
   const missing = join(workspace, "missing");
   const file = join(workspace, "project-file");
   writeFileSync(file, "preserve\n");
@@ -216,23 +213,23 @@ test("setup-project rejects malformed CLI arguments and workspace conflicts", as
 
   for (const args of invalidCases) {
     const result = runCli(workspace, args, process.env.PATH ?? "");
-    assert.notEqual(result.status, 0, args.join(" "));
-    assert.equal(result.stdout, "", args.join(" "));
-    assert.notEqual(result.stderr.trim(), "", args.join(" "));
+    expect(result.status, args.join(" ")).not.toBe(0);
+    expect(result.stdout, args.join(" ")).toBe("");
+    expect(result.stderr.trim(), args.join(" ")).not.toBe("");
   }
-  assert.equal(readFileSync(file, "utf8"), "preserve\n");
-  assert.equal(readFileSync(join(conflict, "docs"), "utf8"), "preserve\n");
+  expect(readFileSync(file, "utf8")).toBe("preserve\n");
+  expect(readFileSync(join(conflict, "docs"), "utf8")).toBe("preserve\n");
 });
 
-test("setup-project and top-level help describe the public command", async (t) => {
-  const workspace = fixture(t);
+test("setup-project and top-level help describe the public command", async () => {
+  const workspace = fixture();
 
   const commandHelp = runCli(workspace, ["setup-project", "--help"], process.env.PATH ?? "");
-  assert.equal(commandHelp.status, 0, commandHelp.stderr);
-  assert.match(commandHelp.stdout, /Usage: spindle setup-project \[options\]/);
-  assert.match(commandHelp.stdout, /--workspace <path>/);
+  expect(commandHelp.status, commandHelp.stderr).toBe(0);
+  expect(commandHelp.stdout).toMatch(/Usage: spindle setup-project \[options\]/);
+  expect(commandHelp.stdout).toMatch(/--workspace <path>/);
 
   const topLevelHelp = runCli(workspace, ["--help"], process.env.PATH ?? "");
-  assert.equal(topLevelHelp.status, 0, topLevelHelp.stderr);
-  assert.match(topLevelHelp.stdout, /Commands:[\s\S]*\bsetup-project\b/);
+  expect(topLevelHelp.status, topLevelHelp.stderr).toBe(0);
+  expect(topLevelHelp.stdout).toMatch(/Commands:[\s\S]*\bsetup-project\b/);
 });

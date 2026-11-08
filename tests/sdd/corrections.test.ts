@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { SddCommand } from "@/commands/sdd/sdd-command.js";
+import type { SddCommand } from "@/commands/sdd/sdd-command";
 
 import {
   execute,
@@ -12,10 +12,10 @@ import {
   prepareReviewAssignment,
   refreshReviewCheck,
 } from "./helpers.ts";
-test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
-  const finding = execute(repo, (service) =>
+  const finding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -29,7 +29,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
     }),
   );
   expect(finding.status, finding.stderr).toBe(0);
-  const confirmedFinding = execute(repo, (service) =>
+  const confirmedFinding = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -39,7 +39,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
     }),
   );
   expect(confirmedFinding.status, confirmedFinding.stderr).toBe(0);
-  const failedReview = execute(repo, (service) =>
+  const failedReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -62,7 +62,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
       details: "Preserve the accepted empty-input behavior.",
       author: "controller",
     });
-  const dispatched = execute(repo, args);
+  const dispatched = await execute(repo, args);
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const first = JSON.parse(dispatched.stdout) as {
     execution: string;
@@ -78,7 +78,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
   expect(first.assignment.status).toBe("pending");
   expect(first.assignment.report).toMatch(/round-1-fix\.md$/);
 
-  const resumed = execute(repo, args);
+  const resumed = await execute(repo, args);
   expect(resumed.status, resumed.stderr).toBe(0);
   const repeated = JSON.parse(resumed.stdout) as typeof first & { idempotent?: boolean };
   expect(repeated.idempotent).toBe(true);
@@ -87,10 +87,10 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
   expect(repeated.assignment.report).toBe(first.assignment.report);
 });
 
-test("corrective implementation reports submit through the implementation evidence contract", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("corrective implementation reports submit through the implementation evidence contract", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
-  const finding = execute(repo, (service) =>
+  const finding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -104,7 +104,7 @@ test("corrective implementation reports submit through the implementation eviden
     }),
   );
   expect(finding.status, finding.stderr).toBe(0);
-  const confirmedFinding = execute(repo, (service) =>
+  const confirmedFinding = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -114,7 +114,7 @@ test("corrective implementation reports submit through the implementation eviden
     }),
   );
   expect(confirmedFinding.status, confirmedFinding.stderr).toBe(0);
-  const failedReview = execute(repo, (service) =>
+  const failedReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -129,7 +129,7 @@ test("corrective implementation reports submit through the implementation eviden
   );
   expect(failedReview.status, failedReview.stderr).toBe(0);
 
-  const dispatched = execute(repo, (service) =>
+  const dispatched = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -146,7 +146,7 @@ test("corrective implementation reports submit through the implementation eviden
   writeFileSync(join(repo, "feature.ts"), "export const feature = 'corrected';\n");
   writeFileSync(fix.report, "# Correction report\n\nCorrected the finding.\n");
 
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -165,12 +165,12 @@ test("corrective implementation reports submit through the implementation eviden
   expect(result.assignment.status).toBe("submitted");
 });
 
-test("a current non-mechanical failed check can select a correction before initial review", () => {
-  const { repo, spec, command, submission } = prepareImplementationForReview();
-  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+test("a current non-mechanical failed check can select a correction before initial review", async () => {
+  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
   expect(failed.status, failed.stderr).toBe(0);
 
-  const corrected = execute(repo, (service) =>
+  const corrected = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -191,11 +191,11 @@ test("a current non-mechanical failed check can select a correction before initi
   expect(output.assignment.report).toMatch(/round-1-fix\.md$/);
 });
 
-test("explicit progress assessments permit productive continuation beyond five attempts", () => {
-  const { repo, spec, command, submission } = prepareImplementationForReview();
-  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+test("explicit progress assessments permit productive continuation beyond five attempts", async () => {
+  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
   expect(failed.status, failed.stderr).toBe(0);
-  let correction = execute(repo, (service) =>
+  let correction = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -215,7 +215,7 @@ test("explicit progress assessments permit productive continuation beyond five a
     expect(assigned.attempt).toBe(nextAttempt);
     writeFileSync(join(repo, "feature.ts"), `export const feature = ${nextAttempt};\n`);
     writeFileSync(assigned.report, `# Correction ${nextAttempt}\n\nProgress recorded.\n`);
-    const submitted = execute(repo, (service) =>
+    const submitted = await execute(repo, (service) =>
       service.submit({
         spec,
         issue: "I-0001",
@@ -227,9 +227,15 @@ test("explicit progress assessments permit productive continuation beyond five a
     expect(submitted.status, submitted.stderr).toBe(0);
     if (nextAttempt < 6) {
       const currentSnapshot = JSON.parse(submitted.stdout).snapshot as string;
-      const nextFailedCheck = recordReviewCheck(repo, spec, command, currentSnapshot, "failed");
+      const nextFailedCheck = await recordReviewCheck(
+        repo,
+        spec,
+        command,
+        currentSnapshot,
+        "failed",
+      );
       expect(nextFailedCheck.status, nextFailedCheck.stderr).toBe(0);
-      const unassessed = execute(repo, (service) =>
+      const unassessed = await execute(repo, (service) =>
         service.correct({
           spec,
           issue: "I-0001",
@@ -242,7 +248,7 @@ test("explicit progress assessments permit productive continuation beyond five a
       );
       expect(unassessed.status).not.toBe(0);
       expect(unassessed.stderr).toMatch(/assessment-result/i);
-      correction = execute(repo, (service) =>
+      correction = await execute(repo, (service) =>
         service.correct({
           spec,
           issue: "I-0001",
@@ -260,7 +266,7 @@ test("explicit progress assessments permit productive continuation beyond five a
   }
 
   expect(attemptNumber).toBe(6);
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -279,12 +285,12 @@ test("explicit progress assessments permit productive continuation beyond five a
   expect(attempts.every((attempt) => (attempt.checks?.length ?? 0) > 0)).toBeTruthy();
 });
 
-test("a progress pause records adjudication and resume preserves it without dispatching a fix", () => {
-  const { repo, spec, command, submission } = prepareImplementationForReview();
-  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+test("a progress pause records adjudication and resume preserves it without dispatching a fix", async () => {
+  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
   expect(failed.status, failed.stderr).toBe(0);
 
-  const paused = execute(repo, (service) =>
+  const paused = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -306,7 +312,7 @@ test("a progress pause records adjudication and resume preserves it without disp
   expect(pause.adjudication.reason).toBe("no-progress");
   expect(pause.assignment).toBe(undefined);
 
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -319,10 +325,10 @@ test("a progress pause records adjudication and resume preserves it without disp
   expect(resume.correctionAttempts).toEqual([]);
 });
 
-test("corrective review findings retain assignment provenance for the next progress decision", () => {
-  const { repo, spec, command, assignment } = prepareReviewAssignment();
+test("corrective review findings retain assignment provenance for the next progress decision", async () => {
+  const { repo, spec, command, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
-  const finding = execute(repo, (service) =>
+  const finding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -336,7 +342,7 @@ test("corrective review findings retain assignment provenance for the next progr
     }),
   );
   expect(finding.status, finding.stderr).toBe(0);
-  const confirmedFinding = execute(repo, (service) =>
+  const confirmedFinding = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -346,7 +352,7 @@ test("corrective review findings retain assignment provenance for the next progr
     }),
   );
   expect(confirmedFinding.status, confirmedFinding.stderr).toBe(0);
-  const failedReview = execute(repo, (service) =>
+  const failedReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -361,7 +367,7 @@ test("corrective review findings retain assignment provenance for the next progr
   );
   expect(failedReview.status, failedReview.stderr).toBe(0);
 
-  const corrected = execute(repo, (service) =>
+  const corrected = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -374,7 +380,7 @@ test("corrective review findings retain assignment provenance for the next progr
   const fix = JSON.parse(corrected.stdout).assignment as { report: string };
   writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -385,10 +391,10 @@ test("corrective review findings retain assignment provenance for the next progr
   );
   expect(submitted.status, submitted.stderr).toBe(0);
   const fixedSnapshot = JSON.parse(submitted.stdout).snapshot as string;
-  const passingCheck = recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
 
-  const dispatched = execute(repo, (service) =>
+  const dispatched = await execute(repo, (service) =>
     service.review({
       spec,
       issue: "I-0001",
@@ -411,7 +417,7 @@ test("corrective review findings retain assignment provenance for the next progr
     JSON.parse(dispatched.stdout).assignments[0].report,
     "# Corrective review\n\nA separate actionable defect remains.\n",
   );
-  const correctiveFinding = execute(repo, (service) =>
+  const correctiveFinding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -426,7 +432,7 @@ test("corrective review findings retain assignment provenance for the next progr
   );
   expect(correctiveFinding.status, correctiveFinding.stderr).toBe(0);
   expect(JSON.parse(correctiveFinding.stdout).finding.id).toBe("F-0002");
-  const failedCorrectiveReview = execute(repo, (service) =>
+  const failedCorrectiveReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -443,10 +449,10 @@ test("corrective review findings retain assignment provenance for the next progr
   expect(JSON.parse(failedCorrectiveReview.stdout).execution).toBe("changes-requested");
 });
 
-test("resume returns pending corrective reviews after initial review coverage is submitted", () => {
-  const { repo, spec, command, assignment } = prepareReviewAssignment();
+test("resume returns pending corrective reviews after initial review coverage is submitted", async () => {
+  const { repo, spec, command, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
-  const finding = execute(repo, (service) =>
+  const finding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -460,7 +466,7 @@ test("resume returns pending corrective reviews after initial review coverage is
     }),
   );
   expect(finding.status, finding.stderr).toBe(0);
-  const confirmedFinding = execute(repo, (service) =>
+  const confirmedFinding = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -470,7 +476,7 @@ test("resume returns pending corrective reviews after initial review coverage is
     }),
   );
   expect(confirmedFinding.status, confirmedFinding.stderr).toBe(0);
-  const submittedInitialReview = execute(repo, (service) =>
+  const submittedInitialReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -485,7 +491,7 @@ test("resume returns pending corrective reviews after initial review coverage is
   );
   expect(submittedInitialReview.status, submittedInitialReview.stderr).toBe(0);
 
-  const correction = execute(repo, (service) =>
+  const correction = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -498,7 +504,7 @@ test("resume returns pending corrective reviews after initial review coverage is
   const implementation = JSON.parse(correction.stdout).assignment as { report: string };
   writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
   writeFileSync(implementation.report, "# Correction report\n\nCorrected F-0001.\n");
-  const submittedCorrection = execute(repo, (service) =>
+  const submittedCorrection = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -510,10 +516,10 @@ test("resume returns pending corrective reviews after initial review coverage is
   expect(submittedCorrection.status, submittedCorrection.stderr).toBe(0);
   const correctedSnapshot = JSON.parse(submittedCorrection.stdout).snapshot as string;
   expect(correctedSnapshot).not.toBe(assignment.snapshot);
-  const passingCheck = recordReviewCheck(repo, spec, command, correctedSnapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, correctedSnapshot, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
 
-  const dispatchedReview = execute(repo, (service) =>
+  const dispatchedReview = await execute(repo, (service) =>
     service.review({
       spec,
       issue: "I-0001",
@@ -531,7 +537,7 @@ test("resume returns pending corrective reviews after initial review coverage is
   expect(correctiveAssignments[0]?.scope).toBe("corrective");
   expect(correctiveAssignments[0]?.status).toBe("pending");
 
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -547,10 +553,10 @@ test("resume returns pending corrective reviews after initial review coverage is
   );
 });
 
-test("a verified corrective review can complete acceptance while retaining initial coverage", () => {
-  const { repo, spec, command, assignment } = prepareReviewAssignment();
+test("a verified corrective review can complete acceptance while retaining initial coverage", async () => {
+  const { repo, spec, command, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
-  const finding = execute(repo, (service) =>
+  const finding = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -564,7 +570,7 @@ test("a verified corrective review can complete acceptance while retaining initi
     }),
   );
   expect(finding.status, finding.stderr).toBe(0);
-  const confirmedFinding = execute(repo, (service) =>
+  const confirmedFinding = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -574,7 +580,7 @@ test("a verified corrective review can complete acceptance while retaining initi
     }),
   );
   expect(confirmedFinding.status, confirmedFinding.stderr).toBe(0);
-  const failedReview = execute(repo, (service) =>
+  const failedReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -589,7 +595,7 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(failedReview.status, failedReview.stderr).toBe(0);
 
-  const correction = execute(repo, (service) =>
+  const correction = await execute(repo, (service) =>
     service.correct({
       spec,
       issue: "I-0001",
@@ -602,7 +608,7 @@ test("a verified corrective review can complete acceptance while retaining initi
   const fix = JSON.parse(correction.stdout).assignment as { report: string };
   writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
-  const implementation = execute(repo, (service) =>
+  const implementation = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -613,9 +619,9 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(implementation.status, implementation.stderr).toBe(0);
   const fixedSnapshot = JSON.parse(implementation.stdout).snapshot as string;
-  const passingCheck = recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
-  const verified = execute(repo, (service) =>
+  const verified = await execute(repo, (service) =>
     service.findingUpdate({
       spec,
       issue: "I-0001",
@@ -627,7 +633,7 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(verified.status, verified.stderr).toBe(0);
 
-  const dispatched = execute(repo, (service) =>
+  const dispatched = await execute(repo, (service) =>
     service.review({
       spec,
       issue: "I-0001",
@@ -643,7 +649,7 @@ test("a verified corrective review can complete acceptance while retaining initi
   };
   expect(review.scope).toBe("corrective");
   writeFileSync(review.report, "# Corrective review\n\nF-0001 is fixed; no regressions found.\n");
-  const reviewed = execute(repo, (service) =>
+  const reviewed = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -657,17 +663,17 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(reviewed.status, reviewed.stderr).toBe(0);
 
-  const accepted = execute(repo, (service) =>
+  const accepted = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   expect(JSON.parse(accepted.stdout).execution).toBe("accepted");
 });
 
-test("requirements decisions require fresh review before deferring a blocking finding", () => {
-  const { repo, spec, command, assignment } = prepareReviewAssignment();
+test("requirements decisions require fresh review before deferring a blocking finding", async () => {
+  const { repo, spec, command, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA criterion is implicated.\n");
-  const created = execute(repo, (service) =>
+  const created = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -681,7 +687,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
     }),
   );
   expect(created.status, created.stderr).toBe(0);
-  const initialReview = execute(repo, (service) =>
+  const initialReview = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -704,8 +710,8 @@ test("requirements decisions require fresh review before deferring a blocking fi
       "## Acceptance Criteria\n\nThe changed scope excludes this behavior.\n\n## Comments",
     ),
   );
-  const deferred = (extra: Partial<Parameters<SddCommand["findingUpdate"]>[0]>) =>
-    execute(repo, (service) =>
+  const deferred = async (extra: Partial<Parameters<SddCommand["findingUpdate"]>[0]>) =>
+    await execute(repo, (service) =>
       service.findingUpdate({
         spec,
         issue: "I-0001",
@@ -718,11 +724,11 @@ test("requirements decisions require fresh review before deferring a blocking fi
       }),
     );
 
-  const noDecision = deferred({});
+  const noDecision = await deferred({});
   expect(noDecision.status).not.toBe(0);
   expect(noDecision.stderr).toMatch(/approved requirements decision|cannot be deferred/i);
 
-  const decided = execute(repo, (service) =>
+  const decided = await execute(repo, (service) =>
     service.requirementsDecide({
       spec,
       issue: "I-0001",
@@ -747,8 +753,8 @@ test("requirements decisions require fresh review before deferring a blocking fi
   expect(persistedDecision.reviewAssignments).toBe(undefined);
   expect(persistedDecision.reviewHistory.length).toBe(1);
   expect(persistedDecision.requirementsDecisions[0].author).toBe("controller");
-  const decidedStatus = execute(repo, (service) => service.status({ spec }));
-  const decidedNext = execute(repo, (service) => service.next({ spec }));
+  const decidedStatus = await execute(repo, (service) => service.status({ spec }));
+  const decidedNext = await execute(repo, (service) => service.next({ spec }));
   expect(decidedStatus.status, decidedStatus.stderr).toBe(0);
   expect(decidedNext.status, decidedNext.stderr).toBe(0);
   expect(JSON.parse(decidedStatus.stdout).requirementsDecisions[0].decision.id).toBe("R-0001");
@@ -757,13 +763,13 @@ test("requirements decisions require fresh review before deferring a blocking fi
     /Required check .*stale/,
   );
 
-  const currentStatus = execute(repo, (service) => service.status({ spec }));
+  const currentStatus = await execute(repo, (service) => service.status({ spec }));
   expect(currentStatus.status, currentStatus.stderr).toBe(0);
   const currentSnapshot = JSON.parse(currentStatus.stdout).snapshots[0].snapshot as string;
-  const passing = recordReviewCheck(repo, spec, command, currentSnapshot, "passed");
+  const passing = await recordReviewCheck(repo, spec, command, currentSnapshot, "passed");
   expect(passing.status, passing.stderr).toBe(0);
 
-  const reviewed = execute(repo, (service) =>
+  const reviewed = await execute(repo, (service) =>
     service.review({
       spec,
       issue: "I-0001",
@@ -781,7 +787,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
   expect(freshAssignment.id).not.toBe(assignment.id);
   expect(freshAssignment.requirementsSnapshot).toBe(decision.requirementsSnapshot);
   writeFileSync(freshAssignment.report, "# Fresh review\n\nThe revised criterion is reviewed.\n");
-  const linked = execute(repo, (service) =>
+  const linked = await execute(repo, (service) =>
     service.findingCreate({
       spec,
       issue: "I-0001",
@@ -796,7 +802,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
     }),
   );
   expect(linked.status, linked.stderr).toBe(0);
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -810,27 +816,27 @@ test("requirements decisions require fresh review before deferring a blocking fi
   );
   expect(submitted.status, submitted.stderr).toBe(0);
 
-  const finalDisposition = deferred({ requirementsDecision: decision.id });
+  const finalDisposition = await deferred({ requirementsDecision: decision.id });
   expect(finalDisposition.status, finalDisposition.stderr).toBe(0);
   const finding = JSON.parse(finalDisposition.stdout).finding;
   expect(finding.status).toBe("deferred");
   expect(finding.requirementsDecision).toBe(decision.id);
-  const accepted = execute(repo, (service) =>
+  const accepted = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   expect(JSON.parse(accepted.stdout).execution).toBe("accepted");
 });
 
-test("review submission requires exact provenance, result, and explicit no-findings and is idempotent", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("review submission requires exact provenance, result, and explicit no-findings and is idempotent", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
-  const submit = (extra: Partial<Parameters<SddCommand["submit"]>[0]>) =>
-    execute(repo, (service) =>
+  const submit = async (extra: Partial<Parameters<SddCommand["submit"]>[0]>) =>
+    await execute(repo, (service) =>
       service.submit({ spec, issue: "I-0001", role: "review", ...extra, author: "controller" }),
     );
 
-  const omittedNoFindings = submit({
+  const omittedNoFindings = await submit({
     assignment: assignment.id,
     report: assignment.report,
     result: "passed",
@@ -838,7 +844,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(omittedNoFindings.status).not.toBe(0);
   expect(omittedNoFindings.stderr).toMatch(/--no-findings/);
 
-  const wrongAssignment = submit({
+  const wrongAssignment = await submit({
     assignment: `${assignment.id}-other`,
     report: assignment.report,
     result: "passed",
@@ -847,7 +853,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(wrongAssignment.status).not.toBe(0);
   expect(wrongAssignment.stderr).toMatch(/assignment/i);
 
-  const wrongReport = submit({
+  const wrongReport = await submit({
     assignment: assignment.id,
     report: join(repo, ".scratch", "other-report.md"),
     result: "passed",
@@ -856,7 +862,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(wrongReport.status).not.toBe(0);
   expect(wrongReport.stderr).toMatch(/assigned destination/);
 
-  const registered = submit({
+  const registered = await submit({
     assignment: assignment.id,
     report: assignment.report,
     result: "passed",
@@ -882,7 +888,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(result.assignment.snapshot).toBe(assignment.snapshot);
   expect(result.assignment.reportSha256).toMatch(/^[0-9a-f]{64}$/);
 
-  const repeated = submit({
+  const repeated = await submit({
     assignment: assignment.id,
     report: assignment.report,
     result: "passed",
@@ -897,7 +903,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(issueText.match(/Review report submitted for assignment/g)?.length).toBe(1);
 
   writeFileSync(assignment.report, "# Changed review report\n");
-  const altered = submit({
+  const altered = await submit({
     assignment: assignment.id,
     report: assignment.report,
     result: "passed",
@@ -907,11 +913,11 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(altered.stderr).toMatch(/changed after submission/);
 });
 
-test("failed review without a no-findings attestation requires details and blocks acceptance", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("failed review without a no-findings attestation requires details and blocks acceptance", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking defect was found.\n");
-  const submit = (details?: string, declareFindings = true) =>
-    execute(repo, (service) =>
+  const submit = async (details?: string, declareFindings = true) =>
+    await execute(repo, (service) =>
       service.submit({
         spec,
         issue: "I-0001",
@@ -925,13 +931,13 @@ test("failed review without a no-findings attestation requires details and block
       }),
     );
 
-  const missingDetails = submit();
+  const missingDetails = await submit();
   expect(missingDetails.status).not.toBe(0);
   expect(missingDetails.stderr).toMatch(/--details/);
-  const missingDeclaration = submit("A blocking defect was found.", false);
+  const missingDeclaration = await submit("A blocking defect was found.", false);
   expect(missingDeclaration.status).not.toBe(0);
   expect(missingDeclaration.stderr).toMatch(/--findings or exclusive --no-findings/);
-  const recordedFailure = submit("A blocking defect was found in the implementation.");
+  const recordedFailure = await submit("A blocking defect was found in the implementation.");
   expect(recordedFailure.status, recordedFailure.stderr).toBe(0);
   const submitted = JSON.parse(recordedFailure.stdout).assignment;
   expect(submitted.result).toBe("failed");
@@ -942,18 +948,18 @@ test("failed review without a no-findings attestation requires details and block
       .issues[0].reviewAssignments[0].details,
   ).toBe("A blocking defect was found in the implementation.");
 
-  const accepted = execute(repo, (service) =>
+  const accepted = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(accepted.status).not.toBe(0);
   expect(accepted.stderr).toMatch(/failed/);
 });
 
-test("unavailable review without a no-findings attestation requires details and blocks acceptance", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("unavailable review without a no-findings attestation requires details and blocks acceptance", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nReview could not be completed.\n");
-  const submit = (details?: string) =>
-    execute(repo, (service) =>
+  const submit = async (details?: string) =>
+    await execute(repo, (service) =>
       service.submit({
         spec,
         issue: "I-0001",
@@ -967,10 +973,10 @@ test("unavailable review without a no-findings attestation requires details and 
       }),
     );
 
-  const missingDetails = submit();
+  const missingDetails = await submit();
   expect(missingDetails.status).not.toBe(0);
   expect(missingDetails.stderr).toMatch(/--details/);
-  const recordedUnavailable = submit("The reviewer could not assess whether findings exist.");
+  const recordedUnavailable = await submit("The reviewer could not assess whether findings exist.");
   expect(recordedUnavailable.status, recordedUnavailable.stderr).toBe(0);
   const submitted = JSON.parse(recordedUnavailable.stdout).assignment;
   expect(submitted.result).toBe("unavailable");
@@ -981,17 +987,17 @@ test("unavailable review without a no-findings attestation requires details and 
       .issues[0].reviewAssignments[0].details,
   ).toBe("The reviewer could not assess whether findings exist.");
 
-  const accepted = execute(repo, (service) =>
+  const accepted = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(accepted.status).not.toBe(0);
   expect(accepted.stderr).toMatch(/unavailable/);
 });
 
-test("accept requires current checks and a complete passing finding-free initial review", () => {
-  const { repo, spec, assignment } = prepareReviewAssignment();
+test("accept requires current checks and a complete passing finding-free initial review", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -1005,7 +1011,7 @@ test("accept requires current checks and a complete passing finding-free initial
   );
   expect(submitted.status, submitted.stderr).toBe(0);
 
-  const accepted = execute(repo, (service) =>
+  const accepted = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
@@ -1030,16 +1036,20 @@ test("accept requires current checks and a complete passing finding-free initial
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
       .issues[0].execution,
   ).toBe("accepted");
-  const repeated = execute(repo, (service) =>
+  const repeated = await execute(repo, (service) =>
     service.accept({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
 
   writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
-  const refreshedCheck = refreshReviewCheck(repo, spec, "just test::test tests/feature.test.ts");
+  const refreshedCheck = await refreshReviewCheck(
+    repo,
+    spec,
+    "just test::test tests/feature.test.ts",
+  );
   expect(refreshedCheck.status, refreshedCheck.stderr).toBe(0);
-  const staleStatus = execute(repo, (service) => service.status({ spec }));
+  const staleStatus = await execute(repo, (service) => service.status({ spec }));
   expect(staleStatus.status, staleStatus.stderr).toBe(0);
   const statusOutput = JSON.parse(staleStatus.stdout);
   expect(statusOutput.state.issues[0].execution).toBe("accepted");

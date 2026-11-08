@@ -1,8 +1,14 @@
-import type { Application } from "../Application.js";
-import { Bootstrapper } from "./Bootstrapper.js";
+import type { Application, ServiceProviderConstructor } from "@/foundation/Application";
+import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
 
 export class RegisterProviders extends Bootstrapper {
+  private static providers: ServiceProviderConstructor[] = [];
+
+  public static merge(providers: readonly (ServiceProviderConstructor | null | undefined)[]): void {
+    this.providers = [...new Set(providers.filter((provider) => provider != null))];
+  }
+
   public bootstrap(application: Application): void {
-    application.registerProviders();
+    for (const Provider of RegisterProviders.providers) application.register(Provider);
   }
 }

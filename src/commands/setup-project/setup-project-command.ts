@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import type { Command } from "commander";
 
-import type { Application } from "../../foundation/Application.js";
-import { Service } from "../../services/Service.js";
-import { once } from "../shared-options.js";
+import { once } from "@/commands/shared-options";
+import type { Application } from "@/foundation/Application";
+import { Service } from "@/services/Service";
 
 export interface SetupProjectInput {
   workspacePath: string;
@@ -27,7 +27,7 @@ function validateWorkspacePath(workspacePath: string): void {
 }
 
 export class SetupProjectCommand extends Service {
-  static register(program: Command, createApp: () => Application): void {
+  public static register(program: Command, createApp: () => Promise<Application>): void {
     program
       .command("setup-project")
       .description("Create project documentation directories and missing Spindle defaults.")
@@ -39,16 +39,16 @@ export class SetupProjectCommand extends Service {
       .allowExcessArguments(false)
       .action(async (options: { workspace: string }) => {
         validateWorkspacePath(options.workspace);
-        const command = await createApp().get(SetupProjectCommand);
+        const command = await (await createApp()).make(SetupProjectCommand);
         console.log(JSON.stringify(command.run({ workspacePath: options.workspace }), null, 2));
       });
   }
 
-  constructor(app: Application) {
+  public constructor(app: Application) {
     super(app);
   }
 
-  run({ workspacePath }: SetupProjectInput): SetupProjectResult {
+  public run({ workspacePath }: SetupProjectInput): SetupProjectResult {
     validateWorkspacePath(workspacePath);
 
     const workspace = realpathSync(workspacePath);

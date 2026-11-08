@@ -16,7 +16,7 @@ async function waitForFile(path: string, timeoutMs: number) {
 }
 
 test("ready does not combine triage states from interleaved serialized updates", async () => {
-  const { repo, service, feature } = issueFixture("Coherent Ready Queue");
+  const { repo, service, feature } = await issueFixture("Coherent Ready Queue");
   createIssue(service, feature.spec, "Issue A");
   createIssue(service, feature.spec, "Issue B");
   const triage = (issue: string, status: string) =>
@@ -75,7 +75,7 @@ syncBuiltinESMExports();
 });
 
 test("concurrent issue creation serializes per-feature IDs and ledger updates", async () => {
-  const { repo, feature } = issueFixture("Concurrent Issues");
+  const { repo, feature } = await issueFixture("Concurrent Issues");
   const results = await Promise.all(
     ["One", "Two", "Three", "Four", "Five"].map((title) =>
       invokeAsync(repo, [
@@ -112,7 +112,7 @@ test("concurrent issue creation serializes per-feature IDs and ledger updates", 
 });
 
 test("concurrent issue updates preserve both attributed history entries", async () => {
-  const { repo, service, feature } = issueFixture("Concurrent Updates");
+  const { repo, service, feature } = await issueFixture("Concurrent Updates");
   createIssue(service, feature.spec, "Concurrent target");
   const results = await Promise.all(
     ["First update", "Second update"].map((title) =>

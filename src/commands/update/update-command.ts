@@ -4,17 +4,17 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command } from "commander";
 
-import { blueprintHandlers } from "../../blueprints/registry.js";
-import type { BlueprintHandler } from "../../blueprints/types.js";
-import type { Application } from "../../foundation/Application.js";
-import type { ConflictPolicy } from "../../installation/types.js";
-import { promptNewBlueprints, promptOutdated, promptVariable } from "../../prompts.js";
-import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
-import { Service } from "../../services/Service.js";
-import { parseConflictPolicy } from "../../utilities/conflict-policy.js";
-import { validateStacks } from "../../utilities/stacks.js";
-import { loadVariableDefinitions } from "../../variables.js";
-import { conflictPolicyOption, noInteractiveOption } from "../shared-options.js";
+import { blueprintHandlers } from "@/blueprints/registry";
+import type { BlueprintHandler } from "@/blueprints/types";
+import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
+import type { Application } from "@/foundation/Application";
+import type { ConflictPolicy } from "@/installation/types";
+import { promptNewBlueprints, promptOutdated, promptVariable } from "@/prompts";
+import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
+import { Service } from "@/services/Service";
+import { parseConflictPolicy } from "@/utilities/conflict-policy";
+import { validateStacks } from "@/utilities/stacks";
+import { loadVariableDefinitions } from "@/variables";
 
 const missingConfig = (reason: string) =>
   new Error(`${reason} Run \`spindle init\` to create .github/spindle.json.`);
@@ -87,10 +87,10 @@ async function resolveVariables(
 }
 
 export class UpdateCommand extends Service {
-  #handlers: readonly BlueprintHandler[] = [];
-  #reconciliationService!: BlueprintReconciliationService;
+  private handlers: readonly BlueprintHandler[] = [];
+  private reconciliationService!: BlueprintReconciliationService;
 
-  static register(program: Command, createApp: () => Application): void {
+  public static register(program: Command, createApp: () => Promise<Application>): void {
     program
       .command("update")
       .description(
@@ -117,21 +117,23 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
           const interactive =
             options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
           const policy = parseConflictPolicy(options.onConflict);
-          await (await createApp().get(UpdateCommand)).run(interactive, policy, options.includeNew);
+          await (
+            await (await createApp()).make(UpdateCommand)
+          ).run(interactive, policy, options.includeNew);
         },
       );
   }
 
-  constructor(app: Application) {
+  public constructor(app: Application) {
     super(app);
   }
 
-  override async boot(): Promise<void> {
-    this.#handlers = blueprintHandlers;
-    this.#reconciliationService = await this.app.get(BlueprintReconciliationService);
+  public override async boot(): Promise<void> {
+    this.handlers = blueprintHandlers;
+    this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  async run(
+  public async run(
     interactive: boolean,
     policy: ConflictPolicy | undefined,
     includeNew = false,
@@ -141,7 +143,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     const config = await readConfig(configPath);
     let prompted: Record<string, string> = {};
 
-    const outcomes = await this.#reconciliationService.reconcile(this.#handlers, {
+    const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: { stacks: config.stacks, variables: config.variables },
       includeNew,

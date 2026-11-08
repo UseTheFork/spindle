@@ -6,8 +6,8 @@ import { expect, test } from "vitest";
 
 import { createIssue, issueFixture } from "./issue-helpers.ts";
 
-test("issue comment recovers an interrupted issue/ledger write without losing history", () => {
-  const { service, feature } = issueFixture("Issue Recovery");
+test("issue comment recovers an interrupted issue/ledger write without losing history", async () => {
+  const { service, feature } = await issueFixture("Issue Recovery");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const ledger = JSON.parse(ledgerBefore);
@@ -66,8 +66,8 @@ test("issue comment recovers an interrupted issue/ledger write without losing hi
   expect(recovered.content.match(/Recovery followed by a comment\./g) ?? []).toHaveLength(1);
 });
 
-test("recovery leaves every target unchanged when a later ledger conflicts", () => {
-  const { service, feature } = issueFixture("Conflicting Recovery");
+test("recovery leaves every target unchanged when a later ledger conflicts", async () => {
+  const { service, feature } = await issueFixture("Conflicting Recovery");
   createIssue(service, feature.spec, "Existing issue");
   const issuePath = join(feature.workspace, "issues", "I-0001.md");
   const ledgerPath = join(feature.workspace, "sdd.json");

@@ -1,8 +1,9 @@
-import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
+
+import { afterAll, beforeAll, test, expect, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 import { Chalk } from "chalk";
 
@@ -19,7 +20,7 @@ const fixtureVariables = {
   owner: "nobody",
 };
 
-before(async () => {
+beforeAll(async () => {
   stubsDirectory = await makeTempDir("spindle-init-stubs-");
   await mkdir(join(stubsDirectory, "skills", "demo"), { recursive: true });
   await writeFile(
@@ -28,7 +29,7 @@ before(async () => {
   );
 });
 
-after(async () => {
+afterAll(async () => {
   await rm(stubsDirectory, { recursive: true, force: true });
 });
 
@@ -52,8 +53,8 @@ test("init reports success with a plain message when colors are off", async () =
   const { project, result } = await runInit(["--stack", "python"]);
 
   try {
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "✔ Installed 1 skill(s) for python\n");
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe("✔ Installed 1 skill(s) for python\n");
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -63,39 +64,39 @@ test("init help uses Commander conventions without starting the workflow", async
   const { project, result } = await runInit(["-h"]);
 
   try {
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Usage: spindle init \[options\]/);
-    assert.match(result.stdout, /-h, --help/);
-    assert.match(result.stdout, /--stack <id>/);
-    assert.doesNotMatch(result.stdout, /Installed/);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/Usage: spindle init \[options\]/);
+    expect(result.stdout).toMatch(/-h, --help/);
+    expect(result.stdout).toMatch(/--stack <id>/);
+    expect(result.stdout).not.toMatch(/Installed/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
 });
 
 test("init help and invalid-option errors are available outside a Git working tree", async () => {
-  const project = await mkdtemp(join(tmpdir(), "spindle-init-outside-git-"));
+  const project = await mkdtemp(join(process.cwd(), "spindle-init-outside-git-"));
 
   try {
     const help = runCliRaw(project, ["init", "--help"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
     });
-    assert.equal(help.status, 0, help.stderr);
-    assert.match(help.stdout, /Usage: spindle init \[options\]/);
+    expect(help.status, help.stderr).toBe(0);
+    expect(help.stdout).toMatch(/Usage: spindle init \[options\]/);
 
     const invalid = runCliRaw(project, ["init", "--include-new"], process.env.PATH ?? "", {
       SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
     });
-    assert.notEqual(invalid.status, 0);
-    assert.match(invalid.stderr, /unknown option.*include-new/i);
-    assert.doesNotMatch(invalid.stderr, /Git working-tree root/i);
+    expect(invalid.status).not.toBe(0);
+    expect(invalid.stderr).toMatch(/unknown option.*include-new/i);
+    expect(invalid.stderr).not.toMatch(/Git working-tree root/i);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
 });
 
 test("init reports semantic argument errors before Git discovery outside a working tree", async () => {
-  const project = await mkdtemp(join(tmpdir(), "spindle-init-semantic-errors-"));
+  const project = await mkdtemp(join(process.cwd(), "spindle-init-semantic-errors-"));
   const cases = [
     { args: ["--stack", "cobol"], error: /Invalid stack 'cobol'/ },
     { args: ["--stack", "python", "--var", "owner"], error: /Invalid --var 'owner'/ },
@@ -112,14 +113,10 @@ test("init reports semantic argument errors before Git discovery outside a worki
         SPINDLE_BLUEPRINTS_DIR: stubsDirectory,
       });
 
-      assert.notEqual(result.status, 0, `Expected rejection for ${args.join(" ")}`);
-      assert.match(result.stderr, error, `Unexpected error for ${args.join(" ")}`);
-      assert.doesNotMatch(result.stderr, /Git working-tree root/i);
-      assert.deepEqual(
-        await readdir(project),
-        [],
-        "Invalid arguments must not create project files",
-      );
+      expect(result.status, `Expected rejection for ${args.join(" ")}`).not.toBe(0);
+      expect(result.stderr, `Unexpected error for ${args.join(" ")}`).toMatch(error);
+      expect(result.stderr).not.toMatch(/Git working-tree root/i);
+      expect(await readdir(project), "Invalid arguments must not create project files").toEqual([]);
     }
   } finally {
     await rm(project, { recursive: true, force: true });
@@ -139,8 +136,8 @@ test("init rejects inapplicable options, missing values, invalid policies, and p
     const { project, result } = await runInit(args);
 
     try {
-      assert.notEqual(result.status, 0, `Expected rejection for ${args.join(" ")}`);
-      assert.match(result.stderr, error, `Unexpected error for ${args.join(" ")}`);
+      expect(result.status, `Expected rejection for ${args.join(" ")}`).not.toBe(0);
+      expect(result.stderr, `Unexpected error for ${args.join(" ")}`).toMatch(error);
     } finally {
       await rm(project, { recursive: true, force: true });
     }
@@ -151,10 +148,9 @@ test("init colors success output with chalk when colors are forced", async () =>
   const { project, result } = await runInit(["--stack", "python"], { FORCE_COLOR: "1" });
 
   try {
-    assert.equal(result.status, 0, result.stderr);
+    expect(result.status, result.stderr).toBe(0);
     const forced = new Chalk({ level: 1 });
-    assert.equal(
-      result.stdout,
+    expect(result.stdout).toBe(
       `${forced.green("✔")} Installed 1 skill(s) for ${forced.cyan("python")}\n`,
     );
   } finally {
@@ -166,9 +162,9 @@ test("init colors errors red with chalk when colors are forced", async () => {
   const { project, result } = await runInit([], { FORCE_COLOR: "1" });
 
   try {
-    assert.notEqual(result.status, 0);
+    expect(result.status).not.toBe(0);
     const forced = new Chalk({ level: 1 });
-    assert.equal(result.stderr.startsWith(`${forced.red.bold("spindle:")} `), true, result.stderr);
+    expect(result.stderr.startsWith(`${forced.red.bold("spindle:")} `), result.stderr).toBe(true);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -178,15 +174,15 @@ test("init installs its configured skill and records repeatable stack flags", as
   const { project, result } = await runInit(["--stack", "php-laravel", "--stack", "typescript"]);
 
   try {
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
       stacks: ["php-laravel", "typescript"],
       variables: fixtureVariables,
     });
     const skill = await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8");
-    assert.match(skill, /^---\nname: demo\nmetadata:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
-    assert.match(skill, /# Demo/);
-    assert.deepEqual(await readdir(join(project, ".github/skills")), ["demo"]);
+    expect(skill).toMatch(/^---\nname: demo\nmetadata:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
+    expect(skill).toMatch(/# Demo/);
+    expect(await readdir(join(project, ".github/skills"))).toEqual(["demo"]);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -203,8 +199,8 @@ test("init applies repeated Variable flags in command-line order", async () => {
   ]);
 
   try {
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
       stacks: ["python"],
       variables: { lint_command: "just lint", owner: "second" },
     });
@@ -232,11 +228,10 @@ test(
         { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
       );
 
-      assert.equal(result.status, 0, result.stdout);
-      assert.match(result.stdout, /Skill 'demo'.*What should happen\?/);
-      assert.match(await readFile(skillPath, "utf8"), /# Demo/);
-      assert.match(
-        await readFile(join(project, ".github", "spindle.json"), "utf8"),
+      expect(result.status, result.stdout).toBe(0);
+      expect(result.stdout).toMatch(/Skill 'demo'.*What should happen\?/);
+      expect(await readFile(skillPath, "utf8")).toMatch(/# Demo/);
+      expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toMatch(
         /"stacks":\s*\[\s*"python"\s*\]/,
       );
     } finally {
@@ -280,20 +275,18 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
       { SPINDLE_BLUEPRINTS_DIR: blueprints },
     );
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")), {
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
       stacks: ["python"],
       variables: { lint_command: "just lint", owner: "team" },
     });
-    assert.equal(
-      await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8"),
+    expect(await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8")).toBe(
       '---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
     );
-    assert.equal(
+    expect(
       await readFile(join(project, ".github/skills/demo/guidance/nested/python.md"), "utf8"),
-      "Owner=team; stack=python\n",
-    );
-    assert.deepEqual(await readFile(join(project, ".github/skills/demo/assets.bin")), binaryAsset);
+    ).toBe("Owner=team; stack=python\n");
+    expect(await readFile(join(project, ".github/skills/demo/assets.bin"))).toEqual(binaryAsset);
   } finally {
     await rm(blueprints, { recursive: true, force: true });
     await rm(project, { recursive: true, force: true });
@@ -303,7 +296,7 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
 test("init skip policy leaves existing Skills untouched and still writes Config", async () => {
   const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
   try {
-    assert.equal(initialResult.status, 0, initialResult.stderr);
+    expect(initialResult.status, initialResult.stderr).toBe(0);
     await writeFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "preserve this");
     const configPath = join(projectRoot, ".github/spindle.json");
     await rm(configPath);
@@ -315,16 +308,14 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
       { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
-    assert.equal(project.status, 0, project.stderr);
-    assert.equal(
-      project.stdout,
+    expect(project.status, project.stderr).toBe(0);
+    expect(project.stdout).toBe(
       "✔ Installed 0 skill(s) for typescript. Skipped 1 existing skill(s)\n",
     );
-    assert.equal(
-      await readFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "utf8"),
+    expect(await readFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "utf8")).toBe(
       "preserve this",
     );
-    assert.deepEqual(JSON.parse(await readFile(configPath, "utf8")), {
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({
       stacks: ["typescript"],
       variables: fixtureVariables,
     });
@@ -336,7 +327,7 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
 test("init overwrite policy removes files that are no longer in the Stub", async () => {
   const { project, result: initialResult } = await runInit(["--stack", "python"]);
   try {
-    assert.equal(initialResult.status, 0, initialResult.stderr);
+    expect(initialResult.status, initialResult.stderr).toBe(0);
     const stalePath = join(project, ".github/skills/demo/stale.txt");
     await writeFile(stalePath, "remove me");
     await rm(join(project, ".github/spindle.json"));
@@ -348,9 +339,9 @@ test("init overwrite policy removes files that are no longer in the Stub", async
       { SPINDLE_BLUEPRINTS_DIR: stubsDirectory },
     );
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /Installed 1 skill\(s\) for python/);
-    await assert.rejects(readFile(stalePath));
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/Installed 1 skill\(s\) for python/);
+    await expect(readFile(stalePath)).rejects.toThrow();
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -360,9 +351,9 @@ test("init fails clearly and writes nothing when no stack is selected", async ()
   const { project, result } = await runInit([]);
 
   try {
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /at least one --stack/i);
-    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/at least one --stack/i);
+    await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -372,9 +363,9 @@ test("init rejects unsupported stack ids with a clear error", async () => {
   const { project, result } = await runInit(["--stack", "ruby"]);
 
   try {
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /invalid stack.*ruby|unsupported stack.*ruby/i);
-    await assert.rejects(readFile(join(project, ".github/spindle.json")));
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/invalid stack.*ruby|unsupported stack.*ruby/i);
+    await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -399,10 +390,10 @@ test(
         },
       );
 
-      assert.notEqual(result.status, 0);
-      assert.match(result.stderr, /\.github.*symbolic link|symbolic link.*\.github/i);
-      assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep");
-      await assert.rejects(readFile(join(outside, "spindle.json")));
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/\.github.*symbolic link|symbolic link.*\.github/i);
+      expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
+      await expect(readFile(join(outside, "spindle.json"))).rejects.toThrow();
     } finally {
       await rm(project, { recursive: true, force: true });
     }
@@ -429,13 +420,12 @@ test(
         },
       );
 
-      assert.notEqual(result.status, 0);
-      assert.match(
-        result.stderr,
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(
         /\.github[\\/]skills.*symbolic link|symbolic link.*\.github[\\/]skills/i,
       );
-      assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep");
-      await assert.rejects(readFile(join(project, ".github", "spindle.json")));
+      expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
+      await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
     } finally {
       await rm(project, { recursive: true, force: true });
     }
@@ -462,13 +452,12 @@ test(
         },
       );
 
-      assert.notEqual(result.status, 0);
-      assert.match(
-        result.stderr,
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(
         /\.github[\\/]skills[\\/]demo.*symbolic link|symbolic link.*\.github[\\/]skills[\\/]demo/i,
       );
-      assert.equal(await readFile(join(outside, "sentinel"), "utf8"), "keep");
-      await assert.rejects(readFile(join(project, ".github", "spindle.json")));
+      expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
+      await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
     } finally {
       await rm(project, { recursive: true, force: true });
     }

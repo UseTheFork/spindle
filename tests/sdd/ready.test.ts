@@ -6,8 +6,8 @@ import { expect, test } from "vitest";
 
 import { createIssue, issueFixture, workspaceSnapshot } from "./issue-helpers.ts";
 
-test("ready rejects duplicated ledger issue progress records", () => {
-  const { service, feature } = issueFixture("Duplicate Ledger Issue");
+test("ready rejects duplicated ledger issue progress records", async () => {
+  const { service, feature } = await issueFixture("Duplicate Ledger Issue");
   createIssue(service, feature.spec, "One issue");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -18,8 +18,8 @@ test("ready rejects duplicated ledger issue progress records", () => {
   expect(readFileSync(ledgerPath, "utf8")).toBe(malformed);
 });
 
-test("ready leaves workspace files, directories, and Git status unchanged", () => {
-  const { service, feature, git } = issueFixture("Read Only Ready");
+test("ready leaves workspace files, directories, and Git status unchanged", async () => {
+  const { service, feature, git } = await issueFixture("Read Only Ready");
   const before = workspaceSnapshot(feature.workspace);
   const statusBefore = git("status", "--porcelain=v1", "--untracked-files=all");
   expect(service.ready({ spec: feature.spec })).toEqual({ ready: [], unready: [] });
@@ -27,8 +27,8 @@ test("ready leaves workspace files, directories, and Git status unchanged", () =
   expect(git("status", "--porcelain=v1", "--untracked-files=all")).toBe(statusBefore);
 });
 
-test("ready refuses a pending journal without changing workspace or Git status", () => {
-  const { service, feature, git } = issueFixture("Pending Ready");
+test("ready refuses a pending journal without changing workspace or Git status", async () => {
+  const { service, feature, git } = await issueFixture("Pending Ready");
   const journal = join(feature.workspace, ".sdd-write-recovery.json");
   const ledgerBefore = readFileSync(join(feature.workspace, "sdd.json"), "utf8");
   const ledgerAfter = JSON.parse(ledgerBefore);
@@ -50,8 +50,8 @@ test("ready refuses a pending journal without changing workspace or Git status",
   expect(git("status", "--porcelain=v1", "--untracked-files=all")).toBe(statusBefore);
 });
 
-test("ready exposes unmet dependencies and rejects missing references and cycles", () => {
-  const { service, feature } = issueFixture("Issue Dependencies");
+test("ready exposes unmet dependencies and rejects missing references and cycles", async () => {
+  const { service, feature } = await issueFixture("Issue Dependencies");
   for (const title of [
     "Prerequisite",
     "Dependent",

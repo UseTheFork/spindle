@@ -3,9 +3,11 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import type { BlueprintCatalogDefinition, CatalogSourceEntry } from "../src/blueprints/catalog.ts";
+import type { BlueprintCatalogDefinition, CatalogSourceEntry } from "@/blueprints/catalog";
 
 const cli = resolve(process.cwd(), "src/index.ts");
+const tsconfig = resolve(process.cwd(), "tsconfig.json");
+const checkout = resolve(process.cwd());
 const tsxLoader = import.meta.resolve("tsx");
 const catalogLoader = resolve(process.cwd(), "tests/load-catalog-fixture.ts");
 
@@ -45,7 +47,15 @@ export function runCliRaw(
   return spawnSync(process.execPath, [...nodeArguments(env), ...args], {
     cwd: project,
     encoding: "utf8",
-    env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
+    env: {
+      ...process.env,
+      TSX_TSCONFIG_PATH: tsconfig,
+      GIT_CEILING_DIRECTORIES: checkout,
+      FORCE_COLOR: "0",
+      ...env,
+      PATH: searchPath,
+      Path: searchPath,
+    },
   });
 }
 
@@ -173,7 +183,15 @@ export function runCliInteractiveRaw(
     (resolve, reject) => {
       const child = spawn("script", ["-qfec", command, "/dev/null"], {
         cwd: project,
-        env: { ...process.env, FORCE_COLOR: "0", ...env, PATH: searchPath, Path: searchPath },
+        env: {
+          ...process.env,
+          TSX_TSCONFIG_PATH: tsconfig,
+          GIT_CEILING_DIRECTORIES: checkout,
+          FORCE_COLOR: "0",
+          ...env,
+          PATH: searchPath,
+          Path: searchPath,
+        },
         stdio: ["pipe", "pipe", "pipe"],
       });
       let stdout = "";

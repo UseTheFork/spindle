@@ -6,8 +6,8 @@ import { expect, test } from "vitest";
 import { runCli } from "../helpers.ts";
 import { invokeAsync, serviceFixture } from "./helpers.ts";
 
-test("sdd create requires named non-empty title and author options", () => {
-  const { repo } = serviceFixture();
+test("sdd create requires named non-empty title and author options", async () => {
+  const { repo } = await serviceFixture();
   const invalidArguments = [
     ["sdd", "create"],
     ["sdd", "create", "--title", "Feature"],
@@ -29,7 +29,7 @@ test("sdd create requires named non-empty title and author options", () => {
 });
 
 test("concurrent sdd create commands allocate distinct consecutive feature IDs", async () => {
-  const { repo } = serviceFixture();
+  const { repo } = await serviceFixture();
   const results = await Promise.all(
     ["First", "Second", "Third", "Fourth", "Fifth", "Sixth"].map((title) =>
       invokeAsync(repo, ["create", "--title", `${title} Concurrent`, "--author", "maintainer"]),
@@ -59,8 +59,8 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
   expect(existsSync(join(repo, ".scratch", ".sdd-create.lock"))).toBe(false);
 });
 
-test("sdd help advertises guarded workflow commands instead of the legacy workspace resolver", () => {
-  const { repo } = serviceFixture();
+test("sdd help advertises guarded workflow commands instead of the legacy workspace resolver", async () => {
+  const { repo } = await serviceFixture();
   const searchPath = process.env.PATH ?? "";
   const help = runCli(repo, ["sdd", "--help"], searchPath);
   expect(help.status, help.stderr).toBe(0);
@@ -91,8 +91,8 @@ test("sdd help advertises guarded workflow commands instead of the legacy worksp
   expect(legacy.stderr).toMatch(/unknown command 'workspace'/);
 });
 
-test("sdd create and status expose JSON results and report path errors through the CLI", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create and status expose JSON results and report path errors through the CLI", async () => {
+  const { repo, service } = await serviceFixture();
   const searchPath = process.env.PATH ?? "";
   const created = runCli(
     repo,

@@ -13,8 +13,8 @@ import { expect, test } from "vitest";
 
 import { serviceFixture } from "./helpers.ts";
 
-test("sdd create writes a numbered feature workspace with its default ledger policy", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create writes a numbered feature workspace with its default ledger policy", async () => {
+  const { repo, service } = await serviceFixture();
   const result = service.create({ title: "Command Driven SDD", author: "maintainer" });
   const featureDirectory = join(repo, ".scratch", "0001-command-driven-sdd");
   const expected = {
@@ -47,8 +47,8 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   });
 });
 
-test("sdd create allocates above matching IDs and ignores dated and unrelated directories", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create allocates above matching IDs and ignores dated and unrelated directories", async () => {
+  const { repo, service } = await serviceFixture();
   const scratch = join(repo, ".scratch");
   mkdirSync(join(scratch, "0007-older-feature"), { recursive: true });
   mkdirSync(join(scratch, "0012-another-feature"), { recursive: true });
@@ -64,16 +64,16 @@ test("sdd create allocates above matching IDs and ignores dated and unrelated di
   expect(existsSync(join(scratch, "2026-11-06-historical-feature", "sdd.json"))).toBe(false);
 });
 
-test("sdd create compares large matching IDs without numeric precision loss", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create compares large matching IDs without numeric precision loss", async () => {
+  const { repo, service } = await serviceFixture();
   mkdirSync(join(repo, ".scratch", "9007199254740993-previous-feature"), { recursive: true });
   expect(service.create({ title: "Next Large Feature", author: "maintainer" }).feature).toBe(
     "9007199254740994-next-large-feature",
   );
 });
 
-test("sdd create reports abandoned staging content without overwriting or publishing it", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create reports abandoned staging content without overwriting or publishing it", async () => {
+  const { repo, service } = await serviceFixture();
   const abandoned = join(repo, ".scratch", ".sdd-create-interrupted");
   mkdirSync(abandoned, { recursive: true });
   writeFileSync(join(abandoned, "spec.md"), "partial content\n");
@@ -85,8 +85,8 @@ test("sdd create reports abandoned staging content without overwriting or publis
   expect(existsSync(join(repo, ".scratch", "0001-recoverable-feature"))).toBe(false);
 });
 
-test("sdd create preserves a stale lock and gives an explicit recovery instruction", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create preserves a stale lock and gives an explicit recovery instruction", async () => {
+  const { repo, service } = await serviceFixture();
   const scratch = join(repo, ".scratch");
   mkdirSync(scratch);
   const lockPath = join(scratch, ".sdd-create.lock");
@@ -98,8 +98,8 @@ test("sdd create preserves a stale lock and gives an explicit recovery instructi
   expect(existsSync(join(scratch, "0001-locked-feature"))).toBe(false);
 });
 
-test("sdd create rejects symlinked and ignored destinations without overwriting outside content", () => {
-  const { repo, service } = serviceFixture();
+test("sdd create rejects symlinked and ignored destinations without overwriting outside content", async () => {
+  const { repo, service } = await serviceFixture();
   const outside = join(repo, "..", "outside-scratch");
   mkdirSync(outside);
   writeFileSync(join(outside, "keep.txt"), "outside content\n");

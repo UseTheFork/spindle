@@ -1,15 +1,16 @@
-import assert from "node:assert/strict";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
-import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { blueprintHandlers } from "../src/blueprints/registry.ts";
-import { Application } from "../src/foundation/Application.ts";
-import { InstallationService } from "../src/installation/installation-service.ts";
-import { BlueprintReconciliationService } from "../src/reconciliation/blueprint-reconciliation-service.ts";
-import { preparePlannedBlueprintFiles } from "../src/utilities/blueprint-files.ts";
-import { resolveBlueprintSourceRoot } from "../src/utilities/blueprint-source-root.ts";
+import { test, expect } from "vitest";
+
+import { blueprintHandlers } from "@/blueprints/registry";
+import { InstallationService } from "@/installation/installation-service";
+import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
+import { preparePlannedBlueprintFiles } from "@/utilities/blueprint-files";
+import { resolveBlueprintSourceRoot } from "@/utilities/blueprint-source-root";
+
+import { applicationFixture } from "./application-fixture";
 import { makeTempDir } from "./helpers.ts";
 
 test("relative Blueprint overrides stay fixed to the App workspace after cwd changes", async () => {
@@ -27,24 +28,20 @@ test("relative Blueprint overrides stay fixed to the App workspace after cwd cha
     await mkdir(join(workspace, "nested"));
     process.env.SPINDLE_BLUEPRINTS_DIR = "assets";
     process.chdir(join(workspace, "nested"));
-    const app = new Application({
-      workspaceRoot: workspace,
-      blueprintSourceRoot: resolveBlueprintSourceRoot(workspace),
-    });
+    const app = applicationFixture(workspace, resolveBlueprintSourceRoot(workspace));
 
-    assert.ok(isAbsolute(app.blueprintSourceRoot));
-    assert.equal(app.blueprintSourceRoot, expectedSourceRoot);
+    expect(isAbsolute(app.blueprintSourceRoot)).toBeTruthy();
+    expect(app.blueprintSourceRoot).toBe(expectedSourceRoot);
     process.chdir(laterCwd);
-    assert.equal(app.blueprintSourceRoot, expectedSourceRoot);
-    const service = await app.get(BlueprintReconciliationService);
+    expect(app.blueprintSourceRoot).toBe(expectedSourceRoot);
+    const service = await app.make(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, { mode: "init", context: config, config });
-    assert.match(
+    expect(
       await readFile(
         join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md"),
         "utf8",
       ),
-      /version: 1\.2\.0/,
-    );
+    ).toMatch(/version: 1\.2\.0/);
   } finally {
     process.chdir(originalCwd);
     if (originalOverride === undefined) delete process.env.SPINDLE_BLUEPRINTS_DIR;
@@ -85,20 +82,16 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
     const prepared = await preparePlannedBlueprintFiles(files, context);
-    const installation = await new Application({
-      workspaceRoot: target,
-      blueprintSourceRoot: source,
-    }).get(InstallationService);
+    const installation = await applicationFixture(target, source).make(InstallationService);
     await installation.installPreparedFiles(prepared, target);
 
-    assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), "Hello Spindle!");
-    assert.equal(await readFile(join(target, "templates/a.md"), "utf8"), "a python,typescript\n");
-    assert.equal(
-      await readFile(join(target, "templates/sub/x.md"), "utf8"),
+    expect(await readFile(join(target, "SKILL.md"), "utf8")).toBe("Hello Spindle!");
+    expect(await readFile(join(target, "templates/a.md"), "utf8")).toBe("a python,typescript\n");
+    expect(await readFile(join(target, "templates/sub/x.md"), "utf8")).toBe(
       "x {{VSCODE_FOO}} python+typescript\n",
     );
     for (const [path, content] of preservedFiles) {
-      assert.deepEqual(await readFile(join(target, path)), content, path);
+      expect(await readFile(join(target, path)), path).toEqual(content);
     }
   } finally {
     await rm(source, { recursive: true, force: true });
@@ -127,20 +120,14 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   try {
     await cp(sourceRoot, firstSourceRoot, { recursive: true });
 
-    const firstApp = new Application({
-      workspaceRoot: firstWorkspace,
-      blueprintSourceRoot: firstSourceRoot,
-    });
-    const secondApp = new Application({
-      workspaceRoot: secondWorkspace,
-      blueprintSourceRoot: sourceRoot,
-    });
+    const firstApp = applicationFixture(firstWorkspace, firstSourceRoot);
+    const secondApp = applicationFixture(secondWorkspace, sourceRoot);
     const [firstService, secondService] = await Promise.all([
-      firstApp.get(BlueprintReconciliationService),
-      secondApp.get(BlueprintReconciliationService),
+      firstApp.make(BlueprintReconciliationService),
+      secondApp.make(BlueprintReconciliationService),
     ]);
 
-    assert.notEqual(firstService, secondService);
+    expect(firstService).not.toBe(secondService);
     await firstService.reconcile(blueprintHandlers, {
       mode: "init",
       context: firstConfig,
@@ -152,17 +139,15 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
       config: secondConfig,
     });
 
-    assert.deepEqual(
+    expect(
       JSON.parse(await readFile(join(firstWorkspace, ".github", "spindle.json"), "utf8")),
-      firstConfig,
-    );
-    assert.deepEqual(
+    ).toEqual(firstConfig);
+    expect(
       JSON.parse(await readFile(join(secondWorkspace, ".github", "spindle.json"), "utf8")),
-      secondConfig,
-    );
+    ).toEqual(secondConfig);
 
     const sourceText = await readFile(skillSource, "utf8");
-    assert.ok(sourceText.includes("version: 1.2.0"));
+    expect(sourceText.includes("version: 1.2.0")).toBeTruthy();
     await writeFile(
       skillSource,
       `${sourceText.replace("version: 1.2.0", "version: 2.0.0")}\nApplication one update marker.\n`,
@@ -176,10 +161,10 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
 
     const firstInstalledSkill = await readFile(skillTarget(firstWorkspace), "utf8");
     const secondInstalledSkill = await readFile(skillTarget(secondWorkspace), "utf8");
-    assert.match(firstInstalledSkill, /version: 2\.0\.0/);
-    assert.match(firstInstalledSkill, /Application one update marker\./);
-    assert.match(secondInstalledSkill, /version: 1\.2\.0/);
-    assert.doesNotMatch(secondInstalledSkill, /Application one update marker\./);
+    expect(firstInstalledSkill).toMatch(/version: 2\.0\.0/);
+    expect(firstInstalledSkill).toMatch(/Application one update marker\./);
+    expect(secondInstalledSkill).toMatch(/version: 1\.2\.0/);
+    expect(secondInstalledSkill).not.toMatch(/Application one update marker\./);
   } finally {
     await rm(firstWorkspace, { recursive: true, force: true });
     await rm(secondWorkspace, { recursive: true, force: true });

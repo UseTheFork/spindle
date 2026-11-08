@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { SddCommand } from "@/commands/sdd/sdd-command.js";
+import type { SddCommand } from "@/commands/sdd/sdd-command";
 
 import {
   execute,
@@ -12,17 +12,17 @@ import {
   prepareClaimableIssue,
   prepareImplementationForReview,
 } from "./helpers.ts";
-test("checks require declares required commands and permits later additions", () => {
-  const { repo, spec } = prepareClaimableIssue();
-  const requireCheck = (command: string) =>
-    execute(repo, (service) =>
+test("checks require declares required commands and permits later additions", async () => {
+  const { repo, spec } = await prepareClaimableIssue();
+  const requireCheck = async (command: string) =>
+    await execute(repo, (service) =>
       service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
     );
 
-  const initial = requireCheck("just test::test tests/unit.test.ts");
+  const initial = await requireCheck("just test::test tests/unit.test.ts");
   expect(initial.status, initial.stderr).toBe(0);
 
-  const added = requireCheck("just test::test tests/integration.test.ts");
+  const added = await requireCheck("just test::test tests/integration.test.ts");
   expect(added.status, added.stderr).toBe(0);
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
@@ -34,9 +34,9 @@ test("checks require declares required commands and permits later additions", ()
   expect(JSON.parse(added.stdout).checks.required.length).toBe(2);
 });
 
-test("claim and resume report content identities that change for untracked code", () => {
-  const { repo, spec } = prepareClaimableIssue();
-  const claim = execute(repo, (service) =>
+test("claim and resume report content identities that change for untracked code", async () => {
+  const { repo, spec } = await prepareClaimableIssue();
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -50,7 +50,7 @@ test("claim and resume report content identities that change for untracked code"
   expect(baseline.requirementsSnapshot).toMatch(/^[0-9a-f]{64}$/);
 
   writeFileSync(join(repo, "new-source.ts"), "export const changed = true;\n");
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -60,9 +60,9 @@ test("claim and resume report content identities that change for untracked code"
   expect(current.requirementsSnapshot).toBe(baseline.requirementsSnapshot);
 });
 
-test("code identity distinguishes one untracked payload from two separately framed files", () => {
-  const { repo, spec } = prepareClaimableIssue();
-  const claim = execute(repo, (service) =>
+test("code identity distinguishes one untracked payload from two separately framed files", async () => {
+  const { repo, spec } = await prepareClaimableIssue();
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -71,7 +71,7 @@ test("code identity distinguishes one untracked payload from two separately fram
     "path\0b\0index-absent\0worktree-mode:420\0worktree-file\0Y",
   );
   writeFileSync(join(repo, "a"), Buffer.concat([Buffer.from("X"), secondFileRecord]));
-  const oneFile = execute(repo, (service) =>
+  const oneFile = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(oneFile.status, oneFile.stderr).toBe(0);
@@ -80,7 +80,7 @@ test("code identity distinguishes one untracked payload from two separately fram
   rmSync(join(repo, "a"));
   writeFileSync(join(repo, "a"), "X");
   writeFileSync(join(repo, "b"), "Y");
-  const twoFiles = execute(repo, (service) =>
+  const twoFiles = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(twoFiles.status, twoFiles.stderr).toBe(0);
@@ -89,10 +89,10 @@ test("code identity distinguishes one untracked payload from two separately fram
   expect(oneFileIdentity).not.toBe(twoFileIdentity);
 });
 
-test("code identity rejects changed submodule revisions and dirty or untracked submodule content", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("code identity rejects changed submodule revisions and dirty or untracked submodule content", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/example.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
@@ -110,7 +110,7 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
   git("-c", "protocol.file.allow=always", "submodule", "add", "-q", source, submodulePath);
   commitAll(repo, git, "add fixture submodule");
 
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -127,7 +127,7 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
 
   const submodule = join(repo, submodulePath);
   writeFileSync(join(submodule, "tracked.txt"), "dirty tracked content\n");
-  const dirtyRecord = execute(repo, recordArgs);
+  const dirtyRecord = await execute(repo, recordArgs);
   expect(dirtyRecord.status).not.toBe(0);
   expect(dirtyRecord.stderr).toMatch(/submodule/i);
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
@@ -135,7 +135,7 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
 
   writeFileSync(join(submodule, "tracked.txt"), "submodule base\n");
   writeFileSync(join(submodule, "untracked.txt"), "untracked submodule content\n");
-  const untrackedResume = execute(repo, (service) =>
+  const untrackedResume = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(untrackedResume.status).not.toBe(0);
@@ -145,23 +145,23 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
   writeFileSync(join(submodule, "tracked.txt"), "new submodule revision\n");
   execFileSync("git", ["add", "tracked.txt"], { cwd: submodule });
   execFileSync("git", ["commit", "-qm", "new submodule revision"], { cwd: submodule });
-  const revisionResume = execute(repo, (service) =>
+  const revisionResume = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(revisionResume.status).not.toBe(0);
   expect(revisionResume.stderr).toMatch(/submodule/i);
 });
 
-test("nested untracked repositories cannot reuse identities or record check coverage", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("nested untracked repositories cannot reuse identities or record check coverage", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/example.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
 
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -178,7 +178,7 @@ test("nested untracked repositories cannot reuse identities or record check cove
 
   const resumeArgs = (service: SddCommand) =>
     service.resume({ spec, issue: "I-0001", author: "controller" });
-  const initialIdentity = execute(repo, resumeArgs);
+  const initialIdentity = await execute(repo, resumeArgs);
   const reusableSnapshot =
     initialIdentity.status === 0
       ? (JSON.parse(initialIdentity.stdout).snapshot as string)
@@ -188,11 +188,11 @@ test("nested untracked repositories cannot reuse identities or record check cove
   }
 
   writeFileSync(join(nested, "tracked.txt"), "nested repository changed\n");
-  const changedIdentity = execute(repo, resumeArgs);
+  const changedIdentity = await execute(repo, resumeArgs);
   expect(changedIdentity.status).not.toBe(0);
   expect(changedIdentity.stderr).toMatch(/nested|repository|worktree/i);
 
-  const recorded = execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -208,10 +208,10 @@ test("nested untracked repositories cannot reuse identities or record check cove
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records).toEqual([]);
 });
 
-test("missing known Gitlinks reject identity actions and check recording", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("missing known Gitlinks reject identity actions and check recording", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/example.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
@@ -229,7 +229,7 @@ test("missing known Gitlinks reject identity actions and check recording", () =>
   git("-c", "protocol.file.allow=always", "submodule", "add", "-q", source, submodulePath);
   commitAll(repo, git, "add fixture submodule");
 
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -238,13 +238,13 @@ test("missing known Gitlinks reject identity actions and check recording", () =>
   git("submodule", "deinit", "-f", "--", submodulePath);
   rmSync(join(repo, submodulePath), { recursive: true, force: true });
 
-  const resume = execute(repo, (service) =>
+  const resume = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resume.status).not.toBe(0);
   expect(resume.stderr).toMatch(/missing or uninitialized/i);
 
-  const recorded = execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -260,9 +260,9 @@ test("missing known Gitlinks reject identity actions and check recording", () =>
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records).toEqual([]);
 });
 
-test("content identity includes staged and unstaged working content relative to the claim baseline", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
-  const claim = execute(repo, (service) =>
+test("content identity includes staged and unstaged working content relative to the claim baseline", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -270,7 +270,7 @@ test("content identity includes staged and unstaged working content relative to 
 
   writeFileSync(join(repo, "tracked.txt"), "staged content\n");
   git("add", "tracked.txt");
-  const stagedResult = execute(repo, (service) =>
+  const stagedResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(stagedResult.status, stagedResult.stderr).toBe(0);
@@ -278,7 +278,7 @@ test("content identity includes staged and unstaged working content relative to 
   expect(staged).not.toBe(baseline);
 
   writeFileSync(join(repo, "tracked.txt"), "unstaged content\n");
-  const unstagedResult = execute(repo, (service) =>
+  const unstagedResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(unstagedResult.status, unstagedResult.stderr).toBe(0);
@@ -286,16 +286,16 @@ test("content identity includes staged and unstaged working content relative to 
   expect(stagedAndUnstaged).not.toBe(staged);
 
   git("commit", "-qm", "commit staged content");
-  const committedResult = execute(repo, (service) =>
+  const committedResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(committedResult.status, committedResult.stderr).toBe(0);
   expect(JSON.parse(committedResult.stdout).codeSnapshot).toBe(stagedAndUnstaged);
 });
 
-test("content identity includes staged content even when the working tree is restored", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
-  const claim = execute(repo, (service) =>
+test("content identity includes staged content even when the working tree is restored", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -304,16 +304,16 @@ test("content identity includes staged content even when the working tree is res
   git("add", "tracked.txt");
   writeFileSync(join(repo, "tracked.txt"), "base\n");
 
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   expect(JSON.parse(resumed.stdout).codeSnapshot).not.toBe(baseline);
 });
 
-test("content identity includes Git-tracked executable mode changes", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
-  const claim = execute(repo, (service) =>
+test("content identity includes Git-tracked executable mode changes", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -321,7 +321,7 @@ test("content identity includes Git-tracked executable mode changes", () => {
   chmodSync(join(repo, "tracked.txt"), 0o755);
   git("add", "tracked.txt");
 
-  const stagedResult = execute(repo, (service) =>
+  const stagedResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(stagedResult.status, stagedResult.stderr).toBe(0);
@@ -329,22 +329,22 @@ test("content identity includes Git-tracked executable mode changes", () => {
   expect(staged).not.toBe(baseline);
 
   chmodSync(join(repo, "tracked.txt"), 0o644);
-  const unstagedResult = execute(repo, (service) =>
+  const unstagedResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(unstagedResult.status, unstagedResult.stderr).toBe(0);
   expect(JSON.parse(unstagedResult.stdout).codeSnapshot).not.toBe(staged);
 });
 
-test("checks record stores one result against the supplied snapshot and is idempotent", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("checks record stores one result against the supplied snapshot and is idempotent", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/example.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -359,7 +359,7 @@ test("checks record stores one result against the supplied snapshot and is idemp
       author: "controller",
     });
 
-  const recorded = execute(repo, recordArgs);
+  const recorded = await execute(repo, recordArgs);
   expect(recorded.status, recorded.stderr).toBe(0);
   expect(JSON.parse(recorded.stdout).record).toEqual({
     command,
@@ -371,7 +371,7 @@ test("checks record stores one result against the supplied snapshot and is idemp
     headSha: JSON.parse(claim.stdout).headSha,
     recordedAt: JSON.parse(recorded.stdout).record.recordedAt,
   });
-  const repeated = execute(repo, recordArgs);
+  const repeated = await execute(repo, recordArgs);
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const ledger = JSON.parse(
@@ -380,9 +380,9 @@ test("checks record stores one result against the supplied snapshot and is idemp
   expect(ledger.issues[0].checks.records.length).toBe(1);
 });
 
-test("passing check evidence is reusable only for unchanged explicitly covered paths", () => {
-  const { repo, spec, command, submission } = prepareImplementationForReview();
-  const record = execute(repo, (service) =>
+test("passing check evidence is reusable only for unchanged explicitly covered paths", async () => {
+  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const record = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -395,7 +395,7 @@ test("passing check evidence is reusable only for unchanged explicitly covered p
   );
   expect(record.status, record.stderr).toBe(0);
   writeFileSync(join(repo, "unrelated.ts"), "export const unrelated = true;\n");
-  let status = execute(repo, (service) => service.status({ spec }));
+  let status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   let state = JSON.parse(status.stdout) as {
     actions: { issue: string; action: string }[];
@@ -405,16 +405,16 @@ test("passing check evidence is reusable only for unchanged explicitly covered p
   expect(!state.blockers.some((blocker) => blocker.reason.includes("Required check"))).toBeTruthy();
 
   writeFileSync(join(repo, "feature.ts"), "export const feature = 'changed';\n");
-  status = execute(repo, (service) => service.status({ spec }));
+  status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   state = JSON.parse(status.stdout) as typeof state;
   expect(state.blockers.some((blocker) => blocker.reason.includes("Required check"))).toBeTruthy();
   expect(!state.actions.some((action) => action.action === "review")).toBeTruthy();
 });
 
-test("content identity excludes ordinary comments but tracks requirement changes and decisions", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
-  const required = execute(repo, (service) =>
+test("content identity excludes ordinary comments but tracks requirement changes and decisions", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
+  const required = await execute(repo, (service) =>
     service.checksRequire({
       spec,
       issue: "I-0001",
@@ -424,7 +424,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -434,7 +434,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
     requirementsSnapshot: string;
   };
   const command = "just test::test tests/example.test.ts";
-  const recorded = execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -445,7 +445,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
     }),
   );
   expect(recorded.status, recorded.stderr).toBe(0);
-  const comment = execute(repo, (service) =>
+  const comment = await execute(repo, (service) =>
     service.issueComment({
       spec,
       issue: "I-0001",
@@ -463,12 +463,15 @@ test("content identity excludes ordinary comments but tracks requirement changes
   );
   writeFileSync(generatedReport, "Generated report content.\n");
   const afterComment = JSON.parse(
-    execute(repo, (service) => service.resume({ spec, issue: "I-0001", author: "controller" }))
-      .stdout,
+    (
+      await execute(repo, (service) =>
+        service.resume({ spec, issue: "I-0001", author: "controller" }),
+      )
+    ).stdout,
   ) as typeof initial;
   expect(afterComment.snapshot).toBe(initial.snapshot);
   expect(afterComment.codeSnapshot).toBe(initial.codeSnapshot);
-  const afterCommentNext = execute(repo, (service) => service.next({ spec }));
+  const afterCommentNext = await execute(repo, (service) => service.next({ spec }));
   expect(afterCommentNext.status, afterCommentNext.stderr).toBe(0);
   expect(
     JSON.stringify(JSON.parse(afterCommentNext.stdout).blockers).includes("Required check"),
@@ -478,14 +481,14 @@ test("content identity excludes ordinary comments but tracks requirement changes
     spec,
     `${readFileSync(spec, "utf8")}\n## Requirements\n\nA changed feature requirement.\n`,
   );
-  const afterSpecChangeResult = execute(repo, (service) =>
+  const afterSpecChangeResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(afterSpecChangeResult.status, afterSpecChangeResult.stderr).toBe(0);
   const afterSpecChange = JSON.parse(afterSpecChangeResult.stdout) as typeof initial;
   expect(afterSpecChange.codeSnapshot).toBe(initial.codeSnapshot);
   expect(afterSpecChange.requirementsSnapshot).not.toBe(initial.requirementsSnapshot);
-  const staleNext = execute(repo, (service) => service.next({ spec }));
+  const staleNext = await execute(repo, (service) => service.next({ spec }));
   expect(staleNext.status, staleNext.stderr).toBe(0);
   expect(JSON.stringify(JSON.parse(staleNext.stdout).blockers)).toMatch(
     /Required check .* is stale/,
@@ -500,7 +503,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
       "## Requirements\n\nAn issue-specific requirement changed.\n",
     ),
   );
-  const afterIssueRequirementResult = execute(repo, (service) =>
+  const afterIssueRequirementResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(afterIssueRequirementResult.status, afterIssueRequirementResult.stderr).toBe(0);
@@ -508,7 +511,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
   expect(afterIssueRequirement.codeSnapshot).toBe(initial.codeSnapshot);
   expect(afterIssueRequirement.requirementsSnapshot).not.toBe(afterSpecChange.requirementsSnapshot);
 
-  const decision = execute(repo, (service) =>
+  const decision = await execute(repo, (service) =>
     service.issueComment({
       spec,
       issue: "I-0001",
@@ -517,7 +520,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
     }),
   );
   expect(decision.status, decision.stderr).toBe(0);
-  const afterDecisionResult = execute(repo, (service) =>
+  const afterDecisionResult = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(afterDecisionResult.status, afterDecisionResult.stderr).toBe(0);
@@ -526,15 +529,15 @@ test("content identity excludes ordinary comments but tracks requirement changes
   );
 });
 
-test("metadata-only commits preserve content coverage while changing Git provenance", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("metadata-only commits preserve content coverage while changing Git provenance", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/example.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -542,7 +545,7 @@ test("metadata-only commits preserve content coverage while changing Git provena
     snapshot: string;
     headSha: string;
   };
-  const recorded = execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -555,14 +558,14 @@ test("metadata-only commits preserve content coverage while changing Git provena
   expect(recorded.status, recorded.stderr).toBe(0);
   git("commit", "--allow-empty", "-m", "metadata-only revision");
 
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   const current = JSON.parse(resumed.stdout) as typeof initial;
   expect(current.snapshot).toBe(initial.snapshot);
   expect(current.headSha).not.toBe(initial.headSha);
-  const status = execute(repo, (service) => service.status({ spec }));
+  const status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   expect(
     JSON.parse(status.stdout).blockers.some((item: { reason: string }) =>
@@ -571,16 +574,16 @@ test("metadata-only commits preserve content coverage while changing Git provena
   ).toBe(false);
 });
 
-test("checks record rejects malformed or stale snapshots and requires failure details without executing commands", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("checks record rejects malformed or stale snapshots and requires failure details without executing commands", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const sentinel = join(repo, "command-was-not-executed");
   const command = `touch ${sentinel}`;
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
@@ -589,22 +592,22 @@ test("checks record rejects malformed or stale snapshots and requires failure de
   const before = readFileSync(ledgerPath, "utf8");
   const baseArgs = { spec, issue: "I-0001", command, author: "controller" };
 
-  const malformed = execute(repo, (service) =>
+  const malformed = await execute(repo, (service) =>
     service.checksRecord({ ...baseArgs, snapshot: "not-a-snapshot", result: "passed" }),
   );
   expect(malformed.status).not.toBe(0);
   expect(malformed.stderr).toMatch(/64-character hexadecimal/);
-  const invalidResult = execute(repo, (service) =>
+  const invalidResult = await execute(repo, (service) =>
     service.checksRecord({ ...baseArgs, snapshot, result: "skipped" }),
   );
   expect(invalidResult.status).not.toBe(0);
   expect(invalidResult.stderr).toMatch(/Invalid check result/);
-  const failedWithoutDetails = execute(repo, (service) =>
+  const failedWithoutDetails = await execute(repo, (service) =>
     service.checksRecord({ ...baseArgs, snapshot, result: "failed" }),
   );
   expect(failedWithoutDetails.status).not.toBe(0);
   expect(failedWithoutDetails.stderr).toMatch(/--details is required/);
-  const unavailableWithoutDetails = execute(repo, (service) =>
+  const unavailableWithoutDetails = await execute(repo, (service) =>
     service.checksRecord({ ...baseArgs, snapshot, result: "unavailable" }),
   );
   expect(unavailableWithoutDetails.status).not.toBe(0);
@@ -612,7 +615,7 @@ test("checks record rejects malformed or stale snapshots and requires failure de
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 
   writeFileSync(join(repo, "new-source.ts"), "export const changed = true;\n");
-  const stale = execute(repo, (service) =>
+  const stale = await execute(repo, (service) =>
     service.checksRecord({ ...baseArgs, snapshot, result: "passed" }),
   );
   expect(stale.status).not.toBe(0);
@@ -620,10 +623,13 @@ test("checks record rejects malformed or stale snapshots and requires failure de
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 
   const currentSnapshot = JSON.parse(
-    execute(repo, (service) => service.resume({ spec, issue: "I-0001", author: "controller" }))
-      .stdout,
+    (
+      await execute(repo, (service) =>
+        service.resume({ spec, issue: "I-0001", author: "controller" }),
+      )
+    ).stdout,
   ).snapshot as string;
-  const failed = execute(repo, (service) =>
+  const failed = await execute(repo, (service) =>
     service.checksRecord({
       ...baseArgs,
       snapshot: currentSnapshot,
@@ -632,7 +638,7 @@ test("checks record rejects malformed or stale snapshots and requires failure de
     }),
   );
   expect(failed.status, failed.stderr).toBe(0);
-  const unavailable = execute(repo, (service) =>
+  const unavailable = await execute(repo, (service) =>
     service.checksRecord({
       ...baseArgs,
       snapshot: currentSnapshot,
@@ -641,7 +647,7 @@ test("checks record rejects malformed or stale snapshots and requires failure de
     }),
   );
   expect(unavailable.status, unavailable.stderr).toBe(0);
-  const next = execute(repo, (service) => service.next({ spec }));
+  const next = await execute(repo, (service) => service.next({ spec }));
   expect(next.status, next.stderr).toBe(0);
   expect(JSON.stringify(JSON.parse(next.stdout).blockers)).toMatch(
     /Required check .* is unavailable/,
@@ -649,20 +655,20 @@ test("checks record rejects malformed or stale snapshots and requires failure de
   expect(existsSync(sentinel)).toBe(false);
 });
 
-test("check removal requires rationale and invalidates accepted decisions while preserving history", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("check removal requires rationale and invalidates accepted decisions while preserving history", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const firstCommand = "just test::test tests/first.test.ts";
-  const requireFirst = execute(repo, (service) =>
+  const requireFirst = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command: firstCommand, author: "controller" }),
   );
   expect(requireFirst.status, requireFirst.stderr).toBe(0);
   commitAll(repo, git, "declare first check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const claimOutput = JSON.parse(claim.stdout);
-  const record = execute(repo, (service) =>
+  const record = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -679,7 +685,7 @@ test("check removal requires rationale and invalidates accepted decisions while 
   ledger.issues[0].execution = "accepted";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   const beforeRemoval = readFileSync(ledgerPath, "utf8");
-  const missingRationale = execute(repo, (service) =>
+  const missingRationale = await execute(repo, (service) =>
     service.checksRequire({
       spec,
       issue: "I-0001",
@@ -692,7 +698,7 @@ test("check removal requires rationale and invalidates accepted decisions while 
   expect(missingRationale.stderr).toMatch(/requires non-empty --details rationale/);
   expect(readFileSync(ledgerPath, "utf8")).toBe(beforeRemoval);
 
-  const removed = execute(repo, (service) =>
+  const removed = await execute(repo, (service) =>
     service.checksRequire({
       spec,
       issue: "I-0001",
@@ -714,31 +720,31 @@ test("check removal requires rationale and invalidates accepted decisions while 
   expect(persisted.issues[0].checks.invalidations.length).toBe(1);
 
   const secondCommand = "just test::test tests/second.test.ts";
-  const added = execute(repo, (service) =>
+  const added = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command: secondCommand, author: "controller" }),
   );
   expect(added.status, added.stderr).toBe(0);
   expect(JSON.parse(added.stdout).requirementsSnapshot).not.toBe(afterRemoval.requirementsSnapshot);
-  const status = execute(repo, (service) => service.status({ spec }));
+  const status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.stringify(JSON.parse(status.stdout).blockers)).toMatch(
     /Required check .*second\.test\.ts.*missing/,
   );
 });
 
-test("status does not permit integration when a required check failed", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("status does not permit integration when a required check failed", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/required.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
-  const failed = execute(repo, (service) =>
+  const failed = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -755,30 +761,30 @@ test("status does not permit integration when a required check failed", () => {
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   ledger.issues[0].execution = "accepted";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  const status = execute(repo, (service) => service.status({ spec }));
+  const status = await execute(repo, (service) => service.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(status.stdout).actions).toEqual([]);
   expect(JSON.stringify(JSON.parse(status.stdout).blockers)).toMatch(/Required check .* is failed/);
-  const resumed = execute(repo, (service) =>
+  const resumed = await execute(repo, (service) =>
     service.resume({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   expect(JSON.parse(resumed.stdout).nextAction).toBe("resolve-check-blocker");
 });
 
-test("stale checks on an integrated issue keep dependent issues blocked", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("stale checks on an integrated issue keep dependent issues blocked", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const command = "just test::test tests/required.test.ts";
-  const required = execute(repo, (service) =>
+  const required = await execute(repo, (service) =>
     service.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
-  const claim = execute(repo, (service) =>
+  const claim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
-  const failed = execute(repo, (service) =>
+  const failed = await execute(repo, (service) =>
     service.checksRecord({
       spec,
       issue: "I-0001",
@@ -795,7 +801,7 @@ test("stale checks on an integrated issue keep dependent issues blocked", () => 
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   ledger.issues[0].execution = "integrated";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  const dependent = execute(repo, (service) =>
+  const dependent = await execute(repo, (service) =>
     service.issueCreate({
       spec,
       title: "Wait for valid evidence",
@@ -805,11 +811,11 @@ test("stale checks on an integrated issue keep dependent issues blocked", () => 
     }),
   );
   expect(dependent.status, dependent.stderr).toBe(0);
-  const dependency = execute(repo, (service) =>
+  const dependency = await execute(repo, (service) =>
     service.issueUpdate({ spec, issue: "I-0002", blockedBy: ["I-0001"], author: "maintainer" }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
-  const triaged = execute(repo, (service) =>
+  const triaged = await execute(repo, (service) =>
     service.triage({
       spec,
       issue: "I-0002",
@@ -821,18 +827,18 @@ test("stale checks on an integrated issue keep dependent issues blocked", () => 
   );
   expect(triaged.status, triaged.stderr).toBe(0);
 
-  const ready = execute(repo, (service) => service.ready({ spec }));
+  const ready = await execute(repo, (service) => service.ready({ spec }));
   expect(ready.status, ready.stderr).toBe(0);
   expect(JSON.parse(ready.stdout).unready).toEqual([{ issue: "I-0002", blockedBy: ["I-0001"] }]);
-  const attemptedClaim = execute(repo, (service) =>
+  const attemptedClaim = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0002", author: "controller" }),
   );
   expect(attemptedClaim.status).not.toBe(0);
   expect(attemptedClaim.stderr).toMatch(/dependencies that are not integrated: I-0001/);
 });
 
-test("claim rejects staged, unstaged, and untracked changes without changing ownership or baseline", () => {
-  const { repo, git, spec } = prepareClaimableIssue();
+test("claim rejects staged, unstaged, and untracked changes without changing ownership or baseline", async () => {
+  const { repo, git, spec } = await prepareClaimableIssue();
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const beforeLedger = readFileSync(ledgerPath, "utf8");
   const dirtyStates = [
@@ -847,7 +853,7 @@ test("claim rejects staged, unstaged, and untracked changes without changing own
   for (const [index, makeDirty] of dirtyStates.entries()) {
     makeDirty();
     const beforeStatus = git("status", "--porcelain=v1", "--untracked-files=all");
-    const result = execute(repo, (service) =>
+    const result = await execute(repo, (service) =>
       service.claim({ spec, issue: "I-0001", author: "controller" }),
     );
 
@@ -864,13 +870,13 @@ test("claim rejects staged, unstaged, and untracked changes without changing own
   }
 });
 
-test("an unavailable implementation assignment can later submit once without duplicating history", () => {
-  const { repo, spec } = prepareClaimableIssue();
-  const claimed = execute(repo, (service) =>
+test("an unavailable implementation assignment can later submit once without duplicating history", async () => {
+  const { repo, spec } = await prepareClaimableIssue();
+  const claimed = await execute(repo, (service) =>
     service.claim({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
-  const dispatched = execute(repo, (service) =>
+  const dispatched = await execute(repo, (service) =>
     service.implement({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
@@ -883,12 +889,12 @@ test("an unavailable implementation assignment can later submit once without dup
   expect(assignment.role).toBe("implementation");
   expect(assignment.action).toBe("implement");
   expect(assignment.report.endsWith("/reports/I-0001-implementation.md")).toBe(true);
-  const repeatedDispatch = execute(repo, (service) =>
+  const repeatedDispatch = await execute(repo, (service) =>
     service.implement({ spec, issue: "I-0001", author: "controller" }),
   );
   expect(repeatedDispatch.status, repeatedDispatch.stderr).toBe(0);
   expect(JSON.parse(repeatedDispatch.stdout).assignment.id).toBe(assignment.id);
-  const unavailable = execute(repo, (service) =>
+  const unavailable = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -902,7 +908,7 @@ test("an unavailable implementation assignment can later submit once without dup
   expect(JSON.parse(unavailable.stdout).unavailable).toBe(true);
 
   writeFileSync(assignment.report, "Implementation evidence.\n");
-  const submitted = execute(repo, (service) =>
+  const submitted = await execute(repo, (service) =>
     service.submit({
       spec,
       issue: "I-0001",
@@ -919,7 +925,7 @@ test("an unavailable implementation assignment can later submit once without dup
   expect(submission.assignment.status).toBe("submitted");
   expect(submission.report).toBe(assignment.report);
   const submittedAt = submission.assignment.submittedAt;
-  const repeated = execute(repo, (service) =>
+  const repeated = await execute(repo, (service) =>
     service.submit({ spec, issue: "I-0001", role: "implementation", author: "controller" }),
   );
   expect(repeated.status, repeated.stderr).toBe(0);

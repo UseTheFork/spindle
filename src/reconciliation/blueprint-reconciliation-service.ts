@@ -7,29 +7,29 @@ import {
   validateBlueprintCatalog,
   type CatalogDeletion,
   type CatalogSelection,
-} from "../blueprints/catalog.js";
+} from "@/blueprints/catalog";
 import type {
   BlueprintHandler,
   BlueprintUpdatePlan,
   PreparedBlueprintInitialization,
-} from "../blueprints/types.js";
-import { ComputedContextService } from "../computed/computed-context.js";
-import type { Application } from "../foundation/Application.js";
-import { InstallationService } from "../installation/installation-service.js";
+} from "@/blueprints/types";
+import { ComputedContextService } from "@/computed/computed-context";
+import type { Application } from "@/foundation/Application";
+import { InstallationService } from "@/installation/installation-service";
 import type {
   ConflictPolicy,
   PlannedBlueprintFile,
   PreparedBlueprintFile,
-} from "../installation/types.js";
-import type { RenderContext } from "../render.js";
-import { Service } from "../services/Service.js";
+} from "@/installation/types";
+import type { RenderContext } from "@/render";
+import { Service } from "@/services/Service";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,
   exists,
   preparePlannedBlueprintFiles,
-} from "../utilities/blueprint-files.js";
-import { readBlueprintVersion } from "../version.js";
+} from "@/utilities/blueprint-files";
+import { readBlueprintVersion } from "@/version";
 
 export interface BlueprintOutcome {
   kind: string;
@@ -692,7 +692,7 @@ async function performReconciliation(
   if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
   let contextService: Promise<ComputedContextService> | undefined;
   const resolveContext = async () => {
-    contextService ??= options.app.create(ComputedContextService);
+    contextService ??= options.app.make(ComputedContextService);
     return (await contextService).resolve(
       async () => options.context ?? (await options.resolveContext?.()),
     );
@@ -878,17 +878,17 @@ async function performReconciliation(
 }
 
 export class BlueprintReconciliationService extends Service {
-  #installationService!: InstallationService;
+  private installationService!: InstallationService;
 
-  constructor(app: Application) {
+  public constructor(app: Application) {
     super(app);
   }
 
-  override async boot(): Promise<void> {
-    this.#installationService = await this.app.get(InstallationService);
+  public override async boot(): Promise<void> {
+    this.installationService = await this.app.make(InstallationService);
   }
 
-  async reconcile(
+  public async reconcile(
     handlers: readonly BlueprintHandler[],
     options: BlueprintReconciliationOptions,
   ): Promise<BlueprintOutcome[]> {
@@ -900,7 +900,7 @@ export class BlueprintReconciliationService extends Service {
         githubDirectory: join(this.app.workspaceRoot, ".github"),
         blueprintSourceRoot: this.app.blueprintSourceRoot,
       },
-      this.#installationService,
+      this.installationService,
     );
   }
 }

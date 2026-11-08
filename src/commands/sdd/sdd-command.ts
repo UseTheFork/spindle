@@ -24,10 +24,10 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Command } from "commander";
 import matter from "gray-matter";
 
-import { blueprintCatalog } from "../../blueprints/catalog.js";
-import type { Application } from "../../foundation/Application.js";
-import { Service } from "../../services/Service.js";
-import { once } from "../shared-options.js";
+import { blueprintCatalog } from "@/blueprints/catalog";
+import { once } from "@/commands/shared-options";
+import type { Application } from "@/foundation/Application";
+import { Service } from "@/services/Service";
 
 const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const HISTORICAL_DATE_DIRECTORY = /^\d{4}-\d{2}-\d{2}-/;
@@ -1115,7 +1115,7 @@ function waitBriefly(): void {
 }
 
 export class SddCommand extends Service {
-  static register(program: Command, createApp: () => Application): void {
+  public static register(program: Command, createApp: () => Promise<Application>): void {
     program
       .command("create")
       .description("Create a numbered SDD feature workspace and initial ledger.")
@@ -1125,7 +1125,7 @@ export class SddCommand extends Service {
       .allowExcessArguments(false)
       .action(async (options: CreateOptions) => {
         validateCreateOptions(options);
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.create(options), null, 2));
       });
 
@@ -1140,7 +1140,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Acting author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IssueCreateOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.issueCreate(options), null, 2));
       });
 
@@ -1156,7 +1156,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Acting author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IssueUpdateOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.issueUpdate(options), null, 2));
       });
 
@@ -1169,7 +1169,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Acting author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IssueCommentOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.issueComment(options), null, 2));
       });
 
@@ -1184,7 +1184,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Acting author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: TriageOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.triage(options), null, 2));
       });
 
@@ -1194,7 +1194,7 @@ export class SddCommand extends Service {
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: ReadyOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.ready(options), null, 2));
       });
 
@@ -1206,7 +1206,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ClaimOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.claim(options), null, 2));
       });
 
@@ -1229,7 +1229,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("checks require needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.checksRequire(options), null, 2));
       });
     checks
@@ -1260,7 +1260,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("checks record needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.checksRecord(options), null, 2));
       });
 
@@ -1272,7 +1272,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ImplementOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.implement(options), null, 2));
       });
 
@@ -1307,7 +1307,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("correct needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.correct(options), null, 2));
       });
 
@@ -1347,7 +1347,7 @@ export class SddCommand extends Service {
             }
             if (options.inventory)
               throw new Error("--inventory is not valid with 'review require'.");
-            const command = await createApp().get(SddCommand);
+            const command = await (await createApp()).make(SddCommand);
             console.log(
               JSON.stringify(command.reviewRequire(options as ReviewRequireOptions), null, 2),
             );
@@ -1370,7 +1370,7 @@ export class SddCommand extends Service {
               "review requires --spec, exactly one of --issue or --scope delivery, --inventory, and --author.",
             );
           }
-          const command = await createApp().get(SddCommand);
+          const command = await (await createApp()).make(SddCommand);
           console.log(JSON.stringify(command.review(options as ReviewOptions), null, 2));
         },
       );
@@ -1413,7 +1413,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("finding create needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.findingCreate(options), null, 2));
       });
     finding
@@ -1443,7 +1443,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("finding update needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.findingUpdate(options), null, 2));
       });
     const requirements = program
@@ -1471,7 +1471,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("requirements decide needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.requirementsDecide(options), null, 2));
       });
 
@@ -1504,7 +1504,7 @@ export class SddCommand extends Service {
       noFindingsDeclared = true;
     });
     submitCommand.action(async (options: SubmitOptions) => {
-      const command = await createApp().get(SddCommand);
+      const command = await (await createApp()).make(SddCommand);
       if (options.scope !== undefined && options.scope !== "delivery") {
         throw new Error("--scope must be 'delivery'.");
       }
@@ -1541,7 +1541,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: AcceptOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.accept(options), null, 2));
       });
 
@@ -1554,7 +1554,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IntegrateOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.integrate(options), null, 2));
       });
 
@@ -1572,7 +1572,7 @@ export class SddCommand extends Service {
       .requiredOption("--author <author>", "Controller author", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FinishOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.finish(options), null, 2));
       });
 
@@ -1592,7 +1592,7 @@ export class SddCommand extends Service {
         if (Boolean(options.issue) === (options.scope === "delivery")) {
           throw new Error("resume needs exactly one of --issue or --scope delivery.");
         }
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.resume(options), null, 2));
       });
 
@@ -1602,7 +1602,7 @@ export class SddCommand extends Service {
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: NextOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.next(options), null, 2));
       });
 
@@ -1612,12 +1612,12 @@ export class SddCommand extends Service {
       .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: StatusOptions) => {
-        const command = await createApp().get(SddCommand);
+        const command = await (await createApp()).make(SddCommand);
         console.log(JSON.stringify(command.status(options), null, 2));
       });
   }
 
-  constructor(app: Application) {
+  public constructor(app: Application) {
     super(app);
   }
 
