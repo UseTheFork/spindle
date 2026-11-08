@@ -1,7 +1,8 @@
 import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { App, Service } from "../app.js";
+import type { Application } from "../foundation/Application.js";
+import { Service } from "../services/Service.js";
 import { assertSingleFileDestination } from "../utilities/blueprint-files.js";
 import type { PreparedBlueprintFile } from "./types.js";
 
@@ -36,7 +37,7 @@ async function installFile(
 }
 
 export class InstallationService extends Service {
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 

@@ -3,12 +3,13 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command } from "commander";
 
-import { App, Service } from "../../app.js";
 import { blueprintHandlers } from "../../blueprints/registry.js";
 import type { BlueprintHandler } from "../../blueprints/types.js";
+import type { Application } from "../../foundation/Application.js";
 import type { ConflictPolicy } from "../../installation/types.js";
 import { promptConflict, promptStacks, promptVariable } from "../../prompts.js";
 import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
+import { Service } from "../../services/Service.js";
 import { exists } from "../../utilities/blueprint-files.js";
 import { parseConflictPolicy } from "../../utilities/conflict-policy.js";
 import { supportedStacks, validateStacks } from "../../utilities/stacks.js";
@@ -19,7 +20,7 @@ export class InitCommand extends Service {
   #handlers: readonly BlueprintHandler[] = [];
   #reconciliationService!: BlueprintReconciliationService;
 
-  static register(program: Command, createApp: () => App): void {
+  static register(program: Command, createApp: () => Application): void {
     program
       .command("init")
       .description(
@@ -88,7 +89,7 @@ Run \`spindle --version\` to print the installed version.
       );
   }
 
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 

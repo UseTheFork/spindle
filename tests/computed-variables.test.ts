@@ -5,13 +5,13 @@ import { test } from "node:test";
 
 import matter from "gray-matter";
 
-import { App } from "../src/app.ts";
 import type { BlueprintCatalogDefinition } from "../src/blueprints/catalog.ts";
 import { blueprintCatalog } from "../src/blueprints/catalog.ts";
 import { InitCommand } from "../src/commands/init/init-command.ts";
 import { UpdateCommand } from "../src/commands/update/update-command.ts";
 import { ComputedContextService } from "../src/computed/computed-context.ts";
 import { ComputedVariableProvider, type ResolvedConfig } from "../src/computed/provider.ts";
+import { Application } from "../src/foundation/Application.ts";
 import { renderText } from "../src/render.ts";
 import { loadVariableDefinitions } from "../src/variables.ts";
 import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "./helpers.ts";
@@ -399,7 +399,7 @@ test("repeated Updates through one App render fresh Config with computed outputs
     join(process.cwd(), "src/blueprints/skills", skillName, "SKILL.md"),
     "utf8",
   );
-  const app = new App({ workspaceRoot: project, blueprintSourceRoot: blueprints });
+  const app = new Application({ workspaceRoot: project, blueprintSourceRoot: blueprints });
 
   try {
     await cp(join(process.cwd(), "src/blueprints"), blueprints, { recursive: true });
@@ -472,7 +472,7 @@ test("providers receive immutable resolved Config once per run and refresh acros
     count: CountingProvider,
   };
 
-  const app = new App({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
+  const app = new Application({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
   const firstRun = await app.create(ComputedContextService);
   let inputResolutions = 0;
   const [firstContext, repeatedContext] = await Promise.all([
@@ -540,7 +540,10 @@ test("providers receive immutable resolved Config once per run and refresh acros
   assert.equal(secondContext.computed.count, "evaluation-2");
   assert.equal(evaluations, 2, "a separate run renders a fresh value");
 
-  const otherApp = new App({ workspaceRoot: "/other-project", blueprintSourceRoot: "/blueprints" });
+  const otherApp = new Application({
+    workspaceRoot: "/other-project",
+    blueprintSourceRoot: "/blueprints",
+  });
   const isolatedRun = await otherApp.create(ComputedContextService);
   const isolatedContext = await isolatedRun.resolve(
     async () => ({
@@ -562,7 +565,7 @@ test("provider failures stop context resolution with the public key and original
     }
   }
 
-  const app = new App({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
+  const app = new Application({ workspaceRoot: "/project", blueprintSourceRoot: "/blueprints" });
   const contextService = await app.create(ComputedContextService);
   const resolvedContext = contextService.resolve(async () => ({ stacks: [], variables: {} }), {
     public_failure_name: FailingProvider,

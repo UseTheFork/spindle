@@ -52,6 +52,9 @@ A named text value derived from Config for use in Blueprints during generation. 
 The `.github/spindle.json` file holding the user's selected stacks and variables.
 _Avoid_: Settings file, manifest
 
+**Application Configuration**:
+The settings used by the running Spindle application, distinct from a project's selected Stacks and Variables in Config.
+
 **Feature workspace**:
 A repository-identified collection of a feature's specification, issues,
 reports, and delivery history.

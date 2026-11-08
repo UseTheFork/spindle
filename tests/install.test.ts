@@ -4,8 +4,8 @@ import { dirname, isAbsolute, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { App } from "../src/app.ts";
 import { blueprintHandlers } from "../src/blueprints/registry.ts";
+import { Application } from "../src/foundation/Application.ts";
 import { InstallationService } from "../src/installation/installation-service.ts";
 import { BlueprintReconciliationService } from "../src/reconciliation/blueprint-reconciliation-service.ts";
 import { preparePlannedBlueprintFiles } from "../src/utilities/blueprint-files.ts";
@@ -27,7 +27,7 @@ test("relative Blueprint overrides stay fixed to the App workspace after cwd cha
     await mkdir(join(workspace, "nested"));
     process.env.SPINDLE_BLUEPRINTS_DIR = "assets";
     process.chdir(join(workspace, "nested"));
-    const app = new App({
+    const app = new Application({
       workspaceRoot: workspace,
       blueprintSourceRoot: resolveBlueprintSourceRoot(workspace),
     });
@@ -85,7 +85,7 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
     const prepared = await preparePlannedBlueprintFiles(files, context);
-    const installation = await new App({
+    const installation = await new Application({
       workspaceRoot: target,
       blueprintSourceRoot: source,
     }).get(InstallationService);
@@ -127,11 +127,11 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   try {
     await cp(sourceRoot, firstSourceRoot, { recursive: true });
 
-    const firstApp = new App({
+    const firstApp = new Application({
       workspaceRoot: firstWorkspace,
       blueprintSourceRoot: firstSourceRoot,
     });
-    const secondApp = new App({
+    const secondApp = new Application({
       workspaceRoot: secondWorkspace,
       blueprintSourceRoot: sourceRoot,
     });

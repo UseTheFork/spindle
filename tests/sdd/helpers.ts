@@ -4,8 +4,8 @@ import { join, resolve } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { App } from "@/app.js";
 import { SddCommand } from "@/commands/sdd/sdd-command.js";
+import { Application } from "@/foundation/Application.js";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -28,14 +28,17 @@ export function fixture() {
 export function serviceFixture() {
   const workspace = fixture();
   const service = new SddCommand(
-    new App({ workspaceRoot: workspace.repo, blueprintSourceRoot: resolve("src/blueprints") }),
+    new Application({
+      workspaceRoot: workspace.repo,
+      blueprintSourceRoot: resolve("src/blueprints"),
+    }),
   );
   return { ...workspace, service };
 }
 
 export function execute(repo: string, run: (service: SddCommand) => unknown) {
   const command = new SddCommand(
-    new App({
+    new Application({
       workspaceRoot: repo,
       blueprintSourceRoot: resolve(process.cwd(), "src/blueprints"),
     }),

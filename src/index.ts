@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 
 import chalk from "chalk";
 
-import { App } from "./app.js";
 import { dispatch } from "./cli.js";
+import { Application } from "./foundation/Application.js";
 import { resolveBlueprintSourceRoot } from "./utilities/blueprint-source-root.js";
 
 export function discoverGitRoot(startingDirectory: string): string {
@@ -33,7 +33,7 @@ export function discoverGitRoot(startingDirectory: string): string {
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
   await dispatch(args, () => {
     const workspaceRoot = discoverGitRoot(startingDirectory);
-    return new App({
+    return new Application({
       workspaceRoot,
       blueprintSourceRoot: resolveBlueprintSourceRoot(workspaceRoot),
     });

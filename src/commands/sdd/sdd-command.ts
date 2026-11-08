@@ -24,8 +24,9 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Command } from "commander";
 import matter from "gray-matter";
 
-import { App, Service } from "../../app.js";
 import { blueprintCatalog } from "../../blueprints/catalog.js";
+import type { Application } from "../../foundation/Application.js";
+import { Service } from "../../services/Service.js";
 import { once } from "../shared-options.js";
 
 const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
@@ -1114,7 +1115,7 @@ function waitBriefly(): void {
 }
 
 export class SddCommand extends Service {
-  static register(program: Command, createApp: () => App): void {
+  static register(program: Command, createApp: () => Application): void {
     program
       .command("create")
       .description("Create a numbered SDD feature workspace and initial ledger.")
@@ -1616,7 +1617,7 @@ export class SddCommand extends Service {
       });
   }
 
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 

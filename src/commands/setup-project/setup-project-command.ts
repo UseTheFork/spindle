@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import type { Command } from "commander";
 
-import { App, Service } from "../../app.js";
+import type { Application } from "../../foundation/Application.js";
+import { Service } from "../../services/Service.js";
 import { once } from "../shared-options.js";
 
 export interface SetupProjectInput {
@@ -26,7 +27,7 @@ function validateWorkspacePath(workspacePath: string): void {
 }
 
 export class SetupProjectCommand extends Service {
-  static register(program: Command, createApp: () => App): void {
+  static register(program: Command, createApp: () => Application): void {
     program
       .command("setup-project")
       .description("Create project documentation directories and missing Spindle defaults.")
@@ -43,7 +44,7 @@ export class SetupProjectCommand extends Service {
       });
   }
 
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 

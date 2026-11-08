@@ -1,15 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { App } from "@/app.js";
 import { SddCommand } from "@/commands/sdd/sdd-command.js";
+import { Application } from "@/foundation/Application.js";
 
 import { fixture } from "./helpers.ts";
 
 export function issueFixture(title: string) {
   const { repo, git } = fixture();
   const service = new SddCommand(
-    new App({ workspaceRoot: repo, blueprintSourceRoot: resolve("src/blueprints") }),
+    new Application({ workspaceRoot: repo, blueprintSourceRoot: resolve("src/blueprints") }),
   );
   const feature = service.create({ title, author: "maintainer" });
   return { repo, git, service, feature };

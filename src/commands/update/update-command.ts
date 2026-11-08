@@ -4,12 +4,13 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command } from "commander";
 
-import { App, Service } from "../../app.js";
 import { blueprintHandlers } from "../../blueprints/registry.js";
 import type { BlueprintHandler } from "../../blueprints/types.js";
+import type { Application } from "../../foundation/Application.js";
 import type { ConflictPolicy } from "../../installation/types.js";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "../../prompts.js";
 import { BlueprintReconciliationService } from "../../reconciliation/blueprint-reconciliation-service.js";
+import { Service } from "../../services/Service.js";
 import { parseConflictPolicy } from "../../utilities/conflict-policy.js";
 import { validateStacks } from "../../utilities/stacks.js";
 import { loadVariableDefinitions } from "../../variables.js";
@@ -89,7 +90,7 @@ export class UpdateCommand extends Service {
   #handlers: readonly BlueprintHandler[] = [];
   #reconciliationService!: BlueprintReconciliationService;
 
-  static register(program: Command, createApp: () => App): void {
+  static register(program: Command, createApp: () => Application): void {
     program
       .command("update")
       .description(
@@ -121,7 +122,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
       );
   }
 
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 

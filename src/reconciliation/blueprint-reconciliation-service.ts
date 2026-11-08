@@ -1,7 +1,6 @@
 import { lstat, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { App, Service } from "../app.js";
 import {
   planBlueprintCatalog,
   blueprintCatalog,
@@ -15,6 +14,7 @@ import type {
   PreparedBlueprintInitialization,
 } from "../blueprints/types.js";
 import { ComputedContextService } from "../computed/computed-context.js";
+import type { Application } from "../foundation/Application.js";
 import { InstallationService } from "../installation/installation-service.js";
 import type {
   ConflictPolicy,
@@ -22,6 +22,7 @@ import type {
   PreparedBlueprintFile,
 } from "../installation/types.js";
 import type { RenderContext } from "../render.js";
+import { Service } from "../services/Service.js";
 import {
   assertSafeInstallPaths,
   assertSingleFileDestination,
@@ -48,7 +49,7 @@ export interface PlannedBlueprintDeletion {
 }
 
 interface ReconcileCommon {
-  app: App;
+  app: Application;
   githubDirectory: string;
   blueprintSourceRoot: string;
   context?: RenderContext;
@@ -879,7 +880,7 @@ async function performReconciliation(
 export class BlueprintReconciliationService extends Service {
   #installationService!: InstallationService;
 
-  constructor(app: App) {
+  constructor(app: Application) {
     super(app);
   }
 
