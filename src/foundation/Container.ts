@@ -4,13 +4,14 @@ import type { Application } from "@/foundation/Application";
 import { bootService, Service } from "@/services/Service";
 
 export type Constructor<T = unknown> = new (...args: never[]) => T;
-export type Key<T = unknown> = string | Constructor<T>;
+export type AbstractConstructor<T = unknown> = abstract new (...args: never[]) => T;
+export type Key<T = unknown> = string | AbstractConstructor<T>;
 export type Factory<T> = (application: Application) => T | Promise<T>;
 export type ServiceConstructor<T extends Service = Service> = new (app: Application) => T;
 
 interface NormalizedKey {
   name: string;
-  classKey?: Constructor<unknown>;
+  classKey?: AbstractConstructor<unknown>;
 }
 
 interface Resolution {
@@ -24,14 +25,14 @@ interface InFlight {
 }
 
 type Binding =
-  | { kind: "instance"; value: unknown; classKey?: Constructor<unknown> }
+  | { kind: "instance"; value: unknown; classKey?: AbstractConstructor<unknown> }
   | {
       kind: "singleton" | "transient";
       factory: Factory<unknown>;
-      classKey?: Constructor<unknown>;
+      classKey?: AbstractConstructor<unknown>;
     };
 
-function isClassConstructor(value: unknown): value is Constructor<unknown> {
+function isClassConstructor(value: unknown): value is AbstractConstructor<unknown> {
   return (
     typeof value === "function" &&
     /^class(?:\s|\{)/.test(Function.prototype.toString.call(value)) &&
@@ -53,7 +54,7 @@ function normalizeKey(key: Key): NormalizedKey {
   return { name: key.name, classKey: key };
 }
 
-function isServiceConstructor(key: Constructor<unknown>): key is ServiceConstructor {
+function isServiceConstructor(key: AbstractConstructor<unknown>): key is ServiceConstructor {
   return key === Service || key.prototype instanceof Service;
 }
 
@@ -82,7 +83,7 @@ export abstract class Container {
     this.registerFactory(key, "singleton", factory);
   }
 
-  public instance<T>(key: Constructor<T>, value: NoInfer<T>): void;
+  public instance<T>(key: AbstractConstructor<T>, value: NoInfer<T>): void;
   public instance(key: string, value: unknown): void;
   public instance(key: Key, value: unknown): void {
     const normalized = normalizeKey(key);
@@ -114,7 +115,7 @@ export abstract class Container {
   }
 
   public make<T extends Service>(key: ServiceConstructor<T>): Promise<T>;
-  public make<T>(key: Constructor<T>): Promise<T>;
+  public make<T>(key: AbstractConstructor<T>): Promise<T>;
   public make(key: string): Promise<unknown>;
   public async make(key: Key): Promise<unknown> {
     const normalized = normalizeKey(key);
@@ -251,7 +252,7 @@ export abstract class Container {
     token: Resolution,
     parentChain: readonly Resolution[],
     factory: Factory<unknown>,
-    constructor: Constructor<unknown> | undefined,
+    constructor: AbstractConstructor<unknown> | undefined,
   ): Promise<unknown> {
     return this.resolution.run([...parentChain, token], async () => {
       const value = await factory(this.owner);

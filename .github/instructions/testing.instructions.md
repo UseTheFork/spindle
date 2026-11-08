@@ -27,6 +27,6 @@ test("retains its workspace root", () => {
     basePath: "/workspace",
   });
 
-  expect(app.basePath).toBe("/workspace");
+  expect(app.basePath()).toBe("/workspace");
 });
 ```

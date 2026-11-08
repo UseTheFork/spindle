@@ -56,7 +56,7 @@ from `src/foundation/Application.ts`, `Service` from
 `src/services/Service.ts`, and the abstract `ServiceProvider` from
 `src/services/ServiceProvider.ts`. There are no compatibility exports or old
 `src/app.ts` module.
-Application roots and service/provider ownership are getter-only; backing
+Workspace and Blueprint roots and service/provider ownership are getter-only; backing
 references use TypeScript `private readonly` visibility.
 
 Each application owns an initially empty `public readonly config`, a `Config`
@@ -90,6 +90,15 @@ starting path is immutable; workspace and Blueprint source roots are separate
 instance values bound during bootstrap. Do not read ambient cwd in services.
 The executable alone supplies cwd as the base path.
 
+Use `app.basePath(path = "")` (a method, not a property) for the invocation
+starting path, `app.path(path = "")` for the discovered Git workspace root,
+and `app.appPath(path = "")` for the module-relative installation directory
+(`src/` when running from source, `build/` in the compiled package, not the Git
+root). `path()` throws until the workspace root is bound.
+All return strings and use `app.joinPaths(basePath, path = "")`: an empty suffix
+preserves the base unchanged, an absolute suffix replaces it, and a relative
+suffix uses Node's path join without resolving a relative base against cwd.
+
 `Application` extends `Container`; it has no separate `app.container` or
 delegated resolver methods. Import `Container`, `Key`, and `Factory` from
 `@/foundation/Container`. Keys are strings or actual class constructors.
@@ -105,6 +114,8 @@ registers a shared value; `app.instance(key, value)` supplies an existing value.
 Service constructors may omit factories, defaulting to construction with the
 owning application. Ordinary constructors require explicit factories.
 Constructor-key factories and instances are checked against the class type.
+Abstract class keys support typed instance bindings and resolution, but do not
+permit implicit construction.
 String-key factories infer their result for type checking at registration, while
 `app.make(string)` deliberately returns `Promise<unknown>`; class-key
 `app.make(Class)` preserves `Promise<Class>` inference. Factories may return
@@ -116,7 +127,7 @@ instances must already be booted. Duplicate bindings of any kind throw, and
 `app.value(key)` returns `unknown` and permits synchronous access only to
 instance bindings. The application stores `path.base`, `path.workspace`,
 `path.blueprints`, `console.invocation`, and `console.args` under those string
-keys. Application path getters validate that path values are strings, and
+keys. Workspace and Blueprint root getters validate that path values are strings, and
 `LoadConsoleArgs` validates invocation shape before copying it into a Repository.
 There are no `get`/`create` resolver methods or global containers. Singleton
 initialization coalesces and can retry after failure; dependency cycles are
@@ -126,6 +137,11 @@ detected even across concurrent shared initializations.
 its instance for boot. Register before calling `app.boot()`; there are no phase
 gates. Boot hooks run sequentially, sharing and caching success or failure.
 Configuration is available before provider construction.
+The constructor first binds itself under `app`, `Application`, and `Container`,
+preserving `path.base` and configuration availability. `FoundationServiceProvider`
+is the exception to bootstrap-driven provider registration: it is registered in
+the constructor before the external provider list is processed during bootstrap,
+and its empty hooks participate in the same register-once and queued boot lifecycle.
 
 `Application.configure(basePath, providers = [])` returns a fluent
 `ApplicationBuilder` preconfigured with `withKernels()` and `withProviders()`.

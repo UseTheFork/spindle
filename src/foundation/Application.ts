@@ -1,9 +1,11 @@
-import { resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Config } from "@/config/Config";
 import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import type { BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
 import { Container } from "@/foundation/Container";
+import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
 import type { ServiceProvider } from "@/services/ServiceProvider";
 
 export type { ServiceConstructor } from "@/foundation/Container";
@@ -29,6 +31,8 @@ export class Application extends Container {
     super();
     this._basePath = resolve(basePath);
     this.instance("path.base", this._basePath);
+    this.registerBaseBindings();
+    this.registerBaseServiceProviders();
   }
 
   protected override get owner(): Application {
@@ -44,8 +48,21 @@ export class Application extends Container {
       .withProviders(providers);
   }
 
-  public get basePath(): string {
-    return this.stringValue("path.base");
+  public joinPaths(basePath: string, path = ""): string {
+    if (path === "") return basePath;
+    return isAbsolute(path) ? path : join(basePath, path);
+  }
+
+  public path(path = ""): string {
+    return this.joinPaths(this.workspaceRoot, path);
+  }
+
+  public appPath(path = ""): string {
+    return this.joinPaths(fileURLToPath(new URL("../", import.meta.url)), path);
+  }
+
+  public basePath(path = ""): string {
+    return this.joinPaths(this._basePath, path);
   }
 
   public get workspaceRoot(): string {
@@ -84,6 +101,16 @@ export class Application extends Container {
       for (const provider of this.bootableProviders) await provider.boot();
     });
     await this.bootPromise;
+  }
+
+  private registerBaseBindings(): void {
+    this.instance("app", this);
+    this.instance(Application, this);
+    this.instance(Container, this);
+  }
+
+  private registerBaseServiceProviders(): void {
+    this.register(FoundationServiceProvider);
   }
 
   private stringValue(key: string): string {

@@ -74,7 +74,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
   class Provider extends ServiceProvider {
     public constructor(app: Application) {
       super(app);
-      expect(app.basePath).toBe(nested);
+      expect(app.basePath()).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
       expect(app.blueprintSourceRoot).toBe(join(root, "blueprint-assets"));
       expect(app.value("console.invocation")).toBe(invocation);
@@ -93,7 +93,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
   await Promise.all([kernel.boot(invocation), new Kernel(app).boot(invocation)]);
   await kernel.boot({ ...invocation, raw: ["ignored"] });
   expect(events).toEqual(["construct", "register", "boot"]);
-  expect(app.basePath).toBe(nested);
+  expect(app.basePath()).toBe(nested);
   expect(app.hasBeenBootstrapped).toBe(true);
   expect(app.value("console.invocation")).toBe(invocation);
 });

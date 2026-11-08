@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "vitest";
 
 import { blueprintHandlers } from "@/blueprints/registry";
+import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
 import { InstallationService } from "@/installation/installation-service";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
 import { preparePlannedBlueprintFiles } from "@/utilities/blueprint-files";
-import { resolveBlueprintSourceRoot } from "@/utilities/blueprint-source-root";
 
 import { applicationFixture } from "./application-fixture";
 import { makeTempDir } from "./helpers.ts";
@@ -28,7 +28,10 @@ test("relative Blueprint overrides stay fixed to the App workspace after cwd cha
     await mkdir(join(workspace, "nested"));
     process.env.SPINDLE_BLUEPRINTS_DIR = "assets";
     process.chdir(join(workspace, "nested"));
-    const app = applicationFixture(workspace, resolveBlueprintSourceRoot(workspace));
+    const app = applicationFixture(
+      workspace,
+      ResolveBlueprintSourceRoot.resolveBlueprintSourceRoot(workspace),
+    );
 
     expect(isAbsolute(app.blueprintSourceRoot)).toBeTruthy();
     expect(app.blueprintSourceRoot).toBe(expectedSourceRoot);

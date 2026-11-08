@@ -1,4 +1,7 @@
-import { afterEach, expect, test } from "vitest";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, expect, expectTypeOf, test, vi } from "vitest";
 
 import { Config } from "@/config/Config";
 import { Application } from "@/foundation/Application";
@@ -6,10 +9,15 @@ import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import { Bootstrapper, type BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
 import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
+import { Container } from "@/foundation/Container";
+import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
 import { Kernel } from "@/foundation/Kernel";
 import { ServiceProvider } from "@/services/ServiceProvider";
 
-afterEach(() => RegisterProviders.merge([]));
+afterEach(() => {
+  RegisterProviders.merge([]);
+  vi.restoreAllMocks();
+});
 
 const invocation: ConsoleInvocation = {
   raw: [],
@@ -33,24 +41,179 @@ function gate() {
   return { promise, release };
 }
 
+test("base self bindings resolve the same application through string and class keys in isolation", async () => {
+  const first = new Application({ basePath: "/first" });
+  const second = new Application({ basePath: "/second" });
+  for (const app of [first, second]) {
+    for (const key of ["app", "Application", "Container", Application, Container]) {
+      expect(app.bound(key)).toBe(true);
+      expect(app.value(key)).toBe(app);
+    }
+    for (const resolution of [
+      app.make("app"),
+      app.make("Application"),
+      app.make("Container"),
+      app.make(Application),
+      app.make(Container),
+    ]) {
+      expect(await resolution).toBe(app);
+    }
+    expectTypeOf(app.make(Application)).toEqualTypeOf<Promise<Application>>();
+    expectTypeOf(app.make(Container)).toEqualTypeOf<Promise<Container>>();
+  }
+  expect(await first.make(Container)).not.toBe(await second.make(Container));
+});
+
+test("abstract class keys retain instance types without implicit construction", async () => {
+  abstract class Dependency {
+    public abstract run(): void;
+  }
+  class ConcreteDependency extends Dependency {
+    public run(): void {}
+  }
+  const app = new Application({ basePath: "/project" });
+  await expect(app.make(Dependency)).rejects.toThrow(/Unbound dependency: Dependency/);
+  expect(() => Reflect.apply(app.bind, app, [Dependency])).toThrow(/explicit factory/);
+  const dependency = new ConcreteDependency();
+  app.instance(Dependency, dependency);
+  expectTypeOf(app.make(Dependency)).toEqualTypeOf<Promise<Dependency>>();
+  expect(await app.make(Dependency)).toBe(dependency);
+  const check = (owner: Application): void => {
+    // @ts-expect-error Abstract constructors cannot be implicitly constructed.
+    owner.bind(Dependency);
+    // @ts-expect-error Abstract class instances must match the keyed type.
+    owner.instance(Dependency, "invalid");
+  };
+  expectTypeOf(check).parameter(0).toEqualTypeOf<Application>();
+});
+
+test("base bindings and configuration are available before foundation provider construction", () => {
+  const register = Application.prototype.register;
+  const registrations: Application[] = [];
+  vi.spyOn(Application.prototype, "register").mockImplementation(function (
+    this: Application,
+    Provider,
+  ) {
+    if (Provider === FoundationServiceProvider) {
+      expect(this.value("app")).toBe(this);
+      expect(this.value(Application)).toBe(this);
+      expect(this.value(Container)).toBe(this);
+      expect(this.value("path.base")).toBe("/project");
+      expect(this.basePath()).toBe("/project");
+      expect(this.config).toBeInstanceOf(Config);
+      expect(this.config.has("foundation")).toBe(false);
+      registrations.push(this);
+    }
+    register.call(this, Provider);
+  });
+  const app = new Application({ basePath: "/project/nested/.." });
+  expect(registrations).toEqual([app]);
+});
+
+test("foundation provider registers once per application before external providers and boots once in order", async () => {
+  const events: string[] = [];
+  const register = vi
+    .spyOn(FoundationServiceProvider.prototype, "register")
+    .mockImplementation(function (this: FoundationServiceProvider) {
+      expect(this.app.value(Container)).toBe(this.app);
+      events.push(`register:foundation:${this.app.basePath()}`);
+    });
+  const boot = vi
+    .spyOn(FoundationServiceProvider.prototype, "boot")
+    .mockImplementation(async function (this: FoundationServiceProvider) {
+      events.push(`boot:foundation:${this.app.basePath()}`);
+    });
+  class External extends ServiceProvider {
+    public register(): void {
+      events.push("register:external");
+    }
+    public async boot(): Promise<void> {
+      events.push("boot:external");
+    }
+  }
+  RegisterProviders.merge([FoundationServiceProvider, External]);
+  const first = new Application({ basePath: "/first" });
+  const second = new Application({ basePath: "/second" });
+  first.register(FoundationServiceProvider);
+  expect(register).toHaveBeenCalledTimes(2);
+  expect(boot).not.toHaveBeenCalled();
+  expect(events).toEqual(["register:foundation:/first", "register:foundation:/second"]);
+  await new ProviderKernel(first).bootstrap();
+  expect(register).toHaveBeenCalledTimes(2);
+  expect(events.at(-1)).toBe("register:external");
+  await Promise.all([first.boot(), first.boot()]);
+  await first.boot();
+  expect(boot).toHaveBeenCalledTimes(1);
+  expect(events.slice(-2)).toEqual(["boot:foundation:/first", "boot:external"]);
+  await second.boot();
+  expect(boot).toHaveBeenCalledTimes(2);
+  expect(events.at(-1)).toBe("boot:foundation:/second");
+});
+
 test("base path is normalized immutable and separate from explicitly bound roots", () => {
   const first = new Application({ basePath: "/workspaces/first/nested/.." });
   const second = new Application({ basePath: "/workspaces/second" });
-  expect(first.basePath).toBe("/workspaces/first");
-  expect(second.basePath).toBe("/workspaces/second");
+  expect(first.basePath()).toBe("/workspaces/first");
+  expect(second.basePath()).toBe("/workspaces/second");
   expect(() => first.workspaceRoot).toThrow(/Unbound/);
   first.instance("path.workspace", "/workspaces");
   first.instance("path.blueprints", "/blueprints/first");
   expect(first.workspaceRoot).toBe("/workspaces");
   expect(first.blueprintSourceRoot).toBe("/blueprints/first");
-  for (const key of ["basePath", "workspaceRoot", "blueprintSourceRoot"]) {
+  for (const key of ["workspaceRoot", "blueprintSourceRoot"]) {
     expect(Reflect.set(first, key, "/changed")).toBe(false);
   }
-  expect(first.basePath).toBe("/workspaces/first");
+  expect(first.basePath()).toBe("/workspaces/first");
   expect(() => second.workspaceRoot).toThrow(/Unbound/);
   const invalidPath = new Application({ basePath: "/invalid" });
   invalidPath.instance("path.workspace", 42);
   expect(() => invalidPath.workspaceRoot).toThrow(/must be a string/);
+});
+
+test("joinPaths preserves empty bases and replaces bases with absolute suffixes", () => {
+  const app = new Application({ basePath: "/invocation" });
+  expect(app.joinPaths("relative/base/")).toBe("relative/base/");
+  expect(app.joinPaths("relative/base/", "")).toBe("relative/base/");
+  expect(app.joinPaths("", "")).toBe("");
+  expect(app.joinPaths("relative/base", "nested/file")).toBe("relative/base/nested/file");
+  expect(app.joinPaths("/base", "nested/../file")).toBe("/base/file");
+  expect(app.joinPaths("relative/base", "/absolute/file")).toBe("/absolute/file");
+});
+
+test("path helpers use distinct workspace, installation and invocation roots", () => {
+  const app = new Application({ basePath: "/unrelated/invocation/nested/.." });
+  const installationRoot = fileURLToPath(new URL("../src/", import.meta.url));
+  expect(() => app.path()).toThrow(/Unbound/);
+  expect(() => app.path("nested/file")).toThrow(/Unbound/);
+  expect(() => app.path("/absolute/file")).toThrow(/Unbound/);
+  app.instance("path.workspace", "/workspace");
+
+  for (const [helper, root] of [
+    [app.path.bind(app), "/workspace"],
+    [app.appPath.bind(app), installationRoot],
+    [app.basePath.bind(app), "/unrelated/invocation"],
+  ] as const) {
+    expect(helper()).toBe(root);
+    expect(helper("")).toBe(root);
+    expect(helper("nested/file")).toBe(join(root, "nested/file"));
+    expect(helper("/absolute/file")).toBe("/absolute/file");
+    expectTypeOf(helper()).toEqualTypeOf<string>();
+  }
+
+  const other = new Application({ basePath: "/another/unrelated/directory" });
+  expect(other.appPath()).toBe(installationRoot);
+  expect(app.appPath()).not.toBe(app.workspaceRoot);
+  const invalidPath = new Application({ basePath: "/invalid" });
+  invalidPath.instance("path.workspace", 42);
+  expect(() => invalidPath.path()).toThrow(/must be a string/);
+});
+
+test("appPath remains module-relative when cwd is unrelated", () => {
+  const app = new Application({ basePath: "/invocation" });
+  const installationRoot = fileURLToPath(new URL("../src/", import.meta.url));
+  vi.spyOn(process, "cwd").mockReturnValue("/unrelated/cwd");
+  expect(app.appPath()).toBe(installationRoot);
+  expect(app.appPath("nested/file")).toBe(join(installationRoot, "nested/file"));
 });
 
 test("configuration is isolated and available before explicit provider construction", async () => {

@@ -24,6 +24,8 @@ factory, defaulting to `application => new ServiceType(application)`.
 Class-key factories and supplied values are checked against the constructor type;
 string factories infer their produced type at registration without widening the
 return type of string-key `make`.
+Abstract class keys support typed instance bindings and `make` resolution without
+allowing implicit construction.
 
 Only `Service` instances are automatically booted before resolution returns.
 Booted-state tracking is module-private, and successful boot alone marks a service
@@ -44,10 +46,16 @@ Stateless utilities remain standalone functions, not artificial services.
 `Application` requires only `{ basePath }`. This explicit invocation starting path
 is normalized to an absolute path and never changes. Workspace and Blueprint source
 roots are separate instance values bound by bootstrap, not constructor arguments.
-Getter-only root accessors read the instance-bound string keys `path.base`,
-`path.workspace`, and `path.blueprints`, validate their values as strings, and
-serve filesystem consumers. Application does not read `process.cwd()`; the
-executable supplies it.
+Getter-only `workspaceRoot` and `blueprintSourceRoot` accessors read the
+instance-bound string keys `path.workspace` and `path.blueprints` and validate
+their values as strings. `basePath(path = "")` is a method using the immutable
+constructor base path, also bound under `path.base`. `path(path = "")` joins
+the discovered workspace root, throwing before it is bound. `appPath(path = "")`
+joins the module-relative installation directory (`src/` from source, `build/`
+when compiled), not the Git root. All delegate to `joinPaths(basePath, path = "")`,
+which preserves the base for an empty suffix, replaces it for an absolute suffix,
+and joins relative suffixes without resolving relative bases against cwd.
+Application does not read `process.cwd()`; the executable supplies it.
 Its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
 project's `.github/spindle.json` Config; no file-loading configuration bootstrapper
@@ -59,6 +67,12 @@ ownership. There are no registration phase gates or completion markers: callers
 control registration-before-boot ordering. `Application.boot()` only awaits queued
 provider hooks sequentially. Concurrent and non-awaited reentrant calls share one
 initialization, retaining either success or failure without retry.
+The constructor binds its own instance under `app`, `Application`, and `Container`
+before registering `FoundationServiceProvider`, with `path.base` and configuration
+already available. This foundation provider is the explicit exception: it is
+registered during construction, before bootstrap processes the external provider
+list. Its empty register and boot hooks follow the same register-once and queued
+boot lifecycle as external providers.
 
 The independent `Bootstrapper` abstraction implements
 `bootstrap(application): void | Promise<void>` with no required constructor
@@ -66,7 +80,8 @@ arguments. `Application.bootstrapWith(list)` captures the first list and constru
 and awaits each hook sequentially, starting on a microtask. State belongs to the
 application, including across kernels. Success sets getter-only
 `hasBeenBootstrapped`; failure stops the sequence, remains cached, and leaves the
-flag false. An empty list succeeds without implicitly registering providers.
+flag false. An empty list succeeds without registering additional providers;
+the constructor-registered foundation provider is already queued.
 
 The ordinary, extendable `Kernel` defaults to the explicit ordered list
 `LoadConsoleArgs`, `DiscoverGitRoot`, `ResolveBlueprintSourceRoot`,
@@ -117,6 +132,6 @@ their fixture working directory is elsewhere.
 
 This trades direct function calls and implicit resolution for explicit composition
 and application-local lifecycle ownership, while retaining standalone utilities.
-There are no handle/terminate hooks, root constructor providers, alternate string
+There are no handle/terminate hooks, external constructor providers, alternate string
 aliases, legacy `get`/`create` methods, or old application-module compatibility
 exports.
