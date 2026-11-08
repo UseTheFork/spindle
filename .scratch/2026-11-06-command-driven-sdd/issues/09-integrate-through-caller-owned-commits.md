@@ -10,7 +10,7 @@ integration is recorded and dependent issues become ready.
 **Blocked by:** 06: Register findings and enforce explicit rulings.
 
 **Status:** ready-for-agent
-**Execution:** accepted
+**Execution:** integrated
 
 - [X] `integrate` requires accepted work with current evidence and validates the frozen controller-confirmed Git inventory. It returns exact accepted files and delivery records requiring a caller-owned commit.
 - [X] Changed accepted content, unresolved blockers, stale evidence, or unsafe unrelated pending changes produce explicit nonzero errors without altering user work or silently broadening scope.
@@ -40,3 +40,6 @@ Corrective attempt 1 is frozen for scoped Spec/Quality re-review of `I09-R1` and
 
 **2026-11-08T11:36:00Z - @Copilot**
 Controller ruling: scoped corrective review returned Spec/Quality PASS, addressed `I09-R1` and `I09-R2`, and no new findings. Initial comprehensive review covers the original issue-09 scope; current controller-verified focused, packaged CLI, format, lint, type, build, and diff checks cover the corrected snapshot. The full repository suite was not run. Issue 09 is accepted. Nonblocking follow-up parked: clarify/document the direct-child-of-baseline commit constraint and test the intended supported history shape in a separate follow-up; this is not an acceptance blocker because the delivered commit is still checked against the recorded baseline and exact accepted paths/content.
+
+**2026-11-08T11:36:48Z - @Copilot**
+Integrated as commit `234f0b14e81a460eb77e03eaf0681c4679cbe2d2`; the worktree was clean after the integration commit. No full repository suite was run.
