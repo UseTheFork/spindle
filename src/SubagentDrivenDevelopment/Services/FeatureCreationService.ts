@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";

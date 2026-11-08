@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/commands/Command";
-import type { Application } from "@/foundation/Application";
+import { Command } from "@/Commands/Command";
+import type { Application } from "@/Foundation/Application";
 import { reviewSchema } from "@/SubagentDrivenDevelopment/Commands/groups";
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
 import type {

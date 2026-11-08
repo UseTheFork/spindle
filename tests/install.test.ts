@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "vitest";
 
 import { blueprintHandlers } from "@/blueprints/registry";
-import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
+import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBlueprintSourceRoot";
 import { InstallationService } from "@/installation/installation-service";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
 import { preparePlannedBlueprintFiles } from "@/utilities/blueprint-files";

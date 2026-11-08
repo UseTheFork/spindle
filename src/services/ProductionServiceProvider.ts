@@ -1,7 +1,7 @@
-import type { CommandConstructor } from "@/commands/Command";
-import { InitCommand } from "@/commands/init/init-command";
-import { SetupProjectCommand } from "@/commands/setup-project/setup-project-command";
-import { UpdateCommand } from "@/commands/update/update-command";
+import type { CommandConstructor } from "@/Commands/Command";
+import { InitCommand } from "@/Commands/init/init-command";
+import { SetupProjectCommand } from "@/Commands/setup-project/setup-project-command";
+import { UpdateCommand } from "@/Commands/update/update-command";
 import { ComputedContextService } from "@/computed/computed-context";
 import { InstallationService } from "@/installation/installation-service";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";

@@ -1,5 +1,5 @@
-import type { Application } from "@/foundation/Application";
-import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
+import type { Application } from "@/Foundation/Application";
+import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 import { GitService } from "@/Git/Services/GitService";
 
 export class DiscoverGitRoot extends Bootstrapper {

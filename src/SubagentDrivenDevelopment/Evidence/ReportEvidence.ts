@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import type {
   ImplementationAssignment,

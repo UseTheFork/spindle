@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import chalk from "chalk";
 
 import { dispatch } from "@/cli";
-import { Application } from "@/foundation/Application";
+import { Application } from "@/Foundation/Application";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {

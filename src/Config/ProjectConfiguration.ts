@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { isRecord } from "@/utilities/records";
 import { validateStacks } from "@/utilities/stacks";
 

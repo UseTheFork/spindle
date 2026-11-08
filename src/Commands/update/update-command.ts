@@ -5,14 +5,14 @@ import type { Command as CommanderCommand } from "commander";
 
 import { blueprintHandlers } from "@/blueprints/registry";
 import type { BlueprintHandler } from "@/blueprints/types";
-import { Command } from "@/commands/Command";
-import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
+import { Command } from "@/Commands/Command";
+import { conflictPolicyOption, noInteractiveOption } from "@/Commands/shared-options";
 import {
   projectConfiguration,
   readConfig,
   requireProjectConfiguration,
-} from "@/config/ProjectConfiguration";
-import type { Application } from "@/foundation/Application";
+} from "@/Config/ProjectConfiguration";
+import type { Application } from "@/Foundation/Application";
 import type { ConflictPolicy } from "@/installation/types";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "@/prompts";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";

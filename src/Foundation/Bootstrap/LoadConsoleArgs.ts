@@ -1,6 +1,6 @@
-import type { Application } from "@/foundation/Application";
-import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
-import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
+import type { Application } from "@/Foundation/Application";
+import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
+import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { Repository } from "@/utilities/Repository";
 
 function isStringArray(value: unknown): value is readonly string[] {

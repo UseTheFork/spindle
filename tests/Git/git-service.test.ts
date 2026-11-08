@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { Application } from "@/foundation/Application";
+import { Application } from "@/Foundation/Application";
 import { GitService } from "@/Git/Services/GitService";
 
 import { fixture, serviceFixture } from "../SubagentDrivenDevelopment/helpers/helpers";

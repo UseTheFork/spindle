@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { blueprintCatalog } from "@/blueprints/catalog";
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import { FEATURE_DIRECTORY, EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type {

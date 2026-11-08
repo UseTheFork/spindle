@@ -1,8 +1,8 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/commands/Command";
-import { once } from "@/commands/shared-options";
-import type { Application } from "@/foundation/Application";
+import { Command } from "@/Commands/Command";
+import { once } from "@/Commands/shared-options";
+import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ChecksRequireOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";

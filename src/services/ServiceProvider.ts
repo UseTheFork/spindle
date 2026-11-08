@@ -1,5 +1,5 @@
-import type { CommandConstructor } from "@/commands/Command";
-import type { Application } from "@/foundation/Application";
+import type { CommandConstructor } from "@/Commands/Command";
+import type { Application } from "@/Foundation/Application";
 
 export abstract class ServiceProvider {
   private readonly _app: Application;

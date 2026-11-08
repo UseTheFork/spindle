@@ -1,4 +1,4 @@
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { CorrectionService } from "@/SubagentDrivenDevelopment/Services/CorrectionService";

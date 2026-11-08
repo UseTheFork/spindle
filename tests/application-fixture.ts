@@ -1,4 +1,4 @@
-import { Application } from "@/foundation/Application";
+import { Application } from "@/Foundation/Application";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export function applicationFixture(

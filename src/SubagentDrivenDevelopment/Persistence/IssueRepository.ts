@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import type { IssueCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { IssueDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";

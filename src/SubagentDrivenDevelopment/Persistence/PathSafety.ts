@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { GitService } from "@/Git/Services/GitService";
 import { Service } from "@/services/Service";
 import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";

@@ -6,7 +6,7 @@ applyTo: "src/**/*.ts,tests/**/*.ts"
 
 # TypeScript Conventions
 
-- Import modules under `src/` using extensionless `@/` paths in production and tests, for example `import { Application } from "@/foundation/Application"`.
+- Import modules under `src/` using extensionless `@/` paths in production and tests, for example `import { Application } from "@/Foundation/Application"`.
 - Keep bare package imports and `node:` imports unchanged. Use `import type` for type-only dependencies, especially across application, service, and provider boundaries.
 - Do not assume TypeScript aliases resolve in emitted JavaScript. When introducing production aliases, ensure the compiler, source runner, and build-time alias rewriting support them. Verify the built CLI runs with Node and emitted imports contain no unresolved aliases or extensionless file paths.
 - Use explicit `public`, `protected`, and `private` modifiers on class members and constructors. Use TypeScript `private` rather than ECMAScript `#` members.

@@ -4,7 +4,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { GitService } from "@/Git/Services/GitService";
 import { Service } from "@/services/Service";
 import type { IssueChecks, ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";

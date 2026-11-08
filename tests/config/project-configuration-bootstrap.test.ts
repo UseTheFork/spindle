@@ -3,10 +3,10 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { Application } from "@/foundation/Application";
-import { DiscoverGitRoot } from "@/foundation/bootstrap/DiscoverGitRoot";
-import { LoadProjectConfiguration } from "@/foundation/bootstrap/LoadProjectConfiguration";
-import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
+import { Application } from "@/Foundation/Application";
+import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
 import { ServiceProvider } from "@/services/ServiceProvider";
 
 import { fixture } from "../SubagentDrivenDevelopment/helpers/helpers";

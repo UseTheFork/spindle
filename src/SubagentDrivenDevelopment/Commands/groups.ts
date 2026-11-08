@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-import { once } from "@/commands/shared-options";
+import { once } from "@/Commands/shared-options";
 
 const descriptions: Record<string, string> = {
   issue: "Create and maintain feature issues.",

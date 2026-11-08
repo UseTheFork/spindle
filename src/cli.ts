@@ -2,10 +2,10 @@ import { readFile } from "node:fs/promises";
 
 import { Command } from "commander";
 
-import type { Application, ServiceProviderConstructor } from "@/foundation/Application";
-import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
-import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
-import { Kernel } from "@/foundation/Kernel";
+import type { Application, ServiceProviderConstructor } from "@/Foundation/Application";
+import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
+import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
+import { Kernel } from "@/Foundation/Kernel";
 
 export async function dispatch(
   args: string[],

@@ -3,15 +3,15 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, expectTypeOf, test, vi } from "vitest";
 
-import { Config } from "@/config/Config";
-import { Application } from "@/foundation/Application";
-import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
-import { Bootstrapper, type BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
-import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
-import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
-import { Container } from "@/foundation/Container";
-import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
-import { Kernel } from "@/foundation/Kernel";
+import { Config } from "@/Config/Config";
+import { Application } from "@/Foundation/Application";
+import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
+import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
+import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
+import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
+import { Container } from "@/Foundation/Container";
+import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
+import { Kernel } from "@/Foundation/Kernel";
 import { ServiceProvider } from "@/services/ServiceProvider";
 
 afterEach(() => {

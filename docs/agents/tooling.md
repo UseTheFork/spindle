@@ -54,7 +54,7 @@ command options, for example `just tool pnpm run spindle sdd create --help`.
 ## Application services
 
 Import `Application`, `ApplicationOptions`, and service/provider constructor types
-from `src/foundation/Application.ts`, `Service` from
+from `src/Foundation/Application.ts`, `Service` from
 `src/services/Service.ts`, and the abstract `ServiceProvider` from
 `src/services/ServiceProvider.ts`. There are no compatibility exports or old
 `src/app.ts` module.
@@ -62,7 +62,7 @@ Workspace and Blueprint roots and service/provider ownership are getter-only; ba
 references use TypeScript `private readonly` visibility.
 
 Each application owns an initially empty `public readonly config`, a `Config`
-from `src/config/Config.ts`, available before provider construction. Its mutable
+from `src/Config/Config.ts`, available before provider construction. Its mutable
 contents are isolated between applications. This is Application Configuration,
 not the project's `.github/spindle.json` Config; there is no settings constructor
 argument or persistence for Application Configuration. After Git discovery,
@@ -109,7 +109,7 @@ suffix uses Node's path join without resolving a relative base against cwd.
 
 `Application` extends `Container`; it has no separate `app.container` or
 delegated resolver methods. Import `Container`, `Key`, and `Factory` from
-`@/foundation/Container`. Keys are strings or actual class constructors.
+`@/Foundation/Container`. Keys are strings or actual class constructors.
 Constructor keys normalize to their runtime `.name`, so class names must be
 stable and unique within an application; an explicit string key with the same
 name shares that normalized key. JavaScript cannot distinguish a named class
@@ -179,10 +179,10 @@ then resolves Kernel, boots the invocation, resolves the command and runs its
 operation. Help/version/invalid arguments require no Application or Git.
 `LoadConsoleArgs` binds a Repository with `raw`, `script`, `commandPath`,
 `options`, and `positionals`; it never reparses or reads `process.argv`.
-The `ConsoleInvocation` type lives in `@/foundation/ConsoleInvocation`.
+The `ConsoleInvocation` type lives in `@/Foundation/ConsoleInvocation`.
 
 Providers declare command classes once in static `commands()`; the inherited
-default is empty. Each class extends `Command` from `src/commands/Command.ts`
+default is empty. Each class extends `Command` from `src/Commands/Command.ts`
 and must satisfy `CommandConstructor`, including static
 `register(program, createApp)` for its Commander schema and action. TypeScript
 cannot enforce abstract static methods on the base class, so the constructor type

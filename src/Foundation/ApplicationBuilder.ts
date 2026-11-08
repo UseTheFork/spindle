@@ -1,6 +1,6 @@
-import type { Application, ServiceProviderConstructor } from "@/foundation/Application";
-import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
-import { Kernel } from "@/foundation/Kernel";
+import type { Application, ServiceProviderConstructor } from "@/Foundation/Application";
+import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
+import { Kernel } from "@/Foundation/Kernel";
 
 export class ApplicationBuilder {
   private kernelsRegistered = false;

@@ -1,6 +1,6 @@
-import { loadProjectConfiguration } from "@/config/ProjectConfiguration";
-import type { Application } from "@/foundation/Application";
-import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
+import { loadProjectConfiguration } from "@/Config/ProjectConfiguration";
+import type { Application } from "@/Foundation/Application";
+import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 
 export class LoadProjectConfiguration extends Bootstrapper {
   public async bootstrap(application: Application): Promise<void> {

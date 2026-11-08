@@ -3,16 +3,16 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { InitCommand } from "@/commands/init/init-command";
-import { UpdateCommand } from "@/commands/update/update-command";
+import { InitCommand } from "@/Commands/init/init-command";
+import { UpdateCommand } from "@/Commands/update/update-command";
 import {
   parseProjectConfiguration,
   loadProjectConfiguration,
   readConfig,
   requireProjectConfiguration,
-} from "@/config/ProjectConfiguration";
-import { Application } from "@/foundation/Application";
-import { LoadProjectConfiguration } from "@/foundation/bootstrap/LoadProjectConfiguration";
+} from "@/Config/ProjectConfiguration";
+import { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 
 import { serviceFixture } from "../SubagentDrivenDevelopment/helpers/helpers";
 

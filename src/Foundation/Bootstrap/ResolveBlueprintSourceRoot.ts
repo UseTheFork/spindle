@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Application } from "@/foundation/Application";
-import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
+import type { Application } from "@/Foundation/Application";
+import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 
 export class ResolveBlueprintSourceRoot extends Bootstrapper {
   public static resolveBlueprintSourceRoot(): string {

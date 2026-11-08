@@ -9,8 +9,8 @@ import matter from "gray-matter";
 
 import type { BlueprintCatalogDefinition } from "@/blueprints/catalog";
 import { blueprintCatalog } from "@/blueprints/catalog";
-import { InitCommand } from "@/commands/init/init-command";
-import { UpdateCommand } from "@/commands/update/update-command";
+import { InitCommand } from "@/Commands/init/init-command";
+import { UpdateCommand } from "@/Commands/update/update-command";
 import { ComputedContextService } from "@/computed/computed-context";
 import { ComputedVariableProvider, type ResolvedConfig } from "@/computed/provider";
 import { renderText } from "@/render";

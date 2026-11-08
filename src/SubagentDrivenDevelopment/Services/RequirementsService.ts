@@ -1,6 +1,6 @@
 import matter from "gray-matter";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { RequirementsDecision } from "@/SubagentDrivenDevelopment/Models/Findings";

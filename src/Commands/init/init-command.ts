@@ -5,9 +5,9 @@ import type { Command as CommanderCommand } from "commander";
 
 import { blueprintHandlers } from "@/blueprints/registry";
 import type { BlueprintHandler } from "@/blueprints/types";
-import { Command } from "@/commands/Command";
-import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
-import type { Application } from "@/foundation/Application";
+import { Command } from "@/Commands/Command";
+import { conflictPolicyOption, noInteractiveOption } from "@/Commands/shared-options";
+import type { Application } from "@/Foundation/Application";
 import type { ConflictPolicy } from "@/installation/types";
 import { promptConflict, promptStacks, promptVariable } from "@/prompts";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";

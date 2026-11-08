@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/commands/Command";
-import { once } from "@/commands/shared-options";
-import type { Application } from "@/foundation/Application";
+import { Command } from "@/Commands/Command";
+import { once } from "@/Commands/shared-options";
+import type { Application } from "@/Foundation/Application";
 
 export interface SetupProjectInput {
   workspacePath: string;

@@ -14,7 +14,7 @@ import type {
   PreparedBlueprintInitialization,
 } from "@/blueprints/types";
 import { ComputedContextService } from "@/computed/computed-context";
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { InstallationService } from "@/installation/installation-service";
 import type {
   ConflictPolicy,

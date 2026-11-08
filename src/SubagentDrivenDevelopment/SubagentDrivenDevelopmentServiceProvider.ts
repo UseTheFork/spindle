@@ -1,4 +1,4 @@
-import type { CommandConstructor } from "@/commands/Command";
+import type { CommandConstructor } from "@/Commands/Command";
 import { GitService } from "@/Git/Services/GitService";
 import { ServiceProvider } from "@/services/ServiceProvider";
 import { AcceptCommand } from "@/SubagentDrivenDevelopment/Commands/AcceptCommand";

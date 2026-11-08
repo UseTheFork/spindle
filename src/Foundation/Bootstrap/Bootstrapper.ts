@@ -1,4 +1,4 @@
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 
 export abstract class Bootstrapper {
   public abstract bootstrap(application: Application): void | Promise<void>;

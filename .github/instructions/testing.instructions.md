@@ -20,7 +20,7 @@ applyTo: "**/*.test.{ts,js,cjs,mjs}"
 
 ```ts
 import { expect, test } from "vitest";
-import { Application } from "@/foundation/Application";
+import { Application } from "@/Foundation/Application";
 
 test("retains its workspace root", () => {
   const app = new Application({

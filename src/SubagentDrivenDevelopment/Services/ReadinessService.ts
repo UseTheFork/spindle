@@ -1,4 +1,4 @@
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { Service } from "@/services/Service";
 import type { ReadyOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";

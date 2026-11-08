@@ -1,16 +1,16 @@
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { CommandConstructor } from "@/commands/Command";
-import { Config } from "@/config/Config";
-import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
-import type { BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
-import { Container } from "@/foundation/Container";
-import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
+import type { CommandConstructor } from "@/Commands/Command";
+import { Config } from "@/Config/Config";
+import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
+import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
+import { Container } from "@/Foundation/Container";
+import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { GitServiceProvider } from "@/Git/GitServiceProvider";
 import type { ServiceProvider } from "@/services/ServiceProvider";
 
-export type { ServiceConstructor } from "@/foundation/Container";
+export type { ServiceConstructor } from "@/Foundation/Container";
 
 export interface ApplicationOptions {
   basePath: string;

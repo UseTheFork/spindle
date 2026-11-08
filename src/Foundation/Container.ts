@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { Application } from "@/foundation/Application";
+import type { Application } from "@/Foundation/Application";
 import { bootService, Service } from "@/services/Service";
 
 export type Constructor<T = unknown> = new (...args: never[]) => T;
