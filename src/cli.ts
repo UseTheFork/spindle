@@ -7,8 +7,8 @@ import { SddCommand } from "@/commands/sdd/sdd-command";
 import { SetupProjectCommand } from "@/commands/setup-project/setup-project-command";
 import { UpdateCommand } from "@/commands/update/update-command";
 import type { Application } from "@/foundation/Application";
+import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
 import { Kernel } from "@/foundation/Kernel";
-import type { ConsoleInvocation } from "@/foundation/tokens";
 
 export async function dispatch(
   args: string[],

@@ -4,15 +4,26 @@ status: accepted
 
 # Application-owned services
 
-Each `Application` composes its own reusable `Container`. Registration is explicit:
-`bind` creates transient values, `singleton` shares initialization and its successful
-result, and `instance` supplies an existing value. Keys are constructor identities
-or typed `ValueToken`s, never strings. Every duplicate registration throws, and
-`bound` recognizes all registration kinds. Unbound resolution throws; there is no
-implicit construction, global container, flush API, or compatibility resolver.
-`make` is asynchronous for every key. Ordinary classes require explicit sync or
+`Application` extends its reusable `Container`; it has no separate container
+property or delegated resolver methods. Registration is explicit: `bind` creates
+transient values, `singleton` shares initialization and its successful result, and
+`instance` supplies an existing value. Keys are strings or actual class
+constructors. Constructor keys normalize to their runtime `.name`, so every class
+used as a key must have a stable, unique name within the application. A string key
+with that name addresses the same binding, and duplicate registration throws even
+when distinct constructors share a name. Runtime can validate class constructors
+but cannot distinguish a named class declaration from a named class expression;
+developers must follow the unique-name convention rather than relying on
+fabricated module metadata. Unnamed classes and non-class function/object keys are
+rejected. `bound` recognizes all registration kinds. Unbound resolution throws;
+there is no implicit construction, global container, flush API, or compatibility
+resolver. Class-key `make` is asynchronous and preserves the instance type;
+string-key `make` returns `unknown`. Ordinary classes require explicit sync or
 async factories receiving the application. Service constructors may omit the
 factory, defaulting to `application => new ServiceType(application)`.
+Class-key factories and supplied values are checked against the constructor type;
+string factories infer their produced type at registration without widening the
+return type of string-key `make`.
 
 Only `Service` instances are automatically booted before resolution returns.
 Booted-state tracking is module-private, and successful boot alone marks a service
@@ -32,9 +43,11 @@ Stateless utilities remain standalone functions, not artificial services.
 
 `Application` requires only `{ basePath }`. This explicit invocation starting path
 is normalized to an absolute path and never changes. Workspace and Blueprint source
-roots are separate typed values bound by bootstrap, not constructor arguments.
-Getter-only root accessors use instance-token synchronous access for filesystem
-consumers. Application does not read `process.cwd()`; the executable supplies it.
+roots are separate instance values bound by bootstrap, not constructor arguments.
+Getter-only root accessors read the instance-bound string keys `path.base`,
+`path.workspace`, and `path.blueprints`, validate their values as strings, and
+serve filesystem consumers. Application does not read `process.cwd()`; the
+executable supplies it.
 Its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
 project's `.github/spindle.json` Config; no file-loading configuration bootstrapper
@@ -58,8 +71,9 @@ flag false. An empty list succeeds without implicitly registering providers.
 The ordinary, extendable `Kernel` defaults to the explicit ordered list
 `LoadConsoleArgs`, `DiscoverGitRoot`, `ResolveBlueprintSourceRoot`,
 `RegisterProviders`. Its protected list can be overridden without normalization.
-`boot(invocation)` supplies the validated invocation token before bootstrap, then
-awaits application provider boot. Subsequent calls retain the first invocation.
+`boot(invocation)` supplies the validated invocation under `console.invocation`
+before bootstrap, then awaits application provider boot. Subsequent calls retain
+the first invocation.
 Bootstrap failure prevents any partial provider queue from booting through Kernel;
 provider boot failure does not undo successful bootstrap.
 
@@ -78,13 +92,14 @@ provider arrays are fresh, and omission clears the previous global selection.
 The executable explicitly supplies the concrete production service provider.
 
 Commander remains the sole parser. Only a parsed command action supplies an
-invocation containing raw argument tokens, script, command path, parsed options,
+invocation containing raw argument strings, script, command path, parsed options,
 and positional arguments. Existing command-specific validation happens before
 application construction. Dispatch composes the application, resolves Kernel,
-boots that invocation, resolves the command, then invokes its operation.
-`LoadConsoleArgs` copies the validated structure into a `Repository` value token;
-it never reads or reparses `process.argv`. Help, version, and malformed arguments
-do not construct an application or discover Git.
+boots that invocation, resolves the command, then invokes its operation. `LoadConsoleArgs` validates the invocation shape and
+copies it into a `Repository` instance under `console.args`; it never reads or
+reparses `process.argv`. The `ConsoleInvocation` type lives in its own module.
+Help, version, and malformed arguments do not construct an application or
+discover Git.
 
 Git discovery starts at the immutable base path and binds the working-tree root
 as the project workspace, with explicit failure and no current-directory fallback.
@@ -102,5 +117,6 @@ their fixture working directory is elsewhere.
 
 This trades direct function calls and implicit resolution for explicit composition
 and application-local lifecycle ownership, while retaining standalone utilities.
-There are no handle/terminate hooks, root constructor providers, string aliases,
-legacy `get`/`create` methods, or old application-module compatibility exports.
+There are no handle/terminate hooks, root constructor providers, alternate string
+aliases, legacy `get`/`create` methods, or old application-module compatibility
+exports.

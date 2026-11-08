@@ -4,7 +4,7 @@ import { DiscoverGitRoot } from "@/foundation/bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/foundation/bootstrap/LoadConsoleArgs";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
 import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
-import { Invocation, type ConsoleInvocation } from "@/foundation/tokens";
+import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
 
 export class Kernel {
   public constructor(public readonly app: Application) {}
@@ -18,7 +18,9 @@ export class Kernel {
   }
 
   public async boot(invocation: ConsoleInvocation): Promise<void> {
-    if (!this.app.bound(Invocation)) this.app.instance(Invocation, invocation);
+    if (!this.app.bound("console.invocation")) {
+      this.app.instance("console.invocation", invocation);
+    }
     await this.bootstrap();
     await this.app.boot();
   }

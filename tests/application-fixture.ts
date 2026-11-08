@@ -1,5 +1,4 @@
 import { Application } from "@/foundation/Application";
-import { BlueprintSourceRoot, WorkspaceRoot } from "@/foundation/tokens";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export function applicationFixture(
@@ -7,8 +6,8 @@ export function applicationFixture(
   blueprintSourceRoot: string,
 ): Application {
   const application = new Application({ basePath: workspaceRoot });
-  application.instance(WorkspaceRoot, workspaceRoot);
-  application.instance(BlueprintSourceRoot, blueprintSourceRoot);
+  application.instance("path.workspace", workspaceRoot);
+  application.instance("path.blueprints", blueprintSourceRoot);
   application.register(ProductionServiceProvider);
   return application;
 }

@@ -3,19 +3,18 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { Application } from "@/foundation/Application";
 import { bootService, Service } from "@/services/Service";
 
-export class ValueToken<T> {
-  declare public readonly valueType: T;
-
-  public constructor(public readonly name: string) {}
-}
-
-export type Constructor<T> = new (...args: never[]) => T;
-export type Key<T> = Constructor<T> | ValueToken<T>;
+export type Constructor<T = unknown> = new (...args: never[]) => T;
+export type Key<T = unknown> = string | Constructor<T>;
 export type Factory<T> = (application: Application) => T | Promise<T>;
 export type ServiceConstructor<T extends Service = Service> = new (app: Application) => T;
 
+interface NormalizedKey {
+  name: string;
+  classKey?: Constructor<unknown>;
+}
+
 interface Resolution {
-  key: Key<unknown>;
+  key: string;
   dependencies: Map<Resolution, number>;
 }
 
@@ -25,28 +24,51 @@ interface InFlight {
 }
 
 type Binding =
-  | { kind: "instance"; value: unknown }
-  | { kind: "singleton" | "transient"; factory: Factory<unknown> };
+  | { kind: "instance"; value: unknown; classKey?: Constructor<unknown> }
+  | {
+      kind: "singleton" | "transient";
+      factory: Factory<unknown>;
+      classKey?: Constructor<unknown>;
+    };
 
-function keyName(key: Key<unknown>): string {
-  return key.name || "<anonymous>";
+function isClassConstructor(value: unknown): value is Constructor<unknown> {
+  return (
+    typeof value === "function" &&
+    /^class(?:\s|\{)/.test(Function.prototype.toString.call(value)) &&
+    typeof value.prototype === "object"
+  );
 }
 
-function isServiceConstructor(key: Key<unknown>): key is ServiceConstructor {
-  return typeof key === "function" && (key === Service || key.prototype instanceof Service);
+function normalizeKey(key: Key): NormalizedKey {
+  if (typeof key === "string") {
+    if (key.length === 0) throw new TypeError("Dependency keys must be non-empty strings.");
+    return { name: key };
+  }
+  if (!isClassConstructor(key)) {
+    throw new TypeError("Dependency keys must be strings or class constructors.");
+  }
+  if (key.name.length === 0) {
+    throw new TypeError("Class dependency keys must have a name.");
+  }
+  return { name: key.name, classKey: key };
 }
 
-export class Container {
-  private readonly bindings = new Map<Key<unknown>, Binding>();
-  private readonly singletons = new Map<Key<unknown>, unknown>();
-  private readonly inFlight = new Map<Key<unknown>, InFlight>();
+function isServiceConstructor(key: Constructor<unknown>): key is ServiceConstructor {
+  return key === Service || key.prototype instanceof Service;
+}
+
+export abstract class Container {
+  private readonly bindings = new Map<string, Binding>();
+  private readonly singletons = new Map<string, unknown>();
+  private readonly inFlight = new Map<string, InFlight>();
   private readonly resolution = new AsyncLocalStorage<readonly Resolution[]>();
 
-  public constructor(private readonly application: Application) {}
+  protected abstract get owner(): Application;
 
   public bind<T extends Service>(key: ServiceConstructor<T>, factory?: Factory<NoInfer<T>>): void;
-  public bind<T>(key: Key<T>, factory: Factory<NoInfer<T>>): void;
-  public bind<T>(key: Key<T>, factory?: Factory<T>): void {
+  public bind<T>(key: Constructor<T>, factory: Factory<NoInfer<T>>): void;
+  public bind<T>(key: string, factory: Factory<T>): void;
+  public bind(key: Key, factory?: Factory<unknown>): void {
     this.registerFactory(key, "transient", factory);
   }
 
@@ -54,100 +76,143 @@ export class Container {
     key: ServiceConstructor<T>,
     factory?: Factory<NoInfer<T>>,
   ): void;
-  public singleton<T>(key: Key<T>, factory: Factory<NoInfer<T>>): void;
-  public singleton<T>(key: Key<T>, factory?: Factory<T>): void {
+  public singleton<T>(key: Constructor<T>, factory: Factory<NoInfer<T>>): void;
+  public singleton<T>(key: string, factory: Factory<T>): void;
+  public singleton(key: Key, factory?: Factory<unknown>): void {
     this.registerFactory(key, "singleton", factory);
   }
 
-  public instance<T>(key: Key<T>, value: NoInfer<T>): void {
-    this.assertUnbound(key);
+  public instance<T>(key: Constructor<T>, value: NoInfer<T>): void;
+  public instance(key: string, value: unknown): void;
+  public instance(key: Key, value: unknown): void {
+    const normalized = normalizeKey(key);
+    this.assertUnbound(normalized);
+    this.assertInstanceType(normalized, value);
     if (value instanceof Service && !value.isBooted) {
-      throw new Error(`Supplied service instance '${keyName(key)}' must already be booted.`);
+      throw new Error(`Supplied service instance '${normalized.name}' must already be booted.`);
     }
-    this.bindings.set(key, { kind: "instance", value });
+    this.bindings.set(normalized.name, {
+      kind: "instance",
+      value,
+      classKey: normalized.classKey,
+    });
   }
 
-  public bound<T>(key: Key<T>): boolean {
-    return this.bindings.has(key);
+  public bound(key: Key): boolean {
+    return this.bindings.has(normalizeKey(key).name);
   }
 
-  public value<T>(key: ValueToken<T>): T {
-    const binding = this.binding(key);
+  public value(key: Key): unknown {
+    const normalized = normalizeKey(key);
+    const binding = this.binding(normalized);
     if (binding.kind !== "instance") {
       throw new Error(
-        `Value '${keyName(key)}' must be registered as an instance for synchronous access.`,
+        `Value '${normalized.name}' must be registered as an instance for synchronous access.`,
       );
     }
-    return binding.value as T;
+    return binding.value;
   }
 
-  public async make<T>(key: Key<T>): Promise<T> {
-    const binding = this.binding(key);
-    if (binding.kind === "instance") return binding.value as T;
-    if (this.singletons.has(key)) return this.singletons.get(key) as T;
+  public make<T extends Service>(key: ServiceConstructor<T>): Promise<T>;
+  public make<T>(key: Constructor<T>): Promise<T>;
+  public make(key: string): Promise<unknown>;
+  public async make(key: Key): Promise<unknown> {
+    const normalized = normalizeKey(key);
+    const binding = this.binding(normalized);
+    if (binding.kind === "instance") {
+      this.assertInstanceType(normalized, binding.value);
+      return binding.value;
+    }
+    if (this.singletons.has(normalized.name)) {
+      const value = this.singletons.get(normalized.name);
+      this.assertInstanceType(normalized, value);
+      return value;
+    }
 
     const chain = this.resolution.getStore() ?? [];
-    this.assertNoAncestorCycle(key, chain);
-    let initialization = binding.kind === "singleton" ? this.inFlight.get(key) : undefined;
+    this.assertNoAncestorCycle(normalized.name, chain);
+    let initialization =
+      binding.kind === "singleton" ? this.inFlight.get(normalized.name) : undefined;
     if (!initialization) {
-      const token: Resolution = { key, dependencies: new Map() };
+      const token: Resolution = { key: normalized.name, dependencies: new Map() };
       const promise = Promise.resolve().then(() =>
-        this.constructAndBoot(token, chain, binding.factory),
+        this.constructAndBoot(token, chain, binding.factory, normalized.classKey),
       );
       initialization = { token, promise };
       if (binding.kind === "singleton") {
-        this.inFlight.set(key, initialization);
+        this.inFlight.set(normalized.name, initialization);
         void promise.then(
           (initialized) => {
-            if (this.inFlight.get(key)?.promise === promise) {
-              this.singletons.set(key, initialized);
-              this.inFlight.delete(key);
+            if (this.inFlight.get(normalized.name)?.promise === promise) {
+              this.singletons.set(normalized.name, initialized);
+              this.inFlight.delete(normalized.name);
             }
           },
           () => {
-            if (this.inFlight.get(key)?.promise === promise) this.inFlight.delete(key);
+            if (this.inFlight.get(normalized.name)?.promise === promise) {
+              this.inFlight.delete(normalized.name);
+            }
           },
         );
       }
     }
     const unlink = this.linkDependency(chain.at(-1), initialization.token);
     try {
-      return (await initialization.promise) as T;
+      const value = await initialization.promise;
+      this.assertInstanceType(normalized, value);
+      return value;
     } finally {
       unlink();
     }
   }
 
-  private binding(key: Key<unknown>): Binding {
-    const binding = this.bindings.get(key);
-    if (!binding) throw new Error(`Unbound dependency: ${keyName(key)}.`);
+  private binding(key: NormalizedKey): Binding {
+    const binding = this.bindings.get(key.name);
+    if (!binding) throw new Error(`Unbound dependency: ${key.name}.`);
+    if (key.classKey && binding.classKey && key.classKey !== binding.classKey) {
+      throw new Error(`Dependency '${key.name}' is bound to a different constructor.`);
+    }
     return binding;
   }
 
-  private assertUnbound(key: Key<unknown>): void {
-    if (this.bound(key)) throw new Error(`Dependency '${keyName(key)}' is already bound.`);
+  private assertUnbound(key: NormalizedKey): void {
+    if (this.bindings.has(key.name)) {
+      throw new Error(`Dependency '${key.name}' is already bound.`);
+    }
+  }
+
+  private assertInstanceType(key: NormalizedKey, value: unknown): void {
+    if (key.classKey && !(value instanceof key.classKey)) {
+      throw new Error(`Dependency '${key.name}' did not produce an instance of its class key.`);
+    }
   }
 
   private registerFactory(
-    key: Key<unknown>,
+    key: Key,
     kind: "singleton" | "transient",
     factory?: Factory<unknown>,
   ): void {
-    this.assertUnbound(key);
+    const normalized = normalizeKey(key);
+    this.assertUnbound(normalized);
     if (!factory) {
-      if (!isServiceConstructor(key)) {
-        throw new Error(`Dependency '${keyName(key)}' requires an explicit factory.`);
+      if (!normalized.classKey || !isServiceConstructor(normalized.classKey)) {
+        throw new Error(`Dependency '${normalized.name}' requires an explicit factory.`);
       }
-      factory = (application) => new key(application);
+      const ServiceType = normalized.classKey;
+      factory = (application) => new ServiceType(application);
     }
-    this.bindings.set(key, { kind, factory });
+    this.bindings.set(normalized.name, {
+      kind,
+      factory,
+      classKey: normalized.classKey,
+    });
   }
 
-  private assertNoAncestorCycle(key: Key<unknown>, chain: readonly Resolution[]): void {
+  private assertNoAncestorCycle(key: string, chain: readonly Resolution[]): void {
     const start = chain.findIndex((token) => token.key === key);
     if (start >= 0) {
       throw new Error(
-        `Circular service dependency: ${[...chain.slice(start).map((token) => keyName(token.key)), keyName(key)].join(" -> ")}`,
+        `Circular service dependency: ${[...chain.slice(start).map((token) => token.key), key].join(" -> ")}`,
       );
     }
   }
@@ -157,7 +222,7 @@ export class Container {
     const path = this.findPath(target, parent);
     if (path) {
       throw new Error(
-        `Circular service dependency: ${[parent, ...path].map((token) => keyName(token.key)).join(" -> ")}`,
+        `Circular service dependency: ${[parent, ...path].map((token) => token.key).join(" -> ")}`,
       );
     }
     parent.dependencies.set(target, (parent.dependencies.get(target) ?? 0) + 1);
@@ -186,9 +251,11 @@ export class Container {
     token: Resolution,
     parentChain: readonly Resolution[],
     factory: Factory<unknown>,
+    constructor: Constructor<unknown> | undefined,
   ): Promise<unknown> {
     return this.resolution.run([...parentChain, token], async () => {
-      const value = await factory(this.application);
+      const value = await factory(this.owner);
+      this.assertInstanceType({ name: token.key, classKey: constructor }, value);
       if (value instanceof Service && !value.isBooted) await bootService(value);
       return value;
     });

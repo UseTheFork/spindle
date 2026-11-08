@@ -5,8 +5,8 @@ import { Application } from "@/foundation/Application";
 import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import { Bootstrapper, type BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
+import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
 import { Kernel } from "@/foundation/Kernel";
-import { BlueprintSourceRoot, WorkspaceRoot, type ConsoleInvocation } from "@/foundation/tokens";
 import { ServiceProvider } from "@/services/ServiceProvider";
 
 afterEach(() => RegisterProviders.merge([]));
@@ -39,8 +39,8 @@ test("base path is normalized immutable and separate from explicitly bound roots
   expect(first.basePath).toBe("/workspaces/first");
   expect(second.basePath).toBe("/workspaces/second");
   expect(() => first.workspaceRoot).toThrow(/Unbound/);
-  first.instance(WorkspaceRoot, "/workspaces");
-  first.instance(BlueprintSourceRoot, "/blueprints/first");
+  first.instance("path.workspace", "/workspaces");
+  first.instance("path.blueprints", "/blueprints/first");
   expect(first.workspaceRoot).toBe("/workspaces");
   expect(first.blueprintSourceRoot).toBe("/blueprints/first");
   for (const key of ["basePath", "workspaceRoot", "blueprintSourceRoot"]) {
@@ -48,6 +48,9 @@ test("base path is normalized immutable and separate from explicitly bound roots
   }
   expect(first.basePath).toBe("/workspaces/first");
   expect(() => second.workspaceRoot).toThrow(/Unbound/);
+  const invalidPath = new Application({ basePath: "/invalid" });
+  invalidPath.instance("path.workspace", 42);
+  expect(() => invalidPath.workspaceRoot).toThrow(/must be a string/);
 });
 
 test("configuration is isolated and available before explicit provider construction", async () => {

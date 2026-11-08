@@ -90,19 +90,37 @@ starting path is immutable; workspace and Blueprint source roots are separate
 instance values bound during bootstrap. Do not read ambient cwd in services.
 The executable alone supplies cwd as the base path.
 
-Import `Container`, `ValueToken`, `Key`, and `Factory` from
-`@/foundation/Container`. `app.bind(key, factory)` registers a transient;
-`app.singleton(key, factory)` registers a shared value;
-`app.instance(key, value)` supplies an existing value.
+`Application` extends `Container`; it has no separate `app.container` or
+delegated resolver methods. Import `Container`, `Key`, and `Factory` from
+`@/foundation/Container`. Keys are strings or actual class constructors.
+Constructor keys normalize to their runtime `.name`, so class names must be
+stable and unique within an application; an explicit string key with the same
+name shares that normalized key. JavaScript cannot distinguish a named class
+declaration from a named class expression at runtime, so use uniquely named
+classes rather than relying on fabricated module metadata. Unnamed classes and
+non-class function/object keys are rejected.
+
+`app.bind(key, factory)` registers a transient; `app.singleton(key, factory)`
+registers a shared value; `app.instance(key, value)` supplies an existing value.
 Service constructors may omit factories, defaulting to construction with the
 owning application. Ordinary constructors require explicit factories.
-Factories may return values or promises. `await app.make(key)` requires an
-explicit binding and automatically boots only Service instances before returning.
-Supplied Service instances must already be booted. Duplicate bindings of any
-kind throw, and `app.bound(key)` checks all registration kinds.
-There are no `get`/`create` resolver methods, global containers, or string aliases.
-Singleton initialization coalesces and can retry after failure; dependency cycles
-are detected even across concurrent shared initializations.
+Constructor-key factories and instances are checked against the class type.
+String-key factories infer their result for type checking at registration, while
+`app.make(string)` deliberately returns `Promise<unknown>`; class-key
+`app.make(Class)` preserves `Promise<Class>` inference. Factories may return
+values or promises. `await app.make(key)` requires an explicit binding and
+automatically boots only Service instances before returning. Supplied Service
+instances must already be booted. Duplicate bindings of any kind throw, and
+`app.bound(key)` checks all registration kinds.
+
+`app.value(key)` returns `unknown` and permits synchronous access only to
+instance bindings. The application stores `path.base`, `path.workspace`,
+`path.blueprints`, `console.invocation`, and `console.args` under those string
+keys. Application path getters validate that path values are strings, and
+`LoadConsoleArgs` validates invocation shape before copying it into a Repository.
+There are no `get`/`create` resolver methods or global containers. Singleton
+initialization coalesces and can retry after failure; dependency cycles are
+detected even across concurrent shared initializations.
 
 `app.register(ProviderClass)` constructs and registers each provider once, queuing
 its instance for boot. Register before calling `app.boot()`; there are no phase
@@ -129,14 +147,13 @@ and awaits hooks, sharing one cached result across kernels.
 and prevents partial provider boot through Kernel.
 
 `await kernel.boot(invocation)` first supplies the validated `ConsoleInvocation`
-token, then bootstraps and boots providers. Commander alone parses raw arguments;
+value, then bootstraps and boots providers. Commander alone parses raw arguments;
 dispatch constructs the application only after parsing and command validation,
 then resolves Kernel, boots the invocation, resolves the command and runs its
 operation. Help/version/invalid arguments require no Application or Git.
 `LoadConsoleArgs` binds a Repository with `raw`, `script`, `commandPath`,
 `options`, and `positionals`; it never reparses or reads `process.argv`.
-Root and invocation tokens live in `@/foundation/tokens`. `app.value(token)`
-provides synchronous access only to explicitly supplied instance values.
+The `ConsoleInvocation` type lives in `@/foundation/ConsoleInvocation`.
 
 The production provider explicitly registers command, reconciliation and
 installation singletons, plus transient computed-context services.

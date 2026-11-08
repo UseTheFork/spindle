@@ -13,16 +13,11 @@ import { DiscoverGitRoot } from "@/foundation/bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/foundation/bootstrap/LoadConsoleArgs";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
 import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
+import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
 import { Kernel } from "@/foundation/Kernel";
-import {
-  BlueprintSourceRoot,
-  ConsoleArgs,
-  Invocation,
-  WorkspaceRoot,
-  type ConsoleInvocation,
-} from "@/foundation/tokens";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { ServiceProvider } from "@/services/ServiceProvider";
+import { Repository } from "@/utilities/Repository";
 
 afterEach(() => {
   RegisterProviders.merge([]);
@@ -47,6 +42,12 @@ const invocation: ConsoleInvocation = {
   positionals: [],
 };
 
+function consoleArgs(application: Application): Repository {
+  const args = application.value("console.args");
+  if (!(args instanceof Repository)) throw new Error("Missing console arguments.");
+  return args;
+}
+
 test("default kernel bootstrap order is explicit and ordinary Kernel make does not bootstrap", async () => {
   class Inspectable extends Kernel {
     public list(): readonly BootstrapperConstructor[] {
@@ -62,8 +63,8 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
   ]);
   await app.make(Kernel);
   expect(app.hasBeenBootstrapped).toBe(false);
-  expect(app.bound(Invocation)).toBe(false);
-  expect(app.bound(WorkspaceRoot)).toBe(false);
+  expect(app.bound("console.invocation")).toBe(false);
+  expect(app.bound("path.workspace")).toBe(false);
 });
 
 test("kernel supplies invocation first, resolves distinct roots, then registers and boots providers", async () => {
@@ -76,8 +77,8 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
       expect(app.basePath).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
       expect(app.blueprintSourceRoot).toBe(join(root, "blueprint-assets"));
-      expect(app.value(Invocation)).toBe(invocation);
-      expect(app.value(ConsoleArgs).array("raw")).toBe(invocation.raw);
+      expect(app.value("console.invocation")).toBe(invocation);
+      expect(consoleArgs(app).array("raw")).toBe(invocation.raw);
       events.push("construct");
     }
     public register(): void {
@@ -94,7 +95,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
   expect(events).toEqual(["construct", "register", "boot"]);
   expect(app.basePath).toBe(nested);
   expect(app.hasBeenBootstrapped).toBe(true);
-  expect(app.value(Invocation)).toBe(invocation);
+  expect(app.value("console.invocation")).toBe(invocation);
 });
 
 test("LoadConsoleArgs retains parsed option arrays, false values, positionals, raw tokens and script", () => {
@@ -106,9 +107,9 @@ test("LoadConsoleArgs retains parsed option arrays, false values, positionals, r
     options: { interactive: false, var: ["owner=one", "owner=two"], includeNew: true },
     positionals: ["require", "raw"],
   };
-  app.instance(Invocation, parsed);
+  app.instance("console.invocation", parsed);
   new LoadConsoleArgs().bootstrap(app);
-  const args = app.value(ConsoleArgs);
+  const args = consoleArgs(app);
   expect(args.string("script")).toBe(parsed.script);
   expect(args.array("raw")).toBe(parsed.raw);
   expect(args.array("commandPath")).toBe(parsed.commandPath);
@@ -117,6 +118,19 @@ test("LoadConsoleArgs retains parsed option arrays, false values, positionals, r
   expect(args.boolean("options.interactive")).toBe(false);
   expect(args.boolean("options.includeNew")).toBe(true);
   expect(app.config.has("args")).toBe(false);
+});
+
+test.each([
+  undefined,
+  null,
+  {},
+  { raw: ["init"], script: "spindle", commandPath: [], options: [], positionals: [] },
+  { raw: ["init", 1], script: "spindle", commandPath: [], options: {}, positionals: [] },
+])("LoadConsoleArgs rejects malformed invocation values: %j", (value) => {
+  const app = new Application({ basePath: "/project" });
+  app.instance("console.invocation", value);
+  expect(() => new LoadConsoleArgs().bootstrap(app)).toThrow(/Console invocation/);
+  expect(app.bound("console.args")).toBe(false);
 });
 
 test("failed Git bootstrap caches failure before constructing any providers", async () => {
@@ -137,9 +151,9 @@ test("failed Git bootstrap caches failure before constructing any providers", as
   await expect(kernel.boot(invocation)).rejects.toThrow(/Git working-tree root/);
   await expect(new Kernel(app).boot(invocation)).rejects.toThrow(/Git working-tree root/);
   expect(constructions).toBe(0);
-  expect(app.bound(ConsoleArgs)).toBe(true);
-  expect(app.bound(WorkspaceRoot)).toBe(false);
-  expect(app.bound(BlueprintSourceRoot)).toBe(false);
+  expect(app.bound("console.args")).toBe(true);
+  expect(app.bound("path.workspace")).toBe(false);
+  expect(app.bound("path.blueprints")).toBe(false);
   expect(app.hasBeenBootstrapped).toBe(false);
 });
 
@@ -147,7 +161,7 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
   let runs = 0;
   class Counting extends Bootstrapper {
     public bootstrap(app: Application): void {
-      expect(app.value(Invocation)).toBe(invocation);
+      expect(app.value("console.invocation")).toBe(invocation);
       runs++;
     }
   }
@@ -159,7 +173,7 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
   const app = new Application({ basePath: "/project" });
   await new Custom(app).boot(invocation);
   expect(runs).toBe(2);
-  expect(app.bound(WorkspaceRoot)).toBe(false);
+  expect(app.bound("path.workspace")).toBe(false);
   expect(app.hasBeenBootstrapped).toBe(true);
 });
 
@@ -199,8 +213,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     "/installed/spindle",
   );
   if (!application) throw new Error("Missing dispatched application.");
-  const parsed = application.value(Invocation);
-  expect(parsed).toEqual({
+  expect(application.value("console.invocation")).toEqual({
     raw,
     script: "/installed/spindle",
     commandPath: ["init"],
@@ -212,7 +225,7 @@ test("Commander alone supplies validated repeated options to the executable comp
       onConflict: "overwrite",
     },
   });
-  expect(application.value(ConsoleArgs).array("options.var")).toEqual(parsed.options.var);
+  expect(consoleArgs(application).array("options.var")).toEqual(["owner=first", "owner=second"]);
   expect(run).toHaveBeenCalledWith(
     ["python", "typescript"],
     ["owner=first", "owner=second"],
@@ -250,9 +263,11 @@ test("Commander preserves a real positional action and nested command path witho
     }),
   ).rejects.toBe(operationFailure);
   if (!application) throw new Error("Missing dispatched application.");
-  expect(application.value(Invocation).positionals).toEqual(["require"]);
-  expect(application.value(Invocation).commandPath).toEqual(["sdd", "review"]);
-  expect(application.value(Invocation).raw).toEqual(raw);
+  expect(application.value("console.invocation")).toMatchObject({
+    positionals: ["require"],
+    commandPath: ["sdd", "review"],
+    raw,
+  });
 });
 
 test("semantic invalid input fails before Application construction or Git bootstrap", async () => {

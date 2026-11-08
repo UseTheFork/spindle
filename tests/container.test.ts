@@ -1,72 +1,88 @@
 import { expect, expectTypeOf, test } from "vitest";
 
 import { Application } from "@/foundation/Application";
-import { ValueToken } from "@/foundation/Container";
+import { Container } from "@/foundation/Container";
 import { Service } from "@/services/Service";
 
-test("registration types require ordinary factories and preserve typed token values", () => {
+test("class registrations preserve constructor types and string registrations stay unknown", () => {
   class Ordinary {
     public constructor(public readonly argument: string) {}
   }
-  const token = new ValueToken<string>("typed");
   const check = (app: Application): void => {
     app.bind(Ordinary, () => new Ordinary("value"));
     app.singleton(Service);
-    app.bind(token, async () => "value");
+    app.bind("typed", async () => "value");
+    app.singleton("inferred", (owner) => {
+      expectTypeOf(owner).toEqualTypeOf<Application>();
+      return "value";
+    });
     // @ts-expect-error Ordinary constructors require explicit factories.
     app.bind(Ordinary);
-    // @ts-expect-error Factory results must match the token, not widen its type.
-    app.singleton(token, () => 42);
-    // @ts-expect-error Supplied values must match the token.
-    app.instance(token, 42);
+    // @ts-expect-error Constructor factories must return the keyed class.
+    app.singleton(Ordinary, () => "value");
+    // @ts-expect-error Supplied instances must match the class key.
+    app.instance(Ordinary, "value");
+    expectTypeOf(app.make(Ordinary)).toEqualTypeOf<Promise<Ordinary>>();
+    expectTypeOf(app.make("typed")).toEqualTypeOf<Promise<unknown>>();
+    expectTypeOf(app.make("inferred")).toEqualTypeOf<Promise<unknown>>();
   };
   expectTypeOf(check).parameter(0).toEqualTypeOf<Application>();
+  expect(new Application({ basePath: "/project" })).toBeInstanceOf(Container);
 });
 
 test("singleton factory failures coalesce then retry without caching unsuccessful values", async () => {
   const app = new Application({ basePath: "/project" });
-  const token = new ValueToken<number>("retry factory");
   const failure = new Error("factory failed");
   let attempts = 0;
-  app.singleton(token, async () => {
+  app.singleton("retry.factory", async () => {
     if (++attempts === 1) throw failure;
     return attempts;
   });
-  expect(await Promise.allSettled([app.make(token), app.make(token)])).toEqual([
+  expect(await Promise.allSettled([app.make("retry.factory"), app.make("retry.factory")])).toEqual([
     { status: "rejected", reason: failure },
     { status: "rejected", reason: failure },
   ]);
-  expect(await app.make(token)).toBe(2);
-  expect(await app.make(token)).toBe(2);
+  expect(await app.make("retry.factory")).toBe(2);
+  expect(await app.make("retry.factory")).toBe(2);
   expect(attempts).toBe(2);
 });
 
-test("all registration kinds are strict explicit and keyed by constructor or token identity", async () => {
+test("registration normalizes class names, rejects duplicates, and supports explicit string access", async () => {
   const app = new Application({ basePath: "/project" });
-  const missing = new ValueToken<string>("value");
-  expect(app.bound(missing)).toBe(false);
-  await expect(app.make(missing)).rejects.toThrow(/Unbound dependency: value/);
+  expect(app.bound("value")).toBe(false);
+  await expect(app.make("value")).rejects.toThrow(/Unbound dependency: value/);
   await expect(app.make(Service)).rejects.toThrow(/Unbound dependency: Service/);
   const first = class SameName {};
   const second = class SameName {};
   app.singleton(first, () => new first());
-  app.bind(second, () => new second());
+  expect(app).not.toHaveProperty("container");
   expect(app.bound(first)).toBe(true);
   expect(app.bound(second)).toBe(true);
-  expect(await app.make(first)).not.toBe(await app.make(second));
-  const token = new ValueToken<string>("value");
-  app.instance(token, "bound");
-  expect(app.bound(token)).toBe(true);
-  expect(await app.make(token)).toBe("bound");
-  expect(app.value(token)).toBe("bound");
-  expect(app.bound(missing)).toBe(false);
-  expectTypeOf(app.make(token)).toEqualTypeOf<Promise<string>>();
-  expect(() => app.instance(token, "replacement")).toThrow(/already bound/);
-  expect(() => app.bind(token, () => "replacement")).toThrow(/already bound/);
-  expect(() => app.singleton(token, () => "replacement")).toThrow(/already bound/);
+  await expect(app.make(second)).rejects.toThrow(/different constructor/);
+  expect(await app.make("SameName")).toBeInstanceOf(first);
+  expect(() => app.bind(second, () => new second())).toThrow(/already bound/);
+  expect(() => app.bind("SameName", () => new first())).toThrow(/already bound/);
+  app.instance("value", "bound");
+  expect(app.bound("value")).toBe(true);
+  expect(await app.make("value")).toBe("bound");
+  expect(app.value("value")).toBe("bound");
+  expectTypeOf(app.make("value")).toEqualTypeOf<Promise<unknown>>();
+  expect(() => app.instance("value", "replacement")).toThrow(/already bound/);
+  expect(() => app.bind("value", () => "replacement")).toThrow(/already bound/);
+  expect(() => app.singleton("value", () => "replacement")).toThrow(/already bound/);
   expect(() => app.singleton(first, () => new first())).toThrow(/already bound/);
-  expect(() => app.instance(second, new second())).toThrow(/already bound/);
   expect(() => app.singleton(second, () => new second())).toThrow(/already bound/);
+});
+
+test("dependency keys reject unnamed classes and non-class values", () => {
+  const app = new Application({ basePath: "/project" });
+  const unnamed = (() => class {})();
+  function OrdinaryFunction(): void {}
+  const bound = (key: unknown): unknown => Reflect.apply(app.bound, app, [key]);
+  expect(() => bound(unnamed)).toThrow(/must have a name/);
+  expect(() => bound(OrdinaryFunction)).toThrow(/class constructors/);
+  expect(() => bound({})).toThrow(/class constructors/);
+  expect(() => bound("")).toThrow(/non-empty strings/);
 });
 
 test("typed sync and async factories receive Application and only Services auto boot", async () => {
@@ -95,18 +111,16 @@ test("typed sync and async factories receive Application and only Services auto 
   expect(second.isBooted).toBe(true);
   expect(first).not.toBe(second);
   expect(owners).toEqual([app, app, app]);
-  const token = new ValueToken<Service>("async service");
-  app.singleton(token, async (owner) => new Service(owner));
-  expect((await app.make(token)).isBooted).toBe(true);
-  expect(() => app.value(token)).toThrow(/synchronous access/);
-  const empty = new ValueToken<undefined>("empty");
+  app.singleton("async service", async (owner) => new Service(owner));
+  expect(await app.make("async service")).toBeInstanceOf(Service);
+  expect(() => app.value("async service")).toThrow(/synchronous access/);
   let calls = 0;
-  app.singleton(empty, () => {
+  app.singleton("empty", () => {
     calls++;
     return undefined;
   });
-  await Promise.all([app.make(empty), app.make(empty), app.make(empty)]);
-  await app.make(empty);
+  await Promise.all([app.make("empty"), app.make("empty"), app.make("empty")]);
+  await app.make("empty");
   expect(calls).toBe(1);
 });
 
@@ -127,13 +141,12 @@ test("supplied Service instances must already be booted and are not booted again
   const initialized = await app.make(Counting);
   other.instance(Counting, initialized);
   expect(await other.make(Counting)).toBe(initialized);
-  const token = new ValueToken<Counting>("booted factory");
-  other.singleton(token, () => initialized);
-  expect(await other.make(token)).toBe(initialized);
+  other.singleton("booted factory", () => initialized);
+  expect(await other.make("booted factory")).toBe(initialized);
   expect(boots).toBe(2);
 });
 
-test("transient and singleton Service lifetimes coexist through explicit typed keys", async () => {
+test("transient and singleton Service lifetimes coexist through class and string keys", async () => {
   const app = new Application({ basePath: "/project" });
   let boots = 0;
   class SharedLifetime extends Service {
@@ -143,27 +156,24 @@ test("transient and singleton Service lifetimes coexist through explicit typed k
       if (boots > 1) this.singleton = await this.app.make(SharedLifetime);
     }
   }
-  const fresh = new ValueToken<SharedLifetime>("fresh");
   app.singleton(SharedLifetime);
-  app.bind(fresh, (owner) => new SharedLifetime(owner));
+  app.bind("fresh", (owner) => new SharedLifetime(owner));
   const singleton = await app.make(SharedLifetime);
-  const [first, second] = await Promise.all([app.make(fresh), app.make(fresh)]);
+  const [first, second] = await Promise.all([app.make("fresh"), app.make("fresh")]);
   expect(first).not.toBe(second);
   expect(first).not.toBe(singleton);
-  expect(first.singleton).toBe(singleton);
-  expect(second.singleton).toBe(singleton);
-  expect(first.isBooted).toBe(true);
-  expect(second.isBooted).toBe(true);
+  expect(first).toMatchObject({ singleton });
+  expect(second).toMatchObject({ singleton });
+  expect(first).toMatchObject({ isBooted: true });
+  expect(second).toMatchObject({ isBooted: true });
   expect(boots).toBe(3);
 });
 
 test("ordinary asynchronous factory cycles fail across concurrently started singletons", async () => {
   const app = new Application({ basePath: "/project" });
-  const first = new ValueToken<string>("first");
-  const second = new ValueToken<string>("second");
-  app.singleton(first, async (owner) => owner.make(second));
-  app.singleton(second, async (owner) => owner.make(first));
-  const results = await Promise.allSettled([app.make(first), app.make(second)]);
+  app.singleton("first", async (owner) => owner.make("second"));
+  app.singleton("second", async (owner) => owner.make("first"));
+  const results = await Promise.allSettled([app.make("first"), app.make("second")]);
   for (const result of results) {
     expect(result.status).toBe("rejected");
     if (result.status === "rejected")

@@ -3,8 +3,7 @@ import { resolve } from "node:path";
 import { Config } from "@/config/Config";
 import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import type { BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
-import { Container, type Key, type ValueToken } from "@/foundation/Container";
-import { BlueprintSourceRoot, WorkspaceRoot } from "@/foundation/tokens";
+import { Container } from "@/foundation/Container";
 import type { ServiceProvider } from "@/services/ServiceProvider";
 
 export type { ServiceConstructor } from "@/foundation/Container";
@@ -17,11 +16,8 @@ export type ServiceProviderConstructor<T extends ServiceProvider = ServiceProvid
   app: Application,
 ) => T;
 
-export class Application {
+export class Application extends Container {
   public readonly config = new Config();
-  public readonly container = new Container(this);
-  public readonly bind = this.container.bind.bind(this.container);
-  public readonly singleton = this.container.singleton.bind(this.container);
   private readonly _basePath: string;
   private readonly providers = new Map<ServiceProviderConstructor, ServiceProvider>();
   private readonly bootableProviders: ServiceProvider[] = [];
@@ -30,7 +26,13 @@ export class Application {
   private bootPromise: Promise<void> | undefined;
 
   public constructor({ basePath }: ApplicationOptions) {
+    super();
     this._basePath = resolve(basePath);
+    this.instance("path.base", this._basePath);
+  }
+
+  protected override get owner(): Application {
+    return this;
   }
 
   public static configure(
@@ -43,35 +45,19 @@ export class Application {
   }
 
   public get basePath(): string {
-    return this._basePath;
+    return this.stringValue("path.base");
   }
 
   public get workspaceRoot(): string {
-    return this.value(WorkspaceRoot);
+    return this.stringValue("path.workspace");
   }
 
   public get blueprintSourceRoot(): string {
-    return this.value(BlueprintSourceRoot);
+    return this.stringValue("path.blueprints");
   }
 
   public get hasBeenBootstrapped(): boolean {
     return this._hasBeenBootstrapped;
-  }
-
-  public instance<T>(key: Key<T>, value: NoInfer<T>): void {
-    this.container.instance(key, value);
-  }
-
-  public bound<T>(key: Key<T>): boolean {
-    return this.container.bound(key);
-  }
-
-  public make<T>(key: Key<T>): Promise<T> {
-    return this.container.make(key);
-  }
-
-  public value<T>(key: ValueToken<T>): T {
-    return this.container.value(key);
   }
 
   public register(Provider: ServiceProviderConstructor): void {
@@ -98,5 +84,13 @@ export class Application {
       for (const provider of this.bootableProviders) await provider.boot();
     });
     await this.bootPromise;
+  }
+
+  private stringValue(key: string): string {
+    const value = this.value(key);
+    if (typeof value !== "string") {
+      throw new Error(`Application path '${key}' must be a string.`);
+    }
+    return value;
   }
 }
