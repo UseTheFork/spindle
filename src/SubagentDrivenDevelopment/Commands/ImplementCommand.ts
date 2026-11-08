@@ -1,0 +1,28 @@
+import type { Command as CommanderCommand } from "commander";
+
+import { Command } from "@/commands/Command";
+import { once } from "@/commands/shared-options";
+import type { Application } from "@/foundation/Application";
+import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import type { ImplementOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
+
+export class ImplementCommand extends Command {
+  public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
+    group(root)
+      .command("implement")
+      .description("Persist and return an implementation assignment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: ImplementOptions) => {
+        const command = await (await createApp()).make(ImplementCommand);
+        console.log(JSON.stringify(await command.run(options), null, 2));
+      });
+  }
+
+  public async run(options: ImplementOptions) {
+    return (await this.app.make(AssignmentService)).implement(options);
+  }
+}

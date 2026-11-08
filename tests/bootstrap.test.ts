@@ -8,11 +8,11 @@ import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { dispatch } from "@/cli";
 import { Command, type CommandConstructor } from "@/commands/Command";
 import { InitCommand } from "@/commands/init/init-command";
-import { SddCommand } from "@/commands/sdd/sdd-command";
 import { Application } from "@/foundation/Application";
 import { Bootstrapper, type BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
 import { DiscoverGitRoot } from "@/foundation/bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/foundation/bootstrap/LoadConsoleArgs";
+import { LoadProjectConfiguration } from "@/foundation/bootstrap/LoadProjectConfiguration";
 import { RegisterProviders } from "@/foundation/bootstrap/RegisterProviders";
 import { ResolveBlueprintSourceRoot } from "@/foundation/bootstrap/ResolveBlueprintSourceRoot";
 import type { ConsoleInvocation } from "@/foundation/ConsoleInvocation";
@@ -20,6 +20,7 @@ import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvide
 import { Kernel } from "@/foundation/Kernel";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { ServiceProvider } from "@/services/ServiceProvider";
+import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { Repository } from "@/utilities/Repository";
 
 afterEach(() => {
@@ -61,6 +62,7 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
   expect(new Inspectable(app).list()).toEqual([
     LoadConsoleArgs,
     DiscoverGitRoot,
+    LoadProjectConfiguration,
     ResolveBlueprintSourceRoot,
     RegisterProviders,
   ]);
@@ -241,7 +243,7 @@ test("Commander alone supplies validated repeated options to the executable comp
 test("Commander preserves a real positional action and nested command path without reparsing", async () => {
   const { nested } = workspace();
   const operationFailure = new Error("operation reached");
-  vi.spyOn(SddCommand.prototype, "reviewRequire").mockImplementation(() => {
+  vi.spyOn(ReviewService.prototype, "reviewRequire").mockImplementation(() => {
     throw operationFailure;
   });
   let application: Application | undefined;

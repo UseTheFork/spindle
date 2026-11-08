@@ -1,7 +1,7 @@
 set positional-arguments
 
 pnpm *args:
-    @cd {{ justfile_directory() }}/packages/orchestration && pnpm "$@"
+    @cd {{ justfile_directory() }} && pnpm "$@"
 
 git *args:
     @cd {{ justfile_directory() }} && git "$@"

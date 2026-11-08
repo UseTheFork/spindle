@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import chalk from "chalk";
@@ -8,61 +7,17 @@ import { blueprintHandlers } from "@/blueprints/registry";
 import type { BlueprintHandler } from "@/blueprints/types";
 import { Command } from "@/commands/Command";
 import { conflictPolicyOption, noInteractiveOption } from "@/commands/shared-options";
+import {
+  projectConfiguration,
+  readConfig,
+  requireProjectConfiguration,
+} from "@/config/ProjectConfiguration";
 import type { Application } from "@/foundation/Application";
 import type { ConflictPolicy } from "@/installation/types";
 import { promptNewBlueprints, promptOutdated, promptVariable } from "@/prompts";
 import { BlueprintReconciliationService } from "@/reconciliation/blueprint-reconciliation-service";
 import { parseConflictPolicy } from "@/utilities/conflict-policy";
-import { validateStacks } from "@/utilities/stacks";
 import { loadVariableDefinitions } from "@/variables";
-
-const missingConfig = (reason: string) =>
-  new Error(`${reason} Run \`spindle init\` to create .github/spindle.json.`);
-
-async function readConfig(path: string) {
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      throw missingConfig("This repository has no .github/spindle.json.");
-    }
-    throw error;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw missingConfig(".github/spindle.json is not valid JSON.");
-  }
-
-  const config = parsed as { stacks?: unknown; variables?: unknown } | null;
-  const stacks = config?.stacks;
-  const stored = config?.variables;
-  if (
-    typeof config !== "object" ||
-    config === null ||
-    !Array.isArray(stacks) ||
-    stacks.length === 0 ||
-    !stacks.every((stack) => typeof stack === "string") ||
-    typeof stored !== "object" ||
-    stored === null ||
-    Array.isArray(stored) ||
-    !Object.values(stored).every((value) => typeof value === "string")
-  ) {
-    throw missingConfig(
-      '.github/spindle.json is malformed; expected {"stacks": [...], "variables": {...}}. Fix the file or run `spindle init`.',
-    );
-  }
-  validateStacks(stacks as string[]);
-
-  return {
-    config: config as Record<string, unknown>,
-    stacks: stacks as string[],
-    variables: stored as Record<string, string>,
-  };
-}
 
 async function resolveVariables(
   config: { stacks: string[]; variables: Record<string, string> },
@@ -140,7 +95,9 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
   ): Promise<void> {
     const githubDirectory = join(this.app.workspaceRoot, ".github");
     const configPath = join(githubDirectory, "spindle.json");
-    const config = await readConfig(configPath);
+    const config = this.app.bound("config.project")
+      ? requireProjectConfiguration(projectConfiguration(this.app))
+      : await readConfig(configPath);
     let prompted: Record<string, string> = {};
 
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {

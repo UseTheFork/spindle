@@ -12,7 +12,7 @@ applyTo: "**/*.test.{ts,js,cjs,mjs}"
 - Replace Node test-context lifecycle hooks with Vitest equivalents when needed, preserving fixture isolation and cleanup.
 - Prefer typed, direct Application and service calls for in-process tests. Reuse isolated fixtures and existing helpers; do not recreate CLI argument parsing or erase service option types with casts.
 - Retain subprocess tests for actual CLI parsing, executable behavior, process interruption, and competing-process ownership.
-- Run project commands directly as documented in [Project Tooling](../../docs/agents/tooling.md), not through Just. During migration, select files explicitly and use the runner matching each file's imports.
+- Run project commands through Just recipes as documented in [Project Tooling](../../docs/agents/tooling.md). During migration, select files explicitly and use the runner matching each file's imports.
 - Do not run tests when the user explicitly requests conversion without execution.
 - Run the smallest set of explicitly selected test files and named cases covering the change. Do not run the full suite by default; expand validation only when the change requires it and respect the user's test restrictions.
 - Import source modules using extensionless `@/` paths, as specified in [TypeScript conventions](./typescript.instructions.md).

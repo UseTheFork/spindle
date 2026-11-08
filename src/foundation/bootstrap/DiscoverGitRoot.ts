@@ -1,9 +1,10 @@
 import type { Application } from "@/foundation/Application";
 import { Bootstrapper } from "@/foundation/bootstrap/Bootstrapper";
-import { discoverGitRoot } from "@/utilities/git-root";
+import { GitService } from "@/Git/Services/GitService";
 
 export class DiscoverGitRoot extends Bootstrapper {
-  public bootstrap(application: Application): void {
-    application.instance("path.workspace", discoverGitRoot(application.basePath()));
+  public async bootstrap(application: Application): Promise<void> {
+    const git = await application.make(GitService);
+    application.instance("path.workspace", git.discoverRoot(application.basePath()));
   }
 }

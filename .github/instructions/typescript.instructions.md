@@ -14,4 +14,4 @@ applyTo: "src/**/*.ts,tests/**/*.ts"
 - Name class-focused production files in PascalCase matching the principal class, such as `Application.ts`, `ServiceProvider.ts`, and `Repository.ts`. Do not apply this naming rule to topic-based test files or non-class utility modules.
 - Apply these conventions to new and changed code without unrelated mass renaming or refactoring. Update all necessary consumers when a file is intentionally renamed.
 - Follow the lifecycle and configuration contracts in [Project Tooling](../../docs/agents/tooling.md#application-services) and the rationale in [Application-owned services](../../docs/adr/0004-application-owned-services.md). Reference those documents rather than duplicating their contracts in instructions.
-- Run project commands directly with pnpm or Git as documented in [Project Tooling](../../docs/agents/tooling.md), not through Just. Use focused validation and follow [Testing](./testing.instructions.md) for test selection.
+- Run project commands through Just recipes as documented in [Project Tooling](../../docs/agents/tooling.md). Use focused validation and follow [Testing](./testing.instructions.md) for test selection.

@@ -64,8 +64,8 @@ and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.
 Its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
-project's `.github/spindle.json` Config; no file-loading configuration bootstrapper
-is introduced.
+project's `.github/spindle.json` Config. [ADR-0005](./0005-subagent-development-boundaries.md)
+adds a distinct project-file snapshot bootstrapper without populating `app.config`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
 then queues its instance for boot. Providers receive getter-only application
@@ -74,11 +74,11 @@ control registration-before-boot ordering. `Application.boot()` only awaits queu
 provider hooks sequentially. Concurrent and non-awaited reentrant calls share one
 initialization, retaining either success or failure without retry.
 The constructor binds its own instance under `app`, `Application`, and `Container`
-before registering `FoundationServiceProvider`, with `path.base` and configuration
-already available. This foundation provider is the explicit exception: it is
-registered during construction, before bootstrap processes the external provider
-list. Its empty register and boot hooks follow the same register-once and queued
-boot lifecycle as external providers.
+before registering `FoundationServiceProvider` and `GitServiceProvider`, with
+`path.base` and configuration already available. These are the explicit
+constructor-time exceptions, before bootstrap processes external providers.
+Git registration binds its singleton without discovering a repository.
+Their hooks follow the same register-once and queued boot lifecycle as external providers.
 
 The independent `Bootstrapper` abstraction implements
 `bootstrap(application): void | Promise<void>` with no required constructor
@@ -90,7 +90,7 @@ flag false. An empty list succeeds without registering additional providers;
 the constructor-registered foundation provider is already queued.
 
 The ordinary, extendable `Kernel` defaults to the explicit ordered list
-`LoadConsoleArgs`, `DiscoverGitRoot`, `ResolveBlueprintSourceRoot`,
+`LoadConsoleArgs`, `DiscoverGitRoot`, `LoadProjectConfiguration`, `ResolveBlueprintSourceRoot`,
 `RegisterProviders`. Its protected list can be overridden without normalization.
 `boot(invocation)` supplies the validated invocation under `console.invocation`
 before bootstrap, then awaits application provider boot. Subsequent calls retain

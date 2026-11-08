@@ -1,53 +1,55 @@
 # Project Tooling
 
-Run project commands directly with pnpm or Git, not Just. Run all commands
-from the repository root. Replace `<args>` with optional command arguments.
+Run project commands through Just from the repository root. Recipes select the
+repository working directory. Replace `<args>` with optional command arguments.
 
 ## Build
 
-- `pnpm run build` - Rebuild the Blueprint bundle from current sources and compile the CLI, removing stale bundled files.
+- `just build` - Rebuild the Blueprint bundle from current sources and compile the CLI, removing stale bundled files.
 
 ## Linting
 
-- `pnpm run lint <args>` - Check files without modifying them.
-- `pnpm run lint:fix <args>` - Apply lint fixes.
+- `just lint check <args>` - Check files without modifying them.
+- `just lint lint <args>` - Apply lint fixes.
 
 ## Formatting
 
-- `pnpm run fmt <args>` - Format files.
-- `pnpm run fmt:check <args>` - Check formatting without modifying files.
+- `just format format <args>` - Format files.
+- `just format check <args>` - Check formatting without modifying files.
 
 ## Type checking
 
-- `pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
+- `just tool pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
+- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD and impacted Git/configuration/application test files only.
 
 ## Tooling
 
-- `git --no-pager <args>` - Run Git without an interactive pager.
-- `git --no-pager status --short --branch` - Inspect repository status.
-- `git --no-pager diff --no-ext-diff` - Inspect unstaged changes.
-- `git --no-pager diff --cached --no-ext-diff` - Inspect staged changes.
-- `git ls-files --others --exclude-standard` - List untracked files.
+- `just tool git --no-pager <args>` - Run Git without an interactive pager.
+- `just tool git --no-pager status --short --branch` - Inspect repository status.
+- `just tool git --no-pager diff --no-ext-diff` - Inspect unstaged changes.
+- `just tool git --no-pager diff --cached --no-ext-diff` - Inspect staged changes.
+- `just tool git ls-files --others --exclude-standard` - List untracked files.
 
 ## Testing
 
-- `pnpm exec vitest run <args>` - Run migrated Vitest tests once.
-- `pnpm exec vitest run tests/app.test.ts` - Run the migrated application tests.
-- `pnpm exec vitest run tests/app.test.ts tests/container.test.ts tests/bootstrap.test.ts` - Run application composition and bootstrap tests.
-- `pnpm exec vitest run tests/sdd/create.test.ts tests/sdd/status.test.ts` - Run explicitly selected SDD workflow tests.
-- `pnpm exec vitest <args>` - Run Vitest in watch mode during local development.
-- `pnpm exec vitest run --coverage <args>` - Run migrated tests with coverage; requires a compatible Vitest coverage provider.
+- `just tool pnpm exec vitest run <explicit-files>` - Run selected Vitest tests once.
+- `just tool pnpm exec vitest run tests/app.test.ts tests/bootstrap.test.ts` - Run application composition and bootstrap tests.
+- `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment/Services/create.test.ts tests/SubagentDrivenDevelopment/Services/status.test.ts` - Run initial feature workflow tests.
+- `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment` - Run all mirrored SDD tests, without selecting unrelated repository tests.
+- `just tool pnpm exec vitest run tests/Git/git-service.test.ts tests/config/project-configuration.test.ts tests/git-root.test.ts tests/update.test.ts tests/init.test.ts` - Run explicitly impacted Git, project configuration, and installation commands.
+- `just tool pnpm exec vitest <explicit-files>` - Watch selected tests during local development.
+- `just tool pnpm exec vitest run --coverage <explicit-files>` - Collect selected-test coverage; requires a compatible Vitest coverage provider.
 
 ## Spindle workflows
 
-- `pnpm run spindle <args>` - Run the CLI from source with arbitrary arguments.
-- `pnpm run spindle init <args>` - Install project Blueprints.
-- `pnpm run spindle update <args>` - Update installed project Blueprints.
-- `pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
-- `pnpm run spindle setup-project <args>` - Bootstrap missing project documentation defaults.
+- `just tool pnpm run spindle <args>` - Run the CLI from source with arbitrary arguments.
+- `just tool pnpm run spindle init <args>` - Install project Blueprints.
+- `just tool pnpm run spindle update <args>` - Update installed project Blueprints.
+- `just tool pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
+- `just tool pnpm run spindle setup-project <args>` - Bootstrap missing project documentation defaults.
 
 Pass workspace and spec paths as absolute paths. Append `--help` to inspect
-command options, for example `pnpm run spindle sdd create --help`.
+command options, for example `just tool pnpm run spindle sdd create --help`.
 
 ## Application services
 
@@ -63,7 +65,13 @@ Each application owns an initially empty `public readonly config`, a `Config`
 from `src/config/Config.ts`, available before provider construction. Its mutable
 contents are isolated between applications. This is Application Configuration,
 not the project's `.github/spindle.json` Config; there is no settings constructor
-argument, persistence, file loading, or configuration bootstrapper.
+argument or persistence for Application Configuration. After Git discovery,
+`LoadProjectConfiguration` separately binds `config.project` as an absent,
+valid, or invalid snapshot containing original project data/error. Loading does
+not rewrite Config, inject defaults, deduplicate Stacks, or discard unknown fields.
+Unexpected I/O errors propagate. Update requires a valid snapshot; init still
+rejects an existing malformed Config as already existing. SDD and setup-project
+do not require valid Config.
 
 `Config` extends the self-contained `Repository` from `src/utilities/Repository.ts`.
 `get(key, default?)` returns `unknown` (or `undefined` when absent without a default);
@@ -141,9 +149,9 @@ gates. Boot hooks run sequentially, sharing and caching success or failure.
 Configuration is available before provider construction.
 The constructor first binds itself under `app`, `Application`, and `Container`,
 preserving `path.base` and configuration availability. `FoundationServiceProvider`
-is the exception to bootstrap-driven provider registration: it is registered in
-the constructor before the external provider list is processed during bootstrap,
-and its empty hooks participate in the same register-once and queued boot lifecycle.
+and `GitServiceProvider` are registered in the constructor before the external
+provider list. Git is available to `DiscoverGitRoot`, but registration does no
+discovery. Both providers participate in the same register-once and queued boot lifecycle.
 
 `Application.configure(basePath, providers = [])` returns a fluent
 `ApplicationBuilder` preconfigured with `withKernels()` and `withProviders()`.
@@ -156,7 +164,7 @@ application container. Builder configuration replaces previous selection; tests
 must reset it with `RegisterProviders.merge([])`.
 
 The extendable Kernel's protected `bootstrappers()` defaults to
-`[LoadConsoleArgs, DiscoverGitRoot, ResolveBlueprintSourceRoot, RegisterProviders]`.
+`[LoadConsoleArgs, DiscoverGitRoot, LoadProjectConfiguration, ResolveBlueprintSourceRoot, RegisterProviders]`.
 Override the ordered list directly; it is not normalized.
 Bootstrappers are independent of Service and implement asynchronous or synchronous
 hooks. `app.bootstrapWith(list)` captures the first list and sequentially constructs
@@ -187,7 +195,13 @@ the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
 The production provider registers reconciliation and installation singletons,
-plus transient computed-context services.
+plus transient computed-context services. It also registers
+`SubagentDrivenDevelopmentServiceProvider`, which owns thin per-operation
+Commands and explicitly injected singleton Services, Persistence, Evidence, and
+Policies under `src/SubagentDrivenDevelopment/`. Git process execution lives in
+`src/Git/Services/GitService.ts`; SDD-specific content and report verification stays
+inside the SDD context. `WorkspaceTransaction.run` is the single issue/delivery
+lock, recovery, journal, and atomic-write boundary.
 Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
 Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so
 the emitted ESM runs with Node. Build validation must include the packaged CLI

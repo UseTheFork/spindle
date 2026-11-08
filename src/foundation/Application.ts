@@ -7,6 +7,7 @@ import { ApplicationBuilder } from "@/foundation/ApplicationBuilder";
 import type { BootstrapperConstructor } from "@/foundation/bootstrap/Bootstrapper";
 import { Container } from "@/foundation/Container";
 import { FoundationServiceProvider } from "@/foundation/FoundationServiceProvider";
+import { GitServiceProvider } from "@/Git/GitServiceProvider";
 import type { ServiceProvider } from "@/services/ServiceProvider";
 
 export type { ServiceConstructor } from "@/foundation/Container";
@@ -131,6 +132,7 @@ export class Application extends Container {
 
   private registerBaseServiceProviders(): void {
     this.register(FoundationServiceProvider);
+    this.register(GitServiceProvider);
   }
 
   private stringValue(key: string): string {

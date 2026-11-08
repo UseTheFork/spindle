@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./SubagentDrivenDevelopment/**/*.ts",
+    "./Git/**/*.ts",
+    "./config/**/*.ts",
+    "./app.test.ts",
+    "./bootstrap.test.ts",
+    "./git-root.test.ts",
+    "./update.test.ts",
+    "./init.test.ts"
+  ]
+}
