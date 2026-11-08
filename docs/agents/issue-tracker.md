@@ -71,6 +71,7 @@ Use the workflow commands for claim, dispatch, submission, and recovery:
 just spindle::run sdd next --spec <absolute-spec-path>
 just spindle::run sdd claim --spec <absolute-spec-path> --issue I-0001 --author controller
 just spindle::run sdd implement --spec <absolute-spec-path> --issue I-0001 --author controller
+just spindle::run sdd correct --spec <absolute-spec-path> --issue I-0001 --findings F-0001 --details "Preserve the accepted behavior" --author controller
 just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role implementation --report <assigned-report-path> --author controller
 just spindle::run sdd review --spec <absolute-spec-path> --issue I-0001 --inventory '["src/example.ts"]' --author controller
 just spindle::run sdd submit --spec <absolute-spec-path> --issue I-0001 --role review --assignment <assignment-id> --report <assigned-review-report-path> --result passed --no-findings --author controller
@@ -94,6 +95,18 @@ report remains pending and is reported as unavailable; use
 When the report later becomes available, it can still be submitted. Repeating
 the same dispatch or report submission returns the existing assignment/result
 without allocating another dispatch or duplicating history.
+
+`correct` currently accepts `--issue` and dispatches issue-scoped findings or
+recorded failed checks. Each attempt receives a distinct report path and
+preserves its assignment, check and review evidence, and explicit progress
+assessment. Later attempts require `--decision continue` with
+`--assessment <details> --assessment-result productive`; pause for adjudication
+with `--decision pause --reason <supported-reason> --details <decision-needed>`.
+Pending adjudication blocks another dispatch until an explicit continuation is
+recorded. Issue 08 defines this lifecycle for issue scope. Issue 10 introduces
+delivery-scoped operations that reuse the same correction contracts with
+independent delivery attempts, rulings, and evidence. Until then, do not map a
+delivery finding to an arbitrary issue.
 
 `review` requires a submitted implementation report, at least one currently
 required check with a passing result for the current snapshot, and the

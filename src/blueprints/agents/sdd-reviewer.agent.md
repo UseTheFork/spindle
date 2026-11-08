@@ -36,7 +36,7 @@ For **initial review**, account for every applicable acceptance criterion and in
 
 For **aggregate review**, account for the whole spec, cross-issue interactions, and omitted behavior, not merely changed files or previously accepted issues. Initial issue acceptance does not establish aggregate coverage.
 
-For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs and controller rulings. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers.
+For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs, issue-versus-delivery scope, and controller rulings; never infer or transfer scope from file paths or similar finding IDs. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers. Issue 08 defines the issue-scoped contract; issue 10 introduces delivery-scoped operations that must reuse it with independent delivery history and evidence. Never substitute issue evidence for delivery evidence.
 
 Across the applicable scope, check:
 

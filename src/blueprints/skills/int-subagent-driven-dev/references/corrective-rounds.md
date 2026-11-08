@@ -4,7 +4,28 @@ Parent: G - Corrective branch. Enter when review identifies actionable blockers 
 
 ## Continuation decision
 
-Apply this policy to both ticket and delivery corrections, keeping their histories separate. Before dispatch, record the selected finding IDs or concrete check failure, prior attempt outcome, demonstrated progress, and explicit controller continuation decision. For a first fix, record the actionable correction objective; for later fixes, cite verified blockers resolved or other concrete progress supported by current checks/review.
+Apply this policy to ticket and delivery corrections. Issue 08 establishes the
+issue-scoped correction lifecycle and evidence contracts. Issue 10 introduces
+delivery-scoped operations and must reuse those contracts while keeping
+delivery attempts, rulings, and evidence history independent from issue
+history. Before dispatch, record the selected finding IDs or concrete check
+failure, prior attempt outcome, demonstrated progress, and explicit controller
+continuation decision. For a first fix, record the actionable correction
+objective; for later fixes, cite verified blockers resolved or other concrete
+progress supported by current checks/review.
+
+Issue 08's current CLI implements `correct` with `--issue`. Delivery scope is
+the follow-up in issue 10; its not-yet-implemented commands must not be
+simulated by routing delivery findings through an arbitrary issue or reusing
+issue attempts, adjudications, or evidence.
+
+For issue scope, the first dispatch may use:
+
+```sh
+just spindle::run sdd correct --spec <absolute-spec-path> --issue I-0001 --findings F-0001 --details "<correction objective>" --author controller
+```
+
+Later attempts require `--decision continue --assessment "<demonstrated progress>" --assessment-result productive`. An explicit pause uses `--decision pause --reason <supported-reason> --details "<adjudication needed>"`. A check-driven fix uses `--check-failure "<exact recorded command>"` instead of `--findings`.
 
 Repeated failed fixes, recurring blockers, no demonstrated progress, or disagreement about requirements pause for controller/user adjudication rather than another automatic dispatch. Record residual blockers and the specific decision needed. Requirement ambiguity returns to current triage (`needs-info` or `needs-triage`) while preserving the execution gate; technical inability uses the project's blocked state. An adjudication may authorize a materially revised plan, but cannot weaken acceptance or silently reset attempts.
 

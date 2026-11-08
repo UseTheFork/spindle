@@ -1586,6 +1586,893 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   assert.match(blockedAccept.stderr, /F-0001.*blocking|blocking.*F-0001/i);
 });
 
+test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
+  const finding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Incorrect empty-input behavior",
+    "--details",
+    "The implementation rejects an input that the requirements allow.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finding.status, 0, finding.stderr);
+  const confirmedFinding = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmedFinding.status, 0, confirmedFinding.stderr);
+  const failedReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The implementation must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failedReview.status, 0, failedReview.stderr);
+
+  const args = [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Preserve the accepted empty-input behavior.",
+    "--author",
+    "controller",
+  ];
+  const dispatched = invoke(repo, args);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const first = JSON.parse(dispatched.stdout) as {
+    execution: string;
+    attempt: { number: number; findingIds: string[]; objective: string };
+    assignment: { id: string; role: string; action: string; report: string; status: string };
+  };
+  assert.equal(first.execution, "implementing");
+  assert.equal(first.attempt.number, 1);
+  assert.deepEqual(first.attempt.findingIds, ["F-0001"]);
+  assert.equal(first.attempt.objective, "Preserve the accepted empty-input behavior.");
+  assert.equal(first.assignment.role, "implementation");
+  assert.equal(first.assignment.action, "correct");
+  assert.equal(first.assignment.status, "pending");
+  assert.match(first.assignment.report, /round-1-fix\.md$/);
+
+  const resumed = invoke(repo, args);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const repeated = JSON.parse(resumed.stdout) as typeof first & { idempotent?: boolean };
+  assert.equal(repeated.idempotent, true);
+  assert.equal(repeated.attempt.number, 1);
+  assert.equal(repeated.assignment.id, first.assignment.id);
+  assert.equal(repeated.assignment.report, first.assignment.report);
+});
+
+test("corrective implementation reports submit through the implementation evidence contract", (t) => {
+  const { repo, spec, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
+  const finding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Incorrect empty-input behavior",
+    "--details",
+    "The implementation rejects an input that the requirements allow.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finding.status, 0, finding.stderr);
+  const confirmedFinding = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmedFinding.status, 0, confirmedFinding.stderr);
+  const failedReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The implementation must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failedReview.status, 0, failedReview.stderr);
+
+  const dispatched = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Preserve the accepted empty-input behavior.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const fix = JSON.parse(dispatched.stdout).assignment as {
+    action: string;
+    report: string;
+  };
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'corrected';\n");
+  writeFileSync(fix.report, "# Correction report\n\nCorrected the finding.\n");
+
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "implementation",
+    "--report",
+    fix.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const result = JSON.parse(submitted.stdout) as {
+    execution: string;
+    assignment: { action: string; status: string };
+  };
+  assert.equal(result.execution, "reviewing");
+  assert.equal(result.assignment.action, "correct");
+  assert.equal(result.assignment.status, "submitted");
+});
+
+test("a current non-mechanical failed check can select a correction before initial review", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  assert.equal(failed.status, 0, failed.stderr);
+
+  const corrected = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--check-failure",
+    command,
+    "--details",
+    "Address the behavior exposed by the failing check.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(corrected.status, 0, corrected.stderr);
+  const output = JSON.parse(corrected.stdout) as {
+    attempt: { number: number; checkFailure: string; findingIds: string[] };
+    assignment: { action: string; report: string };
+  };
+  assert.equal(output.attempt.number, 1);
+  assert.equal(output.attempt.checkFailure, command);
+  assert.deepEqual(output.attempt.findingIds, []);
+  assert.equal(output.assignment.action, "correct");
+  assert.match(output.assignment.report, /round-1-fix\.md$/);
+});
+
+test("explicit progress assessments permit productive continuation beyond five attempts", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  assert.equal(failed.status, 0, failed.stderr);
+  let correction = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--check-failure",
+    command,
+    "--details",
+    "Fix the first observed check failure.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correction.status, 0, correction.stderr);
+  let attemptNumber = 1;
+
+  for (let nextAttempt = 1; nextAttempt <= 6; nextAttempt += 1) {
+    const assigned = JSON.parse(correction.stdout).assignment as {
+      report: string;
+      attempt: number;
+    };
+    assert.equal(assigned.attempt, nextAttempt);
+    writeFileSync(join(repo, "feature.ts"), `export const feature = ${nextAttempt};\n`);
+    writeFileSync(assigned.report, `# Correction ${nextAttempt}\n\nProgress recorded.\n`);
+    const submitted = invoke(repo, [
+      "submit",
+      "--spec",
+      spec,
+      "--issue",
+      "I-0001",
+      "--role",
+      "implementation",
+      "--report",
+      assigned.report,
+      "--author",
+      "controller",
+    ]);
+    assert.equal(submitted.status, 0, submitted.stderr);
+    if (nextAttempt < 6) {
+      const currentSnapshot = JSON.parse(submitted.stdout).snapshot as string;
+      const nextFailedCheck = recordReviewCheck(repo, spec, command, currentSnapshot, "failed");
+      assert.equal(nextFailedCheck.status, 0, nextFailedCheck.stderr);
+      const unassessed = invoke(repo, [
+        "correct",
+        "--spec",
+        spec,
+        "--issue",
+        "I-0001",
+        "--check-failure",
+        command,
+        "--details",
+        `Address the newly observed behavior after correction ${nextAttempt}.`,
+        "--decision",
+        "continue",
+        "--assessment",
+        `Correction ${nextAttempt} changed the reviewed behavior; continue with the newly assessed failure.`,
+        "--author",
+        "controller",
+      ]);
+      assert.notEqual(unassessed.status, 0);
+      assert.match(unassessed.stderr, /assessment-result/i);
+      correction = invoke(repo, [
+        "correct",
+        "--spec",
+        spec,
+        "--issue",
+        "I-0001",
+        "--check-failure",
+        command,
+        "--details",
+        `Address the newly observed behavior after correction ${nextAttempt}.`,
+        "--decision",
+        "continue",
+        "--assessment",
+        `Correction ${nextAttempt} changed the reviewed behavior; continue with the newly assessed failure.`,
+        "--assessment-result",
+        "productive",
+        "--author",
+        "controller",
+      ]);
+      assert.equal(correction.status, 0, correction.stderr);
+      attemptNumber = JSON.parse(correction.stdout).attempt.number as number;
+    }
+  }
+
+  assert.equal(attemptNumber, 6);
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const attempts = JSON.parse(resumed.stdout).correctionAttempts as {
+    number: number;
+    assignment: { status: string };
+    progressAssessment?: { decision: string; details: string };
+    checks?: unknown[];
+  }[];
+  assert.equal(attempts.length, 6);
+  assert.deepEqual(
+    attempts.map((attempt) => attempt.number),
+    [1, 2, 3, 4, 5, 6],
+  );
+  assert.ok(attempts.every((attempt) => attempt.assignment.status === "submitted"));
+  assert.ok(
+    attempts.slice(0, 5).every((attempt) => attempt.progressAssessment?.decision === "continue"),
+  );
+  assert.ok(attempts.every((attempt) => (attempt.checks?.length ?? 0) > 0));
+});
+
+test("a progress pause records adjudication and resume preserves it without dispatching a fix", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const failed = recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  assert.equal(failed.status, 0, failed.stderr);
+
+  const paused = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--decision",
+    "pause",
+    "--reason",
+    "no-progress",
+    "--details",
+    "The repeated check failure has no demonstrated progress; request controller adjudication.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(paused.status, 0, paused.stderr);
+  const pause = JSON.parse(paused.stdout) as {
+    paused: boolean;
+    adjudication: { status: string; reason: string; details: string };
+    assignment?: unknown;
+  };
+  assert.equal(pause.paused, true);
+  assert.equal(pause.adjudication.status, "pending");
+  assert.equal(pause.adjudication.reason, "no-progress");
+  assert.equal(pause.assignment, undefined);
+
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const resume = JSON.parse(resumed.stdout) as {
+    adjudication?: { status: string; reason: string };
+    correctionAttempts?: unknown[];
+  };
+  assert.equal(resume.adjudication?.status, "pending");
+  assert.equal(resume.adjudication?.reason, "no-progress");
+  assert.deepEqual(resume.correctionAttempts, []);
+});
+
+test("corrective review findings retain assignment provenance for the next progress decision", (t) => {
+  const { repo, spec, command, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
+  const finding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Incorrect empty-input behavior",
+    "--details",
+    "The implementation rejects an input that the requirements allow.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finding.status, 0, finding.stderr);
+  const confirmedFinding = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmedFinding.status, 0, confirmedFinding.stderr);
+  const failedReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The implementation must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failedReview.status, 0, failedReview.stderr);
+
+  const corrected = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Preserve the accepted empty-input behavior.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(corrected.status, 0, corrected.stderr);
+  const fix = JSON.parse(corrected.stdout).assignment as { report: string };
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
+  const submitted = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "implementation",
+    "--report",
+    fix.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submitted.status, 0, submitted.stderr);
+  const fixedSnapshot = JSON.parse(submitted.stdout).snapshot as string;
+  const passingCheck = recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const correctiveReview = JSON.parse(dispatched.stdout).assignments[0] as {
+    scope: string;
+    attempt?: number;
+    snapshot: string;
+  };
+  assert.equal(correctiveReview.scope, "corrective");
+  assert.equal(correctiveReview.attempt, 1);
+  assert.equal(correctiveReview.snapshot, fixedSnapshot);
+
+  writeFileSync(
+    JSON.parse(dispatched.stdout).assignments[0].report,
+    "# Corrective review\n\nA separate actionable defect remains.\n",
+  );
+  const correctiveFinding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    JSON.parse(dispatched.stdout).assignments[0].report,
+    "--snapshot",
+    fixedSnapshot,
+    "--severity",
+    "medium",
+    "--blocking",
+    "--summary",
+    "A new regression remains",
+    "--details",
+    "The correction introduced a second issue that needs a separate fix.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correctiveFinding.status, 0, correctiveFinding.stderr);
+  assert.equal(JSON.parse(correctiveFinding.stdout).finding.id, "F-0002");
+  const failedCorrectiveReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    correctiveReview.id,
+    "--report",
+    JSON.parse(dispatched.stdout).assignments[0].report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0002",
+    "--details",
+    "The new blocker requires another assessed correction.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failedCorrectiveReview.status, 0, failedCorrectiveReview.stderr);
+  assert.equal(JSON.parse(failedCorrectiveReview.stdout).execution, "changes-requested");
+});
+
+test("resume returns pending corrective reviews after initial review coverage is submitted", (t) => {
+  const { repo, spec, command, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
+  const finding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Incorrect empty-input behavior",
+    "--details",
+    "The implementation rejects an input that the requirements allow.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finding.status, 0, finding.stderr);
+  const confirmedFinding = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmedFinding.status, 0, confirmedFinding.stderr);
+  const submittedInitialReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The implementation must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submittedInitialReview.status, 0, submittedInitialReview.stderr);
+
+  const correction = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Correct the empty-input behavior.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correction.status, 0, correction.stderr);
+  const implementation = JSON.parse(correction.stdout).assignment as { report: string };
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(implementation.report, "# Correction report\n\nCorrected F-0001.\n");
+  const submittedCorrection = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "implementation",
+    "--report",
+    implementation.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(submittedCorrection.status, 0, submittedCorrection.stderr);
+  const correctedSnapshot = JSON.parse(submittedCorrection.stdout).snapshot as string;
+  assert.notEqual(correctedSnapshot, assignment.snapshot);
+  const passingCheck = recordReviewCheck(repo, spec, command, correctedSnapshot, "passed");
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+
+  const dispatchedReview = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatchedReview.status, 0, dispatchedReview.stderr);
+  const correctiveAssignments = JSON.parse(dispatchedReview.stdout).assignments as {
+    id: string;
+    scope: string;
+    status: string;
+  }[];
+  assert.equal(correctiveAssignments.length, 1);
+  assert.equal(correctiveAssignments[0]?.scope, "corrective");
+  assert.equal(correctiveAssignments[0]?.status, "pending");
+
+  const resumed = invoke(repo, [
+    "resume",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const result = JSON.parse(resumed.stdout) as {
+    nextAction: string;
+    reviewAssignments: { id: string; scope: string; status: string }[];
+    blocker?: string;
+  };
+  assert.equal(result.nextAction, "await-review-report");
+  assert.equal(result.blocker, undefined);
+  assert.deepEqual(
+    result.reviewAssignments.map(({ id, scope, status }) => ({ id, scope, status })),
+    correctiveAssignments.map(({ id, scope, status }) => ({ id, scope, status })),
+  );
+});
+
+test("a verified corrective review can complete acceptance while retaining initial coverage", (t) => {
+  const { repo, spec, command, assignment } = prepareReviewAssignment(t);
+  writeFileSync(assignment.report, "# Initial review\n\nA blocking issue needs a fix.\n");
+  const finding = invoke(repo, [
+    "finding",
+    "create",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--source",
+    assignment.report,
+    "--snapshot",
+    assignment.snapshot,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Incorrect empty-input behavior",
+    "--details",
+    "The implementation rejects an input that the requirements allow.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(finding.status, 0, finding.stderr);
+  const confirmedFinding = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "confirmed",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(confirmedFinding.status, 0, confirmedFinding.stderr);
+  const failedReview = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    assignment.id,
+    "--report",
+    assignment.report,
+    "--result",
+    "failed",
+    "--findings",
+    "F-0001",
+    "--details",
+    "The implementation must be corrected.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(failedReview.status, 0, failedReview.stderr);
+
+  const correction = invoke(repo, [
+    "correct",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--findings",
+    "F-0001",
+    "--details",
+    "Preserve the accepted empty-input behavior.",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(correction.status, 0, correction.stderr);
+  const fix = JSON.parse(correction.stdout).assignment as { report: string };
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
+  const implementation = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "implementation",
+    "--report",
+    fix.report,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(implementation.status, 0, implementation.stderr);
+  const fixedSnapshot = JSON.parse(implementation.stdout).snapshot as string;
+  const passingCheck = recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  assert.equal(passingCheck.status, 0, passingCheck.stderr);
+  const verified = invoke(repo, [
+    "finding",
+    "update",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--finding",
+    "F-0001",
+    "--status",
+    "fixed",
+    "--evidence",
+    fixedSnapshot,
+    "--author",
+    "controller",
+  ]);
+  assert.equal(verified.status, 0, verified.stderr);
+
+  const dispatched = invoke(repo, [
+    "review",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ]);
+  assert.equal(dispatched.status, 0, dispatched.stderr);
+  const review = JSON.parse(dispatched.stdout).assignments[0] as {
+    id: string;
+    scope: string;
+    report: string;
+  };
+  assert.equal(review.scope, "corrective");
+  writeFileSync(review.report, "# Corrective review\n\nF-0001 is fixed; no regressions found.\n");
+  const reviewed = invoke(repo, [
+    "submit",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--role",
+    "review",
+    "--assignment",
+    review.id,
+    "--report",
+    review.report,
+    "--result",
+    "passed",
+    "--no-findings",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(reviewed.status, 0, reviewed.stderr);
+
+  const accepted = invoke(repo, [
+    "accept",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.equal(JSON.parse(accepted.stdout).execution, "accepted");
+});
+
 test("requirements decisions require fresh review before deferring a blocking finding", (t) => {
   const { repo, spec, command, assignment } = prepareReviewAssignment(t);
   writeFileSync(assignment.report, "# Initial review\n\nA criterion is implicated.\n");
@@ -2900,6 +3787,45 @@ test("checks record stores one result against the supplied snapshot and is idemp
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
   assert.equal(ledger.issues[0].checks.records.length, 1);
+});
+
+test("passing check evidence is reusable only for unchanged explicitly covered paths", (t) => {
+  const { repo, spec, command, submission } = prepareImplementationForReview(t);
+  const record = invoke(repo, [
+    "checks",
+    "record",
+    "--spec",
+    spec,
+    "--issue",
+    "I-0001",
+    "--snapshot",
+    submission.snapshot,
+    "--command",
+    command,
+    "--result",
+    "passed",
+    "--paths",
+    "feature.ts",
+    "--author",
+    "controller",
+  ]);
+  assert.equal(record.status, 0, record.stderr);
+  writeFileSync(join(repo, "unrelated.ts"), "export const unrelated = true;\n");
+  let status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  let state = JSON.parse(status.stdout) as {
+    actions: { issue: string; action: string }[];
+    blockers: { issue: string; reason: string }[];
+  };
+  assert.ok(state.actions.some((action) => action.action === "review"));
+  assert.ok(!state.blockers.some((blocker) => blocker.reason.includes("Required check")));
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'changed';\n");
+  status = invoke(repo, ["status", "--spec", spec]);
+  assert.equal(status.status, 0, status.stderr);
+  state = JSON.parse(status.stdout) as typeof state;
+  assert.ok(state.blockers.some((blocker) => blocker.reason.includes("Required check")));
+  assert.ok(!state.actions.some((action) => action.action === "review"));
 });
 
 test("content identity excludes ordinary comments but tracks requirement changes and decisions", (t) => {

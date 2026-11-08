@@ -115,6 +115,8 @@ interface IssueProgress {
   owner?: string;
   baseSha?: string;
   assignment?: ImplementationAssignment;
+  correctionAttempts?: CorrectionAttempt[];
+  adjudication?: CorrectionAdjudication;
   reviewRequirements?: SpecialistReviewRequirement[];
   reviewAssignments?: ReviewAssignment[];
   reviewHistory?: ReviewAssignment[];
@@ -162,6 +164,8 @@ interface CheckRecord {
   requirementsSnapshot: string;
   headSha: string;
   recordedAt: string;
+  coveredPaths?: string[];
+  coverageSnapshot?: string;
   details?: string;
 }
 
@@ -175,16 +179,61 @@ interface ContentIdentity {
 interface ImplementationAssignment {
   id: string;
   role: "implementation";
-  action: "implement";
+  action: "implement" | "correct";
   controller: string;
   report: string;
   requestedAt: string;
   status: "pending" | "submitted" | "unavailable";
+  attempt?: number;
+  findingIds?: string[];
+  checkFailure?: string;
+  objective?: string;
   reportSha256?: string;
   submittedAt?: string;
   submittedBy?: string;
   unavailableDetails?: string;
   handoffs: { at: string; from: string; to: string; confirmedStopped: boolean }[];
+}
+
+interface CorrectionAttempt {
+  number: number;
+  findingIds: string[];
+  checkFailure?: string;
+  objective: string;
+  startedAt: string;
+  startedBy: string;
+  assignmentId: string;
+  assignment: ImplementationAssignment;
+  priorAssignment?: ImplementationAssignment;
+  checks?: CheckRecord[];
+  reviewAssignments?: ReviewAssignment[];
+  progressAssessment?: {
+    decision: "continue";
+    result: "productive";
+    details: string;
+    recordedAt: string;
+    recordedBy: string;
+  };
+  outcome?: {
+    result: "productive" | "unproductive";
+    details: string;
+    recordedAt: string;
+    recordedBy: string;
+    snapshot?: string;
+  };
+}
+
+interface CorrectionAdjudication {
+  status: "pending" | "resolved";
+  reason: string;
+  details: string;
+  recordedAt: string;
+  recordedBy: string;
+  resolution?: {
+    details: string;
+    recordedAt: string;
+    recordedBy: string;
+  };
 }
 
 type ReviewResult = "passed" | "failed" | "unavailable";
@@ -193,7 +242,8 @@ interface ReviewAssignment {
   id: string;
   agent: string;
   role: "review";
-  scope: "initial";
+  scope: "initial" | "corrective";
+  attempt?: number;
   objective?: string;
   snapshot: string;
   codeSnapshot: string;
@@ -297,6 +347,16 @@ type ClaimOptions = IssueSelection;
 
 type ImplementOptions = IssueSelection;
 
+interface CorrectOptions extends IssueSelection {
+  findings?: string[];
+  checkFailure?: string;
+  details: string;
+  assessment?: string;
+  assessmentResult?: string;
+  decision?: string;
+  reason?: string;
+}
+
 interface SubmitOptions extends IssueSelection {
   role: string;
   report?: string;
@@ -360,6 +420,7 @@ interface ChecksRecordOptions extends IssueSelection {
   snapshot: string;
   command: string;
   result: string;
+  paths?: string[];
   details?: string;
 }
 
@@ -415,13 +476,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isSafeCoveragePath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    !!value &&
+    !isAbsolute(value) &&
+    !value.includes("\\") &&
+    value.split("/").every((segment) => !!segment && segment !== "." && segment !== "..") &&
+    value !== ".scratch" &&
+    !value.startsWith(".scratch/")
+  );
+}
+
 function isImplementationAssignment(value: unknown): value is ImplementationAssignment {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
     !value.id.trim() ||
     value.role !== "implementation" ||
-    value.action !== "implement" ||
+    !["implement", "correct"].includes(String(value.action)) ||
     typeof value.controller !== "string" ||
     !value.controller.trim() ||
     typeof value.report !== "string" ||
@@ -444,6 +517,28 @@ function isImplementationAssignment(value: unknown): value is ImplementationAssi
   ) {
     return false;
   }
+  if (value.action === "correct") {
+    if (
+      !Number.isSafeInteger(value.attempt) ||
+      Number(value.attempt) < 1 ||
+      !Array.isArray(value.findingIds) ||
+      !value.findingIds.every((id) => typeof id === "string" && /^F-\d{4,}$/.test(id)) ||
+      new Set(value.findingIds).size !== value.findingIds.length ||
+      (value.findingIds.length === 0 &&
+        (typeof value.checkFailure !== "string" || !value.checkFailure.trim())) ||
+      typeof value.objective !== "string" ||
+      !value.objective.trim()
+    ) {
+      return false;
+    }
+  } else if (
+    Object.hasOwn(value, "attempt") ||
+    Object.hasOwn(value, "findingIds") ||
+    Object.hasOwn(value, "checkFailure") ||
+    Object.hasOwn(value, "objective")
+  ) {
+    return false;
+  }
   if (value.status === "submitted") {
     return (
       typeof value.reportSha256 === "string" &&
@@ -460,6 +555,117 @@ function isImplementationAssignment(value: unknown): value is ImplementationAssi
   return true;
 }
 
+function isCorrectionAttempt(value: unknown): value is CorrectionAttempt {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.number) ||
+    Number(value.number) < 1 ||
+    !Array.isArray(value.findingIds) ||
+    !value.findingIds.every(
+      (finding) => typeof finding === "string" && /^F-\d{4,}$/.test(finding),
+    ) ||
+    new Set(value.findingIds).size !== value.findingIds.length ||
+    (value.findingIds.length === 0 &&
+      (typeof value.checkFailure !== "string" || !value.checkFailure.trim())) ||
+    typeof value.objective !== "string" ||
+    !value.objective.trim() ||
+    typeof value.startedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.startedAt)) ||
+    typeof value.startedBy !== "string" ||
+    !value.startedBy.trim() ||
+    typeof value.assignmentId !== "string" ||
+    !value.assignmentId.trim() ||
+    !isImplementationAssignment(value.assignment) ||
+    value.assignment.id !== value.assignmentId ||
+    value.assignment.action !== "correct" ||
+    value.assignment.attempt !== value.number ||
+    (Object.hasOwn(value, "priorAssignment") &&
+      !isImplementationAssignment(value.priorAssignment)) ||
+    (Object.hasOwn(value, "checks") &&
+      (!Array.isArray(value.checks) || !value.checks.every(isCheckRecord))) ||
+    (Object.hasOwn(value, "reviewAssignments") &&
+      (!Array.isArray(value.reviewAssignments) ||
+        !value.reviewAssignments.every(isReviewAssignment)))
+  ) {
+    return false;
+  }
+  if (Object.hasOwn(value, "progressAssessment")) {
+    const assessment = value.progressAssessment;
+    if (
+      !isRecord(assessment) ||
+      assessment.decision !== "continue" ||
+      assessment.result !== "productive" ||
+      typeof assessment.details !== "string" ||
+      !assessment.details.trim() ||
+      typeof assessment.recordedAt !== "string" ||
+      !Number.isFinite(Date.parse(assessment.recordedAt)) ||
+      typeof assessment.recordedBy !== "string" ||
+      !assessment.recordedBy.trim()
+    ) {
+      return false;
+    }
+  }
+  if (Object.hasOwn(value, "outcome")) {
+    const outcome = value.outcome;
+    if (
+      !isRecord(outcome) ||
+      !["productive", "unproductive"].includes(String(outcome.result)) ||
+      typeof outcome.details !== "string" ||
+      !outcome.details.trim() ||
+      typeof outcome.recordedAt !== "string" ||
+      !Number.isFinite(Date.parse(outcome.recordedAt)) ||
+      typeof outcome.recordedBy !== "string" ||
+      !outcome.recordedBy.trim() ||
+      (Object.hasOwn(outcome, "snapshot") &&
+        (typeof outcome.snapshot !== "string" || !/^[0-9a-f]{64}$/i.test(outcome.snapshot)))
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function hasMatchingCorrectionAttempt(issue: Record<string, unknown>): boolean {
+  const assignment = issue.assignment;
+  if (!isImplementationAssignment(assignment) || assignment.action !== "correct") return true;
+  const attempts = issue.correctionAttempts;
+  return (
+    Array.isArray(attempts) &&
+    attempts.some(
+      (attempt) =>
+        isCorrectionAttempt(attempt) &&
+        attempt.number === assignment.attempt &&
+        attempt.assignmentId === assignment.id,
+    )
+  );
+}
+
+function isCorrectionAdjudication(value: unknown): value is CorrectionAdjudication {
+  if (
+    isRecord(value) &&
+    ["pending", "resolved"].includes(String(value.status)) &&
+    typeof value.reason === "string" &&
+    !!value.reason.trim() &&
+    typeof value.details === "string" &&
+    !!value.details.trim() &&
+    typeof value.recordedAt === "string" &&
+    Number.isFinite(Date.parse(value.recordedAt)) &&
+    typeof value.recordedBy === "string" &&
+    !!value.recordedBy.trim()
+  ) {
+    return value.status === "pending"
+      ? !Object.hasOwn(value, "resolution")
+      : isRecord(value.resolution) &&
+          typeof value.resolution.details === "string" &&
+          !!value.resolution.details.trim() &&
+          typeof value.resolution.recordedAt === "string" &&
+          Number.isFinite(Date.parse(value.resolution.recordedAt)) &&
+          typeof value.resolution.recordedBy === "string" &&
+          !!value.resolution.recordedBy.trim();
+  }
+  return false;
+}
+
 function isReviewAssignment(value: unknown): value is ReviewAssignment {
   if (
     !isRecord(value) ||
@@ -468,7 +674,10 @@ function isReviewAssignment(value: unknown): value is ReviewAssignment {
     typeof value.agent !== "string" ||
     !value.agent.trim() ||
     value.role !== "review" ||
-    value.scope !== "initial" ||
+    !["initial", "corrective"].includes(String(value.scope)) ||
+    (value.scope === "corrective" &&
+      (!Number.isSafeInteger(value.attempt) || Number(value.attempt) < 1)) ||
+    (value.scope === "initial" && Object.hasOwn(value, "attempt")) ||
     typeof value.snapshot !== "string" ||
     !/^[0-9a-f]{64}$/i.test(value.snapshot) ||
     typeof value.codeSnapshot !== "string" ||
@@ -641,7 +850,7 @@ function isCheckRequirement(value: unknown): value is CheckRequirement {
 }
 
 function isCheckRecord(value: unknown): value is CheckRecord {
-  return (
+  if (
     isRecord(value) &&
     typeof value.command === "string" &&
     !!value.command.trim() &&
@@ -659,7 +868,20 @@ function isCheckRecord(value: unknown): value is CheckRecord {
     typeof value.recordedAt === "string" &&
     Number.isFinite(Date.parse(value.recordedAt)) &&
     (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
-  );
+  ) {
+    const hasScope =
+      Object.hasOwn(value, "coveredPaths") || Object.hasOwn(value, "coverageSnapshot");
+    return (
+      !hasScope ||
+      (Array.isArray(value.coveredPaths) &&
+        value.coveredPaths.length > 0 &&
+        value.coveredPaths.every(isSafeCoveragePath) &&
+        new Set(value.coveredPaths).size === value.coveredPaths.length &&
+        typeof value.coverageSnapshot === "string" &&
+        /^[0-9a-f]{64}$/i.test(value.coverageSnapshot))
+    );
+  }
+  return false;
 }
 
 function isCheckGateInvalidation(value: unknown): value is CheckGateInvalidation {
@@ -837,6 +1059,7 @@ export class SddCommand extends Service {
         once("--result"),
       )
       .option("--details <details>", "Failure or unavailability details")
+      .option("--paths <paths...>", "Paths whose content this check explicitly covers")
       .requiredOption("--author <author>", "Acting controller", once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRecordOptions) => {
@@ -854,6 +1077,32 @@ export class SddCommand extends Service {
       .action(async (options: ImplementOptions) => {
         const command = await createApp().get(SddCommand);
         console.log(JSON.stringify(command.implement(options), null, 2));
+      });
+
+    program
+      .command("correct")
+      .description("Persist an issue-scoped correction attempt and return its fix assignment.")
+      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
+      .option("--findings <ids...>", "Selected actionable canonical finding IDs")
+      .option("--check-failure <command>", "Exact non-mechanical failed check command")
+      .requiredOption(
+        "--details <details>",
+        "Correction objective or adjudication rationale",
+        once("--details"),
+      )
+      .option("--decision <decision>", "Continuation decision: continue or pause")
+      .option("--assessment <assessment>", "Recorded progress assessment for the prior attempt")
+      .option("--assessment-result <result>", "Progress result: productive")
+      .option(
+        "--reason <reason>",
+        "Pause reason: no-progress, repeated-failure, recurring-blocker, requirements-disagreement, worker-blocked",
+      )
+      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .allowExcessArguments(false)
+      .action(async (options: CorrectOptions) => {
+        const command = await createApp().get(SddCommand);
+        console.log(JSON.stringify(command.correct(options), null, 2));
       });
 
     program
@@ -1200,7 +1449,7 @@ export class SddCommand extends Service {
       issue: string;
       id: string;
       role: "implementation" | "review";
-      action: "implement" | "review";
+      action: "implement" | "correct" | "review";
       report: string;
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
@@ -1249,7 +1498,7 @@ export class SddCommand extends Service {
       issue: string;
       id: string;
       role: "implementation" | "review";
-      action: "implement" | "review";
+      action: "implement" | "correct" | "review";
       report: string;
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
@@ -1281,10 +1530,18 @@ export class SddCommand extends Service {
           });
         }
       }
-      const checkBlockers = this.#checkBlockers(progress, identity);
+      const checkBlockers = this.#checkBlockers(feature, issue, progress, identity);
       for (const reason of checkBlockers) blockers.push({ issue: progress.id, reason });
       for (const reason of this.#findingBlockers(progress, identity)) {
         blockers.push({ issue: progress.id, reason });
+      }
+      if (progress.adjudication?.status === "pending") {
+        blockers.push({
+          issue: progress.id,
+          reason: `Correction is paused for adjudication (${progress.adjudication.reason}).`,
+        });
+        actions.push({ issue: progress.id, action: "adjudicate" });
+        continue;
       }
       if (progress.execution === "unstarted") {
         if (issue.status !== "ready-for-agent") {
@@ -1362,10 +1619,14 @@ export class SddCommand extends Service {
           blockers.push({ issue: progress.id, reason });
           continue;
         }
-        const reviewCheckBlockers = this.#reviewCheckBlockers(progress, identity);
+        const reviewCheckBlockers = this.#reviewCheckBlockers(feature, issue, progress, identity);
         for (const blocker of reviewCheckBlockers)
           blockers.push({ issue: progress.id, reason: blocker });
-        const assignments = progress.reviewAssignments ?? [];
+        const latestAttempt = progress.correctionAttempts?.at(-1);
+        const assignments =
+          progress.assignment?.action === "correct"
+            ? (latestAttempt?.reviewAssignments ?? [])
+            : (progress.reviewAssignments ?? []);
         for (const assignment of assignments) {
           if (assignment.status === "pending") {
             pendingAssignments.push({
@@ -1410,6 +1671,11 @@ export class SddCommand extends Service {
                   : "accept",
             });
           }
+        } else if (
+          progress.assignment?.status === "submitted" &&
+          reviewCheckBlockers.some((blocker) => blocker.includes(" is failed."))
+        ) {
+          actions.push({ issue: progress.id, action: "correct" });
         }
       } else if (progress.execution === "changes-requested") {
         blockers.push({
@@ -1419,14 +1685,23 @@ export class SddCommand extends Service {
         actions.push({
           issue: progress.id,
           action:
-            this.#findingBlockers(progress, identity).length > 0
-              ? "adjudicate-findings"
-              : "controller-correction-decision",
+            (progress.findings ?? []).some((finding) => finding.status === "confirmed") ||
+            (progress.correctionAttempts?.length ?? 0) > 0
+              ? "correct"
+              : this.#findingBlockers(progress, identity).length > 0
+                ? "adjudicate-findings"
+                : "controller-correction-decision",
         });
       } else if (progress.execution === "blocked") {
         blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
       } else if (progress.execution === "accepted") {
-        const acceptanceBlockers = this.#acceptBlockers(feature, feature.state, progress, identity);
+        const acceptanceBlockers = this.#acceptBlockers(
+          feature,
+          feature.state,
+          issue,
+          progress,
+          identity,
+        );
         for (const reason of acceptanceBlockers) {
           if (
             !blockers.some((blocker) => blocker.issue === progress.id && blocker.reason === reason)
@@ -1625,6 +1900,16 @@ export class SddCommand extends Service {
         (item) => item.command === command && !item.removedAt,
       );
       if (!requirement) throw new Error(`Check command is not currently required: ${command}.`);
+      const coveredPaths =
+        options.paths === undefined
+          ? undefined
+          : [...new Set(options.paths.map((path) => path.trim()))].sort();
+      if (
+        coveredPaths &&
+        (coveredPaths.length === 0 || coveredPaths.some((path) => !isSafeCoveragePath(path)))
+      ) {
+        throw new Error("--paths must contain unique safe checkout-relative file paths.");
+      }
       const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, checks);
       if (identity.snapshot !== options.snapshot) {
@@ -1640,7 +1925,8 @@ export class SddCommand extends Service {
         latestForCommand.result === options.result &&
         latestForCommand.author === options.author.trim() &&
         latestForCommand.snapshot === options.snapshot &&
-        latestForCommand.details === options.details?.trim()
+        latestForCommand.details === options.details?.trim() &&
+        JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
           ? latestForCommand
           : undefined;
       if (repeat) return { issue: options.issue, record: repeat, idempotent: true, ...identity };
@@ -1653,9 +1939,34 @@ export class SddCommand extends Service {
         requirementsSnapshot: identity.requirementsSnapshot,
         headSha: identity.headSha,
         recordedAt: new Date().toISOString(),
+        ...(coveredPaths
+          ? {
+              coveredPaths,
+              coverageSnapshot: this.#contentIdentity(
+                feature,
+                issue,
+                progress.baseSha,
+                checks,
+                coveredPaths,
+              ).codeSnapshot,
+            }
+          : {}),
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       checks.records.push(record);
+      let correctionCheckHistory: CheckRecord[] | undefined;
+      if (progress.assignment?.action === "correct") {
+        const attempt = progress.correctionAttempts?.find(
+          (candidate) => candidate.number === progress.assignment?.attempt,
+        );
+        if (attempt) {
+          const recorded = (attempt.checks ??= []);
+          correctionCheckHistory = recorded;
+          if (!recorded.some((candidate) => candidate.recordedAt === record.recordedAt)) {
+            recorded.push(record);
+          }
+        }
+      }
       const confirmedIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const confirmedIdentity = this.#contentIdentity(
         feature,
@@ -1665,6 +1976,7 @@ export class SddCommand extends Service {
       );
       if (confirmedIdentity.snapshot !== identity.snapshot) {
         checks.records.pop();
+        correctionCheckHistory?.pop();
         throw new Error("Content changed while recording the check; retry with a fresh snapshot.");
       }
       this.#writeLedger(feature, ledger);
@@ -1986,6 +2298,311 @@ export class SddCommand extends Service {
     }
   }
 
+  correct(options: CorrectOptions): {
+    issue: string;
+    execution: ExecutionState;
+    attempt?: CorrectionAttempt;
+    assignment?: ImplementationAssignment;
+    paused?: boolean;
+    adjudication?: CorrectionAdjudication;
+    idempotent?: boolean;
+    snapshot: string;
+    codeSnapshot: string;
+    requirementsSnapshot: string;
+    headSha: string;
+  } {
+    validateIssueId(options.issue);
+    validateAuthor(options.author);
+    const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
+    if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
+      throw new Error("--findings must contain canonical finding IDs.");
+    }
+    const objective = options.details.trim();
+    if (!objective) throw new Error("--details must not be empty.");
+    if (options.decision !== undefined && !["continue", "pause"].includes(options.decision)) {
+      throw new Error("--decision must be 'continue' or 'pause'.");
+    }
+    if (options.decision !== "pause" && findingIds.length === 0 && !options.checkFailure?.trim()) {
+      throw new Error(
+        "correct requires actionable --findings or a non-mechanical --check-failure.",
+      );
+    }
+    if (options.decision === "pause") {
+      if (
+        ![
+          "no-progress",
+          "repeated-failure",
+          "recurring-blocker",
+          "requirements-disagreement",
+          "worker-blocked",
+        ].includes(options.reason ?? "")
+      ) {
+        throw new Error(
+          "--reason is required for a pause and must identify the adjudication category.",
+        );
+      }
+      if (options.assessment || options.assessmentResult)
+        throw new Error("--assessment is only valid with --decision continue.");
+    } else if (options.reason) {
+      throw new Error("--reason is only valid with --decision pause.");
+    }
+    if (
+      options.decision === "continue" &&
+      (!options.assessment?.trim() || options.assessmentResult !== "productive")
+    ) {
+      throw new Error(
+        "--assessment and --assessment-result productive are required with --decision continue.",
+      );
+    }
+    if (options.assessmentResult && options.decision !== "continue") {
+      throw new Error("--assessment-result is only valid with --decision continue.");
+    }
+
+    const feature = this.#resolveFeature(options.spec);
+    const release = this.#acquireIssueLock(feature.workspace);
+    try {
+      this.#recoverWrites(feature.workspace);
+      const ledger = this.#readLedger(feature);
+      const issue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
+      const progress = this.#requireProgress(ledger, options.issue);
+      if (progress.owner !== options.author.trim()) {
+        throw new Error("Only the recorded issue controller may dispatch a correction.");
+      }
+
+      const attempts = (progress.correctionAttempts ??= []);
+      if (options.decision === "pause") {
+        if (progress.execution === "implementing" && progress.assignment?.status !== "submitted") {
+          throw new Error("A pending implementation assignment must be resumed, not paused.");
+        }
+        const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+        const hasCurrentFailure = (progress.checks?.records ?? []).some(
+          (record) =>
+            record.snapshot === identity.snapshot &&
+            record.codeSnapshot === identity.codeSnapshot &&
+            record.requirementsSnapshot === identity.requirementsSnapshot &&
+            record.result === "failed",
+        );
+        if (
+          attempts.length === 0 &&
+          progress.execution !== "changes-requested" &&
+          !hasCurrentFailure
+        ) {
+          throw new Error(
+            "Adjudication pause requires a recorded failed correction, check, or review.",
+          );
+        }
+        const adjudication: CorrectionAdjudication = {
+          status: "pending",
+          reason: options.reason!,
+          details: objective,
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+        if (
+          progress.adjudication?.status === "pending" &&
+          progress.adjudication.reason === adjudication.reason &&
+          progress.adjudication.details === adjudication.details &&
+          progress.adjudication.recordedBy === adjudication.recordedBy
+        ) {
+          return {
+            issue: options.issue,
+            execution: progress.execution,
+            adjudication: progress.adjudication,
+            paused: true,
+            idempotent: true,
+            ...identity,
+          };
+        }
+        progress.adjudication = adjudication;
+        const afterIssue = matter.stringify(
+          this.#appendAudit(
+            issue.body,
+            options.author,
+            `Corrective work paused for adjudication (${adjudication.reason}): ${adjudication.details}.`,
+          ),
+          this.#metadata(issue),
+        );
+        this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+        return {
+          issue: options.issue,
+          execution: progress.execution,
+          adjudication,
+          paused: true,
+          ...identity,
+        };
+      }
+      if (
+        progress.execution === "implementing" &&
+        progress.assignment?.action === "correct" &&
+        progress.assignment.status !== "submitted" &&
+        progress.assignment.findingIds?.join(",") === findingIds.join(",") &&
+        progress.assignment.checkFailure === options.checkFailure?.trim() &&
+        progress.assignment.objective === objective
+      ) {
+        const current = attempts.find((attempt) => attempt.number === progress.assignment?.attempt);
+        if (!current) throw new Error("Corrective assignment has no persisted attempt record.");
+        const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+        return {
+          issue: options.issue,
+          execution: "implementing",
+          attempt: current,
+          assignment: progress.assignment,
+          idempotent: true,
+          ...identity,
+        };
+      }
+      const pendingAdjudication = progress.adjudication?.status === "pending";
+      if (pendingAdjudication && options.decision !== "continue") {
+        throw new Error(
+          `Issue ${options.issue} is paused for adjudication (${progress.adjudication?.reason}); resolve it before another correction.`,
+        );
+      }
+      const checkDriven = !!options.checkFailure?.trim();
+      if (!checkDriven && progress.execution !== "changes-requested") {
+        throw new Error(`Issue ${options.issue} must have a failed review before correction.`);
+      }
+      if (checkDriven && !["reviewing", "changes-requested"].includes(progress.execution)) {
+        throw new Error(
+          `Issue ${options.issue} must have a submitted implementation before correction.`,
+        );
+      }
+      if (!progress.baseSha)
+        throw new Error("Correction requires the issue's recorded Git baseline.");
+      if (progress.assignment?.action === "correct" && progress.assignment.status !== "submitted") {
+        throw new Error("The current correction assignment must be resumed, not replaced.");
+      }
+      if (attempts.length > 0 || pendingAdjudication) {
+        if (options.decision !== "continue" || !options.assessment?.trim()) {
+          throw new Error(
+            "A subsequent correction requires --decision continue and an explicit --assessment.",
+          );
+        }
+        const previous = attempts.at(-1)!;
+        if (
+          previous.progressAssessment?.decision !== "continue" ||
+          previous.progressAssessment.result !== "productive" ||
+          previous.progressAssessment.recordedBy !== options.author.trim() ||
+          previous.progressAssessment.details !== options.assessment.trim()
+        ) {
+          previous.progressAssessment = {
+            decision: "continue",
+            result: "productive",
+            details: options.assessment.trim(),
+            recordedAt: new Date().toISOString(),
+            recordedBy: options.author.trim(),
+          };
+        }
+      } else if (options.decision || options.assessment) {
+        throw new Error("The first correction does not accept a continuation assessment.");
+      }
+
+      const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
+      const findings = progress.findings ?? [];
+      for (const id of findingIds) {
+        const finding = findings.find((candidate) => candidate.id === id);
+        if (!finding || finding.status !== "confirmed") {
+          throw new Error(`Finding ${id} is not an actionable unresolved finding.`);
+        }
+      }
+      const checkFailure = options.checkFailure?.trim();
+      if (checkFailure) {
+        const record = progress.checks?.records
+          .filter(
+            (candidate) =>
+              candidate.command === checkFailure &&
+              candidate.snapshot === identity.snapshot &&
+              candidate.codeSnapshot === identity.codeSnapshot &&
+              candidate.requirementsSnapshot === identity.requirementsSnapshot,
+          )
+          .at(-1);
+        if (!record || record.result !== "failed") {
+          throw new Error(
+            `Check failure '${checkFailure}' must be an explicitly recorded failed check for the current snapshot.`,
+          );
+        }
+      }
+
+      const number = attempts.length + 1;
+      const assignment: ImplementationAssignment = {
+        id: randomUUID(),
+        role: "implementation",
+        action: "correct",
+        controller: options.author.trim(),
+        attempt: number,
+        findingIds,
+        ...(checkFailure ? { checkFailure } : {}),
+        objective,
+        report: join(feature.workspace, "reports", `${options.issue}-round-${number}-fix.md`),
+        requestedAt: new Date().toISOString(),
+        status: "pending",
+        handoffs: [],
+      };
+      this.#assertReportPath(feature, assignment.report, false);
+      if (lstatIfPresent(assignment.report)) {
+        throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
+      }
+      const attempt: CorrectionAttempt = {
+        number,
+        findingIds,
+        ...(checkFailure ? { checkFailure } : {}),
+        objective,
+        startedAt: assignment.requestedAt,
+        startedBy: options.author.trim(),
+        assignmentId: assignment.id,
+        assignment,
+        ...(progress.assignment ? { priorAssignment: progress.assignment } : {}),
+        ...(checkFailure
+          ? {
+              checks: (progress.checks?.records ?? []).filter(
+                (record) =>
+                  record.snapshot === identity.snapshot &&
+                  record.codeSnapshot === identity.codeSnapshot &&
+                  record.requirementsSnapshot === identity.requirementsSnapshot,
+              ),
+            }
+          : {}),
+      };
+      if (attempts.length > 0 || pendingAdjudication) {
+        attempt.progressAssessment = {
+          decision: "continue",
+          result: "productive",
+          details: options.assessment!.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+      }
+      attempts.push(attempt);
+      progress.execution = "implementing";
+      progress.assignment = assignment;
+      if (pendingAdjudication && progress.adjudication) {
+        progress.adjudication.status = "resolved";
+        progress.adjudication.resolution = {
+          details: options.assessment!.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+      }
+      const afterIssue = matter.stringify(
+        this.#appendAudit(
+          issue.body,
+          options.author,
+          `Corrective attempt ${number} recorded; objective=${objective}; findings=${findingIds.join(",") || "none"}${checkFailure ? `; check-failure=${checkFailure}` : ""}; report=${assignment.report}. No agent was launched.`,
+        ),
+        this.#metadata(issue),
+      );
+      this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+      return {
+        issue: options.issue,
+        execution: "implementing",
+        attempt,
+        assignment,
+        ...identity,
+      };
+    } finally {
+      release();
+    }
+  }
+
   reviewRequire(options: ReviewRequireOptions): {
     issue: string;
     requirement: SpecialistReviewRequirement;
@@ -2107,7 +2724,7 @@ export class SddCommand extends Service {
       if (!progress.baseSha) throw new Error("Review requires the issue's recorded Git baseline.");
 
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
-      const reviewCheckBlockers = this.#reviewCheckBlockers(progress, identity);
+      const reviewCheckBlockers = this.#reviewCheckBlockers(feature, issue, progress, identity);
       if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
       const inventory = this.#changedPaths(progress.baseSha);
       const suppliedPaths = new Set(confirmedInventory);
@@ -2121,7 +2738,130 @@ export class SddCommand extends Service {
       }
 
       const requiredReviewers = requiredIssueReviewers(ledger, progress);
-      const existing = progress.reviewAssignments ?? [];
+      let existing = progress.reviewAssignments ?? [];
+      if (progress.assignment.action === "correct") {
+        const completeInitialCoverage = requiredReviewers.every(({ agent, details }) => {
+          const matching = existing.filter(
+            (assignment) => assignment.agent === agent && assignment.scope === "initial",
+          );
+          return (
+            matching.length === 1 &&
+            matching[0]!.objective === details &&
+            matching[0]!.status === "submitted"
+          );
+        });
+        if (completeInitialCoverage) {
+          const attempt = progress.correctionAttempts?.find(
+            (candidate) => candidate.number === progress.assignment?.attempt,
+          );
+          if (!attempt) throw new Error("Corrective assignment has no persisted attempt record.");
+          const correctionAssignments = attempt.reviewAssignments ?? [];
+          if (correctionAssignments.length > 0) {
+            if (
+              correctionAssignments.length !== requiredReviewers.length ||
+              correctionAssignments.some(
+                (assignment, index) =>
+                  assignment.scope !== "corrective" ||
+                  assignment.attempt !== attempt.number ||
+                  assignment.agent !== requiredReviewers[index]?.agent ||
+                  assignment.objective !== requiredReviewers[index]?.details ||
+                  assignment.snapshot !== identity.snapshot ||
+                  assignment.codeSnapshot !== identity.codeSnapshot ||
+                  assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
+                  JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
+              )
+            ) {
+              throw new Error(
+                "The frozen corrective review assignment no longer matches the current issue snapshot.",
+              );
+            }
+            for (const assignment of correctionAssignments) {
+              const blocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
+              if (blocker) throw new Error(blocker);
+            }
+            return {
+              issue: options.issue,
+              execution: "reviewing",
+              assignments: correctionAssignments,
+              idempotent: true,
+              ...identity,
+            };
+          }
+
+          const assignments = requiredReviewers.map(({ agent, details }) => {
+            const catalogEntry = blueprintCatalog.agents[agent];
+            if (!catalogEntry || catalogEntry.canReview !== true) {
+              throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+            }
+            const id = randomUUID();
+            const report = join(
+              feature.workspace,
+              "reports",
+              `${options.issue}-round-${attempt.number}-review-${id}.md`,
+            );
+            this.#assertReportPath(feature, report, false);
+            if (lstatIfPresent(report)) {
+              throw new Error(`Assigned report already exists and was preserved: ${report}.`);
+            }
+            return {
+              id,
+              agent,
+              role: "review" as const,
+              scope: "corrective" as const,
+              attempt: attempt.number,
+              ...(details ? { objective: details } : {}),
+              snapshot: identity.snapshot,
+              codeSnapshot: identity.codeSnapshot,
+              requirementsSnapshot: identity.requirementsSnapshot,
+              headSha: identity.headSha,
+              inventory,
+              report,
+              requestedAt: new Date().toISOString(),
+              status: "pending" as const,
+            };
+          });
+          attempt.reviewAssignments = assignments;
+          const confirmedIdentity = this.#contentIdentity(
+            feature,
+            this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+            progress.baseSha,
+            progress.checks,
+          );
+          if (
+            confirmedIdentity.snapshot !== identity.snapshot ||
+            JSON.stringify(this.#changedPaths(progress.baseSha)) !== JSON.stringify(inventory)
+          ) {
+            delete attempt.reviewAssignments;
+            throw new Error(
+              "Issue content changed while freezing corrective review; retry with a fresh inventory.",
+            );
+          }
+          const assignmentSummary = assignments
+            .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
+            .join("; ");
+          const afterIssue = matter.stringify(
+            this.#appendAudit(
+              issue.body,
+              options.author,
+              `Corrective review assignments for attempt ${attempt.number} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
+            ),
+            this.#metadata(issue),
+          );
+          this.#writeWorkflowState(feature, issue, afterIssue, ledger);
+          return {
+            issue: options.issue,
+            execution: "reviewing",
+            assignments,
+            ...identity,
+          };
+        }
+        if (existing.length > 0) {
+          progress.reviewHistory = [...(progress.reviewHistory ?? []), ...existing];
+          delete progress.reviewAssignments;
+          existing = [];
+        }
+      }
+
       if (existing.length > 0) {
         if (
           existing.length !== requiredReviewers.length ||
@@ -2256,9 +2996,18 @@ export class SddCommand extends Service {
           ? resolve(options.source)
           : resolve(feature.workspace, options.source)
         : "";
-      const assignment = progress.reviewAssignments?.find(
-        (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
+      const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
+        attempt.reviewAssignments?.some(
+          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
+        ),
       );
+      const assignment =
+        correctionAttempt?.reviewAssignments?.find(
+          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
+        ) ??
+        progress.reviewAssignments?.find(
+          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
+        );
       if (!assignment) {
         throw new Error(
           "Finding source report and snapshot must match a frozen review assignment for this issue.",
@@ -2518,7 +3267,7 @@ export class SddCommand extends Service {
         if (required.length === 0) {
           throw new Error("Verification requires at least one current passing required check.");
         }
-        const checkBlockers = this.#checkBlockers(progress, identity);
+        const checkBlockers = this.#checkBlockers(feature, issue, progress, identity);
         if (checkBlockers.length > 0) {
           throw new Error(`Verification evidence is insufficient:\n${checkBlockers.join("\n")}`);
         }
@@ -2802,7 +3551,7 @@ export class SddCommand extends Service {
       const progress = this.#requireProgress(ledger, options.issue);
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
       const assignment = progress.assignment;
-      if (!assignment || assignment.action !== "implement" || assignment.role !== options.role) {
+      if (!assignment || assignment.role !== options.role) {
         throw new Error("No matching implementation assignment is pending for this issue.");
       }
       if (
@@ -2889,6 +3638,15 @@ export class SddCommand extends Service {
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       delete assignment.unavailableDetails;
+      if (assignment.action === "correct") {
+        const attempt = progress.correctionAttempts?.find(
+          (candidate) => candidate.number === assignment.attempt,
+        );
+        if (!attempt || attempt.assignmentId !== assignment.id) {
+          throw new Error("Corrective assignment has no matching persisted attempt.");
+        }
+        attempt.assignment = assignment;
+      }
       progress.execution = "reviewing";
       const afterIssue = matter.stringify(
         this.#appendAudit(
@@ -2970,9 +3728,13 @@ export class SddCommand extends Service {
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the current controller may submit a review result.");
       }
-      const assignment = progress.reviewAssignments?.find(
-        (candidate) => candidate.id === options.assignment,
+      const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
+        attempt.reviewAssignments?.some((candidate) => candidate.id === options.assignment),
       );
+      const assignment =
+        correctionAttempt?.reviewAssignments?.find(
+          (candidate) => candidate.id === options.assignment,
+        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
       if (!assignment || assignment.role !== "review") {
         throw new Error(`No review assignment matches ID ${options.assignment}.`);
       }
@@ -2981,7 +3743,7 @@ export class SddCommand extends Service {
       }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
-      const checkBlockers = this.#reviewCheckBlockers(progress, identity);
+      const checkBlockers = this.#reviewCheckBlockers(feature, issue, progress, identity);
       if (checkBlockers.length > 0) throw new Error(checkBlockers.join("\n"));
       const snapshotBlocker = this.#reviewSnapshotBlocker(feature, progress, assignment, identity);
       if (snapshotBlocker) throw new Error(snapshotBlocker);
@@ -3130,7 +3892,7 @@ export class SddCommand extends Service {
         throw new Error("Only the current controller may accept this issue.");
       }
       const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
-      const blockers = this.#acceptBlockers(feature, ledger, progress, identity);
+      const blockers = this.#acceptBlockers(feature, ledger, issue, progress, identity);
       if (blockers.length > 0) {
         throw new Error(`Issue ${options.issue} cannot be accepted:\n${blockers.join("\n")}`);
       }
@@ -3167,7 +3929,13 @@ export class SddCommand extends Service {
         progress.baseSha,
         progress.checks,
       );
-      const confirmedBlockers = this.#acceptBlockers(feature, ledger, progress, confirmedIdentity);
+      const confirmedBlockers = this.#acceptBlockers(
+        feature,
+        ledger,
+        confirmedIssue,
+        progress,
+        confirmedIdentity,
+      );
       if (confirmedIdentity.snapshot !== identity.snapshot || confirmedBlockers.length > 0) {
         throw new Error(
           `Issue content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
@@ -3200,6 +3968,8 @@ export class SddCommand extends Service {
     nextAction: string;
     owner?: string;
     assignment?: ImplementationAssignment;
+    correctionAttempts: CorrectionAttempt[];
+    adjudication?: CorrectionAdjudication;
     reviewAssignments?: ReviewAssignment[];
     handoffRecorded?: boolean;
     blocker?: string;
@@ -3246,26 +4016,37 @@ export class SddCommand extends Service {
         this.#writeWorkflowState(feature, issue, afterIssue, ledger);
         handoffRecorded = true;
       }
+      const currentIssue = this.#requireIssue(this.#readIssues(feature.workspace), options.issue);
       const identity = this.#contentIdentity(
         feature,
-        this.#requireIssue(this.#readIssues(feature.workspace), options.issue),
+        currentIssue,
         progress.baseSha,
         progress.checks,
       );
-      const reviewBlocker = (progress.reviewAssignments ?? [])
+      const reviewAssignments =
+        progress.assignment?.action === "correct"
+          ? ((progress.correctionAttempts ?? []).find(
+              (attempt) => attempt.assignmentId === progress.assignment?.id,
+            )?.reviewAssignments ?? [])
+          : progress.reviewAssignments;
+      const resumeProgress =
+        reviewAssignments === undefined ? progress : { ...progress, reviewAssignments };
+      const reviewBlocker = (reviewAssignments ?? [])
         .map((assignment) => this.#reviewAssignmentBlocker(feature, progress, assignment, identity))
         .find((reason) => reason !== undefined);
       const blocker =
         this.#resumeBlocker(feature, progress) ??
         reviewBlocker ??
-        this.#checkBlockers(progress, identity)[0];
+        this.#checkBlockers(feature, currentIssue, progress, identity)[0];
       return {
         issue: options.issue,
         gate: progress.execution,
-        nextAction: this.#nextAction(progress, blocker),
+        nextAction: this.#nextAction(resumeProgress, blocker),
         ...(progress.owner ? { owner: progress.owner } : {}),
         ...(progress.assignment ? { assignment: progress.assignment } : {}),
-        ...(progress.reviewAssignments ? { reviewAssignments: progress.reviewAssignments } : {}),
+        correctionAttempts: progress.correctionAttempts ?? [],
+        ...(progress.adjudication ? { adjudication: progress.adjudication } : {}),
+        ...(reviewAssignments ? { reviewAssignments } : {}),
         ...(handoffRecorded ? { handoffRecorded: true } : {}),
         ...(blocker ? { blocker } : {}),
         ...identity,
@@ -3295,22 +4076,49 @@ export class SddCommand extends Service {
     progress: IssueProgress,
   ): boolean {
     const identity = this.#contentIdentity(feature, issue, progress.baseSha, progress.checks);
-    return this.#checkBlockers(progress, identity).length === 0;
+    return this.#checkBlockers(feature, issue, progress, identity).length === 0;
   }
 
-  #checkBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+  #checkBlockers(
+    feature: FeaturePaths,
+    issue: IssueDocument,
+    progress: IssueProgress,
+    identity: ContentIdentity,
+  ): string[] {
     const checks = progress.checks;
     if (!checks) return [];
     return checks.required
       .filter((requirement) => !requirement.removedAt)
       .flatMap((requirement) => {
         const records = checks.records.filter((record) => record.command === requirement.command);
-        const current = records.filter(
-          (record) =>
+        const current = records.filter((record) => {
+          if (
             record.snapshot === identity.snapshot &&
             record.codeSnapshot === identity.codeSnapshot &&
-            record.requirementsSnapshot === identity.requirementsSnapshot,
-        );
+            record.requirementsSnapshot === identity.requirementsSnapshot
+          ) {
+            return true;
+          }
+          if (
+            !record.coveredPaths ||
+            !record.coverageSnapshot ||
+            record.requirementsSnapshot !== identity.requirementsSnapshot
+          ) {
+            return false;
+          }
+          try {
+            const scopedIdentity = this.#contentIdentity(
+              feature,
+              issue,
+              progress.baseSha,
+              checks,
+              record.coveredPaths,
+            );
+            return scopedIdentity.codeSnapshot === record.coverageSnapshot;
+          } catch {
+            return false;
+          }
+        });
         const latest = current.at(-1);
         if (!latest) {
           const state = records.length > 0 ? "stale" : "missing";
@@ -3357,13 +4165,18 @@ export class SddCommand extends Service {
       );
   }
 
-  #reviewCheckBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+  #reviewCheckBlockers(
+    feature: FeaturePaths,
+    issue: IssueDocument,
+    progress: IssueProgress,
+    identity: ContentIdentity,
+  ): string[] {
     const activeRequirements =
       progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
     if (activeRequirements.length === 0) {
       return ["Review requires at least one currently required passing check."];
     }
-    return this.#checkBlockers(progress, identity);
+    return this.#checkBlockers(feature, issue, progress, identity);
   }
 
   #reviewAssignmentBlocker(
@@ -3422,10 +4235,11 @@ export class SddCommand extends Service {
   #acceptBlockers(
     feature: FeaturePaths,
     ledger: FeatureLedger,
+    issue: IssueDocument,
     progress: IssueProgress,
     identity: ContentIdentity,
   ): string[] {
-    const blockers = this.#reviewCheckBlockers(progress, identity);
+    const blockers = this.#reviewCheckBlockers(feature, issue, progress, identity);
     blockers.push(...this.#findingBlockers(progress, identity));
     for (const decision of progress.requirementsDecisions ?? []) {
       if (
@@ -3448,6 +4262,7 @@ export class SddCommand extends Service {
     ) {
       blockers.push("Initial review assignments must have distinct IDs and report destinations.");
     }
+    const hasCorrections = (progress.correctionAttempts?.length ?? 0) > 0;
     for (const { agent, details } of requiredReviewers) {
       const coverage = assignments.filter(
         (assignment) => assignment.agent === agent && assignment.scope === "initial",
@@ -3458,26 +4273,93 @@ export class SddCommand extends Service {
         blockers.push(`Required initial review coverage for '${agent}' is duplicated.`);
       } else if (coverage[0]!.objective !== details) {
         blockers.push(`Review assignment for '${agent}' does not match its pinned objective.`);
+      } else if (
+        hasCorrections &&
+        (coverage[0]!.status !== "submitted" ||
+          coverage[0]!.result === "unavailable" ||
+          this.#reviewReportIntegrityBlocker(feature, coverage[0]))
+      ) {
+        blockers.push(
+          `Required initial review coverage for '${agent}' is missing or its registered report is unavailable.`,
+        );
       }
     }
-    for (const assignment of assignments) {
-      if (!requiredReviewers.some((reviewer) => reviewer.agent === assignment.agent)) {
-        blockers.push(
-          `Review assignment ${assignment.id} is not part of the pinned review policy.`,
+    if (hasCorrections) {
+      const currentAttempt = progress.correctionAttempts!.at(-1)!;
+      const correctiveAssignments = currentAttempt.reviewAssignments ?? [];
+      if (correctiveAssignments.length !== requiredReviewers.length) {
+        blockers.push("Complete corrective review coverage for the latest attempt is missing.");
+      }
+      for (const { agent, details } of requiredReviewers) {
+        const coverage = correctiveAssignments.filter(
+          (assignment) =>
+            assignment.agent === agent &&
+            assignment.scope === "corrective" &&
+            assignment.attempt === currentAttempt.number,
         );
-        continue;
+        if (coverage.length !== 1) {
+          blockers.push(
+            `Required corrective review coverage for '${agent}' is missing or duplicated.`,
+          );
+          continue;
+        }
+        if (coverage[0]!.objective !== details) {
+          blockers.push(
+            `Corrective review assignment for '${agent}' does not match its pinned objective.`,
+          );
+        }
+        if (coverage[0]!.status !== "submitted" || coverage[0]!.result !== "passed") {
+          blockers.push(`Corrective review assignment ${coverage[0]!.id} is not passing.`);
+          continue;
+        }
+        const blocker = this.#reviewAssignmentBlocker(feature, progress, coverage[0]!, identity);
+        if (blocker) blockers.push(blocker);
       }
-      if (assignment.status === "pending") {
-        blockers.push(`Review assignment ${assignment.id} is pending.`);
-        continue;
+      for (const assignment of correctiveAssignments) {
+        if (!requiredReviewers.some((reviewer) => reviewer.agent === assignment.agent)) {
+          blockers.push(
+            `Corrective review assignment ${assignment.id} is not part of the pinned review policy.`,
+          );
+        }
       }
-      const blocker = this.#reviewAssignmentBlocker(feature, progress, assignment, identity);
-      if (blocker) blockers.push(blocker);
+    } else {
+      for (const assignment of assignments) {
+        if (!requiredReviewers.some((reviewer) => reviewer.agent === assignment.agent)) {
+          blockers.push(
+            `Review assignment ${assignment.id} is not part of the pinned review policy.`,
+          );
+          continue;
+        }
+        if (assignment.status === "pending") {
+          blockers.push(`Review assignment ${assignment.id} is pending.`);
+          continue;
+        }
+        const blocker = this.#reviewAssignmentBlocker(feature, progress, assignment, identity);
+        if (blocker) blockers.push(blocker);
+      }
     }
     return [...new Set(blockers)];
   }
 
+  #reviewReportIntegrityBlocker(
+    feature: FeaturePaths,
+    assignment: ReviewAssignment,
+  ): string | undefined {
+    if (assignment.status !== "submitted" || !assignment.reportSha256) {
+      return "Review report was not submitted.";
+    }
+    try {
+      if (this.#readReportDigest(feature, assignment.report) !== assignment.reportSha256) {
+        return "Review report content changed after submission.";
+      }
+    } catch {
+      return "Review report is missing or unavailable.";
+    }
+    return undefined;
+  }
+
   #nextAction(progress: IssueProgress, blocker?: string): string {
+    if (progress.adjudication?.status === "pending") return "adjudicate";
     if (progress.execution === "unstarted") return "claim";
     if (progress.execution === "claimed") {
       return progress.owner && progress.baseSha ? "implement" : "resolve-claim-blocker";
@@ -3508,8 +4390,12 @@ export class SddCommand extends Service {
       return blocker ? "restore-implementation-report" : "review";
     }
     if (progress.execution === "changes-requested") {
-      return blocker?.startsWith("Finding ")
-        ? "adjudicate-findings"
+      if ((progress.findings ?? []).some((finding) => finding.status === "confirmed")) {
+        return "correct";
+      }
+      if (blocker?.startsWith("Finding ")) return "adjudicate-findings";
+      return (progress.correctionAttempts?.length ?? 0) > 0
+        ? "correct"
         : "controller-correction-decision";
     }
     if (progress.execution === "accepted") return blocker ? "resolve-check-blocker" : "integrate";
@@ -3584,10 +4470,19 @@ export class SddCommand extends Service {
     issue: IssueDocument,
     baseSha = this.#headSha(),
     checks?: IssueChecks,
+    coveredPaths?: string[],
   ): ContentIdentity {
     const root = realpathSync(this.app.workspaceRoot);
     const headSha = this.#headSha();
-    const paths = new Set(this.#changedPaths(baseSha));
+    const changedPaths = this.#changedPaths(baseSha);
+    const paths = new Set(coveredPaths ?? changedPaths);
+    if (coveredPaths) {
+      for (const path of paths) {
+        if (!isSafeCoveragePath(path) || !isPathInside(root, resolve(root, path))) {
+          throw new Error(`Unsafe path in content identity scope: ${path}.`);
+        }
+      }
+    }
     const code = createHash("sha256");
     code.update("spindle-code-snapshot-v2\0");
     const field = (tag: string, value: Buffer | string) => {
@@ -4340,8 +5235,51 @@ export class SddCommand extends Service {
                   ".scratch",
                   feature,
                   "reports",
-                  `${issue.id}-implementation.md`,
+                  issue.assignment.action === "implement"
+                    ? `${issue.id}-implementation.md`
+                    : `${issue.id}-round-${issue.assignment.attempt}-fix.md`,
                 ))) &&
+          (!Object.hasOwn(issue, "correctionAttempts") ||
+            (Array.isArray(issue.correctionAttempts) &&
+              issue.correctionAttempts.every(isCorrectionAttempt) &&
+              issue.correctionAttempts.every((attempt, index) => attempt.number === index + 1) &&
+              issue.correctionAttempts.every(
+                (attempt) =>
+                  attempt.assignment.report ===
+                    join(
+                      this.app.workspaceRoot,
+                      ".scratch",
+                      feature,
+                      "reports",
+                      `${issue.id}-round-${attempt.number}-fix.md`,
+                    ) &&
+                  (!attempt.priorAssignment ||
+                    attempt.priorAssignment.report ===
+                      join(
+                        this.app.workspaceRoot,
+                        ".scratch",
+                        feature,
+                        "reports",
+                        attempt.priorAssignment.action === "implement"
+                          ? `${issue.id}-implementation.md`
+                          : `${issue.id}-round-${attempt.priorAssignment.attempt}-fix.md`,
+                      )) &&
+                  (attempt.reviewAssignments ?? []).every(
+                    (assignment) =>
+                      assignment.report ===
+                      join(
+                        this.app.workspaceRoot,
+                        ".scratch",
+                        feature,
+                        "reports",
+                        assignment.scope === "initial"
+                          ? `${issue.id}-review-${assignment.id}.md`
+                          : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
+                      ),
+                  ),
+              ) &&
+              hasMatchingCorrectionAttempt(issue))) &&
+          (!Object.hasOwn(issue, "adjudication") || isCorrectionAdjudication(issue.adjudication)) &&
           (!Object.hasOwn(issue, "reviewAssignments") ||
             (Array.isArray(issue.reviewAssignments) &&
               issue.reviewAssignments.every(
@@ -4354,7 +5292,9 @@ export class SddCommand extends Service {
                       ".scratch",
                       feature,
                       "reports",
-                      `${issue.id}-review-${assignment.id}.md`,
+                      assignment.scope === "initial"
+                        ? `${issue.id}-review-${assignment.id}.md`
+                        : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
                     ),
               ))) &&
           (!Object.hasOwn(issue, "reviewHistory") ||
@@ -4369,7 +5309,9 @@ export class SddCommand extends Service {
                       ".scratch",
                       feature,
                       "reports",
-                      `${issue.id}-review-${assignment.id}.md`,
+                      assignment.scope === "initial"
+                        ? `${issue.id}-review-${assignment.id}.md`
+                        : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
                     ),
               ))) &&
           (!Object.hasOwn(issue, "requirementsDecisions") ||
