@@ -64,6 +64,12 @@ The retrospective policy is stored at feature creation: when required, attach
 a Markdown report with `--report`; otherwise the report is optional. Any
 attached report must remain inside that feature's `reports/` directory.
 `finish` records completion only; it does not close issues or publish work.
+Only the recorded delivery owner may finish; use
+`resume --scope delivery --confirm-handoff` to record a confirmed ownership
+handoff before a replacement controller finishes. A finished delivery rejects
+new or changed final checks. `status`, `next`, and `resume` continue validating
+the recorded evidence, and report stale completion when code, requirements,
+reviews, checks, or an attached retrospective have changed.
 
 Use `status` and `next` to inspect aggregate blockers and the next permitted
 delivery action; use `resume --scope delivery` to restore interrupted aggregate

@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { expect, test } from "vitest";
 
@@ -1194,7 +1194,7 @@ test("finished delivery status, next, and resume expose completion and stale evi
   writeFileSync(featurePath, featureBefore);
   assertValidCompletion();
 
-  const specPath = join(repo, spec);
+  const specPath = isAbsolute(spec) ? spec : join(repo, spec);
   const specBefore = readFileSync(specPath, "utf8");
   writeFileSync(specPath, `${specBefore}\n`);
   assertInvalidatedCompletion();

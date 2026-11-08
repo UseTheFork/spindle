@@ -2206,6 +2206,7 @@ export class SddCommand extends Service {
       this.#recoverWrites(feature.workspace);
       const ledger = this.#readLedger(feature);
       const delivery = ledger.delivery;
+      this.#assertDeliveryOpen(delivery);
       if (delivery.owner && delivery.owner !== options.author.trim()) {
         throw new Error("Only the recorded delivery controller may change required checks.");
       }
@@ -2396,6 +2397,7 @@ export class SddCommand extends Service {
       this.#recoverWrites(feature.workspace);
       const ledger = this.#readLedger(feature);
       const delivery = ledger.delivery;
+      this.#assertDeliveryOpen(delivery);
       if (!delivery.checks) throw new Error("No required checks are declared for delivery.");
       if (delivery.owner !== options.author.trim()) {
         throw new Error("Only the recorded delivery controller may record final checks.");
@@ -6094,14 +6096,22 @@ export class SddCommand extends Service {
         this.#writeLedger(feature, ledger);
         handoffRecorded = true;
       }
-      const identity = this.#deliveryIdentity(feature, ledger, this.#readIssues(feature.workspace));
+      const issues = this.#readIssues(feature.workspace);
+      const identity = this.#deliveryIdentity(feature, ledger, issues);
+      const completion = delivery.finished
+        ? this.#deliveryStatus(feature, ledger, issues)
+        : undefined;
       const checkBlocker = this.#deliveryCheckBlockers(delivery, identity)[0];
       let blocker =
-        delivery.adjudication?.status === "pending"
-          ? `Delivery correction is paused for adjudication (${delivery.adjudication.reason}).`
-          : checkBlocker;
+        completion?.action === "completion-invalidated"
+          ? `Finished delivery completion is invalidated: ${completion.blockers.join(" ")}`
+          : delivery.adjudication?.status === "pending"
+            ? `Delivery correction is paused for adjudication (${delivery.adjudication.reason}).`
+            : checkBlocker;
       let nextAction: string;
-      if (delivery.adjudication?.status === "pending") {
+      if (completion) {
+        nextAction = completion.action;
+      } else if (delivery.adjudication?.status === "pending") {
         nextAction = "adjudicate";
       } else if (
         delivery.assignment &&
@@ -6159,6 +6169,11 @@ export class SddCommand extends Service {
       this.#recoverWrites(feature.workspace);
       const ledger = this.#readLedger(feature);
       const delivery = ledger.delivery;
+      if (!delivery.owner || delivery.owner !== options.author.trim()) {
+        throw new Error(
+          "Only the recorded delivery owner may finish; ownership handoff must be explicitly confirmed.",
+        );
+      }
       const issues = this.#readIssues(feature.workspace);
       const missing = ledger.issues
         .filter((progress) => progress.execution !== "integrated")
@@ -6394,8 +6409,22 @@ export class SddCommand extends Service {
         blockers.push(error instanceof Error ? error.message : String(error));
       }
     }
+    if (delivery.finished?.report || delivery.finished?.reportSha256) {
+      try {
+        if (
+          !delivery.finished.report ||
+          !delivery.finished.reportSha256 ||
+          this.#readReportDigest(feature, delivery.finished.report) !==
+            delivery.finished.reportSha256
+        ) {
+          blockers.push("Finished delivery retrospective evidence is stale or incomplete.");
+        }
+      } catch {
+        blockers.push("Finished delivery retrospective evidence is unavailable or invalid.");
+      }
+    }
     let action: string;
-    if (delivery.finished) action = "finished";
+    if (delivery.finished) action = blockers.length > 0 ? "completion-invalidated" : "finished";
     else if (!allIntegrated) action = "integrate-issues";
     else if (delivery.adjudication?.status === "pending") action = "adjudicate";
     else if (
@@ -7233,6 +7262,12 @@ export class SddCommand extends Service {
         }
         return [];
       });
+  }
+
+  #assertDeliveryOpen(delivery: DeliveryProgress): void {
+    if (delivery.finished) {
+      throw new Error("Delivery is finished; final checks cannot be changed.");
+    }
   }
 
   #deliveryFindingBlockers(
