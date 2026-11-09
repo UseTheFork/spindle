@@ -4,12 +4,18 @@ import { join } from "node:path";
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-import { FEATURE_DIRECTORY, EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import {
+  FEATURE_DIRECTORY,
+  EXECUTION_STATES,
+  ISSUE_CATEGORIES,
+  TRACKER_STATUSES,
+} from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,
   IssueProgress,
   FeatureLedger,
   FeaturePaths,
+  IssueDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import {
   isImplementationAssignment,
@@ -56,10 +62,28 @@ export class LedgerRepository extends Service {
     return value;
   }
 
+  public upgradeIssueTracking(ledger: FeatureLedger, issues: IssueDocument[]): void {
+    if (ledger.schemaVersion === 2) return;
+    const byId = new Map(issues.map((issue) => [issue.id, issue]));
+    for (const progress of ledger.issues) {
+      const issue = byId.get(progress.id);
+      if (!issue) throw new Error(`Issue ${progress.id} has no Markdown record.`);
+      progress.title = issue.title;
+      progress.reporter = issue.reporter;
+      progress.category = issue.category;
+      progress.status = issue.status;
+      progress.blockedBy = issue.blocked_by;
+      if (issue.blocker) progress.blocker = issue.blocker;
+    }
+    ledger.schemaVersion = 2;
+    ledger.delivery.status ??= "active";
+    ledger.delivery.baseSha ??= ledger.issues.find((issue) => issue.baseSha)?.baseSha;
+  }
+
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {
     if (!isRecord(value)) throw new Error("Feature ledger must contain a JSON object.");
     const id = FEATURE_DIRECTORY.exec(feature)?.[1];
-    if (value.schemaVersion !== 1) {
+    if (value.schemaVersion !== 1 && value.schemaVersion !== 2) {
       throw new Error(`Unsupported feature ledger schema version: ${String(value.schemaVersion)}.`);
     }
     if (typeof value.featureId !== "string" || value.featureId !== id) {
@@ -104,6 +128,19 @@ export class LedgerRepository extends Service {
           /^I-\d{4,}$/.test(issue.id) &&
           typeof issue.execution === "string" &&
           EXECUTION_STATES.includes(issue.execution as ExecutionState) &&
+          (value.schemaVersion === 1 ||
+            (typeof issue.title === "string" &&
+              !!issue.title.trim() &&
+              typeof issue.reporter === "string" &&
+              !!issue.reporter.trim() &&
+              typeof issue.category === "string" &&
+              ISSUE_CATEGORIES.includes(issue.category as (typeof ISSUE_CATEGORIES)[number]) &&
+              typeof issue.status === "string" &&
+              TRACKER_STATUSES.includes(issue.status as (typeof TRACKER_STATUSES)[number]) &&
+              Array.isArray(issue.blockedBy) &&
+              issue.blockedBy.every((dependency) => typeof dependency === "string") &&
+              (!Object.hasOwn(issue, "blocker") ||
+                (typeof issue.blocker === "string" && !!issue.blocker.trim())))) &&
           ((!Object.hasOwn(issue, "owner") && !Object.hasOwn(issue, "baseSha")) ||
             (typeof issue.owner === "string" &&
               !!issue.owner.trim() &&
@@ -334,6 +371,12 @@ export class LedgerRepository extends Service {
       throw new Error("Feature delivery execution state is invalid.");
     }
     if (
+      value.schemaVersion === 2 &&
+      !["active", "complete"].includes(String(value.delivery.status))
+    ) {
+      throw new Error("Feature tracking status is invalid.");
+    }
+    if (
       !Array.isArray(value.delivery.history) ||
       !value.delivery.history.every(
         (entry) =>
@@ -453,7 +496,13 @@ export class LedgerRepository extends Service {
     if (new Set(deliveryFindingIds).size !== deliveryFindingIds.length) {
       throw new Error("Delivery finding IDs must be unique.");
     }
+    const issueIds = new Set((value.issues as IssueProgress[]).map((issue) => issue.id));
     for (const finding of delivery.findings ?? []) {
+      if (finding.relatedIssue && !issueIds.has(finding.relatedIssue)) {
+        throw new Error(
+          `Delivery finding ${finding.id} references missing issue ${finding.relatedIssue}.`,
+        );
+      }
       if (
         finding.requirementsDecision &&
         !delivery.requirementsDecisions?.some(

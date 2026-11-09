@@ -20,6 +20,7 @@ import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/Ledger
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { validateIssueId } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
@@ -57,6 +58,10 @@ export class DeliveryFindingService extends Service {
     }
     if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
     if (!options.details.trim()) throw new Error("Finding details must not be empty.");
+    if (options.relatedIssue) validateIssueId(options.relatedIssue);
+    if (options.link !== undefined && options.relatedIssue !== undefined) {
+      throw new Error("--related-issue cannot be combined with --link.");
+    }
     if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
       throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
     }
@@ -91,6 +96,12 @@ export class DeliveryFindingService extends Service {
         ledger,
         this.issueRepository.readIssues(feature.workspace),
       );
+      if (options.relatedIssue) {
+        const relatedIssue = ledger.issues.find((item) => item.id === options.relatedIssue);
+        if (!relatedIssue) {
+          throw new Error(`Related issue not found: ${options.relatedIssue}.`);
+        }
+      }
       const stale = this.reviewPolicy.reviewSnapshotBlocker(
         feature,
         delivery,
@@ -136,6 +147,7 @@ export class DeliveryFindingService extends Service {
       const duplicate = findings.find(
         (finding) =>
           finding.author === options.author.trim() &&
+          finding.relatedIssue === options.relatedIssue &&
           finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
@@ -158,6 +170,7 @@ export class DeliveryFindingService extends Service {
       const at = new Date().toISOString();
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
+        ...(options.relatedIssue ? { relatedIssue: options.relatedIssue } : {}),
         severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",

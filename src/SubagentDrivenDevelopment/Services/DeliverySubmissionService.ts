@@ -321,6 +321,22 @@ export class DeliverySubmissionService extends Service {
         author: options.author.trim(),
         action: `aggregate-review-submitted:${assignment.id}:${assignment.result}`,
       });
+      if (delivery.reviewAssignments?.every((item) => item.status === "submitted")) {
+        for (const finding of delivery.findings ?? []) {
+          if (
+            !finding.blocking ||
+            !finding.relatedIssue ||
+            finding.status === "fixed" ||
+            finding.status === "dismissed"
+          ) {
+            continue;
+          }
+          const issue = ledger.issues.find((item) => item.id === finding.relatedIssue);
+          if (!issue) throw new Error(`Related issue not found: ${finding.relatedIssue}.`);
+          issue.status = "open";
+          delete issue.blocker;
+        }
+      }
       this.workspaceTransaction.writeLedger(feature, ledger);
       return {
         scope: "delivery",

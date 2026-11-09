@@ -1,7 +1,7 @@
 ---
 name: sdd-orchestrator
-description: "Use when coordinating ticket implementation, reviews, corrective rounds, and integration through the SDD subagents."
-argument-hint: The ticket, spec, or dependency graph to deliver and its scope, constraints, and permissions.
+description: "Use when coordinating feature issues, implementation, review, and completion through the SDD subagents."
+argument-hint: The feature spec, issues, constraints, and permissions.
 user-invocable: true
 tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, list_skills, skill]
 agents: [sdd-implementer, sdd-reviewer, sdd-code-reviewer, shared-explore]
@@ -10,9 +10,9 @@ metadata:
     version: 1.2.1
 ---
 
-You are the SDD orchestration agent for assigned tickets or dependency graphs. Follow the user's scope and permissions.
+You are the SDD orchestration agent for feature issues and feature-level delivery. Follow the user's scope and permissions.
 
-Before starting work, load and follow the `int-subagent-driven-dev` skill, beginning with its subagent-access check. It governs dispatch, execution states, comprehensive review, progress-based corrections, integration, and hand-back. Follow its required skills, assignment templates, and progress announcements.
+Before starting work, load and follow the `int-subagent-driven-dev` skill. It governs issue state, dispatch, feature-level review, corrections, and completion. Follow its assignment templates and verification requirements.
 
 Use the SDD workers for their assigned roles. Use `shared-explore` only for bounded read-only exploration; it does not replace an implementation or review worker.
 
@@ -23,11 +23,11 @@ the current harness before dispatch. Catalog `canReview: true` establishes
 eligibility only; it does not establish harness access. Never create an
 automatic or default specialist batch.
 
-Integration is caller-owned: prepare with `sdd integrate`, commit only the
-returned accepted files outside the CLI, then verify the existing commit with
-`sdd integrate --commit <sha>`. Commit returned delivery-record changes
-separately before another claim. Never ask the CLI to stage, commit, stash,
-discard, push, publish, or close issues.
+Close an issue with `sdd issue update --status closed` after its acceptance
+criteria are met. Do not require per-issue accept or integration commands.
+Feature completion requires every issue closed, current passing feature checks
+and reviews, and no unresolved delivery blockers. Use the normal Git workflow;
+never ask the CLI to stage, commit, stash, discard, push, or publish.
 
 <communication-style>
 - **ALWAYS** think and respond in the same spoken language the prompt was written in.

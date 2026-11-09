@@ -16,20 +16,18 @@ async function waitForFile(path: string, timeoutMs: number) {
   expect(existsSync(path), `Timed out waiting for ${path}`).toBe(true);
 }
 
-test("ready does not combine triage states from interleaved serialized updates", async () => {
+test("ready does not combine tracker states from interleaved serialized updates", async () => {
   const { repo, service, feature } = await issueFixture("Coherent Ready Queue");
   createIssue(service, feature.spec, "Issue A");
   createIssue(service, feature.spec, "Issue B");
-  const triage = (issue: string, status: string) =>
-    service.issueService.triage({
+  const updateStatus = (issue: string, status: string) =>
+    service.issueService.issueUpdate({
       spec: feature.spec,
       issue,
       status,
-      category: "enhancement",
-      details: `Set ${issue} to ${status}.`,
       author: "maintainer",
     });
-  triage("I-0001", "ready-for-agent");
+  updateStatus("I-0001", "open");
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
   const preloadPath = join(repoRoot, "tests/helpers/preloads/ready-pause.ts");
@@ -43,8 +41,8 @@ test("ready does not combine triage states from interleaved serialized updates",
   });
   try {
     await waitForFile(pausePath, 10_000);
-    triage("I-0001", "needs-info");
-    triage("I-0002", "ready-for-agent");
+    updateStatus("I-0001", "in-progress");
+    updateStatus("I-0002", "open");
     const afterTriage = workspaceSnapshot(feature.workspace);
     writeFileSync(resumePath, "resume");
     const result = await ready;
@@ -84,11 +82,23 @@ test("concurrent issue creation serializes per-feature IDs and ledger updates", 
   const ids: string[] = results.map((result) => JSON.parse(result.stdout).issue).sort();
   expect(ids).toEqual(["I-0001", "I-0002", "I-0003", "I-0004", "I-0005"]);
   const ledger = JSON.parse(readFileSync(join(feature.workspace, "sdd.json"), "utf8"));
+  const sortedIssues = ledger.issues.sort((left: { id: string }, right: { id: string }) =>
+    left.id.localeCompare(right.id),
+  );
+  expect(sortedIssues.map((issue: { id: string }) => issue.id)).toEqual(ids);
+  expect(sortedIssues.map((issue: { title: string }) => issue.title).sort()).toEqual([
+    "Five",
+    "Four",
+    "One",
+    "Three",
+    "Two",
+  ]);
   expect(
-    ledger.issues.sort((left: { id: string }, right: { id: string }) =>
-      left.id.localeCompare(right.id),
+    sortedIssues.every(
+      (issue: { status: string; execution: string }) =>
+        issue.status === "open" && issue.execution === "unstarted",
     ),
-  ).toEqual(ids.map((id) => ({ id, execution: "unstarted" })));
+  ).toBe(true);
   for (const id of ids) {
     expect(existsSync(join(feature.workspace, "issues", `${id}.md`))).toBe(true);
   }
@@ -115,7 +125,9 @@ test("concurrent issue updates preserve both attributed history entries", async 
   );
   for (const result of results) expect(result.status, result.stderr).toBe(0);
   const issue = matter(readFileSync(join(feature.workspace, "issues", "I-0001.md"), "utf8"));
-  expect(["First update", "Second update"]).toContain(issue.data.title);
+  expect(issue.data).toEqual({ id: "I-0001" });
+  const ledger = JSON.parse(readFileSync(join(feature.workspace, "sdd.json"), "utf8"));
+  expect(["First update", "Second update"]).toContain(ledger.issues[0].title);
   expect(issue.content).toMatch(/ - First update\*\*/);
   expect(issue.content).toMatch(/ - Second update\*\*/);
 });

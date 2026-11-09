@@ -78,6 +78,7 @@ export class FeatureInspectionService extends Service {
     blockers: { issue: string; reason: string }[];
     delivery: {
       scope: "delivery";
+      status: "active" | "complete";
       execution: ExecutionState;
       action: string;
       snapshot?: string;
@@ -97,28 +98,7 @@ export class FeatureInspectionService extends Service {
       blockers: string[];
     };
   } {
-    if (!spec.trim()) throw new Error("Spec path must not be empty.");
-    if (spec.includes("\\"))
-      throw new Error("Spec path must use checkout-relative path separators.");
-    const inputSegments = spec.startsWith("/") ? spec.slice(1).split("/") : spec.split("/");
-    if (inputSegments.some((segment) => !segment || segment === "." || segment === "..")) {
-      throw new Error("Spec path must not contain empty, current, or parent path segments.");
-    }
-    const root = realpathSync(this.app.workspaceRoot);
-    const specPath = resolve(root, spec);
-    if (!isPathInside(root, specPath)) throw new Error("Spec must be inside this checkout.");
-    const relativeSpec = relative(root, specPath);
-    const segments = relativeSpec.split(sep);
-    if (
-      segments.length !== 3 ||
-      segments[0] !== ".scratch" ||
-      segments[2] !== "spec.md" ||
-      HISTORICAL_DATE_DIRECTORY.test(segments[1] ?? "") ||
-      !FEATURE_DIRECTORY.test(segments[1] ?? "")
-    ) {
-      throw new Error("Spec must be spec.md in a numbered feature workspace under .scratch.");
-    }
-    const feature = this.featureWorkspace.statusFromPaths(root, specPath, relativeSpec, segments);
+    const feature = this.resolvePaths(spec);
     const issues = this.issueRepository.readIssues(feature.workspace);
     this.issueRepository.validateDependencyGraph(issues);
     const byId = new Map(issues.map((issue) => [issue.id, issue]));
@@ -159,6 +139,7 @@ export class FeatureInspectionService extends Service {
         progress.checks,
       );
       snapshots.push({ issue: progress.id, ...identity });
+      if (issue.status === "closed") continue;
       for (const finding of progress.findings ?? []) {
         findings.push({ issue: progress.id, finding });
       }
@@ -188,24 +169,23 @@ export class FeatureInspectionService extends Service {
         continue;
       }
       if (progress.execution === "unstarted") {
-        if (issue.status !== "ready-for-agent") {
-          blockers.push({ issue: progress.id, reason: `Triage status is ${issue.status}.` });
+        if (issue.status !== "open" || issue.blocker) {
+          blockers.push({
+            issue: progress.id,
+            reason: issue.blocker ?? `Issue status is ${issue.status}.`,
+          });
           continue;
         }
         const unmet = issue.blocked_by.filter((dependency) => {
-          const dependencyProgress = progressById.get(dependency);
           const dependencyIssue = byId.get(dependency);
           return (
-            !dependencyProgress ||
-            dependencyProgress.execution !== "integrated" ||
-            !dependencyIssue ||
-            !this.checkPolicy.hasCurrentCheckCoverage(feature, dependencyIssue, dependencyProgress)
+            !dependencyIssue || dependencyIssue.status !== "closed" || !!dependencyIssue.blocker
           );
         });
         if (unmet.length > 0) {
           blockers.push({
             issue: progress.id,
-            reason: `Dependencies are not integrated: ${unmet.join(", ")}.`,
+            reason: `Dependencies are not closed: ${unmet.join(", ")}.`,
           });
           continue;
         }
@@ -393,7 +373,32 @@ export class FeatureInspectionService extends Service {
 
   public resolveFeature(spec: string): FeaturePaths {
     const absoluteSpec = isAbsolute(spec) ? relative(this.app.workspaceRoot, spec) : spec;
-    return this.status({ spec: absoluteSpec });
+    return this.resolvePaths(absoluteSpec);
+  }
+
+  private resolvePaths(spec: string): FeaturePaths & { state: FeatureLedger } {
+    if (!spec.trim()) throw new Error("Spec path must not be empty.");
+    if (spec.includes("\\"))
+      throw new Error("Spec path must use checkout-relative path separators.");
+    const inputSegments = spec.startsWith("/") ? spec.slice(1).split("/") : spec.split("/");
+    if (inputSegments.some((segment) => !segment || segment === "." || segment === "..")) {
+      throw new Error("Spec path must not contain empty, current, or parent path segments.");
+    }
+    const root = realpathSync(this.app.workspaceRoot);
+    const specPath = resolve(root, spec);
+    if (!isPathInside(root, specPath)) throw new Error("Spec must be inside this checkout.");
+    const relativeSpec = relative(root, specPath);
+    const segments = relativeSpec.split(sep);
+    if (
+      segments.length !== 3 ||
+      segments[0] !== ".scratch" ||
+      segments[2] !== "spec.md" ||
+      HISTORICAL_DATE_DIRECTORY.test(segments[1] ?? "") ||
+      !FEATURE_DIRECTORY.test(segments[1] ?? "")
+    ) {
+      throw new Error("Spec must be spec.md in a numbered feature workspace under .scratch.");
+    }
+    return this.featureWorkspace.statusFromPaths(root, specPath, relativeSpec, segments);
   }
 
   public deliveryStatus(
@@ -402,6 +407,7 @@ export class FeatureInspectionService extends Service {
     issues: IssueDocument[],
   ): {
     scope: "delivery";
+    status: "active" | "complete";
     execution: ExecutionState;
     action: string;
     snapshot?: string;
@@ -422,13 +428,14 @@ export class FeatureInspectionService extends Service {
   } {
     const delivery = ledger.delivery;
     const blockers: string[] = [];
-    const allIntegrated = ledger.issues.every((issue) => issue.execution === "integrated");
+    const allClosed =
+      ledger.issues.length > 0 && ledger.issues.every((issue) => issue.status === "closed");
     let identity: ContentIdentity | undefined;
-    if (!allIntegrated) {
+    if (!allClosed) {
       const missing = ledger.issues
-        .filter((issue) => issue.execution !== "integrated")
+        .filter((issue) => issue.status !== "closed")
         .map((issue) => issue.id);
-      blockers.push(`Issues are not integrated: ${missing.join(", ") || "no issues"}.`);
+      blockers.push(`Issues are not closed: ${missing.join(", ") || "feature has no issues"}.`);
     } else {
       try {
         identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
@@ -472,10 +479,6 @@ export class FeatureInspectionService extends Service {
             if (reason) blockers.push(reason);
           }
         }
-        const uncommitted = this.gitEvidence.changedPaths(this.gitEvidence.headSha());
-        if (uncommitted.length > 0) {
-          blockers.push(`Caller must commit final delivery changes: ${uncommitted.join(", ")}.`);
-        }
       } catch (error) {
         blockers.push(error instanceof Error ? error.message : String(error));
       }
@@ -496,7 +499,7 @@ export class FeatureInspectionService extends Service {
     }
     let action: string;
     if (delivery.finished) action = blockers.length > 0 ? "completion-invalidated" : "finished";
-    else if (!allIntegrated) action = "integrate-issues";
+    else if (!allClosed) action = "close-issues";
     else if (delivery.adjudication?.status === "pending") action = "adjudicate";
     else if (
       delivery.assignment &&
@@ -533,12 +536,11 @@ export class FeatureInspectionService extends Service {
       ).length > 0
     ) {
       action = "correct";
-    } else if (blockers.some((reason) => reason.startsWith("Caller must commit"))) {
-      action = "commit-final-delivery-changes";
     } else if (blockers.length > 0) action = "review";
     else action = "finish";
     return {
       scope: "delivery",
+      status: delivery.status ?? (delivery.finished ? "complete" : "active"),
       execution: delivery.execution,
       action,
       ...identity,

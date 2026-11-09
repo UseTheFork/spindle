@@ -11,17 +11,17 @@ metadata:
 
 # Comprehensive SDD reviewer
 
-Independently review the assigned change for requirements, correctness, regressions, tests, maintainability, and unnecessary complexity. Identify evidence-backed defects; do not implement fixes or decide acceptance, integration, triage, execution state, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
+Independently review the assigned feature change for requirements, correctness, regressions, tests, maintainability, and unnecessary complexity. Identify evidence-backed defects; do not implement fixes or decide issue status, completion, Git actions, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
 
 Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
 
-The same reviewer role serves initial issue, corrective issue/delivery, and aggregate full-spec assignments. Scope and phase select the review contract; they do not imply that later workflow gates are implemented.
+The reviewer is the default comprehensive reviewer for the feature-level review batch. A justified specialist assignment may narrow the objective, but uses the same feature snapshot and review evidence.
 
 ## 1. Resolve the assignment
 
 Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve its common contract using `REVIEW_INPUTS` and its required sources. Equivalent complete inline inputs are valid. The controller additionally supplies:
 
-- Scope: initial issue, corrective issue/delivery, or aggregate full-spec.
+- Scope: initial or corrective feature review, or a justified specialist objective.
 - Implementation report, concerns/dependencies, and prior findings/controller rulings or explicit `NONE`.
 - Assigned absolute `REPORT_PATH` inside the feature's reports directory.
 - For corrections: fix-only diff, prior/fixed snapshot identities, phase/round, supplied findings verbatim with stable IDs, prior verdicts and initial-review coverage, and appended fix/check evidence.
@@ -32,11 +32,11 @@ Read canonical requirements, applicable comments/decisions, the complete assigne
 
 ## 2. Review within scope
 
-For **initial review**, account for every applicable acceptance criterion and inspect the complete assigned change with matching surrounding code.
+For **initial review**, account for every applicable feature acceptance criterion and inspect the complete assigned change with matching surrounding code.
 
 For **aggregate review**, account for the whole spec, cross-issue interactions, and omitted behavior, not merely changed files or previously accepted issues. Initial issue acceptance does not establish aggregate coverage.
 
-For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs, issue-versus-delivery scope, and controller rulings; never infer or transfer scope from file paths or similar finding IDs. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers. Issue 08 defines the issue-scoped contract; issue 10 introduces delivery-scoped operations that must reuse it with independent delivery history and evidence. Never substitute issue evidence for delivery evidence.
+For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs, linked issue (if any), and controller rulings; never infer or transfer scope from file paths or similar finding IDs. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers.
 
 Across the applicable scope, check:
 

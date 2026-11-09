@@ -6,12 +6,13 @@ import { expect, test } from "vitest";
 import {
   execute,
   commitAll,
+  recordDeliveryCheck,
   recordReviewCheck,
   prepareAcceptedIssue,
   prepareDeliveryReady,
 } from "../helpers/helpers";
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted issue");
   const commitSha = git("rev-parse", "HEAD");
@@ -24,6 +25,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
+  await recordDeliveryCheck(repo, spec);
 
   const required = await execute(repo, (service) =>
     service.reviewService.reviewRequire({
@@ -96,8 +98,8 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   ).toBeTruthy();
 });
 
-test("delivery findings retain aggregate provenance and every required review submits idempotently", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+test("blocking delivery findings reopen their related issue after all required reviews submit", async () => {
+  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted issue");
   const integrated = await execute(repo, (service) =>
@@ -109,6 +111,7 @@ test("delivery findings retain aggregate provenance and every required review su
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
+  await recordDeliveryCheck(repo, spec);
 
   const requested = await execute(repo, (service) =>
     service.reviewService.reviewRequire({
@@ -145,10 +148,11 @@ test("delivery findings retain aggregate provenance and every required review su
       issue: "",
       spec,
       scope: "delivery",
+      relatedIssue: "I-0001",
       source: comprehensive.report,
       snapshot: comprehensive.snapshot,
       severity: "medium",
-      nonBlocking: true,
+      blocking: true,
       summary: "Cross-issue behavior needs documentation",
       details: "The integrated issues use inconsistent names for the same behavior.",
       author: "controller",
@@ -224,6 +228,8 @@ test("delivery findings retain aggregate provenance and every required review su
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.findings.map((item: { id: string }) => item.id)).toEqual(["F-0001"]);
+  expect(ledger.delivery.findings[0].relatedIssue).toBe("I-0001");
+  expect(ledger.issues[0].status).toBe("open");
   expect(ledger.issues[0].findings).toBe(undefined);
   expect(ledger.delivery.findings[0].history.at(-1).action).toBe("status:confirmed");
   expect(ledger.delivery.reviewAssignments.map((item: { status: string }) => item.status)).toEqual([
@@ -233,7 +239,7 @@ test("delivery findings retain aggregate provenance and every required review su
 });
 
 test("delivery checks use their own current snapshot and stale aggregate checks block review", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted issue");
   const integrated = await execute(repo, (service) =>
@@ -310,7 +316,7 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
 });
 
 test("delivery correction attempts resume independently with the same assignment and finding history", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted issue");
   const integrated = await execute(repo, (service) =>
@@ -322,6 +328,7 @@ test("delivery correction attempts resume independently with the same assignment
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
+  await recordDeliveryCheck(repo, spec);
 
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
@@ -433,6 +440,7 @@ test("delivery correction attempts resume independently with the same assignment
     }),
   );
   expect(implementation.status, implementation.stderr).toBe(0);
+  await recordDeliveryCheck(repo, spec);
   const correctiveReview = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
@@ -530,7 +538,7 @@ test("delivery correction attempts resume independently with the same assignment
 });
 
 test("delivery requirements rulings authorize only a freshly reviewed deferral", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted issue");
   const integrated = await execute(repo, (service) =>
@@ -844,7 +852,7 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(alteredReport.stderr).toMatch(/already finished with different retrospective evidence/i);
 });
 
-test("aggregate review covers every integrated issue and stale requirements block finish", async () => {
+test("aggregate review covers every closed issue and stale requirements block finish", async () => {
   const first = await prepareAcceptedIssue({ issueCount: 2 });
   first.git("add", first.file);
   first.git("commit", "-qm", "deliver first issue");
@@ -952,6 +960,17 @@ test("aggregate review covers every integrated issue and stale requirements bloc
   );
   expect(secondIntegration.status, secondIntegration.stderr).toBe(0);
   commitAll(first.repo, first.git, "record second issue integration");
+  for (const issue of ["I-0001", "I-0002"]) {
+    const closed = await execute(first.repo, (service) =>
+      service.issueService.issueUpdate({
+        spec: first.spec,
+        issue,
+        status: "closed",
+        author: "controller",
+      }),
+    );
+    expect(closed.status, closed.stderr).toBe(0);
+  }
 
   const deliveryCommand = "just test::test tests/whole-feature.test.ts";
   const deliveryCheck = await execute(first.repo, (service) =>
@@ -1135,7 +1154,7 @@ test("finished delivery rejects new check requirements without changing its stat
   expect(git("status", "--porcelain")).toBe(gitBefore);
 });
 
-test("delivery finish requires its recorded owner or an explicit confirmed handoff", async () => {
+test("delivery finish is idempotent for a different controller after completion", async () => {
   const { repo, git, spec } = await prepareDeliveryReady();
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const finish = await execute(repo, (service) =>
@@ -1148,27 +1167,10 @@ test("delivery finish requires its recorded owner or an explicit confirmed hando
   const replacementFinish = await execute(repo, (service) =>
     service.deliveryService.finish({ spec, author: "replacement" }),
   );
-  expect(replacementFinish.status).not.toBe(0);
-  expect(replacementFinish.stderr).toMatch(/recorded delivery owner|ownership handoff/i);
+  expect(replacementFinish.status, replacementFinish.stderr).toBe(0);
+  expect(JSON.parse(replacementFinish.stdout).idempotent).toBe(true);
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
   expect(git("status", "--porcelain")).toBe(gitBefore);
-
-  const handoff = await execute(repo, (service) =>
-    service.assignmentService.resume({
-      issue: "",
-      spec,
-      scope: "delivery",
-      author: "replacement",
-      confirmHandoff: true,
-    }),
-  );
-  expect(handoff.status, handoff.stderr).toBe(0);
-  expect(JSON.parse(handoff.stdout).handoffRecorded).toBe(true);
-  const replacementFinishAfterHandoff = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, author: "replacement" }),
-  );
-  expect(replacementFinishAfterHandoff.status, replacementFinishAfterHandoff.stderr).toBe(0);
-  expect(JSON.parse(replacementFinishAfterHandoff.stdout).idempotent).toBe(true);
 });
 
 test("finished delivery status, next, and resume expose completion and stale evidence", async () => {

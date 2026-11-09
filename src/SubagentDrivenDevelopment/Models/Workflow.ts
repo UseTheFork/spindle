@@ -23,13 +23,9 @@ export const ISSUE_ID = /^I-(\d{4,})$/;
 
 export const ISSUE_CATEGORIES = ["bug", "enhancement"] as const;
 
-export const TRIAGE_STATUSES = [
-  "needs-triage",
-  "needs-info",
-  "ready-for-agent",
-  "ready-for-human",
-  "wontfix",
-] as const;
+export const TRACKER_STATUSES = ["open", "in-progress", "closed"] as const;
+
+export type TrackerStatus = (typeof TRACKER_STATUSES)[number];
 
 export const EXECUTION_STATES = [
   "unstarted",
@@ -39,6 +35,7 @@ export const EXECUTION_STATES = [
   "changes-requested",
   "accepted",
   "integrated",
+  "complete",
   "blocked",
 ] as const;
 
@@ -46,6 +43,12 @@ export type ExecutionState = (typeof EXECUTION_STATES)[number];
 
 export interface IssueProgress {
   id: string;
+  title?: string;
+  reporter?: string;
+  category?: (typeof ISSUE_CATEGORIES)[number];
+  status?: TrackerStatus;
+  blockedBy?: string[];
+  blocker?: string;
   execution: ExecutionState;
   owner?: string;
   baseSha?: string;
@@ -79,6 +82,7 @@ export interface FeatureLedger {
 }
 
 export interface DeliveryProgress {
+  status?: "active" | "complete";
   execution: ExecutionState;
   history: DeliveryHistoryEntry[];
   baseSha?: string;
@@ -120,8 +124,9 @@ export interface IssueDocument {
   title: string;
   reporter: string;
   category: (typeof ISSUE_CATEGORIES)[number];
-  status: (typeof TRIAGE_STATUSES)[number];
+  status: TrackerStatus;
   blocked_by: string[];
+  blocker?: string;
   body: string;
   path: string;
   raw: string;

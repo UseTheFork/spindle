@@ -32,14 +32,12 @@ export interface ScopedSelection {
 export interface IssueUpdateOptions extends IssueSelection {
   title?: string;
   reporter?: string;
+  category?: string;
+  status?: string;
+  blocker?: string;
+  clearBlocker?: boolean;
   blockedBy?: string[];
   clearBlockedBy?: boolean;
-}
-
-export interface TriageOptions extends IssueSelection {
-  status: string;
-  category: string;
-  details: string;
 }
 
 export interface IssueCommentOptions extends IssueSelection {
@@ -80,6 +78,7 @@ export interface SubmitOptions extends IssueSelection {
 
 export interface FindingCreateOptions extends IssueSelection {
   scope?: string;
+  relatedIssue?: string;
   source: string;
   snapshot: string;
   severity: string;

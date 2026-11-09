@@ -23,7 +23,7 @@ report, confirm the dispatch supplies:
 
 | Field                    | Required content                                                        |
 | ------------------------ | ----------------------------------------------------------------------- |
-| `SPEC_AND_ISSUE`         | The explicit feature spec and issue being reviewed.                     |
+| `SPEC`                   | The explicit feature spec being reviewed.                               |
 | `ASSIGNMENT_ID`          | This review's unique assignment ID and role `review`.                   |
 | `SPECIALIST_OBJECTIVE`   | The controller's justified objective, from the assigned review details. |
 | `SNAPSHOT_AND_INVENTORY` | The exact reviewed snapshot and frozen change inventory.                |
@@ -48,8 +48,8 @@ project tooling and only run checks authorized by the assignment. The report
 must distinguish inspected evidence from checks you ran, name their exact
 scope and snapshot, and disclose limitations.
 
-Do not edit implementation files, register findings, accept the issue, or
-dispatch other agents. The controller owns those actions and decides whether
+Do not edit implementation files, register findings, or dispatch other
+agents. The controller owns those actions and decides whether
 the specialist evidence satisfies the recorded requirement. Do not infer
 agent availability from catalog eligibility; the controller confirms actual
 harness access before dispatch.

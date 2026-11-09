@@ -31,14 +31,7 @@ test("issue create persists attributed metadata and unstarted progress without o
   expect(output.path).toBe(issuePath);
   expect(statSync(issuePath).mode & 0o777).toBe(0o666 & ~process.umask());
   const createdDocument = matter(readFileSync(issuePath, "utf8"));
-  expect(createdDocument.data).toEqual({
-    id: "I-0001",
-    title: options.title,
-    reporter: options.reporter,
-    category: "enhancement",
-    status: "needs-triage",
-    blocked_by: [],
-  });
+  expect(createdDocument.data).toEqual({ id: "I-0001" });
   expect("execution" in createdDocument.data).toBe(false);
   expect(createdDocument.content).toMatch(
     /^\n## Requirements\n\n## Acceptance Criteria\n\n## Comments\n/,
@@ -50,7 +43,15 @@ test("issue create persists attributed metadata and unstarted progress without o
   const ledgerPath = join(feature.workspace, "sdd.json");
   const firstIssue = readFileSync(issuePath, "utf8");
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues).toEqual([
-    { id: "I-0001", execution: "unstarted" },
+    {
+      id: "I-0001",
+      title: options.title,
+      reporter: options.reporter,
+      category: "enhancement",
+      status: "open",
+      blockedBy: [],
+      execution: "unstarted",
+    },
   ]);
   expect(firstIssue).not.toContain("execution:");
   expect(service.issueService.issueCreate(options).issue).toBe("I-0002");
@@ -155,7 +156,7 @@ test("issue creation preserves a non-regular lock path and its target", async ()
   expect(existsSync(join(feature.workspace, "issues", "I-0001.md"))).toBe(false);
 });
 
-test("issue update changes descriptive fields and dependencies while preserving triage and body", async () => {
+test("issue update stores structured fields in the ledger and preserves local metadata and body", async () => {
   const { service, feature } = await issueFixture("Issue Update");
   createIssue(service, feature.spec, "Foundation");
   createIssue(service, feature.spec, "Follow-up");
@@ -174,7 +175,6 @@ test("issue update changes descriptive fields and dependencies while preserving 
     }),
   );
   const ledgerPath = join(feature.workspace, "sdd.json");
-  const ledgerBefore = readFileSync(ledgerPath, "utf8");
   service.issueService.issueUpdate({
     spec: feature.spec,
     issue: "I-0002",
@@ -184,72 +184,67 @@ test("issue update changes descriptive fields and dependencies while preserving 
     author: "maintainer",
   });
   const updated = matter(readFileSync(target, "utf8"));
-  expect(updated.data.title).toBe("Updated Follow-up");
-  expect(updated.data.reporter).toBe("different reporter");
-  expect(updated.data.status).toBe("needs-triage");
-  expect(updated.data.blocked_by).toEqual(["I-0001"]);
+  expect(updated.data).toEqual({ id: "I-0002", local_reference: "preserve this value" });
+  const updatedLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  expect(updatedLedger.issues[1]).toMatchObject({
+    title: "Updated Follow-up",
+    reporter: "different reporter",
+    status: "open",
+    blockedBy: ["I-0001"],
+  });
   expect(updated.data.local_reference).toBe("preserve this value");
   expect(statSync(target).mode & 0o777).toBe(0o640);
   expect(updated.content).toMatch(/Keep this requirement\./);
   expect(updated.content).toMatch(/Keep this criterion\./);
   expect(updated.content).toMatch(/Historical comment\./);
   expect(updated.content).toMatch(/\*\*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z - maintainer\*\*/);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+  expect(updatedLedger.issues[1].category).toBe("enhancement");
   service.issueService.issueUpdate({
     spec: feature.spec,
     issue: "I-0002",
     clearBlockedBy: true,
     author: "maintainer",
   });
-  expect(matter(readFileSync(target, "utf8")).data.blocked_by).toEqual([]);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[1].blockedBy).toEqual([]);
 });
 
-test("triage accepts every category/status pair and appends attributed UTC rationales", async () => {
-  const { service, feature } = await issueFixture("Issue Triage");
-  createIssue(service, feature.spec, "Triage every valid state");
-  const path = join(feature.workspace, "issues", "I-0001.md");
-  const statuses = ["needs-triage", "needs-info", "ready-for-agent", "ready-for-human", "wontfix"];
-  let count = 0;
-  for (const category of ["bug", "enhancement"]) {
-    for (const status of statuses) {
-      service.issueService.triage({
-        spec: feature.spec,
-        issue: "I-0001",
-        category,
-        status,
-        details: `Decision ${++count}`,
-        author: "triager",
-      });
-    }
-  }
-  const issue = matter(readFileSync(path, "utf8"));
-  expect(issue.data.category).toBe("enhancement");
-  expect(issue.data.status).toBe("wontfix");
-  expect(issue.content.match(/ - triager\*\*/g) ?? []).toHaveLength(10);
-  expect(issue.content.match(/Decision \d+/g) ?? []).toHaveLength(10);
-  expect(issue.content).toMatch(/\*\*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z - triager\*\*/);
-  for (const status of ["feature", "READY", ""]) {
-    expect(() =>
-      service.issueService.triage({
-        spec: feature.spec,
-        issue: "I-0001",
-        category: "enhancement",
-        status,
-        details: "Invalid state",
-        author: "triager",
-      }),
-    ).toThrow();
-  }
+test("issue tracker transitions enforce blockers before closure", async () => {
+  const { service, feature } = await issueFixture("Issue Tracker");
+  createIssue(service, feature.spec, "Track work");
+  service.issueService.issueUpdate({
+    spec: feature.spec,
+    issue: "I-0001",
+    status: "in-progress",
+    author: "worker",
+  });
+  service.issueService.issueUpdate({
+    spec: feature.spec,
+    issue: "I-0001",
+    status: "open",
+    blocker: "Waiting for a decision.",
+    author: "worker",
+  });
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  const beforeClose = readFileSync(ledgerPath, "utf8");
   expect(() =>
-    service.issueService.triage({
+    service.issueService.issueUpdate({
       spec: feature.spec,
       issue: "I-0001",
-      category: "task",
-      status: "ready-for-agent",
-      details: "Invalid category",
-      author: "triager",
+      status: "closed",
+      author: "worker",
     }),
-  ).toThrow(/category/i);
+  ).toThrow(/cannot close a blocked issue/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
+  service.issueService.issueUpdate({
+    spec: feature.spec,
+    issue: "I-0001",
+    status: "closed",
+    clearBlocker: true,
+    author: "worker",
+  });
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0]).toMatchObject({
+    status: "closed",
+  });
 });
 
 test("issue comment appends explicit UTC attribution without inferring reporter", async () => {

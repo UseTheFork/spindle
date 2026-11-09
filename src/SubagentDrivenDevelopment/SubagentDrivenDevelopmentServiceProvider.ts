@@ -1,7 +1,6 @@
 import type { CommandConstructor } from "@/Commands/Command";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
 import { GitService } from "@/Git/Services/GitService";
-import { AcceptCommand } from "@/SubagentDrivenDevelopment/Commands/AcceptCommand";
 import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ChecksRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";
 import { ClaimCommand } from "@/SubagentDrivenDevelopment/Commands/ClaimCommand";
@@ -11,7 +10,6 @@ import { FindingCreateCommand } from "@/SubagentDrivenDevelopment/Commands/Findi
 import { FindingUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingUpdateCommand";
 import { FinishCommand } from "@/SubagentDrivenDevelopment/Commands/FinishCommand";
 import { ImplementCommand } from "@/SubagentDrivenDevelopment/Commands/ImplementCommand";
-import { IntegrateCommand } from "@/SubagentDrivenDevelopment/Commands/IntegrateCommand";
 import { IssueCommentCommand } from "@/SubagentDrivenDevelopment/Commands/IssueCommentCommand";
 import { IssueCreateCommand } from "@/SubagentDrivenDevelopment/Commands/IssueCreateCommand";
 import { IssueUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/IssueUpdateCommand";
@@ -23,7 +21,6 @@ import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewComman
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
 import { StatusCommand } from "@/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@/SubagentDrivenDevelopment/Commands/SubmitCommand";
-import { TriageCommand } from "@/SubagentDrivenDevelopment/Commands/TriageCommand";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
@@ -63,7 +60,6 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       IssueCreateCommand,
       IssueUpdateCommand,
       IssueCommentCommand,
-      TriageCommand,
       ReadyCommand,
       ClaimCommand,
       ChecksRequireCommand,
@@ -76,8 +72,6 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       FindingUpdateCommand,
       RequirementsDecideCommand,
       SubmitCommand,
-      AcceptCommand,
-      IntegrateCommand,
       FinishCommand,
       ResumeCommand,
       NextCommand,
@@ -97,8 +91,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     );
     this.app.singleton(
       ReadinessPolicy,
-      async (app) =>
-        new ReadinessPolicy(app, await app.make(IssueRepository), await app.make(CheckPolicy)),
+      async (app) => new ReadinessPolicy(app, await app.make(IssueRepository)),
     );
     this.app.singleton(
       FeatureCreationService,
@@ -108,6 +101,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(FeatureWorkspace),
           await app.make(PathSafety),
           await app.make(WorkspaceTransaction),
+          await app.make(GitEvidence),
         ),
     );
     this.app.singleton(
@@ -342,7 +336,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(LedgerRepository, async (app) => new LedgerRepository(app));
     this.app.singleton(
       IssueRepository,
-      async (app) => new IssueRepository(app, await app.make(PathSafety)),
+      async (app) =>
+        new IssueRepository(app, await app.make(PathSafety), await app.make(LedgerRepository)),
     );
     this.app.singleton(
       WorkspaceTransaction,

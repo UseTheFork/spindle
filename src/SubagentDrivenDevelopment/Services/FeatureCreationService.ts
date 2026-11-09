@@ -11,6 +11,7 @@ import { join } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
+import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
@@ -32,6 +33,7 @@ export class FeatureCreationService extends Service {
     private readonly featureWorkspace: FeatureWorkspace,
     private readonly pathSafety: PathSafety,
     private readonly workspaceTransaction: WorkspaceTransaction,
+    private readonly gitEvidence: GitEvidence,
   ) {
     super(app);
   }
@@ -94,7 +96,7 @@ export class FeatureCreationService extends Service {
         mkdirSync(join(staging, "issues"));
         mkdirSync(join(staging, "reports"));
         const ledger: FeatureLedger = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           featureId: id,
           title: options.title.trim(),
           createdBy: options.author.trim(),
@@ -107,8 +109,10 @@ export class FeatureCreationService extends Service {
           },
           issues: [],
           delivery: {
+            status: "active",
             execution: "unstarted",
             history: [],
+            baseSha: this.gitEvidence.headSha(),
           },
         };
         writeFileSync(join(staging, "spec.md"), `# ${options.title.trim()}\n`, {

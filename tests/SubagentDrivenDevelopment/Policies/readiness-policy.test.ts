@@ -1,13 +1,11 @@
-import { expect, test } from "vitest";
+import { readFileSync, writeFileSync } from "node:fs";
 
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { expect, test } from "vitest";
 
 import { serviceFixture } from "../helpers/helpers";
 
-test("readiness policy rejects Markdown issues without matching ledger execution records", async () => {
-  const { app, service } = await serviceFixture();
+test("readiness rejects Markdown issues without matching ledger records", async () => {
+  const { service } = await serviceFixture();
   const feature = service.featureCreationService.create({
     title: "Readiness",
     author: "controller",
@@ -19,11 +17,10 @@ test("readiness policy rejects Markdown issues without matching ledger execution
     category: "enhancement",
     author: "controller",
   });
-  const ledger = (await app.make(LedgerRepository)).readLedger(feature);
-  const issues = (await app.make(IssueRepository)).readIssues(feature.workspace);
+  const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
   ledger.issues = [];
-  const policy = await app.make(ReadinessPolicy);
-  expect(() => policy.evaluate(feature, ledger, issues)).toThrow(
-    "Issue I-0001 has no ledger execution record.",
+  writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
+  expect(() => service.readinessService.ready({ spec: feature.spec })).toThrow(
+    "Issue I-0001 has no ledger record.",
   );
 });

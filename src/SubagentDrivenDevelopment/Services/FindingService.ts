@@ -63,6 +63,9 @@ export class FindingService extends Service {
       return this.deliveryFindingService.deliveryFindingCreate(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
+    if (options.relatedIssue !== undefined) {
+      throw new Error("--related-issue is only valid for a delivery finding.");
+    }
     if (!options.issue) throw new Error("Finding creation requires --issue or --scope delivery.");
     validateIssueId(options.issue);
     validateAuthor(options.author);

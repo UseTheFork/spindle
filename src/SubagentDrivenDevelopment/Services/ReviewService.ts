@@ -518,28 +518,28 @@ export class ReviewService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const issues = this.issueRepository.readIssues(feature.workspace);
       const incomplete = ledger.issues
-        .filter((progress) => progress.execution !== "integrated")
+        .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
       if (incomplete.length > 0) {
-        throw new Error(
-          `Aggregate review requires every issue integrated: ${incomplete.join(", ")}.`,
-        );
+        throw new Error(`Feature review requires every issue closed: ${incomplete.join(", ")}.`);
       }
       if (issues.length !== ledger.issues.length) {
-        throw new Error("Aggregate review requires every integrated issue document to be present.");
+        throw new Error("Feature review requires every issue document to be present.");
       }
       const delivery = ledger.delivery;
       if (delivery.adjudication?.status === "pending") {
         throw new Error("Delivery correction is paused for adjudication.");
       }
-      if (delivery.owner && delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may dispatch aggregate review.");
-      }
       delivery.owner = options.author.trim();
       const identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
       const blockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
-      const baseline = delivery.baseSha!;
+      const baseline = delivery.baseSha;
+      if (!baseline) {
+        throw new Error(
+          "Feature review requires a recorded feature baseline; create the feature again.",
+        );
+      }
       const inventory = this.gitEvidence.changedPaths(baseline);
       const suppliedPaths = new Set(confirmedInventory);
       if (

@@ -11,16 +11,19 @@ test("issue comment recovers an interrupted issue/ledger write without losing hi
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const ledger = JSON.parse(ledgerBefore);
-  ledger.issues.push({ id: "I-0001", execution: "unstarted" });
+  ledger.issues.push({
+    id: "I-0001",
+    title: "Recovered issue",
+    reporter: "Explicit reporter",
+    category: "enhancement",
+    status: "open",
+    blockedBy: [],
+    execution: "unstarted",
+  });
   const ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
   const issueContent = [
     "---",
     "id: I-0001",
-    "title: Recovered issue",
-    "reporter: Explicit reporter",
-    "category: enhancement",
-    "status: needs-triage",
-    "blocked_by: []",
     "---",
     "",
     "## Requirements",

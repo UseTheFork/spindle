@@ -38,7 +38,7 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   ]);
 
   const ledger = JSON.parse(readFileSync(expected.ledger, "utf8"));
-  expect(ledger.schemaVersion).toBe(1);
+  expect(ledger.schemaVersion).toBe(2);
   expect(ledger.featureId).toBe("0001");
   expect(ledger.title).toBe("Command Driven SDD");
   expect(ledger.createdBy).toBe("maintainer");
@@ -48,6 +48,8 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
     issue: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
+  expect(ledger.delivery.status).toBe("active");
+  expect(ledger.delivery.baseSha).toMatch(/^[0-9a-f]{40}$/);
 });
 
 test("sdd create allocates above matching IDs and ignores dated and unrelated directories", async () => {

@@ -111,22 +111,37 @@ export class CheckPolicy extends Service {
   }
 
   public deliveryCheckBlockers(delivery: DeliveryProgress, identity: ContentIdentity): string[] {
-    return (delivery.checks?.required ?? [])
-      .filter((requirement) => !requirement.removedAt)
-      .flatMap((requirement) => {
-        const records = (delivery.checks?.records ?? []).filter(
-          (record) =>
-            record.command === requirement.command &&
-            record.snapshot === identity.snapshot &&
-            record.codeSnapshot === identity.codeSnapshot &&
-            record.requirementsSnapshot === identity.requirementsSnapshot,
-        );
-        const latest = records.at(-1);
-        if (!latest) return [`Required delivery check ${requirement.command} is missing or stale.`];
-        if (latest.result !== "passed") {
-          return [`Required delivery check ${requirement.command} is ${latest.result}.`];
-        }
-        return [];
-      });
+    const records = delivery.checks?.records ?? [];
+    const hasPassingCheck = records.some(
+      (record) =>
+        record.result === "passed" &&
+        record.snapshot === identity.snapshot &&
+        record.codeSnapshot === identity.codeSnapshot &&
+        record.requirementsSnapshot === identity.requirementsSnapshot,
+    );
+    const evidenceBlockers = hasPassingCheck
+      ? []
+      : ["At least one relevant test/check must pass for the current feature snapshot."];
+    return [
+      ...evidenceBlockers,
+      ...(delivery.checks?.required ?? [])
+        .filter((requirement) => !requirement.removedAt)
+        .flatMap((requirement) => {
+          const matchingRecords = records.filter(
+            (record) =>
+              record.command === requirement.command &&
+              record.snapshot === identity.snapshot &&
+              record.codeSnapshot === identity.codeSnapshot &&
+              record.requirementsSnapshot === identity.requirementsSnapshot,
+          );
+          const latest = matchingRecords.at(-1);
+          if (!latest)
+            return [`Required delivery check ${requirement.command} is missing or stale.`];
+          if (latest.result !== "passed") {
+            return [`Required delivery check ${requirement.command} is ${latest.result}.`];
+          }
+          return [];
+        }),
+    ];
   }
 }

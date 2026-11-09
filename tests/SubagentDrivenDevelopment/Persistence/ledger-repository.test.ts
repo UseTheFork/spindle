@@ -13,8 +13,8 @@ test("ledger validation returns the original validated object and preserves sche
   const raw: unknown = JSON.parse(readFileSync(feature.ledger, "utf8"));
   const ledger = repository.validateLedger(raw, feature.feature);
   expect(ledger).toBe(raw);
-  expect(() => repository.validateLedger({ ...ledger, schemaVersion: 2 }, feature.feature)).toThrow(
-    "Unsupported feature ledger schema version: 2.",
+  expect(() => repository.validateLedger({ ...ledger, schemaVersion: 3 }, feature.feature)).toThrow(
+    "Unsupported feature ledger schema version: 3.",
   );
   expect(() =>
     repository.validateLedger({ ...ledger, featureId: "0002" }, feature.feature),

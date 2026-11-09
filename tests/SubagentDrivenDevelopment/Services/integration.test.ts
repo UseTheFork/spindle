@@ -264,7 +264,7 @@ test("integrate rejects an altered registered review report as stale evidence", 
   ).toBe("accepted");
 });
 
-test("dependent claims wait for caller-committed delivery records and reuse integrated evidence", async () => {
+test("dependent claims wait until prerequisites are closed", async () => {
   const { repo, git, spec } = await prepareAcceptedIssue();
   const prepared = await execute(repo, (service) =>
     service.integrationService.integrate({ spec, issue: "I-0001", author: "controller" }),
@@ -303,23 +303,21 @@ test("dependent claims wait for caller-committed delivery records and reuse inte
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
-  const triaged = await execute(repo, (service) =>
-    service.issueService.triage({
+  const updated = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
       spec,
       issue: "I-0002",
-      status: "ready-for-agent",
-      category: "enhancement",
-      details: "Prerequisite integration is recorded.",
+      status: "open",
       author: "maintainer",
     }),
   );
-  expect(triaged.status, triaged.stderr).toBe(0);
+  expect(updated.status, updated.stderr).toBe(0);
 
   const prematureClaim = await execute(repo, (service) =>
     service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
   );
   expect(prematureClaim.status).not.toBe(0);
-  expect(prematureClaim.stderr).toMatch(/uncommitted delivery records/i);
+  expect(prematureClaim.stderr).toMatch(/open dependencies: I-0001/i);
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
       .issues[1].baseSha,
@@ -329,7 +327,22 @@ test("dependent claims wait for caller-committed delivery records and reuse inte
   git("commit", "-qm", "record completed prerequisite delivery");
   const ready = await execute(repo, (service) => service.readinessService.ready({ spec }));
   expect(ready.status, ready.stderr).toBe(0);
-  expect(ready.stdout).not.toMatch(/dependencies are not integrated: I-0001/i);
+  expect(JSON.parse(ready.stdout).ready).toEqual([]);
+  const closed = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
+      spec,
+      issue: "I-0001",
+      status: "closed",
+      author: "controller",
+    }),
+  );
+  expect(closed.status, closed.stderr).toBe(0);
+  git("add", "-A");
+  git("commit", "-qm", "close prerequisite issue");
+  const readyAfterClose = await execute(repo, (service) =>
+    service.readinessService.ready({ spec }),
+  );
+  expect(JSON.parse(readyAfterClose.stdout).ready).toEqual(["I-0002"]);
   const claimed = await execute(repo, (service) =>
     service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
   );
@@ -401,10 +414,8 @@ test("required checks cannot change after review assignment freezes the snapshot
   expect(additionalCheck.stderr).toMatch(/frozen.*review/i);
 });
 
-test("interrupted review dispatch and submission resume the same persisted assignment", async () => {
-  const { repo, spec, command, submission } = await prepareImplementationForReview();
-  const passingCheck = await recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
-  expect(passingCheck.status, passingCheck.stderr).toBe(0);
+test("review command requires feature delivery scope instead of an issue scope", async () => {
+  const { repo, spec } = await prepareImplementationForReview();
   const reviewArgs = [
     "review",
     "--spec",
@@ -416,78 +427,9 @@ test("interrupted review dispatch and submission resume the same persisted assig
     "--author",
     "controller",
   ];
-  const interruptedDispatch = await invokeAsync(repo, reviewArgs, {
-    killOnOutput: '"assignments"',
-  });
-  expect(interruptedDispatch.signal).toBe("SIGKILL");
-  const resumedDispatch = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
-  );
-  expect(resumedDispatch.status, resumedDispatch.stderr).toBe(0);
-  const resumed = JSON.parse(resumedDispatch.stdout) as {
-    nextAction: string;
-    reviewAssignments: { id: string; status: string; report: string }[];
-  };
-  expect(resumed.nextAction).toBe("await-review-report");
-  expect(resumed.reviewAssignments.length).toBe(1);
-  const assignment = resumed.reviewAssignments[0]!;
-  expect(assignment.status).toBe("pending");
-  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
-
-  const submitArgs = [
-    "submit",
-    "--spec",
-    spec,
-    "--issue",
-    "I-0001",
-    "--role",
-    "review",
-    "--assignment",
-    assignment.id,
-    "--report",
-    assignment.report,
-    "--result",
-    "passed",
-    "--no-findings",
-    "--author",
-    "controller",
-  ];
-  const interruptedSubmission = await invokeAsync(repo, submitArgs, {
-    killOnOutput: '"reportSha256"',
-  });
-  expect(interruptedSubmission.signal).toBe("SIGKILL");
-  const resumedSubmission = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
-  );
-  expect(resumedSubmission.status, resumedSubmission.stderr).toBe(0);
-  const resumedResult = JSON.parse(resumedSubmission.stdout) as {
-    nextAction: string;
-    reviewAssignments: { id: string; status: string; result: string }[];
-  };
-  expect(resumedResult.nextAction).toBe("accept");
-  expect(resumedResult.reviewAssignments[0]?.id).toBe(assignment.id);
-  expect(resumedResult.reviewAssignments[0]?.status).toBe("submitted");
-  expect(resumedResult.reviewAssignments[0]?.result).toBe("passed");
-
-  const repeatedSubmission = await execute(repo, (service) =>
-    service.submissionService.submit({
-      spec,
-      issue: "I-0001",
-      role: "review",
-      assignment: assignment.id,
-      report: assignment.report,
-      result: "passed",
-      noFindings: true,
-      author: "controller",
-    }),
-  );
-  expect(repeatedSubmission.status, repeatedSubmission.stderr).toBe(0);
-  expect(JSON.parse(repeatedSubmission.stdout).idempotent).toBe(true);
-  const issueText = readFileSync(
-    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
-    "utf8",
-  );
-  expect(issueText.match(/Review report submitted for assignment/g)?.length).toBe(1);
+  const result = await invokeAsync(repo, reviewArgs);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/unknown option.*--issue/i);
 });
 
 test("review submission and acceptance reject changed requirements, code, and report content", async () => {

@@ -12,7 +12,7 @@ export class FinishCommand extends Command {
     group(root)
       .command("finish")
       .description(
-        "Finish whole-spec delivery after integration, current aggregate evidence, and the stored retrospective policy.",
+        "Complete feature delivery after all issues are closed and required checks and reviews pass.",
       )
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .option(

@@ -29,6 +29,7 @@ export interface RequirementsDecision {
 
 export interface ReviewFinding {
   id: string;
+  relatedIssue?: string;
   severity: FindingSeverity;
   blocking: boolean;
   status: FindingStatus;

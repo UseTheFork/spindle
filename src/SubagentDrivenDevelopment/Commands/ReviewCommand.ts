@@ -22,16 +22,12 @@ export class ReviewCommand extends Command {
             throw new Error("--type and --agent must identify the same review agent.");
           }
           const reviewType = options.type ?? options.agent;
-          const deliveryScope = options.scope === "delivery";
-          if (options.scope !== undefined && !deliveryScope) {
-            throw new Error("--scope must be 'delivery'.");
-          }
-          if (Boolean(options.issue) === deliveryScope) {
-            throw new Error("review require needs exactly one of --issue or --scope delivery.");
+          if (options.scope !== "delivery") {
+            throw new Error("Feature review requirements need --scope delivery.");
           }
           if (!options.spec || !reviewType || !options.details || !options.author) {
             throw new Error(
-              "review require needs --spec, one scope selector, --type, --details, and --author.",
+              "review require needs --spec, --scope delivery, --type, --details, and --author.",
             );
           }
           if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
@@ -55,17 +51,14 @@ export class ReviewCommand extends Command {
         if (options.type || options.agent || options.details) {
           throw new Error("--type, --agent, and --details are only valid with 'review require'.");
         }
-        if (options.scope !== undefined && options.scope !== "delivery") {
-          throw new Error("--scope must be 'delivery'.");
-        }
         if (
           !options.spec ||
-          Boolean(options.issue) === (options.scope === "delivery") ||
+          options.scope !== "delivery" ||
           !options.inventory ||
           !options.author
         ) {
           throw new Error(
-            "review requires --spec, exactly one of --issue or --scope delivery, --inventory, and --author.",
+            "Feature review requires --spec, --scope delivery, --inventory, and --author.",
           );
         }
         const command = await (await createApp()).make(ReviewCommand);

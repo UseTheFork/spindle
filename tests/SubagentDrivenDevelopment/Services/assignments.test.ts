@@ -391,7 +391,7 @@ test("claim keeps dependency-blocked issues unowned", async () => {
     }),
   );
   expect(created.status, created.stderr).toBe(0);
-  const updated = await execute(repo, (service) =>
+  const trackerUpdate = await execute(repo, (service) =>
     service.issueService.issueUpdate({
       spec,
       issue: "I-0002",
@@ -399,18 +399,16 @@ test("claim keeps dependency-blocked issues unowned", async () => {
       author: "maintainer",
     }),
   );
-  expect(updated.status, updated.stderr).toBe(0);
-  const triaged = await execute(repo, (service) =>
-    service.issueService.triage({
+  expect(trackerUpdate.status, trackerUpdate.stderr).toBe(0);
+  const updated = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
       spec,
       issue: "I-0002",
-      status: "ready-for-agent",
-      category: "enhancement",
-      details: "Ready after its prerequisite is integrated.",
+      status: "open",
       author: "maintainer",
     }),
   );
-  expect(triaged.status, triaged.stderr).toBe(0);
+  expect(updated.status, updated.stderr).toBe(0);
   commitAll(repo, git, "prepare dependent issue");
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
@@ -420,24 +418,22 @@ test("claim keeps dependency-blocked issues unowned", async () => {
   );
 
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toMatch(/dependencies that are not integrated: I-0001/);
+  expect(result.stderr).toMatch(/open dependencies: I-0001/);
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 });
 
-test("claim rejects issues that have not been triaged ready without recording ownership", async () => {
+test("claim rejects issues that are blocked without recording ownership", async () => {
   const { repo, git, spec } = await prepareClaimableIssue();
-  const triaged = await execute(repo, (service) =>
-    service.issueService.triage({
+  const updated = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
       spec,
       issue: "I-0001",
-      status: "needs-info",
-      category: "enhancement",
-      details: "Requirements need clarification.",
+      blocker: "Requirements need clarification.",
       author: "maintainer",
     }),
   );
-  expect(triaged.status, triaged.stderr).toBe(0);
-  commitAll(repo, git, "return issue to triage");
+  expect(updated.status, updated.stderr).toBe(0);
+  commitAll(repo, git, "block issue");
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
 
@@ -446,7 +442,7 @@ test("claim rejects issues that have not been triaged ready without recording ow
   );
 
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toMatch(/not ready for an agent/);
+  expect(result.stderr).toMatch(/not open and unblocked/);
   expect(readFileSync(ledgerPath, "utf8")).toBe(before);
 });
 

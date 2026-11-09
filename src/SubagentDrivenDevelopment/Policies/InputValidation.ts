@@ -2,7 +2,7 @@ import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import {
   ISSUE_ID,
   ISSUE_CATEGORIES,
-  TRIAGE_STATUSES,
+  TRACKER_STATUSES,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type { IssueDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
@@ -21,8 +21,8 @@ export function validateCategory(category: string): asserts category is IssueDoc
 }
 
 export function validateTriageStatus(status: string): asserts status is IssueDocument["status"] {
-  if (!TRIAGE_STATUSES.includes(status as IssueDocument["status"])) {
-    throw new Error(`Invalid triage status: ${status}.`);
+  if (!TRACKER_STATUSES.includes(status as IssueDocument["status"])) {
+    throw new Error(`Invalid issue status: ${status}.`);
   }
 }
 

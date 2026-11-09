@@ -1,77 +1,71 @@
-# Whole-spec delivery
+# Feature delivery
 
-Use the feature's delivery scope only after every issue is integrated. It is an
-aggregate over the feature, not a substitute for issue acceptance or
-integration. Delivery commands reuse the issue workflow with `--scope delivery`
-instead of `--issue`; never supply both selectors.
+Feature delivery is the completion gate for one feature workspace. It begins
+after every issue is closed; it does not replace issue-level implementation or
+acceptance criteria. Use `--scope delivery` instead of `--issue` for feature
+checks, review assignments, findings, and corrections.
 
-## Aggregate review and final checks
+## Checks and review
 
-Start with `spindle sdd status --spec <spec>` and
-`spindle sdd next --spec <spec>`. Establish required final checks with
-`spindle sdd checks require --scope delivery`, record their actual outcomes
-against the returned snapshot, then request the aggregate review with
-`spindle sdd review --scope delivery --inventory <json-array>`. The inventory
-must cover the Git-derived integrated feature changes. The comprehensive
-reviewer covers the whole spec and cross-issue behavior; any explicitly
-required, eligible specialists are assigned as a batch and must all submit
-current passing evidence.
+Inspect `sdd status --spec <spec>` and `sdd next --spec <spec>`. Establish
+required final checks with `sdd checks require --scope delivery`, run them, and
+record actual results against the returned snapshot. Then dispatch the
+comprehensive review with
+`sdd review --scope delivery --inventory <json-array>`. Its inventory must
+cover the feature's current Git-derived changes.
 
-Use `spindle sdd review require --scope delivery` to record a justified
-specialist before dispatch. Reports are individual and append-only:
-`final-review-<assignment-id>.md` for initial review, and
-`final-round-<round>-review-<assignment-id>.md` for corrective review. Register
-findings explicitly from their canonical reports and snapshots with
-`spindle sdd finding create --scope delivery`. Delivery findings have their
-own `F-0001` sequence, provenance, ruling history, and status; do not attach
-cross-issue findings to an arbitrary issue.
+The `sdd-reviewer` is the default comprehensive reviewer. Before dispatch,
+record any justified specialist with
+`sdd review require --scope delivery --type <agent-name> --details <objective>`.
+Only catalog agents with `canReview: true` are eligible. Confirm that the
+controller can actually dispatch each selected agent; catalog eligibility does
+not guarantee harness access.
 
-## Requirements decisions and delivery correction
+Preserve each assignment's ID, objective, snapshot, inventory, and report
+path. Submit every report against its exact assignment. A missing, pending,
+failed, unavailable, stale, or mismatched review blocks completion.
 
-Use `spindle sdd finding update --scope delivery` for explicit rulings.
-Deferring a blocker requires rationale, a follow-up reference, and an approved
-delivery requirements decision. Record that decision with
-`spindle sdd requirements decide --scope delivery` only after a requirements
-change and completed prior review. Approval invalidates earlier aggregate
-assignments. A deferred finding cannot clear a blocker until required fresh
-aggregate reviewers have submitted passing reports against the changed
-requirements snapshot.
+## Findings and correction
 
-For actionable delivery findings, use
-`spindle sdd correct --scope delivery` to persist each independent attempt
-before assigning batched corrective work. The delivery history is separate
-from issue attempts. Record focused passing checks against the changed
-delivery snapshot, submit the implementation report, and complete current
-corrective aggregate review. Continue only with an explicit productive
-progress assessment; pause unproductive work, recurring failures, or
-requirements disagreement for adjudication. Resume with
-`spindle sdd resume --scope delivery`; it preserves existing assignments,
-attempts, evidence, and adjudication. Do not reset counters or weaken
-acceptance to end retries.
+Register findings from their assigned reports and snapshots with
+`sdd finding create --scope delivery`. Delivery findings have feature-scoped
+IDs, provenance, ruling history, and status. Use `--related-issue <id>` for a
+finding that should return work to a specific issue. A blocking linked finding
+reopens its issue after the complete review batch is submitted; dependent
+issues remain blocked until that issue is closed again.
 
-## Finish and retrospective
+Use `sdd finding update --scope delivery` for explicit rulings. Deferring a
+blocker requires rationale, a follow-up reference, and an approved delivery
+requirements decision. Record that decision with
+`sdd requirements decide --scope delivery` only after a requirements change
+and completed prior review. Approval invalidates earlier aggregate assignments.
 
-Run final required checks and aggregate reviews on the exact final content.
-Integrated feature changes and final corrections must be committed by the
-caller under the established commit permissions; the SDD command never stages,
-commits, or publishes. A change to integrated code or requirements invalidates
-the corresponding delivery evidence and requires fresh coverage.
+For actionable feature findings, follow [feature correction](./corrective-rounds.md)
+and use `sdd correct --scope delivery` to record
+each independent correction attempt. Record passing checks against the changed
+feature snapshot and submit the implementation report before requesting a new
+feature review. Pause unproductive work, recurring failures, or requirements
+disagreement for adjudication. Resume with `sdd resume --scope delivery`;
+preserve existing assignments, attempts, evidence, and adjudication.
 
-Finish with `spindle sdd finish --spec <spec> --author <author>`. The command
-requires every issue integrated, current passing aggregate required reviews
-and checks, no unresolved delivery blockers, and no uncommitted code changes.
-The retrospective policy is stored at feature creation: when required, attach
-a Markdown report with `--report`; otherwise the report is optional. Any
-attached report must remain inside that feature's `reports/` directory.
-`finish` records completion only; it does not close issues or publish work.
-Only the recorded delivery owner may finish; use
-`resume --scope delivery --confirm-handoff` to record a confirmed ownership
-handoff before a replacement controller finishes. A finished delivery rejects
-new or changed final checks. `status`, `next`, and `resume` continue validating
-the recorded evidence, and report stale completion when code, requirements,
-reviews, checks, or an attached retrospective have changed.
+## Finish
 
-Use `status` and `next` to inspect aggregate blockers and the next permitted
-delivery action; use `resume --scope delivery` to restore interrupted aggregate
-work. These operations preserve separate issue and delivery histories;
-hand-back and acceptance remain controller-owned.
+Use the normal Git workflow for code changes. SDD does not stage, commit,
+publish, or require a per-issue integration confirmation. A changed code or
+requirements snapshot invalidates evidence that no longer covers it.
+
+Legacy feature workspaces without a recorded Git baseline stay blocked until
+the original comparison baseline is identified. Do not silently use the
+current `HEAD` after implementation; that could omit completed feature work
+from review.
+
+Finish with `sdd finish --spec <spec> --author <author>`. Completion requires
+at least one issue, every issue closed, current passing required feature
+checks and reviews, and no unresolved delivery blockers. The retrospective
+policy is stored at feature creation: when required, attach a Markdown report
+with `--report`; otherwise it is optional. Any report must remain inside that
+feature's `reports/` directory.
+
+Use `status`, `next`, and `resume --scope delivery` to inspect blockers and
+restore interrupted feature-level work. These commands do not close issues or
+publish changes.

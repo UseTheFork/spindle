@@ -67,6 +67,7 @@ export class AssignmentService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const issues = this.issueRepository.readIssues(feature.workspace);
       this.issueRepository.validateDependencyGraph(issues);
+      this.ledgerRepository.upgradeIssueTracking(ledger, issues);
       const issue = this.issueRepository.requireIssue(issues, options.issue);
       const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
       if (progress.execution !== "unstarted") {
@@ -74,28 +75,20 @@ export class AssignmentService extends Service {
           `Issue ${options.issue} is already owned or has progressed to ${progress.execution}.`,
         );
       }
-      if (issue.status !== "ready-for-agent") {
-        throw new Error(`Issue ${options.issue} is not ready for an agent.`);
+      if (issue.status !== "open" || issue.blocker) {
+        throw new Error(`Issue ${options.issue} is not open and unblocked.`);
       }
-      const byId = new Map(ledger.issues.map((item) => [item.id, item]));
       const issuesById = new Map(issues.map((item) => [item.id, item]));
       const unmet = issue.blocked_by.filter((dependency) => {
-        const dependencyProgress = byId.get(dependency);
         const dependencyIssue = issuesById.get(dependency);
-        return (
-          !dependencyProgress ||
-          dependencyProgress.execution !== "integrated" ||
-          !dependencyIssue ||
-          !this.checkPolicy.hasCurrentCheckCoverage(feature, dependencyIssue, dependencyProgress)
-        );
+        return !dependencyIssue || dependencyIssue.status !== "closed" || !!dependencyIssue.blocker;
       });
       if (unmet.length > 0) {
-        throw new Error(
-          `Issue ${options.issue} has dependencies that are not integrated: ${unmet.join(", ")}.`,
-        );
+        throw new Error(`Issue ${options.issue} has open dependencies: ${unmet.join(", ")}.`);
       }
       const baseSha = this.gitEvidence.cleanGitBaseline(feature);
       progress.execution = "claimed";
+      progress.status = "in-progress";
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
       ledger.delivery.baseSha ??= baseSha;

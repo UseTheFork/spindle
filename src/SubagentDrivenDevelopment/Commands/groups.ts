@@ -29,10 +29,9 @@ export function reviewSchema(root: Command): Command {
   if (existing) return existing;
   return program
     .command("review")
-    .description("Require a specialist or freeze issue/delivery inventory for review.")
+    .description("Require a specialist or freeze the feature inventory for review.")
     .argument("[action]", "Use 'require' to pin a justified specialist reviewer")
     .option("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-    .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
     .option("--scope <scope>", "Workflow scope: delivery")
     .option(
       "--inventory <json>",

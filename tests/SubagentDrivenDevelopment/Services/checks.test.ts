@@ -839,17 +839,15 @@ test("stale checks on an integrated issue keep dependent issues blocked", async 
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
-  const triaged = await execute(repo, (service) =>
-    service.issueService.triage({
+  const updated = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
       spec,
       issue: "I-0002",
-      status: "ready-for-agent",
-      category: "enhancement",
-      details: "Ready after the dependency satisfies all gates.",
+      status: "open",
       author: "maintainer",
     }),
   );
-  expect(triaged.status, triaged.stderr).toBe(0);
+  expect(updated.status, updated.stderr).toBe(0);
 
   const ready = await execute(repo, (service) => service.readinessService.ready({ spec }));
   expect(ready.status, ready.stderr).toBe(0);
@@ -858,7 +856,7 @@ test("stale checks on an integrated issue keep dependent issues blocked", async 
     service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
   );
   expect(attemptedClaim.status).not.toBe(0);
-  expect(attemptedClaim.stderr).toMatch(/dependencies that are not integrated: I-0001/);
+  expect(attemptedClaim.stderr).toMatch(/open dependencies: I-0001/);
 });
 
 test("claim rejects staged, unstaged, and untracked changes without changing ownership or baseline", async () => {

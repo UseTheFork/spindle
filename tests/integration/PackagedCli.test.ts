@@ -114,7 +114,12 @@ test("packaged sdd create and status expose feature state outside the checkout",
     issue: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
-  expect(ledger.delivery).toEqual({ execution: "unstarted", history: [] });
+  expect(ledger.delivery).toMatchObject({
+    status: "active",
+    execution: "unstarted",
+    baseSha: expect.stringMatching(/^[0-9a-f]{40}$/),
+    history: [],
+  });
   expect(ledger.issues).toEqual([]);
   const statusBefore = git("status", "--porcelain=v1");
   const inspected = cli.run(gitWorkspace, ["sdd", "status", "--spec", expected.spec]);
@@ -134,8 +139,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
     blockers: [],
     delivery: {
       scope: "delivery",
+      status: "active",
       execution: "unstarted",
-      action: "review",
+      action: "close-issues",
+      baseSha: ledger.delivery.baseSha,
       retrospectiveRequired: false,
       finished: false,
       findings: [],
@@ -144,7 +151,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
       reviewAssignments: [],
       requiredChecks: [],
       checkRecords: [],
-      blockers: ["Aggregate evidence requires at least one issue."],
+      blockers: ["Issues are not closed: feature has no issues."],
     },
   };
   expect(inspected.stdout).toBe(`${JSON.stringify(expectedStatus, null, 2)}\n`);

@@ -15,6 +15,7 @@ export class FindingCreateCommand extends Command {
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
+      .option("--related-issue <id>", "Issue to reopen for a blocking feature finding")
       .requiredOption(
         "--source <path>",
         "Assigned review report containing the finding",

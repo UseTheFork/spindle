@@ -32,6 +32,7 @@ const isRecord = Records.isRecord;
 export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
   return (
     isRecord(value) &&
+    (!Object.hasOwn(value, "status") || ["active", "complete"].includes(String(value.status))) &&
     typeof value.execution === "string" &&
     EXECUTION_STATES.some((state) => state === value.execution) &&
     Array.isArray(value.history) &&

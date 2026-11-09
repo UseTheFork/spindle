@@ -280,7 +280,16 @@ export class GitEvidence extends Service {
       .update(
         JSON.stringify([
           readFileSync(feature.spec, "utf8"),
-          issues.map((issue) => [issue.id, this.issueRequirements(issue.raw)]),
+          issues.map((issue) => [
+            issue.id,
+            issue.title,
+            issue.reporter,
+            issue.category,
+            issue.status,
+            issue.blocked_by,
+            issue.blocker,
+            this.issueRequirements(issue.raw),
+          ]),
           (delivery.checks?.required ?? []).filter((requirement) => !requirement.removedAt),
         ]),
       )

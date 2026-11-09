@@ -49,20 +49,20 @@ export class DeliveryService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (!delivery.owner || delivery.owner !== options.author.trim()) {
-        throw new Error(
-          "Only the recorded delivery owner may finish; ownership handoff must be explicitly confirmed.",
-        );
+      if (ledger.issues.length === 0) {
+        throw new Error("Cannot finish; the feature must contain at least one issue.");
       }
       const issues = this.issueRepository.readIssues(feature.workspace);
       const missing = ledger.issues
-        .filter((progress) => progress.execution !== "integrated")
+        .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
       if (missing.length > 0) {
-        throw new Error(`Cannot finish; every issue must be integrated: ${missing.join(", ")}.`);
+        throw new Error(
+          `Cannot finish; every feature issue must be closed: ${missing.join(", ")}.`,
+        );
       }
       if (issues.length !== ledger.issues.length) {
-        throw new Error("Cannot finish; one or more integrated issue documents are missing.");
+        throw new Error("Cannot finish; one or more feature issue documents are missing.");
       }
       if (delivery.adjudication?.status === "pending") {
         throw new Error(
@@ -126,12 +126,6 @@ export class DeliveryService extends Service {
           `Cannot finish; unresolved delivery blockers remain:\n${findingBlockers.join("\n")}`,
         );
       }
-      const uncommitted = this.gitEvidence.changedPaths(this.gitEvidence.headSha());
-      if (uncommitted.length > 0) {
-        throw new Error(
-          `Cannot finish; caller must commit final delivery changes before completion:\n${uncommitted.join("\n")}`,
-        );
-      }
       if (ledger.retrospectiveRequired && !options.report) {
         throw new Error(
           "A retrospective report is required by the feature's stored creation policy.",
@@ -183,12 +177,13 @@ export class DeliveryService extends Service {
           "Aggregate content or check evidence changed while finishing; resume and revalidate delivery.",
         );
       }
-      delivery.execution = "integrated";
+      delivery.execution = "complete";
       delivery.finished = {
         at: new Date().toISOString(),
         author: options.author.trim(),
         ...retrospective,
       };
+      delivery.status = "complete";
       delivery.history.push({
         at: delivery.finished.at,
         author: delivery.finished.author,

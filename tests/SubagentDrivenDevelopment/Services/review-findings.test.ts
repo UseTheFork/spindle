@@ -43,7 +43,7 @@ test("claim records the clean starting revision and explicit controller", async 
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.issues[0]).toEqual({
+  expect(ledger.issues[0]).toMatchObject({
     id: "I-0001",
     execution: "claimed",
     owner: "controller",
@@ -502,17 +502,15 @@ test("finding IDs restart per issue and require provenance from that issue's rev
     }),
   );
   expect(created.status, created.stderr).toBe(0);
-  const triaged = await execute(repo, (service) =>
-    service.issueService.triage({
+  const updated = await execute(repo, (service) =>
+    service.issueService.issueUpdate({
       spec,
       issue: "I-0002",
-      status: "ready-for-agent",
-      category: "enhancement",
-      details: "Requirements are complete.",
+      status: "open",
       author: "controller",
     }),
   );
-  expect(triaged.status, triaged.stderr).toBe(0);
+  expect(updated.status, updated.stderr).toBe(0);
   const command = "just test::test tests/feature-two.test.ts";
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({ spec, issue: "I-0002", command, author: "controller" }),

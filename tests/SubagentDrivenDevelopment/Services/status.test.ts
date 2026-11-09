@@ -33,7 +33,9 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     delivery: {
       scope: "delivery",
       execution: "unstarted",
-      action: "review",
+      status: "active",
+      baseSha: state.delivery.baseSha,
+      action: "close-issues",
       retrospectiveRequired: true,
       finished: false,
       findings: [],
@@ -42,7 +44,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
       reviewAssignments: [],
       requiredChecks: [],
       checkRecords: [],
-      blockers: ["Aggregate evidence requires at least one issue."],
+      blockers: ["Issues are not closed: feature has no issues."],
     },
   });
   expect(state.retrospectiveRequired).toBe(true);
@@ -51,7 +53,12 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     issue: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
-  expect(state.delivery).toEqual({ execution: "unstarted", history: [] });
+  expect(state.delivery).toMatchObject({
+    status: "active",
+    baseSha: expect.stringMatching(/^[0-9a-f]{40}$/),
+    execution: "unstarted",
+    history: [],
+  });
   expect(readFileSync(second.ledger, "utf8")).toBe(secondLedger);
   expect(git("status", "--porcelain=v1")).toBe(beforeStatus);
 });
@@ -93,23 +100,36 @@ test("sdd status reads a stored policy version without substituting current defa
 test("sdd status rejects unsupported ledger schema versions without rewriting the ledger", async () => {
   const { service, feature } = await issueFixture("Versioned Feature");
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
-  ledger.schemaVersion = 2;
+  ledger.schemaVersion = 3;
   writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
   const before = readFileSync(feature.ledger, "utf8");
   expect(() => service.featureInspectionService.status({ spec: feature.spec })).toThrow(
-    /Unsupported feature ledger schema version: 2/,
+    /Unsupported feature ledger schema version: 3/,
   );
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
 });
 
-test("sdd status validates v1 issue and delivery history records without rewriting the ledger", async () => {
+test("sdd status validates issue and delivery history records without rewriting the ledger", async () => {
   const { service, feature } = await issueFixture("Nested Records");
   const original = JSON.parse(readFileSync(feature.ledger, "utf8"));
   const malformedLedgers = [
     { ...original, issues: [null] },
     { ...original, issues: [{ id: "I-0001" }] },
     { ...original, issues: [{ id: 1, execution: "claimed" }] },
-    { ...original, issues: [{ id: "I-0001", execution: 1 }] },
+    {
+      ...original,
+      issues: [
+        {
+          id: "I-0001",
+          title: "Work",
+          reporter: "author",
+          category: "bug",
+          status: "open",
+          blockedBy: [],
+          execution: 1,
+        },
+      ],
+    },
     { ...original, delivery: { ...original.delivery, history: [null] } },
     {
       ...original,
@@ -138,6 +158,7 @@ test("sdd status validates v1 issue and delivery history records without rewriti
 
   const valid = {
     ...original,
+    schemaVersion: 1,
     issues: [{ id: "I-0001", execution: "claimed" }],
     delivery: {
       execution: "unstarted",
