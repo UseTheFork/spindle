@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,10 +12,14 @@ export class IntegrateCommand extends Command {
     group(root)
       .command("integrate")
       .description("Prepare accepted files for caller-owned commit or confirm an existing commit.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
-      .option("--commit <sha>", "Verify an existing caller-created commit", once("--commit"))
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .option(
+        "--commit <sha>",
+        "Verify an existing caller-created commit",
+        CommandOptions.once("--commit"),
+      )
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IntegrateOptions) => {
         const command = await (await createApp()).make(IntegrateCommand);

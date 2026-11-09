@@ -18,7 +18,7 @@ mutation. The old report-path resolver is not available, and dated feature
 workspaces are not migrated.
 
 The shipped collection is controlled by the typed `blueprintCatalog` object in
-`src/BlueprintManagement/Catalog/BlueprintCatalog.ts`. Edit this object to add or retire entries, then
+`src/Assets/Blueprints/Catalog.ts`. Edit this object to add or retire entries, then
 rebuild Spindle. TypeScript checks entry fields, lifecycle statuses, supported
 Stack names, and the trailing slash required for Skill directories. Every
 catalog entry has a logical key, a source `path`, a `status` (`active` or
@@ -42,7 +42,7 @@ changing its path does not infer a deletion of its previous destination. Keep an
 explicit `removed` entry for any old target that needs cleanup.
 
 Paths are relative to the corresponding kind directory under
-`src/Blueprints/`. A path ending in `/` selects a directory recursively; its
+`src/Assets/Blueprints/`. A path ending in `/` selects a directory recursively; its
 filenames and relative structure are preserved. A path without a trailing slash
 selects one file. Do not use glob patterns or internal Stack overlays. A nested
 directory named `stacks/` is ordinary content.
@@ -63,6 +63,9 @@ metadata. They can be grouped in catalog-selected directories, but each file is
 updated independently and keeps its source path. Skills remain directories led
 by `SKILL.md`; changes and additions require a Skill version bump.
 
+The asset catalog contains only declarative metadata and type-only imports.
+`src/BlueprintManagement/Catalog/BlueprintCatalog.ts` owns its types, validation,
+and validated export, including the reviewer metadata consumed by SDD.
 Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.
 
@@ -117,12 +120,26 @@ cleanup. Preparation failures leave the project unchanged. An application-time
 filesystem failure stops reconciliation and reports completed changes;
 application is not transactional and does not roll back earlier writes.
 
-The package build compiles the catalog and bundles the Blueprint tree under `build/Blueprints`.
+The package build compiles the catalog and bundles the Blueprint tree under `build/Assets/Blueprints`.
+It copies only distributed Agents, Instructions, and Skills; catalog JavaScript
+is emitted by TypeScript rather than overwritten with source files.
 Published packages use that bundled tree and do not include a separate
-`src/Blueprints` fallback.
+`src/Assets/Blueprints` fallback.
 
 The CLI uses module-relative Blueprint assets: source execution uses
-`src/Blueprints/` and packaged execution uses the bundled `build/Blueprints/`
+`src/Assets/Blueprints/` and packaged execution uses the bundled `build/Assets/Blueprints/`
 assets. External YAML catalogs are not loaded. Runtime validation checks safe,
 nonoverlapping paths, source types and existence, symbolic links, and required
 `SKILL.md` files.
+
+## Project setup defaults
+
+`src/Assets/SetupProject/Catalog.ts` declares the four relative template source
+and destination pairs. Their byte-preserved sources live under
+`src/Assets/SetupProject/templates/` and ship under `build/Assets/SetupProject/templates/`.
+`ProjectSetupService` owns explicit absolute target validation, real-directory
+and regular-file checks, ordered missing-only creation, and preservation of
+existing bytes. Earlier writes remain when a later destination fails.
+`ProjectSetupServiceProvider` separately declares `SetupProjectCommand` and
+binds its service as an application singleton. The command owns Commander
+validation and prints the service result as JSON; it does not copy templates.

@@ -44,8 +44,9 @@ declare an abstract static method, so the constructor contract enforces it at
 the provider boundary. Application binds each distinct command class as a singleton
 before its provider's register hook; providers explicitly bind dependencies.
 `BlueprintManagementServiceProvider` owns `init` and `update`, and registers
-reconciliation and installation as explicit singletons. The production provider
-retains unrelated project setup commands. `ComputedContextService` is a transient
+reconciliation and installation as explicit singletons. `ProjectSetupServiceProvider`
+separately owns `SetupProjectCommand` and its explicitly bound `ProjectSetupService`
+singleton. `ComputedContextService` is a transient
 Blueprint Management dependency.
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between

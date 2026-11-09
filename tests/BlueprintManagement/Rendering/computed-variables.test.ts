@@ -130,7 +130,7 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
   const project = await makeTempDir("spindle-shipped-internal-project-");
 
   try {
-    await cp(join(process.cwd(), "src/Blueprints"), blueprints, { recursive: true });
+    await cp(join(process.cwd(), "src/Assets/Blueprints"), blueprints, { recursive: true });
     writeCatalogFixture(blueprints, blueprintCatalog);
 
     for (const name of shippedInternalSkills) {
@@ -395,13 +395,13 @@ test("repeated Updates through one App render fresh Config with computed outputs
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(
-    join(process.cwd(), "src/Blueprints/skills", skillName, "SKILL.md"),
+    join(process.cwd(), "src/Assets/Blueprints/skills", skillName, "SKILL.md"),
     "utf8",
   );
   const app = applicationFixture(project, blueprints);
 
   try {
-    await cp(join(process.cwd(), "src/Blueprints"), blueprints, { recursive: true });
+    await cp(join(process.cwd(), "src/Assets/Blueprints"), blueprints, { recursive: true });
     const source = matter(descriptionSkill);
     source.content += "\nRun owner={{ variables.owner }}\n";
     await writeFile(sourcePath, matter.stringify(source.content, source.data));

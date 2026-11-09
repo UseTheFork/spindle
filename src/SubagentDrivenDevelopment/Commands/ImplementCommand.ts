@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ImplementOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,9 +12,9 @@ export class ImplementCommand extends Command {
     group(root)
       .command("implement")
       .description("Persist and return an implementation assignment.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", once("--issue"))
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ImplementOptions) => {
         const command = await (await createApp()).make(ImplementCommand);

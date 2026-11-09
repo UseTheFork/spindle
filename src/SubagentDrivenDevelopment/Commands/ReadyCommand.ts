@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ReadyOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,7 +12,7 @@ export class ReadyCommand extends Command {
     group(root)
       .command("ready")
       .description("List ready issues and issues waiting on dependencies.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: ReadyOptions) => {
         const command = await (await createApp()).make(ReadyCommand);

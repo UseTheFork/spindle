@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { FindingCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,30 +12,42 @@ export class FindingCreateCommand extends Command {
     group(root, "finding")
       .command("create")
       .description("Register a review finding with its report and snapshot provenance.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--source <path>",
         "Assigned review report containing the finding",
-        once("--source"),
+        CommandOptions.once("--source"),
       )
       .requiredOption(
         "--snapshot <snapshot>",
         "Reviewed snapshot returned by the CLI",
-        once("--snapshot"),
+        CommandOptions.once("--snapshot"),
       )
       .requiredOption(
         "--severity <severity>",
         "Finding severity: high, medium, low",
-        once("--severity"),
+        CommandOptions.once("--severity"),
       )
       .option("--blocking", "Mark the finding as blocking")
       .option("--non-blocking", "Mark the finding as non-blocking")
       .option("--link <id>", "Explicitly link this observation to a canonical finding")
-      .requiredOption("--summary <summary>", "Concise finding summary", once("--summary"))
-      .requiredOption("--details <details>", "Full finding details", once("--details"))
-      .requiredOption("--author <author>", "Finding registration author", once("--author"))
+      .requiredOption(
+        "--summary <summary>",
+        "Concise finding summary",
+        CommandOptions.once("--summary"),
+      )
+      .requiredOption(
+        "--details <details>",
+        "Full finding details",
+        CommandOptions.once("--details"),
+      )
+      .requiredOption(
+        "--author <author>",
+        "Finding registration author",
+        CommandOptions.once("--author"),
+      )
       .allowExcessArguments(false)
       .action(async (options: FindingCreateOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

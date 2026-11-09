@@ -3,6 +3,7 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
+import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
 import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
 import {
   promptNewBlueprints,
@@ -15,7 +16,6 @@ import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/B
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
-import { conflictPolicyOption, noInteractiveOption } from "@/Commands/shared-options";
 import {
   projectConfiguration,
   readConfig,
@@ -58,9 +58,11 @@ Reads stacks and variables from .github/spindle.json (edit it by hand to change 
 and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
 --include-new to install all of them without a prompt.`,
       )
-      .addOption(conflictPolicyOption("Policy for outdated Blueprints"))
+      .addOption(BlueprintCommandOptions.conflictPolicyOption("Policy for outdated Blueprints"))
       .addOption(
-        noInteractiveOption("Never prompt; outdated Blueprints without --on-conflict are an error"),
+        BlueprintCommandOptions.noInteractiveOption(
+          "Never prompt; outdated Blueprints without --on-conflict are an error",
+        ),
       )
       .option("--include-new", "Install every newly shipped Blueprint without prompting")
       .addHelpText(

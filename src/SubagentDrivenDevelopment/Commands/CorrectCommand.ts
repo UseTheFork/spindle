@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -14,15 +14,15 @@ export class CorrectCommand extends Command {
       .description(
         "Persist an issue- or delivery-scoped correction attempt and return its fix assignment.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
       .option("--check-failure <command>", "Exact non-mechanical failed check command")
       .requiredOption(
         "--details <details>",
         "Correction objective or adjudication rationale",
-        once("--details"),
+        CommandOptions.once("--details"),
       )
       .option("--decision <decision>", "Continuation decision: continue or pause")
       .option("--assessment <assessment>", "Recorded progress assessment for the prior attempt")
@@ -31,7 +31,7 @@ export class CorrectCommand extends Command {
         "--reason <reason>",
         "Pause reason: no-progress, repeated-failure, recurring-blocker, requirements-disagreement, worker-blocked",
       )
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: CorrectOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

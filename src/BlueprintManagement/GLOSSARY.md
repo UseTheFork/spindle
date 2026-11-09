@@ -11,7 +11,8 @@ Instruction, or Agent.
 **Blueprint Catalog**:
 The inventory of named Blueprint selections, their lifecycle status, and the
 Stacks they apply to. A selection can contain multiple independently updated
-Blueprints.
+Blueprints. Declarative shipped metadata lives in `src/Assets/Blueprints/Catalog.ts`;
+Blueprint Management owns its validation and selection lifecycle.
 
 **Selected directory membership**:
 The files present in a catalog-selected source directory. Its installed

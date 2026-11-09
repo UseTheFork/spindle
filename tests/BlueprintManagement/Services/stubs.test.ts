@@ -9,8 +9,8 @@ import { Stacks } from "@/Support/Stacks";
 
 import { makeTempDir, runCli } from "../../helpers.ts";
 
-const shippedSkills = resolve(process.cwd(), "src/Blueprints/skills");
-const shippedAgents = resolve(process.cwd(), "src/Blueprints/agents");
+const shippedSkills = resolve(process.cwd(), "src/Assets/Blueprints/skills");
+const shippedAgents = resolve(process.cwd(), "src/Assets/Blueprints/agents");
 const productionAgents = [
   "general",
   "sdd-code-reviewer",

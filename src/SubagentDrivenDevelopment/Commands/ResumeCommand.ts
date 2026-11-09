@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,10 +12,10 @@ export class ResumeCommand extends Command {
     group(root)
       .command("resume")
       .description("Restore the recorded issue or delivery gate and assignment.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .option("--confirm-handoff", "Confirm the previous controller has stopped editing")
       .allowExcessArguments(false)
       .action(async (options: ResumeOptions) => {

@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { StatusOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,7 +12,7 @@ export class StatusCommand extends Command {
     group(root)
       .command("status")
       .description("Inspect state, permitted actions, assignments, and blockers.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: StatusOptions) => {
         const command = await (await createApp()).make(StatusCommand);

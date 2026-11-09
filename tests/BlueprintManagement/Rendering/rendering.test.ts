@@ -100,7 +100,10 @@ for (let selection = 1; selection < 1 << Stacks.supported.length; selection += 1
 
   test(`codebase design Blueprint renders language-neutral testability examples for ${stacks.join(", ")}`, async () => {
     const source = await readFile(
-      new URL("../../../src/Blueprints/skills/int-codebase-design/SKILL.md", import.meta.url),
+      new URL(
+        "../../../src/Assets/Blueprints/skills/int-codebase-design/SKILL.md",
+        import.meta.url,
+      ),
       "utf8",
     );
     const renderContext = { stacks, variables: {}, computed: context.computed };

@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { RequirementsDecideOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,17 +12,17 @@ export class RequirementsDecideCommand extends Command {
     group(root, "requirements")
       .command("decide")
       .description("Approve or reject a requirements change and invalidate prior review.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--finding <id>",
         "Finding affected by the requirements decision",
-        once("--finding"),
+        CommandOptions.once("--finding"),
       )
       .requiredOption("--decision <decision>", "Decision: approved or rejected")
-      .requiredOption("--details <details>", "Decision rationale", once("--details"))
-      .requiredOption("--author <author>", "Decision author", once("--author"))
+      .requiredOption("--details <details>", "Decision rationale", CommandOptions.once("--details"))
+      .requiredOption("--author <author>", "Decision author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: RequirementsDecideOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

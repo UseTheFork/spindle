@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { FindingUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,10 +12,10 @@ export class FindingUpdateCommand extends Command {
     group(root, "finding")
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
-      .requiredOption("--finding <id>", "Canonical finding ID", once("--finding"))
+      .requiredOption("--finding <id>", "Canonical finding ID", CommandOptions.once("--finding"))
       .requiredOption(
         "--status <status>",
         "Finding status: open, confirmed, fixed, dismissed, deferred",
@@ -27,7 +27,7 @@ export class FindingUpdateCommand extends Command {
         "Approved requirements decision covering a scope change",
       )
       .option("--evidence <snapshot>", "Current CLI snapshot with passing verification checks")
-      .requiredOption("--author <author>", "Ruling author", once("--author"))
+      .requiredOption("--author <author>", "Ruling author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FindingUpdateOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

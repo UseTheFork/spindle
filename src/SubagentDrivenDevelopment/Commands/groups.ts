@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 
 const descriptions: Record<string, string> = {
   issue: "Create and maintain feature issues.",
@@ -31,16 +31,24 @@ export function reviewSchema(root: Command): Command {
     .command("review")
     .description("Require a specialist or freeze issue/delivery inventory for review.")
     .argument("[action]", "Use 'require' to pin a justified specialist reviewer")
-    .option("--spec <path>", "Feature spec path", once("--spec"))
-    .option("--issue <id>", "Issue ID", once("--issue"))
+    .option("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+    .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
     .option("--scope <scope>", "Workflow scope: delivery")
     .option(
       "--inventory <json>",
       "Controller-confirmed Git-derived inventory as a JSON string array",
-      once("--inventory"),
+      CommandOptions.once("--inventory"),
     )
-    .option("--author <author>", "Controller author", once("--author"))
-    .option("--agent <name>", "Known review-eligible Blueprint agent", once("--agent"))
-    .option("--details <text>", "Justified specialist review objective", once("--details"))
+    .option("--author <author>", "Controller author", CommandOptions.once("--author"))
+    .option(
+      "--agent <name>",
+      "Known review-eligible Blueprint agent",
+      CommandOptions.once("--agent"),
+    )
+    .option(
+      "--details <text>",
+      "Justified specialist review objective",
+      CommandOptions.once("--details"),
+    )
     .allowExcessArguments(false);
 }

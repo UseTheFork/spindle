@@ -1,7 +1,7 @@
-import { Application } from "@/Foundation/Application";
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
+import { Application } from "@/Foundation/Application";
+import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export function applicationFixture(
   workspaceRoot: string,
@@ -11,7 +11,7 @@ export function applicationFixture(
   application.instance("path.workspace", workspaceRoot);
   application.instance("path.blueprints", blueprintSourceRoot);
   application.register(BlueprintManagementServiceProvider);
-  application.register(ProductionServiceProvider);
+  application.register(ProjectSetupServiceProvider);
   application.register(SubagentDrivenDevelopmentServiceProvider);
   return application;
 }

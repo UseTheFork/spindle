@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { IssueCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,11 +12,11 @@ export class IssueCreateCommand extends Command {
     group(root, "issue")
       .command("create")
       .description("Create an attributed issue in the selected feature.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .requiredOption("--title <title>", "Issue title", once("--title"))
-      .requiredOption("--reporter <reporter>", "Issue reporter", once("--reporter"))
-      .requiredOption("--category <category>", "Issue category", once("--category"))
-      .requiredOption("--author <author>", "Acting author", once("--author"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption("--title <title>", "Issue title", CommandOptions.once("--title"))
+      .requiredOption("--reporter <reporter>", "Issue reporter", CommandOptions.once("--reporter"))
+      .requiredOption("--category <category>", "Issue category", CommandOptions.once("--category"))
+      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: IssueCreateOptions) => {
         const command = await (await createApp()).make(IssueCreateCommand);

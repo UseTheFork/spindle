@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { FinishOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -14,13 +14,13 @@ export class FinishCommand extends Command {
       .description(
         "Finish whole-spec delivery after integration, current aggregate evidence, and the stored retrospective policy.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .option(
         "--report <path>",
         "Optional or policy-required Markdown report inside feature reports/",
-        once("--report"),
+        CommandOptions.once("--report"),
       )
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FinishOptions) => {
         const command = await (await createApp()).make(FinishCommand);

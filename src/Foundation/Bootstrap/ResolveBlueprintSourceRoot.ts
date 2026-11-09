@@ -7,9 +7,9 @@ import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 
 export class ResolveBlueprintSourceRoot extends Bootstrapper {
   public static resolveBlueprintSourceRoot(): string {
-    const adjacent = fileURLToPath(new URL("../../Blueprints/", import.meta.url));
+    const adjacent = fileURLToPath(new URL("../../Assets/Blueprints/", import.meta.url));
     if (existsSync(join(adjacent, "skills"))) return adjacent;
-    return fileURLToPath(new URL("../../../src/Blueprints/", import.meta.url));
+    return fileURLToPath(new URL("../../../src/Assets/Blueprints/", import.meta.url));
   }
 
   public bootstrap(application: Application): void {

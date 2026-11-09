@@ -3,6 +3,7 @@ import { join } from "node:path";
 import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
+import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
 import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
 import {
   promptConflict,
@@ -19,7 +20,6 @@ import { exists } from "@/BlueprintManagement/Support/BlueprintFiles";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
-import { conflictPolicyOption, noInteractiveOption } from "@/Commands/shared-options";
 import type { Application } from "@/Foundation/Application";
 import { Stacks } from "@/Support/Stacks";
 
@@ -46,11 +46,15 @@ export class InitCommand extends Command {
         [],
       )
       .addOption(
-        conflictPolicyOption(
+        BlueprintCommandOptions.conflictPolicyOption(
           "Policy for Blueprints that already exist; required when non-interactive and any exist (interactive runs prompt per Blueprint)",
         ),
       )
-      .addOption(noInteractiveOption("Never prompt; missing required input is an error"))
+      .addOption(
+        BlueprintCommandOptions.noInteractiveOption(
+          "Never prompt; missing required input is an error",
+        ),
+      )
       .addHelpText(
         "after",
         `

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./BlueprintManagement/**/*.ts",
+    "./ProjectSetup/**/*.ts",
+    "./SubagentDrivenDevelopment/Commands/**/*.ts",
+    "./app.test.ts",
+    "./bootstrap.test.ts",
+    "./packaged-cli.test.ts"
+  ]
+}

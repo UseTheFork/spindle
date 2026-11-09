@@ -1,7 +1,7 @@
 ---
 name: Blueprint skill references
-description: Use when writing or editing Markdown files in src/Blueprints.
-applyTo: "src/Blueprints/**/*.md"
+description: Use when writing or editing Markdown files in src/Assets/Blueprints.
+applyTo: "src/Assets/Blueprints/**/*.md"
 ---
 
 # Blueprint Skill References

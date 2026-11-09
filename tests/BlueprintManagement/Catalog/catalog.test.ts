@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 
 import { expect, test } from "vitest";
 
+import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
 import {
   blueprintCatalog,
   validateBlueprintCatalog,
@@ -15,6 +16,22 @@ import {
   runCliWithCatalog as runCli,
   writeCatalogFixture,
 } from "../../helpers.ts";
+
+test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
+  expect(blueprintCatalog).toBe(assetCatalog);
+  const validated = validateBlueprintCatalog(assetCatalog);
+  expect(validated.agents.filter((entry) => entry.canReview).map((entry) => entry.key)).toEqual([
+    "sdd-code-reviewer",
+    "sdd-reviewer",
+  ]);
+  expect(validated.skills.find((entry) => entry.key === "setup-project")).toEqual({
+    key: "setup-project",
+    path: "setup-project",
+    directory: true,
+    status: "active",
+    stacks: [],
+  });
+});
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
   const entry = { path: "selected.agent.md", status: "active", stacks: [] };
@@ -575,9 +592,13 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
       ),
     } satisfies BlueprintCatalogDefinition);
     for (const name of names) {
-      await cp(resolve("src", "Blueprints", "skills", name), join(blueprints, "skills", name), {
-        recursive: true,
-      });
+      await cp(
+        resolve("src", "Assets", "Blueprints", "skills", name),
+        join(blueprints, "skills", name),
+        {
+          recursive: true,
+        },
+      );
     }
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status, init.stderr).toBe(0);
@@ -740,7 +761,9 @@ test("the compiled catalog ignores external catalog files", async () => {
         if (entry.status !== "active") continue;
         const destination = join(blueprints, kind, entry.path);
         await mkdir(dirname(destination), { recursive: true });
-        await cp(resolve("src/Blueprints", kind, entry.path), destination, { recursive: true });
+        await cp(resolve("src/Assets/Blueprints", kind, entry.path), destination, {
+          recursive: true,
+        });
       }
     }
     const retired = join(project, ".github", "skills", "int-grilling");

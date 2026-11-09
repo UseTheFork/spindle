@@ -4,11 +4,11 @@ import { pathToFileURL } from "node:url";
 
 import chalk from "chalk";
 
-import { dispatch } from "@/cli";
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
+import { dispatch } from "@/cli";
 import { Application } from "@/Foundation/Application";
+import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
   await dispatch(
@@ -17,7 +17,7 @@ export async function runExecutable(args: string[], startingDirectory: string): 
     process.argv[1] ?? "spindle",
     [
       BlueprintManagementServiceProvider,
-      ProductionServiceProvider,
+      ProjectSetupServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );

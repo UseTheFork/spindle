@@ -1,14 +1,14 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
-import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
+import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 import { serviceFixture } from "../helpers/helpers";
 
-test("production command declarations exclude SDD commands", () => {
+test("ProjectSetup command declarations exclude SDD commands", () => {
   for (const command of SubagentDrivenDevelopmentServiceProvider.commands()) {
-    expect(ProductionServiceProvider.commands()).not.toContain(command);
+    expect(ProjectSetupServiceProvider.commands()).not.toContain(command);
   }
 });
 

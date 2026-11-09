@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ChecksRequireOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,13 +12,17 @@ export class ChecksRequireCommand extends Command {
     group(root, "checks")
       .command("require")
       .description("Add or remove a required external check.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
-      .requiredOption("--command <command>", "Exact externally executed command", once("--command"))
+      .requiredOption(
+        "--command <command>",
+        "Exact externally executed command",
+        CommandOptions.once("--command"),
+      )
       .option("--remove", "Remove the requirement; requires --details rationale")
       .option("--details <details>", "Removal rationale")
-      .requiredOption("--author <author>", "Acting controller", once("--author"))
+      .requiredOption("--author <author>", "Acting controller", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRequireOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

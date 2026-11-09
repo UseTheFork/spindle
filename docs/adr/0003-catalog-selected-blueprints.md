@@ -12,9 +12,12 @@ parallel discovery and layout conventions while preserving rendering and
 existing update units.
 
 The inventory is a static, typed TypeScript object in
-`src/BlueprintManagement/Catalog/BlueprintCatalog.ts`, compiled with the CLI
+`src/Assets/Blueprints/Catalog.ts`, compiled with the CLI
 rather than loaded from YAML.
-Asset-root overrides do not replace this inventory. Runtime validation retains
+Blueprint Management owns types, runtime validation, and the validated export
+in `src/BlueprintManagement/Catalog/BlueprintCatalog.ts`; SDD consumes that
+export, not raw asset metadata. Module-relative assets do not expose an
+environment override. Runtime validation retains
 path safety and filesystem checks.
 
 Selected directories own destination membership: destination-only files,
@@ -29,5 +32,5 @@ content, and all deletions and membership cleanup before applying any
 installation changes. A preparation failure leaves the project unchanged. An
 application-time filesystem failure stops reconciliation and reports completed
 changes; it does not promise rollback. The package build
-bundles the catalog and Blueprint assets under `build/Blueprints`, which is the
+bundles the catalog and Blueprint assets under `build/Assets/Blueprints`, which is the
 runtime source for packaged CLI use.

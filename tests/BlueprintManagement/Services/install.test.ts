@@ -88,7 +88,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const firstWorkspace = await makeTempDir("spindle-install-app-first-");
   const secondWorkspace = await makeTempDir("spindle-install-app-second-");
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
-  const sourceRoot = fileURLToPath(new URL("../../../src/Blueprints/", import.meta.url));
+  const sourceRoot = fileURLToPath(new URL("../../../src/Assets/Blueprints/", import.meta.url));
   const firstSourceRoot = join(sourceParent, "first");
   const skillSource = join(firstSourceRoot, "skills", "int-test-driven-development", "SKILL.md");
   const skillTarget = (workspace: string) =>

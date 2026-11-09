@@ -15,7 +15,7 @@ import { test, expect, onTestFinished, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
-import { runCli } from "./helpers.ts";
+import { runCli, runCliRaw } from "../../helpers.ts";
 
 const copies = [
   ["domain.md", "docs/agents/domain.md"],
@@ -61,7 +61,7 @@ test("setup-project creates the required directories and exact defaults", async 
   }
   for (const [source, destination] of copies) {
     expect(readFileSync(join(workspace, destination), "utf8")).toBe(
-      readFileSync(join(process.cwd(), "src/setup-project/templates", source), "utf8"),
+      readFileSync(join(process.cwd(), "src/Assets/SetupProject/templates", source), "utf8"),
     );
   }
   expect(existsSync(join(workspace, "GLOSSARY.md"))).toBe(false);
@@ -232,4 +232,18 @@ test("setup-project and top-level help describe the public command", async () =>
   const topLevelHelp = runCli(workspace, ["--help"], process.env.PATH ?? "");
   expect(topLevelHelp.status, topLevelHelp.stderr).toBe(0);
   expect(topLevelHelp.stdout).toMatch(/Commands:[\s\S]*\bsetup-project\b/);
+});
+
+test("setup-project still requires Git at invocation, not at its explicit target", () => {
+  const invocation = fixture();
+  const workspace = fixture();
+  const result = runCliRaw(
+    invocation,
+    ["setup-project", "--workspace", workspace],
+    process.env.PATH ?? "",
+  );
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toMatch(/Git|git/);
+  expect(existsSync(join(workspace, "docs"))).toBe(false);
 });

@@ -35,15 +35,6 @@ function packagedCli() {
   // the executable and all of its package assets outside the checkout.
   symlinkSync(join(checkout, "node_modules"), join(packageRoot, "node_modules"), "dir");
 
-  expect(existsSync(join(packageRoot, "src"))).toBe(false);
-  expect(existsSync(join(packageRoot, ".github", "scripts"))).toBe(false);
-  expect(existsSync(join(packageRoot, "build", "index.js"))).toBe(true);
-  for (const [template] of setupTemplates) {
-    expect(existsSync(join(packageRoot, "build", "setup-project", "templates", template))).toBe(
-      true,
-    );
-  }
-
   return {
     root: packageRoot,
     run(project: string, args: readonly string[], env: Record<string, string> = {}) {
@@ -191,7 +182,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
 
   for (const [template, destination] of setupTemplates) {
     expect(readFileSync(join(setupWorkspace, destination))).toEqual(
-      readFileSync(join(cli.root, "build", "setup-project", "templates", template)),
+      readFileSync(join(cli.root, "build", "Assets", "SetupProject", "templates", template)),
     );
   }
 

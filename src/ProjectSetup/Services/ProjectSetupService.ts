@@ -2,11 +2,8 @@ import { constants, copyFileSync, lstatSync, mkdirSync, realpathSync, statSync }
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Command as CommanderCommand } from "commander";
-
-import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
-import type { Application } from "@/Foundation/Application";
+import { setupProjectCatalog } from "@/Assets/SetupProject/Catalog";
+import { Service } from "@/Foundation/Service";
 
 export interface SetupProjectInput {
   workspacePath: string;
@@ -18,7 +15,7 @@ export interface SetupProjectResult {
   preserved: string[];
 }
 
-const templates = fileURLToPath(new URL("../../setup-project/templates/", import.meta.url));
+const assets = fileURLToPath(new URL("../../Assets/SetupProject/", import.meta.url));
 
 function validateWorkspacePath(workspacePath: string): void {
   if (!isAbsolute(workspacePath)) {
@@ -26,29 +23,8 @@ function validateWorkspacePath(workspacePath: string): void {
   }
 }
 
-export class SetupProjectCommand extends Command {
-  public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    program
-      .command("setup-project")
-      .description("Create project documentation directories and missing Spindle defaults.")
-      .requiredOption(
-        "--workspace <path>",
-        "Existing absolute target directory (may be outside Git)",
-        once("--workspace"),
-      )
-      .allowExcessArguments(false)
-      .action(async (options: { workspace: string }) => {
-        validateWorkspacePath(options.workspace);
-        const command = await (await createApp()).make(SetupProjectCommand);
-        console.log(JSON.stringify(command.run({ workspacePath: options.workspace }), null, 2));
-      });
-  }
-
-  public constructor(app: Application) {
-    super(app);
-  }
-
-  public run({ workspacePath }: SetupProjectInput): SetupProjectResult {
+export class ProjectSetupService extends Service {
+  public setup({ workspacePath }: SetupProjectInput): SetupProjectResult {
     validateWorkspacePath(workspacePath);
 
     const workspace = realpathSync(workspacePath);
@@ -73,12 +49,7 @@ export class SetupProjectCommand extends Command {
       }
     }
 
-    for (const [source, relative] of [
-      ["domain.md", "docs/agents/domain.md"],
-      ["issue-tracker-local.md", "docs/agents/issue-tracker.md"],
-      ["triage-labels.md", "docs/agents/triage-labels.md"],
-      ["tooling.md", "docs/agents/tooling.md"],
-    ]) {
+    for (const [source, relative] of setupProjectCatalog) {
       const target = join(workspace, relative);
       const entry = lstatSync(target, { throwIfNoEntry: false });
       if (entry) {
@@ -87,7 +58,7 @@ export class SetupProjectCommand extends Command {
         }
         preserved.push(relative);
       } else {
-        copyFileSync(join(templates, source), target, constants.COPYFILE_EXCL);
+        copyFileSync(join(assets, source), target, constants.COPYFILE_EXCL);
         created.push(relative);
       }
     }

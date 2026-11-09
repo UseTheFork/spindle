@@ -195,10 +195,11 @@ the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
 `runExecutable` supplies `BlueprintManagementServiceProvider`,
-`ProductionServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
+`ProjectSetupServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
 siblings in one provider list used
-for both CLI schema discovery and application registration. The production
-provider owns unrelated setup-project services. The Blueprint Management
+for both CLI schema discovery and application registration. The
+ProjectSetup provider owns `SetupProjectCommand` and explicitly binds the
+`ProjectSetupService` singleton. The Blueprint Management
 provider owns `init` and `update`, and registers reconciliation and installation
 singletons plus transient computed-context services. The SDD provider owns thin per-operation Commands
 and explicitly injected singleton Services, Persistence, Evidence, and Policies
@@ -206,6 +207,15 @@ under `src/SubagentDrivenDevelopment/`. Git process execution lives in
 `src/Git/Services/GitService.ts`; SDD-specific content and report verification stays
 inside the SDD context. `WorkspaceTransaction.run` is the single issue/delivery
 lock, recovery, journal, and atomic-write boundary.
+`Commands/CommandOptions.ts` owns the cross-domain static `once` parser factory,
+with a new closure for every schema registration. Blueprint-only conflict
+choices and noninteractive options live in
+`BlueprintManagement/Commands/BlueprintCommandOptions.ts`.
+Shipped Blueprint metadata lives in `Assets/Blueprints/Catalog.ts`;
+Blueprint Management owns its types, validation, and validated export used by
+SDD. `Assets/SetupProject/Catalog.ts` declares relative source/destination pairs
+for setup defaults. Build copies distributed content under `build/Assets/` and
+leaves emitted catalog JavaScript intact.
 Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
 Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so
 the emitted ESM runs with Node. Build validation must include the packaged CLI

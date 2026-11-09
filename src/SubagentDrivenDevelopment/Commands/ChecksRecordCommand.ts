@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ChecksRecordOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -12,23 +12,27 @@ export class ChecksRecordCommand extends Command {
     group(root, "checks")
       .command("record")
       .description("Record an externally executed check against a current snapshot.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--snapshot <snapshot>",
         "CLI-returned content snapshot identity",
-        once("--snapshot"),
+        CommandOptions.once("--snapshot"),
       )
-      .requiredOption("--command <command>", "Exact required command", once("--command"))
+      .requiredOption(
+        "--command <command>",
+        "Exact required command",
+        CommandOptions.once("--command"),
+      )
       .requiredOption(
         "--result <result>",
         "Check result: passed, failed, unavailable",
-        once("--result"),
+        CommandOptions.once("--result"),
       )
       .option("--details <details>", "Failure or unavailability details")
       .option("--paths <paths...>", "Paths whose content this check explicitly covers")
-      .requiredOption("--author <author>", "Acting controller", once("--author"))
+      .requiredOption("--author <author>", "Acting controller", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRecordOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

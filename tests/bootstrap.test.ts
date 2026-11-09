@@ -20,7 +20,7 @@ import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
+import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Repository } from "@/Support/Repository";
@@ -188,7 +188,7 @@ test("packaged source defaults resolve from the helper location, independent of 
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.blueprintSourceRoot).toBe(resolve("src/Blueprints") + "/");
+  expect(app.blueprintSourceRoot).toBe(resolve("src/Assets/Blueprints") + "/");
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {
@@ -214,7 +214,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     () => {
       application = Application.configure(nested, [
         BlueprintManagementServiceProvider,
-        ProductionServiceProvider,
+        ProjectSetupServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ]).create();
       return application;
@@ -222,7 +222,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     "/installed/spindle",
     [
       BlueprintManagementServiceProvider,
-      ProductionServiceProvider,
+      ProjectSetupServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );
@@ -276,7 +276,7 @@ test("Commander preserves a real positional action and nested command path witho
       () => {
         application = Application.configure(nested, [
           BlueprintManagementServiceProvider,
-          ProductionServiceProvider,
+          ProjectSetupServiceProvider,
           SubagentDrivenDevelopmentServiceProvider,
         ]).create();
         return application;
@@ -284,7 +284,7 @@ test("Commander preserves a real positional action and nested command path witho
       "spindle",
       [
         BlueprintManagementServiceProvider,
-        ProductionServiceProvider,
+        ProjectSetupServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ],
     ),
@@ -307,7 +307,7 @@ test("semantic invalid input fails before Application construction or Git bootst
         return Application.configure("/missing").create();
       },
       "spindle",
-      [BlueprintManagementServiceProvider, ProductionServiceProvider],
+      [BlueprintManagementServiceProvider, ProjectSetupServiceProvider],
     ),
   ).rejects.toThrow(/stack/i);
   expect(constructions).toBe(0);

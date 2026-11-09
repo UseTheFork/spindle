@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
-import { once } from "@/Commands/shared-options";
+import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
@@ -14,22 +14,30 @@ export class SubmitCommand extends Command {
     const submitCommand = group(root)
       .command("submit")
       .description("Register an implementation or review report.")
-      .requiredOption("--spec <path>", "Feature spec path", once("--spec"))
-      .option("--issue <id>", "Issue ID", once("--issue"))
+      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--role <role>", "Assignment role")
-      .option("--assignment <id>", "Exact review assignment ID", once("--assignment"))
-      .option("--report <path>", "Implementation report path", once("--report"))
-      .option("--result <result>", "Review result: passed, failed, unavailable", once("--result"))
+      .option(
+        "--assignment <id>",
+        "Exact review assignment ID",
+        CommandOptions.once("--assignment"),
+      )
+      .option("--report <path>", "Implementation report path", CommandOptions.once("--report"))
+      .option(
+        "--result <result>",
+        "Review result: passed, failed, unavailable",
+        CommandOptions.once("--result"),
+      )
       .option("--findings <ids...>", "Complete canonical finding ID list for this report")
       .option("--no-findings", "Explicitly attest that the review report has no findings")
       .option("--unavailable", "Record that the assigned report is unavailable")
       .option(
         "--details <details>",
         "Required details for failed or unavailable results",
-        once("--details"),
+        CommandOptions.once("--details"),
       )
-      .requiredOption("--author <author>", "Controller author", once("--author"))
+      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false);
     submitCommand.on("option:findings", () => {
       findingsDeclared = true;
