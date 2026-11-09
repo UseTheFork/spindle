@@ -22,7 +22,7 @@ Run from the target Git working tree:
 spindle project init
 ```
 
-The command infers the Git root and fails if it cannot. It creates missing project documentation directories and copies the bundled `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those files are absent, initializes the tooling registry with Spindle commands when the registry is new, and regenerates `docs/agents/tooling.md`. It preserves other existing project guidance and existing tooling entries.
+The command infers the Git root and fails if it cannot. It creates missing project documentation directories, copies the bundled `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those files are absent, and prepends the bundled Copilot instructions to the front of `.github/copilot-instructions.md` when their exact text does not occur anywhere in that file. Existing instructions are retained, and template text already present anywhere is not duplicated. It initializes the tooling registry with Spindle commands when the registry is new, and regenerates `docs/agents/tooling.md`. Existing tooling entries are preserved.
 
 **Complete when:** initialization succeeds and the command's output confirms the project root and generated tooling guide.
 

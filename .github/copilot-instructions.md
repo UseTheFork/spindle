@@ -14,4 +14,4 @@ This is a multi-context repo; use `GLOSSARY-MAP.md` to find the relevant context
 
 ## Project Tooling
 
-You MUST use Just recipes instead of invoking the underlying tools directly. Before running project commands, read `docs/agents/tooling.md` for the available recipes and usage. Just selects the correct working directory.
+Run project commands with pnpm. Before running commands, read [Project tooling](../docs/agents/tooling.md) for available commands and usage.

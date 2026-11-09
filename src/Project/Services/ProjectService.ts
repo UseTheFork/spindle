@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  chmodSync,
   constants,
   copyFileSync,
   existsSync,
@@ -25,6 +26,7 @@ import { Service } from "@/Foundation/Service";
 const assets = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 const toolingPath = "docs/agents/tooling.md";
 const configPath = ".github/spindle.json";
+const copilotInstructionsPath = ".github/copilot-instructions.md";
 const toolingKeyPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 const defaultTooling: ToolingEntry[] = [
@@ -95,6 +97,13 @@ export class ProjectService extends Service {
     for (const { source, destination } of templateCatalog.project) {
       const target = absolute(destination);
       this.assertRegularFileOrMissing(target, destination);
+      if (destination === copilotInstructionsPath) {
+        const status = this.initializeCopilotInstructions(absoluteAsset(source), target);
+        if (status === "created") created.push(destination);
+        else if (status === "updated") updated.push(destination);
+        else preserved.push(destination);
+        continue;
+      }
       if (existsSync(target)) {
         preserved.push(destination);
       } else {
@@ -326,6 +335,35 @@ export class ProjectService extends Service {
     const temporary = `${path}.${randomUUID()}.tmp`;
     writeFileSync(temporary, content, { flag: "wx" });
     return temporary;
+  }
+
+  private initializeCopilotInstructions(
+    source: string,
+    destination: string,
+  ): "created" | "updated" | "preserved" {
+    const existingStat = lstatSync(destination, { throwIfNoEntry: false });
+    if (!existingStat) {
+      copyFileSync(source, destination, constants.COPYFILE_EXCL);
+      return "created";
+    }
+    if (!existingStat.isFile()) {
+      throw new Error(
+        `${copilotInstructionsPath} must be a regular file, not a directory or symlink.`,
+      );
+    }
+
+    const existing = readFileSync(destination, "utf8");
+    const template = readFileSync(source, "utf8");
+    if (existing.includes(template)) return "preserved";
+
+    const temporary = this.writeTemporary(destination, `${template}\n${existing}`);
+    try {
+      chmodSync(temporary, existingStat.mode & 0o777);
+      renameSync(temporary, destination);
+    } finally {
+      this.removeTemporary(temporary);
+    }
+    return "updated";
   }
 
   private restoreFile(path: string, content: Buffer | undefined): void {

@@ -10,6 +10,25 @@ import { ProjectService } from "@/Project/Services/ProjectService";
 
 import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
+const copilotInstructionsTemplate = `## Agent skills
+
+### Issue tracker
+
+Repository triage requests are tracked as local Markdown under \`.scratch/YYYY-MM-DD-<feature-slug>/\`; SDD specs and tickets live in numbered \`.scratch/<feature-id>-<feature-slug>/\` workspaces. See \`docs/agents/issue-tracker.md\` and \`docs/agents/ticket-tracker.md\` for their conventions.
+
+### Triage labels
+
+Use \`Category: bug|enhancement\` and the five canonical state values in \`Status:\`. See \`docs/agents/triage-labels.md\`.
+
+### Domain docs
+
+This is a multi-context repo; use \`GLOSSARY-MAP.md\` to find the relevant context glossary and consult \`docs/adr/\` for cross-context decisions. See \`docs/agents/domain.md\`.
+
+## Project Tooling
+
+Run project commands with pnpm. Before running commands, read [Project tooling](../docs/agents/tooling.md) for available commands and usage.
+`;
+
 async function fixture() {
   const workspace = makeTempDirSync("project-service-");
   const app = new Application({ basePath: workspace });
@@ -43,6 +62,7 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       ".scratch",
       "docs/agents",
       ".github",
+      ".github/copilot-instructions.md",
       "docs/agents/domain.md",
       "docs/agents/ticket-tracker.md",
       ".github/spindle.json",
@@ -60,6 +80,9 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
   expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).toEqual(
     readFileSync(join(repoRoot, "src/Assets/Templates/project/ticket-tracker.md")),
   );
+  expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
+    copilotInstructionsTemplate,
+  );
   expect(config).toMatchObject({ stacks: [], variables: {} });
   expect(config.tooling.map(({ key }: { key: string }) => key)).toEqual([
     "spindle-init",
@@ -69,6 +92,42 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
   const guide = readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("# Project Tooling\n\n## Spindle");
   expect(guide).toContain("- `spindle project init`:");
+});
+
+test("project initialization prepends the Copilot template once and preserves existing instructions", async () => {
+  const { workspace, service } = await fixture();
+  mkdirSync(join(workspace, ".github"));
+  const customInstructions = "# Local instructions\n\nKeep this guidance.\n";
+  writeFileSync(join(workspace, ".github/copilot-instructions.md"), customInstructions);
+
+  const first = await service.initialize();
+  const instructionsPath = join(workspace, ".github/copilot-instructions.md");
+  expect(readFileSync(instructionsPath, "utf8")).toBe(
+    `${copilotInstructionsTemplate}\n${customInstructions}`,
+  );
+  expect(first.updated).toContain(".github/copilot-instructions.md");
+
+  const second = await service.initialize();
+  expect(readFileSync(instructionsPath, "utf8")).toBe(
+    `${copilotInstructionsTemplate}\n${customInstructions}`,
+  );
+  expect(second.updated).not.toContain(".github/copilot-instructions.md");
+  expect(second.preserved).toContain(".github/copilot-instructions.md");
+});
+
+test("project initialization does not duplicate Copilot guidance already present", async () => {
+  const { workspace, service } = await fixture();
+  mkdirSync(join(workspace, ".github"));
+  const existingInstructions = `# Existing prefix\n\n${copilotInstructionsTemplate}\n# Existing suffix\n`;
+  writeFileSync(join(workspace, ".github/copilot-instructions.md"), existingInstructions);
+
+  const result = await service.initialize();
+
+  expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
+    existingInstructions,
+  );
+  expect(result.updated).not.toContain(".github/copilot-instructions.md");
+  expect(result.preserved).toContain(".github/copilot-instructions.md");
 });
 
 test("initialization seeds a registry in legacy Config and preserves existing entries on rerun", async () => {

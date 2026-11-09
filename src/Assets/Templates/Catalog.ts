@@ -5,6 +5,7 @@ export interface TemplateAsset {
 
 export const templateCatalog = {
   project: [
+    { source: "project/copilot-instructions.md", destination: ".github/copilot-instructions.md" },
     { source: "project/domain.md", destination: "docs/agents/domain.md" },
     { source: "project/ticket-tracker.md", destination: "docs/agents/ticket-tracker.md" },
   ] satisfies readonly TemplateAsset[],

@@ -187,6 +187,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
       "docs/adr",
       "docs/agents",
       ".github",
+      ".github/copilot-instructions.md",
       "docs/agents/domain.md",
       "docs/agents/ticket-tracker.md",
       ".github/spindle.json",
@@ -196,6 +197,9 @@ test("packaged sdd create and status expose feature state outside the checkout",
     updated: [],
   });
   expect(setup.stderr).toBe("");
+  expect(readFileSync(join(invocationWorkspace, ".github/copilot-instructions.md"), "utf8")).toBe(
+    readFileSync(join(checkout, "build/Assets/Templates/project/copilot-instructions.md"), "utf8"),
+  );
   const add = cli.run(invocationWorkspace, [
     "project",
     "tooling",
