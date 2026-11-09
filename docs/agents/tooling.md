@@ -209,7 +209,7 @@ singletons plus transient computed-context services. The SDD provider owns thin 
 and explicitly injected singleton Services, Persistence, Evidence, and Policies
 under `src/SubagentDrivenDevelopment/`. Git process execution lives in
 `src/Git/Services/GitService.ts`; SDD-specific content and report verification stays
-inside the SDD context. `WorkspaceTransaction.run` is the single issue/delivery
+inside the SDD context. `WorkspaceTransaction.run` is the single ticket/delivery
 lock, recovery, journal, and atomic-write boundary.
 `Commands/CommandOptions.ts` owns the cross-domain static `once` parser factory,
 with a new closure for every schema registration. Blueprint-only conflict

@@ -36,7 +36,7 @@ export class FeatureWorkspace extends Service {
     const ledgerPath = join(workspace, "sdd.json");
     assertRealDirectory(scratch, ".scratch");
     assertRealDirectory(workspace, "Feature workspace");
-    for (const directory of ["issues", "reports"]) {
+    for (const directory of ["tickets", "reports"]) {
       assertRealDirectory(join(workspace, directory), `Feature ${directory} directory`);
     }
     const specEntry = lstatIfPresent(specPath);

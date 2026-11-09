@@ -13,9 +13,9 @@ export class FindingCreateCommand extends Command {
       .command("create")
       .description("Register a review finding with its report and snapshot provenance.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
-      .option("--related-issue <id>", "Issue to reopen for a blocking feature finding")
+      .option("--related-ticket <id>", "Ticket to reopen for a blocking feature finding")
       .requiredOption(
         "--source <path>",
         "Assigned review report containing the finding",
@@ -54,8 +54,8 @@ export class FindingCreateCommand extends Command {
         if (options.scope !== undefined && options.scope !== "delivery") {
           throw new Error("--scope must be 'delivery'.");
         }
-        if (Boolean(options.issue) === (options.scope === "delivery")) {
-          throw new Error("finding create needs exactly one of --issue or --scope delivery.");
+        if (Boolean(options.ticket) === (options.scope === "delivery")) {
+          throw new Error("finding create needs exactly one of --ticket or --scope delivery.");
         }
         const command = await (await createApp()).make(FindingCreateCommand);
         console.log(JSON.stringify(await command.run(options), null, 2));

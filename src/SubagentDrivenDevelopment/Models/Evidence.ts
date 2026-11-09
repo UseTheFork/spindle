@@ -23,7 +23,7 @@ export interface CheckRequirement {
   removalDetails?: string;
 }
 
-export interface IssueChecks {
+export interface TicketChecks {
   required: CheckRequirement[];
   records: CheckRecord[];
   invalidations?: CheckGateInvalidation[];

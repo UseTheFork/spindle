@@ -1,11 +1,11 @@
 # Subagent-Driven Development
 
-Subagent-driven development coordinates feature-scoped work, records issue progress, and verifies feature-level completion evidence.
+Subagent-driven development coordinates feature-scoped work, records ticket progress, and verifies feature-level completion evidence.
 
 ## Work tracking
 
 **Feature**:
-A scoped body of work that groups related issues and their shared requirements.
+A scoped body of work that groups related tickets and their shared requirements.
 
 **Feature design**:
 An optional document that records a feature's intent, success criteria, scope, and chosen direction. When present, it is completed and approved before the feature spec.
@@ -13,20 +13,20 @@ An optional document that records a feature's intent, success criteria, scope, a
 **Feature spec**:
 The approved requirements document for a feature, grounded in its approved design when one exists. Tickets are derived from the feature spec.
 
-**Issue**:
+**Ticket**:
 An independently actionable unit of work with its own acceptance criteria.
 
-**Issue status**:
-The tracker lifecycle of an issue: open, in progress, or closed.
+**Ticket status**:
+A ticket's tracker lifecycle: open, in progress, or closed.
 
 **Dependency**:
-A relationship in which one issue must be closed before another can become ready.
+A relationship in which one ticket must be closed before another can become ready.
 
 **Blocker**:
-A dependency or explicit reason that prevents an issue or feature from progressing.
+A dependency or explicit reason that prevents a ticket or feature from progressing.
 
-**Ready issue**:
-An open issue with no unresolved dependencies or explicit blockers.
+**Ready ticket**:
+An open ticket with no unresolved dependencies or explicit blockers.
 
 ## Review and completion
 
@@ -40,13 +40,13 @@ A required review role for a feature, including the default comprehensive review
 The identity of the feature changes and requirements assessed by a check or review.
 
 **Finding**:
-A review observation that may require work on an issue before the feature can complete.
+A review observation that may require work on a ticket before the feature can complete.
 
 **Verification evidence**:
 Recorded check commands and results that establish whether the relevant tests pass for a feature snapshot.
 
 **Feature completion**:
-The state reached when all feature issues are closed and required checks and reviews pass on the current feature snapshot.
+The state reached when all feature tickets are closed and required checks and reviews pass on the current feature snapshot.
 
 **Assignment**:
 A recorded implementation or review dispatch with its owner, report destination, and submission state.

@@ -174,10 +174,10 @@ export function isCorrectionAdjudication(value: unknown): value is CorrectionAdj
   return false;
 }
 
-export function hasMatchingCorrectionAttempt(issue: Record<string, unknown>): boolean {
-  const assignment = issue.assignment;
+export function hasMatchingCorrectionAttempt(ticket: Record<string, unknown>): boolean {
+  const assignment = ticket.assignment;
   if (!isImplementationAssignment(assignment) || assignment.action !== "correct") return true;
-  const attempts = issue.correctionAttempts;
+  const attempts = ticket.correctionAttempts;
   return (
     Array.isArray(attempts) &&
     attempts.some(

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -165,4 +165,63 @@ test("sdd create and status expose JSON results and report path errors through t
   expect(invalid.status).not.toBe(0);
   expect(invalid.stdout).toBe("");
   expect(invalid.stderr).toMatch(/spindle:/);
+});
+
+test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in template", async () => {
+  const { repo } = await serviceFixture();
+  const feature = await invokeAsync(repo, [
+    "create",
+    "--title",
+    "Ticket Feature",
+    "--author",
+    "controller",
+  ]);
+  expect(feature.status, feature.stderr).toBe(0);
+  const spec = join(repo, ".scratch", "0001-ticket-feature", "spec.md");
+  const created = await invokeAsync(repo, [
+    "ticket",
+    "create",
+    "--spec",
+    spec,
+    "--title",
+    "Add export",
+    "--reporter",
+    "maintainer",
+    "--category",
+    "enhancement",
+    "--author",
+    "controller",
+  ]);
+
+  expect(created.status, created.stderr).toBe(0);
+  expect(JSON.parse(created.stdout)).toEqual({
+    ticket: "T-0001",
+    path: join(repo, ".scratch", "0001-ticket-feature", "tickets", "T-0001.md"),
+  });
+  const ticket = readFileSync(
+    join(repo, ".scratch", "0001-ticket-feature", "tickets", "T-0001.md"),
+    "utf8",
+  );
+  expect(ticket).toMatch(/^id: T-0001$/m);
+  expect(ticket).toContain("## Requirements\n\n[REQUIREMENTS]");
+  expect(ticket).toContain("## Acceptance Criteria\n\n[ACCEPTANCE CRITERIA]");
+  expect(ticket).toContain("## Comments");
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-ticket-feature", "sdd.json"), "utf8"),
+  );
+  expect(ledger).not.toHaveProperty("issues");
+  expect(ledger.tickets).toEqual([
+    {
+      id: "T-0001",
+      title: "Add export",
+      reporter: "maintainer",
+      category: "enhancement",
+      status: "open",
+      blockedBy: [],
+      execution: "unstarted",
+    },
+  ]);
+  const legacyCommand = await invokeAsync(repo, ["issue", "create"]);
+  expect(legacyCommand.status).not.toBe(0);
+  expect(legacyCommand.stderr).toMatch(/unknown command 'issue'/);
 });

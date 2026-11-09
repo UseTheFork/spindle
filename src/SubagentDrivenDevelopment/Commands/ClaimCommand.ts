@@ -11,9 +11,9 @@ export class ClaimCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root)
       .command("claim")
-      .description("Claim a ready issue from a clean Git checkout.")
+      .description("Claim a ready ticket from a clean Git checkout.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ClaimOptions) => {

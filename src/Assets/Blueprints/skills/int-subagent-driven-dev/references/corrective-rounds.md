@@ -2,8 +2,8 @@
 
 Parent: K - Correct feature-level work. Enter this workflow for actionable
 feature-level review findings or non-mechanical feature-check failures. A
-finding linked with `--related-issue` returns to normal issue work after the
-review batch reopens that issue.
+finding linked with `--related-ticket` returns to normal ticket work after the
+review batch reopens that ticket.
 
 Before acting on a chart node, announce
 `Step K.<node ID> - Correct feature-level work / <node label>`, including

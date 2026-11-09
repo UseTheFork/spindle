@@ -5,20 +5,20 @@ import matter from "gray-matter";
 
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-import type { IssueCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { IssueDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { TicketCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
   validateCategory,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
 
-export class IssueRepository extends Service {
+export class TicketRepository extends Service {
   public constructor(
     app: Application,
     private readonly pathSafety: PathSafety,
@@ -27,7 +27,7 @@ export class IssueRepository extends Service {
     super(app);
   }
 
-  public readIssues(workspace: string): IssueDocument[] {
+  public readTickets(workspace: string): TicketDocument[] {
     const feature = basename(workspace);
     const ledger = this.ledgerRepository.readLedger({
       feature,
@@ -35,66 +35,46 @@ export class IssueRepository extends Service {
       spec: join(workspace, "spec.md"),
       ledger: join(workspace, "sdd.json"),
     });
-    const progressById = new Map(ledger.issues.map((issue) => [issue.id, issue]));
-    const directory = join(workspace, "issues");
-    const issues: IssueDocument[] = [];
+    const progressById = new Map(ledger.tickets.map((ticket) => [ticket.id, ticket]));
+    const directory = join(workspace, "tickets");
+    const tickets: TicketDocument[] = [];
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       if (!entry.name.endsWith(".md")) continue;
       const id = entry.name.slice(0, -3);
-      validateIssueId(id);
+      validateTicketId(id);
       const path = join(directory, entry.name);
-      this.pathSafety.assertIssuePath(workspace, path);
+      this.pathSafety.assertTicketPath(workspace, path);
       const raw = readFileSync(path, "utf8");
       const parsed = matter(raw);
       const data = parsed.data;
       if (!isRecord(data) || data.id !== id)
-        throw new Error(`Issue ${id} has invalid YAML front matter.`);
+        throw new Error(`Ticket ${id} has invalid YAML front matter.`);
+      if (
+        ["title", "reporter", "category", "status", "blocked_by", "blocker"].some((key) =>
+          Object.hasOwn(data, key),
+        )
+      ) {
+        throw new Error(`Ticket ${id} tracking metadata must be stored in sdd.json.`);
+      }
       const progress = progressById.get(id);
-      if (!progress) throw new Error(`Issue ${id} has no ledger record.`);
-      const title = progress.title ?? data.title;
-      const reporter = progress.reporter ?? data.reporter;
-      const category = String(progress.category ?? data.category);
-      const status =
-        progress.status ??
-        (data.status === "wontfix"
-          ? "closed"
-          : data.status === "in-progress" || data.status === "closed"
-            ? data.status
-            : "open");
-      const blockedBy = progress.blockedBy ?? data.blocked_by;
-      const legacyBlocker = ["needs-triage", "needs-info", "ready-for-human"].includes(
-        String(data.status),
-      )
-        ? `Legacy issue status '${data.status}' requires review before claiming.`
-        : undefined;
-      const blocker =
-        progress.blocker ??
-        (typeof data.blocker === "string" ? data.blocker : undefined) ??
-        legacyBlocker;
+      if (!progress) throw new Error(`Ticket ${id} has no ledger record.`);
+      const { title, reporter, category, status, blockedBy, blocker } = progress;
       if (typeof title !== "string" || !title.trim())
-        throw new Error(`Issue ${id} title is invalid.`);
+        throw new Error(`Ticket ${id} title is invalid.`);
       if (typeof reporter !== "string" || !reporter.trim())
-        throw new Error(`Issue ${id} reporter is invalid.`);
+        throw new Error(`Ticket ${id} reporter is invalid.`);
       validateCategory(category);
       if (status !== "open" && status !== "in-progress" && status !== "closed") {
-        throw new Error(`Issue ${id} status is invalid.`);
+        throw new Error(`Ticket ${id} status is invalid.`);
       }
       if (!Array.isArray(blockedBy) || !blockedBy.every((blocked) => typeof blocked === "string")) {
-        throw new Error(`Issue ${id} dependencies must be a list of issue IDs.`);
+        throw new Error(`Ticket ${id} dependencies must be a list of ticket IDs.`);
       }
       if (new Set(blockedBy).size !== blockedBy.length)
-        throw new Error(`Issue ${id} has duplicate dependencies.`);
-      for (const blocked of blockedBy) validateIssueId(blocked);
-      const metadata =
-        ledger.schemaVersion === 1
-          ? { ...data }
-          : Object.fromEntries(
-              Object.entries(data).filter(
-                ([key]) => !["title", "reporter", "category", "status", "blocked_by"].includes(key),
-              ),
-            );
-      issues.push({
-        metadata,
+        throw new Error(`Ticket ${id} has duplicate dependencies.`);
+      for (const blocked of blockedBy) validateTicketId(blocked);
+      tickets.push({
+        metadata: { ...data },
         id,
         title,
         reporter,
@@ -107,56 +87,56 @@ export class IssueRepository extends Service {
         raw,
       });
     }
-    return issues;
+    return tickets;
   }
 
-  public metadata(issue: IssueDocument): Record<string, unknown> {
+  public metadata(ticket: TicketDocument): Record<string, unknown> {
     return {
-      ...issue.metadata,
-      id: issue.id,
+      ...ticket.metadata,
+      id: ticket.id,
     };
   }
 
-  public requireIssue(issues: IssueDocument[], id: string): IssueDocument {
-    const issue = issues.find((item) => item.id === id);
-    if (!issue) throw new Error(`Issue not found: ${id}.`);
-    return issue;
+  public requireTicket(tickets: TicketDocument[], id: string): TicketDocument {
+    const ticket = tickets.find((item) => item.id === id);
+    if (!ticket) throw new Error(`Ticket not found: ${id}.`);
+    return ticket;
   }
 
   public normalizeDependencies(values: string[]): string[] {
     const dependencies = values.flatMap((value) => value.split(",")).map((value) => value.trim());
     if (dependencies.some((value) => !value)) throw new Error("Dependency IDs must not be empty.");
-    for (const dependency of dependencies) validateIssueId(dependency);
+    for (const dependency of dependencies) validateTicketId(dependency);
     if (new Set(dependencies).size !== dependencies.length) {
       throw new Error("Dependency IDs must not contain duplicates.");
     }
     return dependencies;
   }
 
-  public validateDependencyGraph(issues: IssueDocument[]): void {
-    const byId = new Map(issues.map((item) => [item.id, item]));
+  public validateDependencyGraph(tickets: TicketDocument[]): void {
+    const byId = new Map(tickets.map((item) => [item.id, item]));
     const visiting = new Set<string>();
     const visited = new Set<string>();
     const visit = (id: string) => {
-      if (visiting.has(id)) throw new Error(`Issue dependency cycle detected at ${id}.`);
+      if (visiting.has(id)) throw new Error(`Ticket dependency cycle detected at ${id}.`);
       if (visited.has(id)) return;
-      const issue = byId.get(id);
-      if (!issue) return;
+      const ticket = byId.get(id);
+      if (!ticket) return;
       visiting.add(id);
-      for (const dependency of issue.blocked_by) {
+      for (const dependency of ticket.blocked_by) {
         if (!byId.has(dependency))
-          throw new Error(`Issue ${id} references missing dependency ${dependency}.`);
+          throw new Error(`Ticket ${id} references missing dependency ${dependency}.`);
         visit(dependency);
       }
       visiting.delete(id);
       visited.add(id);
     };
-    for (const issue of issues) visit(issue.id);
+    for (const ticket of tickets) visit(ticket.id);
   }
 
   public appendAudit(body: string, author: string, details: string): string {
     const heading = /^## Comments[ \t]*\r?$/m.exec(body);
-    if (!heading) throw new Error("Issue must contain a ## Comments section.");
+    if (!heading) throw new Error("Ticket must contain a ## Comments section.");
     const start = heading.index + heading[0].length;
     const nextHeading = /^#{1,2}[ \t]+/m.exec(body.slice(start));
     const end = nextHeading ? start + nextHeading.index : body.length;
@@ -166,11 +146,11 @@ export class IssueRepository extends Service {
     return `${content}\n\n${entry}\n${laterSections ? `\n${laterSections}` : ""}`;
   }
 
-  public serializeIssue(issue: IssueDocument, body: string): string {
-    return matter.stringify(body, this.metadata(issue));
+  public serializeTicket(ticket: TicketDocument, body: string): string {
+    return matter.stringify(body, this.metadata(ticket));
   }
 
-  public validateIssueCreateOptions(options: IssueCreateOptions): void {
+  public validateTicketCreateOptions(options: TicketCreateOptions): void {
     if (!options.title.trim()) throw new Error("Title must not be empty.");
     if (!options.reporter.trim()) throw new Error("Reporter must not be empty.");
     validateCategory(options.category);

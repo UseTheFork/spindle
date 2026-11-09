@@ -30,11 +30,11 @@ import type {
   ExecutionState,
   FeatureLedger,
   FeaturePaths,
-  IssueDocument,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
 import { isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
@@ -48,7 +48,7 @@ export class FeatureInspectionService extends Service {
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
     private readonly featureWorkspace: FeatureWorkspace,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly acceptancePolicy: AcceptancePolicy,
     private readonly assignmentPolicy: AssignmentPolicy,
     private readonly checkPolicy: CheckPolicy,
@@ -60,12 +60,12 @@ export class FeatureInspectionService extends Service {
 
   public status({ spec }: StatusOptions): FeaturePaths & {
     state: FeatureLedger;
-    snapshots: ({ issue: string } & ContentIdentity)[];
-    findings: { issue: string; finding: ReviewFinding }[];
-    requirementsDecisions: { issue: string; decision: RequirementsDecision }[];
-    actions: { issue: string; action: string }[];
+    snapshots: ({ ticket: string } & ContentIdentity)[];
+    findings: { ticket: string; finding: ReviewFinding }[];
+    requirementsDecisions: { ticket: string; decision: RequirementsDecision }[];
+    actions: { ticket: string; action: string }[];
     pendingAssignments: {
-      issue: string;
+      ticket: string;
       id: string;
       role: "implementation" | "review";
       action: "implement" | "correct" | "review";
@@ -75,7 +75,7 @@ export class FeatureInspectionService extends Service {
       scope?: ReviewAssignment["scope"];
       objective?: string;
     }[];
-    blockers: { issue: string; reason: string }[];
+    blockers: { ticket: string; reason: string }[];
     delivery: {
       scope: "delivery";
       status: "active" | "complete";
@@ -99,22 +99,22 @@ export class FeatureInspectionService extends Service {
     };
   } {
     const feature = this.resolvePaths(spec);
-    const issues = this.issueRepository.readIssues(feature.workspace);
-    this.issueRepository.validateDependencyGraph(issues);
-    const byId = new Map(issues.map((issue) => [issue.id, issue]));
-    const progressById = new Map(feature.state.issues.map((item) => [item.id, item]));
+    const tickets = this.ticketRepository.readTickets(feature.workspace);
+    this.ticketRepository.validateDependencyGraph(tickets);
+    const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]));
+    const progressById = new Map(feature.state.tickets.map((item) => [item.id, item]));
     let checkoutChanges: string | undefined;
     try {
       checkoutChanges = this.gitEvidence.gitChangeSummary(feature);
     } catch {
       checkoutChanges = undefined;
     }
-    const actions: { issue: string; action: string }[] = [];
-    const snapshots: ({ issue: string } & ContentIdentity)[] = [];
-    const findings: { issue: string; finding: ReviewFinding }[] = [];
-    const requirementsDecisions: { issue: string; decision: RequirementsDecision }[] = [];
+    const actions: { ticket: string; action: string }[] = [];
+    const snapshots: ({ ticket: string } & ContentIdentity)[] = [];
+    const findings: { ticket: string; finding: ReviewFinding }[] = [];
+    const requirementsDecisions: { ticket: string; decision: RequirementsDecision }[] = [];
     const pendingAssignments: {
-      issue: string;
+      ticket: string;
       id: string;
       role: "implementation" | "review";
       action: "implement" | "correct" | "review";
@@ -124,99 +124,99 @@ export class FeatureInspectionService extends Service {
       scope?: ReviewAssignment["scope"];
       objective?: string;
     }[] = [];
-    const blockers: { issue: string; reason: string }[] = [];
+    const blockers: { ticket: string; reason: string }[] = [];
 
-    for (const progress of feature.state.issues) {
-      const issue = byId.get(progress.id);
-      if (!issue) {
-        blockers.push({ issue: progress.id, reason: "Issue Markdown is missing." });
+    for (const progress of feature.state.tickets) {
+      const ticket = byId.get(progress.id);
+      if (!ticket) {
+        blockers.push({ ticket: progress.id, reason: "Ticket Markdown is missing." });
         continue;
       }
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
-      snapshots.push({ issue: progress.id, ...identity });
-      if (issue.status === "closed") continue;
+      snapshots.push({ ticket: progress.id, ...identity });
+      if (ticket.status === "closed") continue;
       for (const finding of progress.findings ?? []) {
-        findings.push({ issue: progress.id, finding });
+        findings.push({ ticket: progress.id, finding });
       }
       for (const decision of progress.requirementsDecisions ?? []) {
-        requirementsDecisions.push({ issue: progress.id, decision });
+        requirementsDecisions.push({ ticket: progress.id, decision });
         if (
           decision.status === "rejected" &&
           decision.requirementsSnapshot === identity.requirementsSnapshot
         ) {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: `Requirements decision ${decision.id} was rejected; acceptance requires an approved decision and fresh review.`,
           });
         }
       }
-      const checkBlockers = this.checkPolicy.checkBlockers(feature, issue, progress, identity);
-      for (const reason of checkBlockers) blockers.push({ issue: progress.id, reason });
+      const checkBlockers = this.checkPolicy.checkBlockers(feature, ticket, progress, identity);
+      for (const reason of checkBlockers) blockers.push({ ticket: progress.id, reason });
       for (const reason of this.findingPolicy.findingBlockers(progress, identity)) {
-        blockers.push({ issue: progress.id, reason });
+        blockers.push({ ticket: progress.id, reason });
       }
       if (progress.adjudication?.status === "pending") {
         blockers.push({
-          issue: progress.id,
+          ticket: progress.id,
           reason: `Correction is paused for adjudication (${progress.adjudication.reason}).`,
         });
-        actions.push({ issue: progress.id, action: "adjudicate" });
+        actions.push({ ticket: progress.id, action: "adjudicate" });
         continue;
       }
       if (progress.execution === "unstarted") {
-        if (issue.status !== "open" || issue.blocker) {
+        if (ticket.status !== "open" || ticket.blocker) {
           blockers.push({
-            issue: progress.id,
-            reason: issue.blocker ?? `Issue status is ${issue.status}.`,
+            ticket: progress.id,
+            reason: ticket.blocker ?? `Ticket status is ${ticket.status}.`,
           });
           continue;
         }
-        const unmet = issue.blocked_by.filter((dependency) => {
-          const dependencyIssue = byId.get(dependency);
+        const unmet = ticket.blocked_by.filter((dependency) => {
+          const dependencyTicket = byId.get(dependency);
           return (
-            !dependencyIssue || dependencyIssue.status !== "closed" || !!dependencyIssue.blocker
+            !dependencyTicket || dependencyTicket.status !== "closed" || !!dependencyTicket.blocker
           );
         });
         if (unmet.length > 0) {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: `Dependencies are not closed: ${unmet.join(", ")}.`,
           });
           continue;
         }
         if (checkoutChanges === undefined) {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: "Checkout cleanliness could not be verified; claim is unavailable.",
           });
           continue;
         }
         if (checkoutChanges) {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: `Checkout is dirty; claim requires no staged, unstaged, or untracked changes: ${checkoutChanges}`,
           });
           continue;
         }
-        actions.push({ issue: progress.id, action: "claim" });
+        actions.push({ ticket: progress.id, action: "claim" });
       } else if (progress.execution === "claimed") {
         if (progress.owner && progress.baseSha) {
-          actions.push({ issue: progress.id, action: "implement" });
+          actions.push({ ticket: progress.id, action: "implement" });
         } else {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: "Claim has no recorded owner or baseline; implementation is unavailable.",
           });
         }
       } else if (progress.execution === "implementing") {
         if (progress.assignment) {
           pendingAssignments.push({
-            issue: progress.id,
+            ticket: progress.id,
             id: progress.assignment.id,
             role: progress.assignment.role,
             action: progress.assignment.action,
@@ -228,15 +228,15 @@ export class FeatureInspectionService extends Service {
               feature,
               progress.assignment,
             );
-            if (reason) blockers.push({ issue: progress.id, reason });
+            if (reason) blockers.push({ ticket: progress.id, reason });
             else if (checkBlockers.length === 0)
-              actions.push({ issue: progress.id, action: "review" });
+              actions.push({ ticket: progress.id, action: "review" });
           } else {
-            actions.push({ issue: progress.id, action: "await-implementation-report" });
+            actions.push({ ticket: progress.id, action: "await-implementation-report" });
           }
         } else {
           blockers.push({
-            issue: progress.id,
+            ticket: progress.id,
             reason: "Implementation is marked in progress without a recorded assignment.",
           });
         }
@@ -246,17 +246,17 @@ export class FeatureInspectionService extends Service {
           progress.assignment,
         );
         if (reason) {
-          blockers.push({ issue: progress.id, reason });
+          blockers.push({ ticket: progress.id, reason });
           continue;
         }
         const reviewCheckBlockers = this.checkPolicy.reviewCheckBlockers(
           feature,
-          issue,
+          ticket,
           progress,
           identity,
         );
         for (const blocker of reviewCheckBlockers)
-          blockers.push({ issue: progress.id, reason: blocker });
+          blockers.push({ ticket: progress.id, reason: blocker });
         const latestAttempt = progress.correctionAttempts?.at(-1);
         const assignments =
           progress.assignment?.action === "correct"
@@ -265,7 +265,7 @@ export class FeatureInspectionService extends Service {
         for (const assignment of assignments) {
           if (assignment.status === "pending") {
             pendingAssignments.push({
-              issue: progress.id,
+              ticket: progress.id,
               id: assignment.id,
               role: assignment.role,
               action: "review",
@@ -282,12 +282,12 @@ export class FeatureInspectionService extends Service {
             assignment,
             identity,
           );
-          if (assignmentBlocker) blockers.push({ issue: progress.id, reason: assignmentBlocker });
+          if (assignmentBlocker) blockers.push({ ticket: progress.id, reason: assignmentBlocker });
         }
         if (reviewCheckBlockers.length === 0) {
-          if (assignments.length === 0) actions.push({ issue: progress.id, action: "review" });
+          if (assignments.length === 0) actions.push({ ticket: progress.id, action: "review" });
           else if (assignments.some((assignment) => assignment.status === "pending")) {
-            actions.push({ issue: progress.id, action: "await-review-report" });
+            actions.push({ ticket: progress.id, action: "await-review-report" });
           } else if (
             assignments.every(
               (assignment) => assignment.status === "submitted" && assignment.result === "passed",
@@ -303,7 +303,7 @@ export class FeatureInspectionService extends Service {
             )
           ) {
             actions.push({
-              issue: progress.id,
+              ticket: progress.id,
               action:
                 this.findingPolicy.findingBlockers(progress, identity).length > 0
                   ? "resolve-findings"
@@ -314,15 +314,15 @@ export class FeatureInspectionService extends Service {
           progress.assignment?.status === "submitted" &&
           reviewCheckBlockers.some((blocker) => blocker.includes(" is failed."))
         ) {
-          actions.push({ issue: progress.id, action: "correct" });
+          actions.push({ ticket: progress.id, action: "correct" });
         }
       } else if (progress.execution === "changes-requested") {
         blockers.push({
-          issue: progress.id,
+          ticket: progress.id,
           reason: "A correction decision is required before another implementation dispatch.",
         });
         actions.push({
-          issue: progress.id,
+          ticket: progress.id,
           action:
             (progress.findings ?? []).some((finding) => finding.status === "confirmed") ||
             (progress.correctionAttempts?.length ?? 0) > 0
@@ -332,32 +332,32 @@ export class FeatureInspectionService extends Service {
                 : "controller-correction-decision",
         });
       } else if (progress.execution === "blocked") {
-        blockers.push({ issue: progress.id, reason: "Issue execution is blocked." });
+        blockers.push({ ticket: progress.id, reason: "Ticket execution is blocked." });
       } else if (progress.execution === "accepted") {
         const acceptanceBlockers = this.acceptancePolicy.acceptBlockers(
           feature,
           feature.state,
-          issue,
+          ticket,
           progress,
           identity,
         );
         for (const reason of acceptanceBlockers) {
           if (
-            !blockers.some((blocker) => blocker.issue === progress.id && blocker.reason === reason)
+            !blockers.some((blocker) => blocker.ticket === progress.id && blocker.reason === reason)
           ) {
-            blockers.push({ issue: progress.id, reason });
+            blockers.push({ ticket: progress.id, reason });
           }
         }
         if (acceptanceBlockers.length === 0)
-          actions.push({ issue: progress.id, action: "integrate" });
+          actions.push({ ticket: progress.id, action: "integrate" });
       }
     }
-    for (const issue of issues) {
-      if (!progressById.has(issue.id)) {
-        blockers.push({ issue: issue.id, reason: "Issue has no ledger execution record." });
+    for (const ticket of tickets) {
+      if (!progressById.has(ticket.id)) {
+        blockers.push({ ticket: ticket.id, reason: "Ticket has no ledger execution record." });
       }
     }
-    const delivery = this.deliveryStatus(feature, feature.state, issues);
+    const delivery = this.deliveryStatus(feature, feature.state, tickets);
 
     return {
       ...feature,
@@ -404,7 +404,7 @@ export class FeatureInspectionService extends Service {
   public deliveryStatus(
     feature: FeaturePaths,
     ledger: FeatureLedger,
-    issues: IssueDocument[],
+    tickets: TicketDocument[],
   ): {
     scope: "delivery";
     status: "active" | "complete";
@@ -429,16 +429,16 @@ export class FeatureInspectionService extends Service {
     const delivery = ledger.delivery;
     const blockers: string[] = [];
     const allClosed =
-      ledger.issues.length > 0 && ledger.issues.every((issue) => issue.status === "closed");
+      ledger.tickets.length > 0 && ledger.tickets.every((ticket) => ticket.status === "closed");
     let identity: ContentIdentity | undefined;
     if (!allClosed) {
-      const missing = ledger.issues
-        .filter((issue) => issue.status !== "closed")
-        .map((issue) => issue.id);
-      blockers.push(`Issues are not closed: ${missing.join(", ") || "feature has no issues"}.`);
+      const missing = ledger.tickets
+        .filter((ticket) => ticket.status !== "closed")
+        .map((ticket) => ticket.id);
+      blockers.push(`Tickets are not closed: ${missing.join(", ") || "feature has no tickets"}.`);
     } else {
       try {
-        identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
+        identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
         blockers.push(...this.checkPolicy.deliveryCheckBlockers(delivery, identity));
         if (delivery.adjudication?.status === "pending") {
           blockers.push(`Correction is paused for adjudication (${delivery.adjudication.reason}).`);
@@ -499,7 +499,7 @@ export class FeatureInspectionService extends Service {
     }
     let action: string;
     if (delivery.finished) action = blockers.length > 0 ? "completion-invalidated" : "finished";
-    else if (!allClosed) action = "close-issues";
+    else if (!allClosed) action = "close-tickets";
     else if (delivery.adjudication?.status === "pending") action = "adjudicate";
     else if (
       delivery.assignment &&

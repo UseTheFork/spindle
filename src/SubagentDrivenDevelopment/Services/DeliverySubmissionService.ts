@@ -9,8 +9,8 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
@@ -22,7 +22,7 @@ export class DeliverySubmissionService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly checkPolicy: CheckPolicy,
@@ -90,7 +90,7 @@ export class DeliverySubmissionService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (options.unavailable) {
         const details = options.details!.trim();
@@ -229,7 +229,7 @@ export class DeliverySubmissionService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       const blockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
@@ -325,16 +325,16 @@ export class DeliverySubmissionService extends Service {
         for (const finding of delivery.findings ?? []) {
           if (
             !finding.blocking ||
-            !finding.relatedIssue ||
+            !finding.relatedTicket ||
             finding.status === "fixed" ||
             finding.status === "dismissed"
           ) {
             continue;
           }
-          const issue = ledger.issues.find((item) => item.id === finding.relatedIssue);
-          if (!issue) throw new Error(`Related issue not found: ${finding.relatedIssue}.`);
-          issue.status = "open";
-          delete issue.blocker;
+          const ticket = ledger.tickets.find((item) => item.id === finding.relatedTicket);
+          if (!ticket) throw new Error(`Related ticket not found: ${finding.relatedTicket}.`);
+          ticket.status = "open";
+          delete ticket.blocker;
         }
       }
       this.workspaceTransaction.writeLedger(feature, ledger);

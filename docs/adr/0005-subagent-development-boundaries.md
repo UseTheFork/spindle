@@ -5,23 +5,23 @@ status: accepted
 # Separate subagent-driven development, Git, and project configuration
 
 The SDD CLI grammar remains unchanged, including positional `review require`,
-issue and delivery scope selectors, and caller-owned integration commits.
+ticket and delivery scope selectors, and caller-owned integration commits.
 `SubagentDrivenDevelopmentServiceProvider` explicitly binds operation commands
 and focused services as application singletons. Commands own Commander schemas
 and delegation, while reusable command groups contain no workflow logic.
 There is no legacy `SddCommand`, compatibility facade, or shared workflow base.
 
 The context is organized into `Commands`, `Services`, `Persistence`, `Evidence`,
-`Policies`, and `Models`. Feature creation and inspection, issue records and
+`Policies`, and `Models`. Feature creation and inspection, ticket records and
 triage, assignments and corrections, checks and review, findings and requirements,
 acceptance and integration, and delivery remain separate operations.
 Dependencies flow through explicitly typed constructor injection, not dynamic
 resolution proxies or circular references.
 
-`WorkspaceTransaction` owns one issue/delivery mutation boundary: acquire the
+`WorkspaceTransaction` owns one ticket/delivery mutation boundary: acquire the
 workspace lock, recover pending writes before executing the operation, journal
-coordinated issue/ledger writes, atomically replace files, and release ownership
-on success or failure. Ledger schema validation and issue reading are distinct
+coordinated ticket/ledger writes, atomically replace files, and release ownership
+on success or failure. Ledger schema validation and ticket reading are distinct
 components, but do not introduce independent transactions. Feature creation
 retains its separate creation lock and atomic staging publication protocol.
 `ReadinessReader` owns stable read observations, and `ReadinessPolicy` evaluates

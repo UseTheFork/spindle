@@ -89,7 +89,7 @@ export class FeatureCreationService extends Service {
       const targets = [
         `${relativeBase}/spec.md`,
         `${relativeBase}/sdd.json`,
-        `${relativeBase}/issues`,
+        `${relativeBase}/tickets`,
         `${relativeBase}/reports`,
       ];
       if (options.withDesign) targets.push(`${relativeBase}/design.md`);
@@ -101,10 +101,10 @@ export class FeatureCreationService extends Service {
 
       const staging = mkdtempSync(join(scratch, ".sdd-create-"));
       try {
-        mkdirSync(join(staging, "issues"));
+        mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));
         const ledger: FeatureLedger = {
-          schemaVersion: 2,
+          schemaVersion: 3,
           featureId: id,
           title: options.title.trim(),
           createdBy: options.author.trim(),
@@ -112,10 +112,10 @@ export class FeatureCreationService extends Service {
           retrospectiveRequired: options.requireRetrospective ?? false,
           reviewPolicy: {
             version: 1,
-            issue: ["sdd-reviewer"],
+            ticket: ["sdd-reviewer"],
             delivery: ["sdd-reviewer"],
           },
-          issues: [],
+          tickets: [],
           delivery: {
             status: "active",
             execution: "unstarted",

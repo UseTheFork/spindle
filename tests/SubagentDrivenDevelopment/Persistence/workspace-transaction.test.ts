@@ -31,12 +31,12 @@ test("transaction failures release ownership without changing the ledger", async
   const error = new Error("operation failed");
   expect(() =>
     transaction.run(feature.workspace, () => {
-      expect(existsSync(join(feature.workspace, ".sdd-issues.lock"))).toBe(true);
+      expect(existsSync(join(feature.workspace, ".sdd-tickets.lock"))).toBe(true);
       throw error;
     }),
   ).toThrow(error);
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
-  expect(existsSync(join(feature.workspace, ".sdd-issues.lock"))).toBe(false);
+  expect(existsSync(join(feature.workspace, ".sdd-tickets.lock"))).toBe(false);
   expect(transaction.run(feature.workspace, () => 42)).toBe(42);
 });
 

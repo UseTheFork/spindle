@@ -7,13 +7,13 @@ import matter from "gray-matter";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
-import type { IssueChecks, ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { TicketChecks, ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   DeliveryProgress,
   FeaturePaths,
-  IssueDocument,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { isSafeCoveragePath } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -46,7 +46,7 @@ export class GitEvidence extends Service {
     feature: FeaturePaths,
     ledger = this.ledgerRepository.readLedger(feature),
   ): string[] {
-    const lockPath = `.scratch/${feature.feature}/.sdd-issues.lock`;
+    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
     const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
     return this.allGitChangePaths().filter((path) => path !== lockPath && allowed.has(path));
   }
@@ -57,7 +57,7 @@ export class GitEvidence extends Service {
     const paths = new Set([
       relative(root, feature.spec),
       relative(root, feature.ledger),
-      ...ledger.issues.map((issue) => `${featurePrefix}issues/${issue.id}.md`),
+      ...ledger.tickets.map((ticket) => `${featurePrefix}tickets/${ticket.id}.md`),
     ]);
     const reports = join(feature.workspace, "reports");
     const addReport = (report: string | undefined) => {
@@ -67,20 +67,20 @@ export class GitEvidence extends Service {
         paths.add(relative(root, path));
       }
     };
-    for (const issue of ledger.issues) {
-      addReport(issue.assignment?.report);
+    for (const ticket of ledger.tickets) {
+      addReport(ticket.assignment?.report);
       for (const assignment of [
-        ...(issue.reviewAssignments ?? []),
-        ...(issue.reviewHistory ?? []),
+        ...(ticket.reviewAssignments ?? []),
+        ...(ticket.reviewHistory ?? []),
       ]) {
         addReport(assignment.report);
       }
-      for (const attempt of issue.correctionAttempts ?? []) {
+      for (const attempt of ticket.correctionAttempts ?? []) {
         addReport(attempt.assignment.report);
         addReport(attempt.priorAssignment?.report);
         for (const assignment of attempt.reviewAssignments ?? []) addReport(assignment.report);
       }
-      for (const finding of issue.findings ?? []) {
+      for (const finding of ticket.findings ?? []) {
         for (const provenance of finding.provenance) addReport(provenance.report);
       }
     }
@@ -181,9 +181,9 @@ export class GitEvidence extends Service {
 
   public contentIdentity(
     feature: FeaturePaths,
-    issue: IssueDocument,
+    ticket: TicketDocument,
     baseSha = this.headSha(),
-    checks?: IssueChecks,
+    checks?: TicketChecks,
     coveredPaths?: string[],
   ): ContentIdentity {
     const root = realpathSync(this.app.workspaceRoot);
@@ -252,7 +252,7 @@ export class GitEvidence extends Service {
     const codeSnapshot = code.digest("hex");
     const requirementParts = [
       readFileSync(feature.spec, "utf8"),
-      this.issueRequirements(issue.raw),
+      this.ticketRequirements(ticket.raw),
       checks?.required ?? [],
     ];
     const requirementsSnapshot = createHash("sha256")
@@ -267,28 +267,28 @@ export class GitEvidence extends Service {
   public deliveryIdentity(
     feature: FeaturePaths,
     ledger: FeatureLedger,
-    issues: IssueDocument[],
+    tickets: TicketDocument[],
   ): ContentIdentity {
-    if (issues.length === 0) throw new Error("Aggregate evidence requires at least one issue.");
+    if (tickets.length === 0) throw new Error("Aggregate evidence requires at least one ticket.");
     const delivery = ledger.delivery;
-    delivery.baseSha ??= ledger.issues.find((progress) => progress.baseSha)?.baseSha;
+    delivery.baseSha ??= ledger.tickets.find((progress) => progress.baseSha)?.baseSha;
     if (!delivery.baseSha) {
-      throw new Error("Aggregate evidence requires the first issue's recorded Git baseline.");
+      throw new Error("Aggregate evidence requires the first ticket's recorded Git baseline.");
     }
-    const codeIdentity = this.contentIdentity(feature, issues[0]!, delivery.baseSha);
+    const codeIdentity = this.contentIdentity(feature, tickets[0]!, delivery.baseSha);
     const requirementsSnapshot = createHash("sha256")
       .update(
         JSON.stringify([
           readFileSync(feature.spec, "utf8"),
-          issues.map((issue) => [
-            issue.id,
-            issue.title,
-            issue.reporter,
-            issue.category,
-            issue.status,
-            issue.blocked_by,
-            issue.blocker,
-            this.issueRequirements(issue.raw),
+          tickets.map((ticket) => [
+            ticket.id,
+            ticket.title,
+            ticket.reporter,
+            ticket.category,
+            ticket.status,
+            ticket.blocked_by,
+            ticket.blocker,
+            this.ticketRequirements(ticket.raw),
           ]),
           (delivery.checks?.required ?? []).filter((requirement) => !requirement.removedAt),
         ]),
@@ -394,7 +394,7 @@ export class GitEvidence extends Service {
     }
   }
 
-  public issueRequirements(raw: string): string {
+  public ticketRequirements(raw: string): string {
     const body = matter(raw).content;
     const sections = new Map<string, string>();
     const headings = [...body.matchAll(/^##[ \t]+(.+?)[ \t]*\r?$/gm)];
@@ -451,7 +451,7 @@ export class GitEvidence extends Service {
 
   public gitChangeSummary(feature: FeaturePaths): string {
     const root = realpathSync(this.app.workspaceRoot);
-    const relativeLock = relative(root, join(feature.workspace, ".sdd-issues.lock"));
+    const relativeLock = relative(root, join(feature.workspace, ".sdd-tickets.lock"));
     const status = this.git.run(
       [
         "--no-pager",
@@ -478,7 +478,7 @@ export class GitEvidence extends Service {
   }
 
   public integrationPreservesEvidence(
-    progress: IssueProgress | DeliveryProgress,
+    progress: TicketProgress | DeliveryProgress,
     identity: ContentIdentity,
   ): boolean {
     if (!("id" in progress)) return false;
@@ -511,7 +511,7 @@ export class GitEvidence extends Service {
   ): void {
     const allowed = new Set(acceptedFiles);
     for (const path of this.workflowDeliveryRecordPaths(feature, ledger)) allowed.add(path);
-    const lockPath = `.scratch/${feature.feature}/.sdd-issues.lock`;
+    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
     const unrelated = this.allGitChangePaths().filter(
       (path) => path !== lockPath && !allowed.has(path),
     );

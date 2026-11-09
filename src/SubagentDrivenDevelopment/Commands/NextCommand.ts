@@ -11,7 +11,7 @@ export class NextCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root)
       .command("next")
-      .description("Show permitted issue and whole-spec delivery actions without changing state.")
+      .description("Show permitted ticket and whole-spec delivery actions without changing state.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: NextOptions) => {

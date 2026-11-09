@@ -20,14 +20,14 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
@@ -38,7 +38,7 @@ export class AssignmentService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly assignmentPolicy: AssignmentPolicy,
@@ -51,7 +51,7 @@ export class AssignmentService extends Service {
   }
 
   public claim(options: ClaimOptions): {
-    issue: string;
+    ticket: string;
     execution: "claimed";
     owner: string;
     baseSha: string;
@@ -60,31 +60,32 @@ export class AssignmentService extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    validateIssueId(options.issue);
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issues = this.issueRepository.readIssues(feature.workspace);
-      this.issueRepository.validateDependencyGraph(issues);
-      this.ledgerRepository.upgradeIssueTracking(ledger, issues);
-      const issue = this.issueRepository.requireIssue(issues, options.issue);
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      this.ticketRepository.validateDependencyGraph(tickets);
+      const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution !== "unstarted") {
         throw new Error(
-          `Issue ${options.issue} is already owned or has progressed to ${progress.execution}.`,
+          `Ticket ${options.ticket} is already owned or has progressed to ${progress.execution}.`,
         );
       }
-      if (issue.status !== "open" || issue.blocker) {
-        throw new Error(`Issue ${options.issue} is not open and unblocked.`);
+      if (ticket.status !== "open" || ticket.blocker) {
+        throw new Error(`Ticket ${options.ticket} is not open and unblocked.`);
       }
-      const issuesById = new Map(issues.map((item) => [item.id, item]));
-      const unmet = issue.blocked_by.filter((dependency) => {
-        const dependencyIssue = issuesById.get(dependency);
-        return !dependencyIssue || dependencyIssue.status !== "closed" || !!dependencyIssue.blocker;
+      const ticketsById = new Map(tickets.map((item) => [item.id, item]));
+      const unmet = ticket.blocked_by.filter((dependency) => {
+        const dependencyTicket = ticketsById.get(dependency);
+        return (
+          !dependencyTicket || dependencyTicket.status !== "closed" || !!dependencyTicket.blocker
+        );
       });
       if (unmet.length > 0) {
-        throw new Error(`Issue ${options.issue} has open dependencies: ${unmet.join(", ")}.`);
+        throw new Error(`Ticket ${options.ticket} has open dependencies: ${unmet.join(", ")}.`);
       }
       const baseSha = this.gitEvidence.cleanGitBaseline(feature);
       progress.execution = "claimed";
@@ -92,18 +93,18 @@ export class AssignmentService extends Service {
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
       ledger.delivery.baseSha ??= baseSha;
-      const identity = this.gitEvidence.contentIdentity(feature, issue, baseSha, progress.checks);
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const identity = this.gitEvidence.contentIdentity(feature, ticket, baseSha, progress.checks);
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Claimed from clean Git baseline ${baseSha}.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: "claimed",
         owner: options.author.trim(),
         baseSha,
@@ -113,7 +114,7 @@ export class AssignmentService extends Service {
   }
 
   public implement(options: ImplementOptions): {
-    issue: string;
+    ticket: string;
     execution: "implementing";
     assignment: ImplementationAssignment;
     snapshot: string;
@@ -121,19 +122,19 @@ export class AssignmentService extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    validateIssueId(options.issue);
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -142,20 +143,20 @@ export class AssignmentService extends Service {
           throw new Error("Controller ownership changed; resume and confirm the handoff first.");
         }
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: "implementing",
           assignment: progress.assignment,
           ...identity,
         };
       }
       if (progress.execution !== "claimed" || !progress.baseSha || !progress.owner) {
-        throw new Error(`Issue ${options.issue} must be claimed before implementation dispatch.`);
+        throw new Error(`Ticket ${options.ticket} must be claimed before implementation dispatch.`);
       }
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the recorded controller may dispatch implementation.");
       }
 
-      const report = join(feature.workspace, "reports", `${options.issue}-implementation.md`);
+      const report = join(feature.workspace, "reports", `${options.ticket}-implementation.md`);
       this.reportEvidence.assertReportPath(feature, report, false);
       if (lstatIfPresent(report)) {
         throw new Error(`Assigned report already exists and was preserved: ${report}.`);
@@ -172,21 +173,21 @@ export class AssignmentService extends Service {
       };
       progress.execution = "implementing";
       progress.assignment = assignment;
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Implementation assignment ${assignment.id} recorded; role=implementation; report=${report}. No agent was launched.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
-      return { issue: options.issue, execution: "implementing", assignment, ...identity };
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+      return { ticket: options.ticket, execution: "implementing", assignment, ...identity };
     });
   }
 
   public resume(options: ResumeOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     gate: ExecutionState;
     nextAction: string;
@@ -203,21 +204,21 @@ export class AssignmentService extends Service {
     headSha: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryResume(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("resume requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("resume requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       let handoffRecorded = false;
       if (progress.owner && progress.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
@@ -236,24 +237,24 @@ export class AssignmentService extends Service {
             confirmedStopped: true,
           });
         }
-        const afterIssue = matter.stringify(
-          this.issueRepository.appendAudit(
-            issue.body,
+        const afterTicket = matter.stringify(
+          this.ticketRepository.appendAudit(
+            ticket.body,
             options.author,
             `Controller handoff from ${previousOwner} to ${options.author.trim()} confirmed after the previous controller stopped editing.`,
           ),
-          this.issueRepository.metadata(issue),
+          this.ticketRepository.metadata(ticket),
         );
-        this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+        this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         handoffRecorded = true;
       }
-      const currentIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const currentTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        currentIssue,
+        currentTicket,
         progress.baseSha,
         progress.checks,
       );
@@ -273,9 +274,9 @@ export class AssignmentService extends Service {
       const blocker =
         this.assignmentPolicy.resumeBlocker(feature, progress) ??
         reviewBlocker ??
-        this.checkPolicy.checkBlockers(feature, currentIssue, progress, identity)[0];
+        this.checkPolicy.checkBlockers(feature, currentTicket, progress, identity)[0];
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         gate: progress.execution,
         nextAction: this.workflowPolicy.nextAction(resumeProgress, blocker),
         ...(progress.owner ? { owner: progress.owner } : {}),
@@ -339,10 +340,10 @@ export class AssignmentService extends Service {
         this.workspaceTransaction.writeLedger(feature, ledger);
         handoffRecorded = true;
       }
-      const issues = this.issueRepository.readIssues(feature.workspace);
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
       const completion = delivery.finished
-        ? this.featureInspectionService.deliveryStatus(feature, ledger, issues)
+        ? this.featureInspectionService.deliveryStatus(feature, ledger, tickets)
         : undefined;
       const checkBlocker = this.checkPolicy.deliveryCheckBlockers(delivery, identity)[0];
       let blocker =

@@ -3,7 +3,7 @@
 ```md
 ## Assignment
 
-Review scope: [INITIAL_ISSUE_OR_CORRECTIVE_ISSUE_OR_AGGREGATE_DELIVERY_OR_CORRECTIVE_DELIVERY]
+Review scope: [INITIAL_TICKET_OR_CORRECTIVE_TICKET_OR_AGGREGATE_DELIVERY_OR_CORRECTIVE_DELIVERY]
 Mode: [INITIAL_OR_CORRECTIVE_OR_AGGREGATE]
 Implementation description and review objective:
 [DESCRIPTION_AND_OBJECTIVE]
@@ -33,7 +33,7 @@ Fix-only diff, exact prior/fixed identities, and fresh covering checks:
 Selected findings copied verbatim with stable IDs, or concrete check failure:
 [FINDINGS]
 
-Initial issue/aggregate review coverage and prior Spec/Quality verdicts:
+Initial ticket/aggregate review coverage and prior Spec/Quality verdicts:
 [INITIAL_COVERAGE_AND_PRIOR_VERDICTS]
 
 ## Hand-back

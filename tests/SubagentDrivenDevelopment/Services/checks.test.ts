@@ -7,15 +7,20 @@ import { expect, test } from "vitest";
 import {
   execute,
   commitAll,
-  prepareClaimableIssue,
+  prepareClaimableTicket,
   prepareImplementationForReview,
 } from "../helpers/helpers";
 import type { WorkflowServices } from "../helpers/WorkflowServices";
 test("checks require declares required commands and permits later additions", async () => {
-  const { repo, spec } = await prepareClaimableIssue();
+  const { repo, spec } = await prepareClaimableTicket();
   const requireCheck = async (command: string) =>
     await execute(repo, (service) =>
-      service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+      service.checksService.checksRequire({
+        spec,
+        ticket: "T-0001",
+        command,
+        author: "controller",
+      }),
     );
 
   const initial = await requireCheck("just test::test tests/unit.test.ts");
@@ -27,16 +32,16 @@ test("checks require declares required commands and permits later additions", as
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
   expect(
-    ledger.issues[0].checks.required.map((check: { command: string }) => check.command),
+    ledger.tickets[0].checks.required.map((check: { command: string }) => check.command),
   ).toEqual(["just test::test tests/unit.test.ts", "just test::test tests/integration.test.ts"]);
   expect(JSON.parse(initial.stdout).checks.required.length).toBe(1);
   expect(JSON.parse(added.stdout).checks.required.length).toBe(2);
 });
 
 test("claim and resume report content identities that change for untracked code", async () => {
-  const { repo, spec } = await prepareClaimableIssue();
+  const { repo, spec } = await prepareClaimableTicket();
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const baseline = JSON.parse(claim.stdout) as {
@@ -50,7 +55,7 @@ test("claim and resume report content identities that change for untracked code"
 
   writeFileSync(join(repo, "new-source.ts"), "export const changed = true;\n");
   const resumed = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   const current = JSON.parse(resumed.stdout) as typeof baseline;
@@ -60,9 +65,9 @@ test("claim and resume report content identities that change for untracked code"
 });
 
 test("code identity distinguishes one untracked payload from two separately framed files", async () => {
-  const { repo, spec } = await prepareClaimableIssue();
+  const { repo, spec } = await prepareClaimableTicket();
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
 
@@ -71,7 +76,7 @@ test("code identity distinguishes one untracked payload from two separately fram
   );
   writeFileSync(join(repo, "a"), Buffer.concat([Buffer.from("X"), secondFileRecord]));
   const oneFile = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(oneFile.status, oneFile.stderr).toBe(0);
   const oneFileIdentity = JSON.parse(oneFile.stdout).codeSnapshot as string;
@@ -80,7 +85,7 @@ test("code identity distinguishes one untracked payload from two separately fram
   writeFileSync(join(repo, "a"), "X");
   writeFileSync(join(repo, "b"), "Y");
   const twoFiles = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(twoFiles.status, twoFiles.stderr).toBe(0);
   const twoFileIdentity = JSON.parse(twoFiles.stdout).codeSnapshot as string;
@@ -89,10 +94,10 @@ test("code identity distinguishes one untracked payload from two separately fram
 });
 
 test("code identity rejects changed submodule revisions and dirty or untracked submodule content", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/example.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
@@ -110,14 +115,14 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
   commitAll(repo, git, "add fixture submodule");
 
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const snapshot = JSON.parse(claim.stdout).snapshot as string;
   const recordArgs = (service: WorkflowServices) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot,
       command,
       result: "passed",
@@ -130,12 +135,12 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
   expect(dirtyRecord.status).not.toBe(0);
   expect(dirtyRecord.stderr).toMatch(/submodule/i);
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records).toEqual([]);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].checks.records).toEqual([]);
 
   writeFileSync(join(submodule, "tracked.txt"), "submodule base\n");
   writeFileSync(join(submodule, "untracked.txt"), "untracked submodule content\n");
   const untrackedResume = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(untrackedResume.status).not.toBe(0);
   expect(untrackedResume.stderr).toMatch(/submodule/i);
@@ -145,23 +150,23 @@ test("code identity rejects changed submodule revisions and dirty or untracked s
   execFileSync("git", ["add", "tracked.txt"], { cwd: submodule });
   execFileSync("git", ["commit", "-qm", "new submodule revision"], { cwd: submodule });
   const revisionResume = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(revisionResume.status).not.toBe(0);
   expect(revisionResume.stderr).toMatch(/submodule/i);
 });
 
 test("nested untracked repositories cannot reuse identities or record check coverage", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/example.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
 
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const claimSnapshot = JSON.parse(claim.stdout).snapshot as string;
@@ -176,7 +181,7 @@ test("nested untracked repositories cannot reuse identities or record check cove
   execFileSync("git", ["commit", "-qm", "nested repository base"], { cwd: nested });
 
   const resumeArgs = (service: WorkflowServices) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" });
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" });
   const initialIdentity = await execute(repo, resumeArgs);
   const reusableSnapshot =
     initialIdentity.status === 0
@@ -194,7 +199,7 @@ test("nested untracked repositories cannot reuse identities or record check cove
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: reusableSnapshot,
       command,
       result: "passed",
@@ -204,14 +209,14 @@ test("nested untracked repositories cannot reuse identities or record check cove
   expect(recorded.status).not.toBe(0);
   expect(recorded.stderr).toMatch(/nested|repository|worktree/i);
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records).toEqual([]);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].checks.records).toEqual([]);
 });
 
 test("missing known Gitlinks reject identity actions and check recording", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/example.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
@@ -229,7 +234,7 @@ test("missing known Gitlinks reject identity actions and check recording", async
   commitAll(repo, git, "add fixture submodule");
 
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const snapshot = JSON.parse(claim.stdout).snapshot as string;
@@ -238,7 +243,7 @@ test("missing known Gitlinks reject identity actions and check recording", async
   rmSync(join(repo, submodulePath), { recursive: true, force: true });
 
   const resume = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(resume.status).not.toBe(0);
   expect(resume.stderr).toMatch(/missing or uninitialized/i);
@@ -246,7 +251,7 @@ test("missing known Gitlinks reject identity actions and check recording", async
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot,
       command,
       result: "passed",
@@ -256,13 +261,13 @@ test("missing known Gitlinks reject identity actions and check recording", async
   expect(recorded.status).not.toBe(0);
   expect(recorded.stderr).toMatch(/missing or uninitialized/i);
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].checks.records).toEqual([]);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].checks.records).toEqual([]);
 });
 
 test("content identity includes staged and unstaged working content relative to the claim baseline", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
@@ -270,7 +275,7 @@ test("content identity includes staged and unstaged working content relative to 
   writeFileSync(join(repo, "tracked.txt"), "staged content\n");
   git("add", "tracked.txt");
   const stagedResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(stagedResult.status, stagedResult.stderr).toBe(0);
   const staged = JSON.parse(stagedResult.stdout).codeSnapshot as string;
@@ -278,7 +283,7 @@ test("content identity includes staged and unstaged working content relative to 
 
   writeFileSync(join(repo, "tracked.txt"), "unstaged content\n");
   const unstagedResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(unstagedResult.status, unstagedResult.stderr).toBe(0);
   const stagedAndUnstaged = JSON.parse(unstagedResult.stdout).codeSnapshot as string;
@@ -286,16 +291,16 @@ test("content identity includes staged and unstaged working content relative to 
 
   git("commit", "-qm", "commit staged content");
   const committedResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(committedResult.status, committedResult.stderr).toBe(0);
   expect(JSON.parse(committedResult.stdout).codeSnapshot).toBe(stagedAndUnstaged);
 });
 
 test("content identity includes staged content even when the working tree is restored", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
@@ -304,16 +309,16 @@ test("content identity includes staged content even when the working tree is res
   writeFileSync(join(repo, "tracked.txt"), "base\n");
 
   const resumed = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   expect(JSON.parse(resumed.stdout).codeSnapshot).not.toBe(baseline);
 });
 
 test("content identity includes Git-tracked executable mode changes", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const baseline = JSON.parse(claim.stdout).codeSnapshot as string;
@@ -321,7 +326,7 @@ test("content identity includes Git-tracked executable mode changes", async () =
   git("add", "tracked.txt");
 
   const stagedResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(stagedResult.status, stagedResult.stderr).toBe(0);
   const staged = JSON.parse(stagedResult.stdout).codeSnapshot as string;
@@ -329,29 +334,29 @@ test("content identity includes Git-tracked executable mode changes", async () =
 
   chmodSync(join(repo, "tracked.txt"), 0o644);
   const unstagedResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(unstagedResult.status, unstagedResult.stderr).toBe(0);
   expect(JSON.parse(unstagedResult.stdout).codeSnapshot).not.toBe(staged);
 });
 
 test("checks record stores one result against the supplied snapshot and is idempotent", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/example.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const snapshot = JSON.parse(claim.stdout).snapshot as string;
   const recordArgs = (service: WorkflowServices) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot,
       command,
       result: "passed",
@@ -376,7 +381,7 @@ test("checks record stores one result against the supplied snapshot and is idemp
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.issues[0].checks.records.length).toBe(1);
+  expect(ledger.tickets[0].checks.records.length).toBe(1);
 });
 
 test("passing check evidence is reusable only for unchanged explicitly covered paths", async () => {
@@ -384,7 +389,7 @@ test("passing check evidence is reusable only for unchanged explicitly covered p
   const record = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: submission.snapshot,
       command,
       result: "passed",
@@ -397,8 +402,8 @@ test("passing check evidence is reusable only for unchanged explicitly covered p
   let status = await execute(repo, (service) => service.featureInspectionService.status({ spec }));
   expect(status.status, status.stderr).toBe(0);
   let state = JSON.parse(status.stdout) as {
-    actions: { issue: string; action: string }[];
-    blockers: { issue: string; reason: string }[];
+    actions: { ticket: string; action: string }[];
+    blockers: { ticket: string; reason: string }[];
   };
   expect(state.actions.some((action) => action.action === "review")).toBeTruthy();
   expect(!state.blockers.some((blocker) => blocker.reason.includes("Required check"))).toBeTruthy();
@@ -412,11 +417,11 @@ test("passing check evidence is reusable only for unchanged explicitly covered p
 });
 
 test("content identity excludes ordinary comments but tracks requirement changes and decisions", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: "just test::test tests/example.test.ts",
       author: "controller",
     }),
@@ -424,7 +429,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const initial = JSON.parse(claim.stdout) as {
@@ -436,7 +441,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: initial.snapshot,
       command,
       result: "passed",
@@ -445,9 +450,9 @@ test("content identity excludes ordinary comments but tracks requirement changes
   );
   expect(recorded.status, recorded.stderr).toBe(0);
   const comment = await execute(repo, (service) =>
-    service.issueService.issueComment({
+    service.ticketService.ticketComment({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       details: "A routine progress note with no changed acceptance requirements.",
       author: "controller",
     }),
@@ -464,7 +469,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
   const afterComment = JSON.parse(
     (
       await execute(repo, (service) =>
-        service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+        service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
       )
     ).stdout,
   ) as typeof initial;
@@ -481,7 +486,7 @@ test("content identity excludes ordinary comments but tracks requirement changes
     `${readFileSync(spec, "utf8")}\n## Requirements\n\nA changed feature requirement.\n`,
   );
   const afterSpecChangeResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(afterSpecChangeResult.status, afterSpecChangeResult.stderr).toBe(0);
   const afterSpecChange = JSON.parse(afterSpecChangeResult.stdout) as typeof initial;
@@ -493,51 +498,53 @@ test("content identity excludes ordinary comments but tracks requirement changes
     /Required check .* is stale/,
   );
 
-  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
-  const issueContent = readFileSync(issuePath, "utf8");
+  const ticketPath = join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md");
+  const ticketContent = readFileSync(ticketPath, "utf8");
   writeFileSync(
-    issuePath,
-    issueContent.replace(
+    ticketPath,
+    ticketContent.replace(
       "## Requirements\n",
-      "## Requirements\n\nAn issue-specific requirement changed.\n",
+      "## Requirements\n\nAn ticket-specific requirement changed.\n",
     ),
   );
-  const afterIssueRequirementResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+  const afterTicketRequirementResult = await execute(repo, (service) =>
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
-  expect(afterIssueRequirementResult.status, afterIssueRequirementResult.stderr).toBe(0);
-  const afterIssueRequirement = JSON.parse(afterIssueRequirementResult.stdout) as typeof initial;
-  expect(afterIssueRequirement.codeSnapshot).toBe(initial.codeSnapshot);
-  expect(afterIssueRequirement.requirementsSnapshot).not.toBe(afterSpecChange.requirementsSnapshot);
+  expect(afterTicketRequirementResult.status, afterTicketRequirementResult.stderr).toBe(0);
+  const afterTicketRequirement = JSON.parse(afterTicketRequirementResult.stdout) as typeof initial;
+  expect(afterTicketRequirement.codeSnapshot).toBe(initial.codeSnapshot);
+  expect(afterTicketRequirement.requirementsSnapshot).not.toBe(
+    afterSpecChange.requirementsSnapshot,
+  );
 
   const decision = await execute(repo, (service) =>
-    service.issueService.issueComment({
+    service.ticketService.ticketComment({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       details: "Requirements decision: retain the new acceptance requirement.",
       author: "controller",
     }),
   );
   expect(decision.status, decision.stderr).toBe(0);
   const afterDecisionResult = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(afterDecisionResult.status, afterDecisionResult.stderr).toBe(0);
   expect(JSON.parse(afterDecisionResult.stdout).requirementsSnapshot).not.toBe(
-    afterIssueRequirement.requirementsSnapshot,
+    afterTicketRequirement.requirementsSnapshot,
   );
 });
 
 test("metadata-only commits preserve content coverage while changing Git provenance", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/example.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const initial = JSON.parse(claim.stdout) as {
@@ -547,7 +554,7 @@ test("metadata-only commits preserve content coverage while changing Git provena
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: initial.snapshot,
       command,
       result: "passed",
@@ -558,7 +565,7 @@ test("metadata-only commits preserve content coverage while changing Git provena
   git("commit", "--allow-empty", "-m", "metadata-only revision");
 
   const resumed = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   const current = JSON.parse(resumed.stdout) as typeof initial;
@@ -576,22 +583,22 @@ test("metadata-only commits preserve content coverage while changing Git provena
 });
 
 test("checks record rejects malformed or stale snapshots and requires failure details without executing commands", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const sentinel = join(repo, "command-was-not-executed");
   const command = `touch ${sentinel}`;
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const snapshot = JSON.parse(claim.stdout).snapshot as string;
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
-  const baseArgs = { spec, issue: "I-0001", command, author: "controller" };
+  const baseArgs = { spec, ticket: "T-0001", command, author: "controller" };
 
   const malformed = await execute(repo, (service) =>
     service.checksService.checksRecord({
@@ -630,7 +637,7 @@ test("checks record rejects malformed or stale snapshots and requires failure de
   const currentSnapshot = JSON.parse(
     (
       await execute(repo, (service) =>
-        service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+        service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
       )
     ).stdout,
   ).snapshot as string;
@@ -661,12 +668,12 @@ test("checks record rejects malformed or stale snapshots and requires failure de
 });
 
 test("check removal requires rationale and invalidates accepted decisions while preserving history", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const firstCommand = "just test::test tests/first.test.ts";
   const requireFirst = await execute(repo, (service) =>
     service.checksService.checksRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: firstCommand,
       author: "controller",
     }),
@@ -674,14 +681,14 @@ test("check removal requires rationale and invalidates accepted decisions while 
   expect(requireFirst.status, requireFirst.stderr).toBe(0);
   commitAll(repo, git, "declare first check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const claimOutput = JSON.parse(claim.stdout);
   const record = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: claimOutput.snapshot,
       command: firstCommand,
       result: "passed",
@@ -692,13 +699,13 @@ test("check removal requires rationale and invalidates accepted decisions while 
 
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  ledger.issues[0].execution = "accepted";
+  ledger.tickets[0].execution = "accepted";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   const beforeRemoval = readFileSync(ledgerPath, "utf8");
   const missingRationale = await execute(repo, (service) =>
     service.checksService.checksRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: firstCommand,
       remove: true,
       author: "controller",
@@ -711,7 +718,7 @@ test("check removal requires rationale and invalidates accepted decisions while 
   const removed = await execute(repo, (service) =>
     service.checksService.checksRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: firstCommand,
       remove: true,
       details: "The target is no longer supported.",
@@ -725,15 +732,15 @@ test("check removal requires rationale and invalidates accepted decisions while 
   expect(afterRemoval.invalidatedDecision.to).toBe("reviewing");
   expect(afterRemoval.requirementsSnapshot).not.toBe(claimOutput.requirementsSnapshot);
   const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(persisted.issues[0].execution).toBe("reviewing");
-  expect(persisted.issues[0].checks.records.length).toBe(1);
-  expect(persisted.issues[0].checks.invalidations.length).toBe(1);
+  expect(persisted.tickets[0].execution).toBe("reviewing");
+  expect(persisted.tickets[0].checks.records.length).toBe(1);
+  expect(persisted.tickets[0].checks.invalidations.length).toBe(1);
 
   const secondCommand = "just test::test tests/second.test.ts";
   const added = await execute(repo, (service) =>
     service.checksService.checksRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: secondCommand,
       author: "controller",
     }),
@@ -750,21 +757,21 @@ test("check removal requires rationale and invalidates accepted decisions while 
 });
 
 test("status does not permit integration when a required check failed", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/required.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const failed = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: JSON.parse(claim.stdout).snapshot,
       command,
       result: "failed",
@@ -776,7 +783,7 @@ test("status does not permit integration when a required check failed", async ()
 
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  ledger.issues[0].execution = "accepted";
+  ledger.tickets[0].execution = "accepted";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   const status = await execute(repo, (service) =>
     service.featureInspectionService.status({ spec }),
@@ -785,28 +792,28 @@ test("status does not permit integration when a required check failed", async ()
   expect(JSON.parse(status.stdout).actions).toEqual([]);
   expect(JSON.stringify(JSON.parse(status.stdout).blockers)).toMatch(/Required check .* is failed/);
   const resumed = await execute(repo, (service) =>
-    service.assignmentService.resume({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   expect(JSON.parse(resumed.stdout).nextAction).toBe("resolve-check-blocker");
 });
 
-test("stale checks on an integrated issue keep dependent issues blocked", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+test("stale checks on an integrated ticket keep dependent tickets blocked", async () => {
+  const { repo, git, spec } = await prepareClaimableTicket();
   const command = "just test::test tests/required.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0001", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0001", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare check");
   const claim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claim.status, claim.stderr).toBe(0);
   const failed = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       snapshot: JSON.parse(claim.stdout).snapshot,
       command,
       result: "failed",
@@ -818,10 +825,10 @@ test("stale checks on an integrated issue keep dependent issues blocked", async 
 
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  ledger.issues[0].execution = "integrated";
+  ledger.tickets[0].execution = "integrated";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   const dependent = await execute(repo, (service) =>
-    service.issueService.issueCreate({
+    service.ticketService.ticketCreate({
       spec,
       title: "Wait for valid evidence",
       reporter: "requester",
@@ -831,18 +838,18 @@ test("stale checks on an integrated issue keep dependent issues blocked", async 
   );
   expect(dependent.status, dependent.stderr).toBe(0);
   const dependency = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0002",
-      blockedBy: ["I-0001"],
+      ticket: "T-0002",
+      blockedBy: ["T-0001"],
       author: "maintainer",
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
   const updated = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       status: "open",
       author: "maintainer",
     }),
@@ -851,16 +858,16 @@ test("stale checks on an integrated issue keep dependent issues blocked", async 
 
   const ready = await execute(repo, (service) => service.readinessService.ready({ spec }));
   expect(ready.status, ready.stderr).toBe(0);
-  expect(JSON.parse(ready.stdout).unready).toEqual([{ issue: "I-0002", blockedBy: ["I-0001"] }]);
+  expect(JSON.parse(ready.stdout).unready).toEqual([{ ticket: "T-0002", blockedBy: ["T-0001"] }]);
   const attemptedClaim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
   );
   expect(attemptedClaim.status).not.toBe(0);
-  expect(attemptedClaim.stderr).toMatch(/open dependencies: I-0001/);
+  expect(attemptedClaim.stderr).toMatch(/open dependencies: T-0001/);
 });
 
 test("claim rejects staged, unstaged, and untracked changes without changing ownership or baseline", async () => {
-  const { repo, git, spec } = await prepareClaimableIssue();
+  const { repo, git, spec } = await prepareClaimableTicket();
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const beforeLedger = readFileSync(ledgerPath, "utf8");
   const dirtyStates = [
@@ -876,7 +883,7 @@ test("claim rejects staged, unstaged, and untracked changes without changing own
     makeDirty();
     const beforeStatus = git("status", "--porcelain=v1", "--untracked-files=all");
     const result = await execute(repo, (service) =>
-      service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+      service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
     );
 
     expect(result.status, `dirty state ${index} unexpectedly claimed`).not.toBe(0);
@@ -893,13 +900,13 @@ test("claim rejects staged, unstaged, and untracked changes without changing own
 });
 
 test("an unavailable implementation assignment can later submit once without duplicating history", async () => {
-  const { repo, spec } = await prepareClaimableIssue();
+  const { repo, spec } = await prepareClaimableTicket();
   const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
   const dispatched = await execute(repo, (service) =>
-    service.assignmentService.implement({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.implement({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignment as {
@@ -910,16 +917,16 @@ test("an unavailable implementation assignment can later submit once without dup
   };
   expect(assignment.role).toBe("implementation");
   expect(assignment.action).toBe("implement");
-  expect(assignment.report.endsWith("/reports/I-0001-implementation.md")).toBe(true);
+  expect(assignment.report.endsWith("/reports/T-0001-implementation.md")).toBe(true);
   const repeatedDispatch = await execute(repo, (service) =>
-    service.assignmentService.implement({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.implement({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(repeatedDispatch.status, repeatedDispatch.stderr).toBe(0);
   expect(JSON.parse(repeatedDispatch.stdout).assignment.id).toBe(assignment.id);
   const unavailable = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "implementation",
       unavailable: true,
       details: "Worker did not return a report yet.",
@@ -933,7 +940,7 @@ test("an unavailable implementation assignment can later submit once without dup
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "implementation",
       report: assignment.report,
       author: "controller",
@@ -950,7 +957,7 @@ test("an unavailable implementation assignment can later submit once without dup
   const repeated = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "implementation",
       author: "controller",
     }),
@@ -958,9 +965,9 @@ test("an unavailable implementation assignment can later submit once without dup
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   expect(JSON.parse(repeated.stdout).assignment.submittedAt).toBe(submittedAt);
-  const issueBody = readFileSync(
-    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+  const ticketBody = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md"),
     "utf8",
   );
-  expect(issueBody.match(/Implementation report submitted/g)?.length).toBe(1);
+  expect(ticketBody.match(/Implementation report submitted/g)?.length).toBe(1);
 });

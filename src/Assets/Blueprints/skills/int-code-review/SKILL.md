@@ -29,7 +29,7 @@ flowchart TD
 
 ### A. Validate review inputs
 
-Read and follow the [review-input contract](../int-subagent-driven-dev/references/review-inputs.md). The caller must provide its absolute workspace, starting base and reviewed head revisions, exact change identity, complete change inventory and diff (including staged, unstaged and untracked changes), and verification results for that same snapshot. Also require the original task description and any known issue/spec pointers. The original task description is sufficient requirements context when no formal spec exists.
+Read and follow the [review-input contract](../int-subagent-driven-dev/references/review-inputs.md). The caller must provide its absolute workspace, starting base and reviewed head revisions, exact change identity, complete change inventory and diff (including staged, unstaged and untracked changes), and verification results for that same snapshot. Also require the original task description and any known ticket/spec pointers. The original task description is sufficient requirements context when no formal spec exists.
 
 Do not infer missing revisions, requirements, or changes from Git or conversational mentions. If required inputs are missing or inconsistent, request the specific correction from the caller and stop.
 
@@ -37,7 +37,7 @@ Do not infer missing revisions, requirements, or changes from Git or conversatio
 
 ### B. Inspect assigned snapshot
 
-Read the supplied diff, inventory, verification evidence, original task description, and any applicable issue/spec sources. Read enough surrounding code to substantiate findings. Do not edit the implementation or spawn review sub-agents. If the change is incomplete or evidence does not cover the supplied snapshot, report the gap and select F.
+Read the supplied diff, inventory, verification evidence, original task description, and any applicable ticket/spec sources. Read enough surrounding code to substantiate findings. Do not edit the implementation or spawn review sub-agents. If the change is incomplete or evidence does not cover the supplied snapshot, report the gap and select F.
 
 **Complete when:** the full assigned change and its requirements and verification evidence are understood, selecting C; missing coverage selects F.
 
@@ -51,7 +51,7 @@ Report a confirmed violation of an explicit, mandatory repository rule as a comm
 
 ### D. Review requirements
 
-Compare the complete change with the original task description and supplied issue/spec requirements. Check missing or partial requirements, unintended behavior, and implementations that appear incorrect. Ask the caller for clarification only when the requirements themselves are unclear; do not require a separate formal spec when the task description is clear.
+Compare the complete change with the original task description and supplied ticket/spec requirements. Check missing or partial requirements, unintended behavior, and implementations that appear incorrect. Ask the caller for clarification only when the requirements themselves are unclear; do not require a separate formal spec when the task description is clear.
 
 Report substantiated failures to meet requirements as commit blockers. Keep optional improvements non-blocking.
 

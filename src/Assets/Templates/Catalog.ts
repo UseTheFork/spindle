@@ -10,5 +10,6 @@ export const templateCatalog = {
   sdd: {
     spec: "sdd/spec.md",
     design: "sdd/design.md",
+    ticket: "sdd/ticket.md",
   },
 } as const;

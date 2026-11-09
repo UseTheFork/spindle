@@ -1,8 +1,8 @@
 # Feature delivery
 
 Feature delivery is the completion gate for one feature workspace. It begins
-after every issue is closed; it does not replace issue-level implementation or
-acceptance criteria. Use `--scope delivery` instead of `--issue` for feature
+after every ticket is closed; it does not replace ticket-level implementation or
+acceptance criteria. Use `--scope delivery` instead of `--ticket` for feature
 checks, review assignments, findings, and corrections.
 
 ## Checks and review
@@ -29,10 +29,10 @@ failed, unavailable, stale, or mismatched review blocks completion.
 
 Register findings from their assigned reports and snapshots with
 `spindle sdd finding create --scope delivery`. Delivery findings have feature-scoped
-IDs, provenance, ruling history, and status. Use `--related-issue <id>` for a
-finding that should return work to a specific issue. A blocking linked finding
-reopens its issue after the complete review batch is submitted; dependent
-issues remain blocked until that issue is closed again.
+IDs, provenance, ruling history, and status. Use `--related-ticket <id>` for a
+finding that should return work to a specific ticket. A blocking linked finding
+reopens its ticket after the complete review batch is submitted; dependent
+tickets remain blocked until that ticket is closed again.
 
 Use `spindle sdd finding update --scope delivery` for explicit rulings. Deferring a
 blocker requires rationale, a follow-up reference, and an approved delivery
@@ -51,7 +51,7 @@ preserve existing assignments, attempts, evidence, and adjudication.
 ## Finish
 
 Use the normal Git workflow for code changes. SDD does not stage, commit,
-publish, or require a per-issue integration confirmation. A changed code or
+publish, or require a per-ticket integration confirmation. A changed code or
 requirements snapshot invalidates evidence that no longer covers it.
 
 Legacy feature workspaces without a recorded Git baseline stay blocked until
@@ -60,7 +60,7 @@ current `HEAD` after implementation; that could omit completed feature work
 from review.
 
 Finish with `spindle sdd finish --spec <spec> --author <author>`. Completion requires
-at least one issue, every issue closed, current passing required feature
+at least one ticket, every ticket closed, current passing required feature
 checks and reviews, and no unresolved delivery blockers. The retrospective
 policy is stored at feature creation: when required, attach a Markdown report
 with `--report`; otherwise it is optional. Any report must remain inside that
@@ -68,5 +68,5 @@ feature's `reports/` directory.
 
 Use `spindle sdd status`, `spindle sdd next`, and
 `spindle sdd resume --scope delivery` to inspect blockers and
-restore interrupted feature-level work. These commands do not close issues or
+restore interrupted feature-level work. These commands do not close tickets or
 publish changes.

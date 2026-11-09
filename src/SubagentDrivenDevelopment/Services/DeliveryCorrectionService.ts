@@ -13,8 +13,8 @@ import type {
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -24,7 +24,7 @@ export class DeliveryCorrectionService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly featureInspectionService: FeatureInspectionService,
@@ -102,7 +102,7 @@ export class DeliveryCorrectionService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       const currentFailedCheck = (delivery.checks?.records ?? []).some(
         (record) =>

@@ -1,6 +1,6 @@
 ---
 name: to-spec
-description: "Turn an agreed feature request or approved design into a spec in its SDD feature workspace, then publish it to the configured issue tracker."
+description: "Turn an agreed feature request or approved design into a spec in its SDD feature workspace, then publish it to the configured ticket tracker."
 argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
@@ -10,9 +10,9 @@ metadata:
 
 # To Spec
 
-Turn an agreed feature request or an approved design into a codebase-grounded spec, then publish it to the configured issue tracker. A design is optional; when one exists, it must be completed and approved before the spec, and tickets follow the spec.
+Turn an agreed feature request or an approved design into a codebase-grounded spec, then publish it to the configured ticket tracker. A design is optional; when one exists, it must be completed and approved before the spec, and tickets follow the spec.
 
-Use the issue-tracker conventions in project guidance when available. If tracker or publication status is unclear, ask the user before publishing; do not assume triage labels or invent status values.
+Use the ticket-tracker conventions in project guidance when available. If tracker or publication status is unclear, ask the user before publishing; do not assume labels or invent status values.
 
 ## Argument
 
@@ -46,7 +46,7 @@ An optional design file path may be supplied. Read the entire file before drafti
 4. **Write and publish the spec.**
    - Fill the sections in the SDD-created `spec.md`: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
    - Use domain glossary terms. Do not include file paths or code snippets unless a prototype captures a decision more clearly than prose.
-   - Publish the completed spec according to the configured issue-tracker guidance. Ask before publishing if the destination or status is unclear.
+   - Publish the completed spec according to the configured ticket-tracker guidance. Ask before publishing if the destination or status is unclear.
    - Once the spec is published, ask the user to invoke `/to-tickets` for planning. Do not invoke it automatically or start implementation here.
 
    **Complete when:** the spec is published at the feature workspace's `spec.md` path, tracker publication is resolved, and no blocking ambiguity is hidden.

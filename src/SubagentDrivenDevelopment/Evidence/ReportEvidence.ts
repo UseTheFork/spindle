@@ -8,7 +8,7 @@ import type {
   ImplementationAssignment,
   ReviewAssignment,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { IssueProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { TicketProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 
@@ -72,7 +72,7 @@ export class ReportEvidence extends Service {
     return createHash("sha256").update(readFileSync(report)).digest("hex");
   }
 
-  public assertAcceptedReportsCurrent(feature: FeaturePaths, progress: IssueProgress): void {
+  public assertAcceptedReportsCurrent(feature: FeaturePaths, progress: TicketProgress): void {
     const implementationReports = [
       progress.assignment,
       ...(progress.correctionAttempts ?? []).flatMap((attempt) => [attempt.assignment]),

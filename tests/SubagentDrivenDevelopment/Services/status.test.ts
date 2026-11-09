@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import { serviceFixture } from "../helpers/helpers";
-import { issueFixture } from "../helpers/issue-helpers";
+import { ticketFixture } from "../helpers/ticket-helpers";
 
 test("sdd status reads the explicitly selected feature policy and progress without mutation", async () => {
   const { repo, git, service } = await serviceFixture();
@@ -35,7 +35,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
       execution: "unstarted",
       status: "active",
       baseSha: state.delivery.baseSha,
-      action: "close-issues",
+      action: "close-tickets",
       retrospectiveRequired: true,
       finished: false,
       findings: [],
@@ -44,13 +44,13 @@ test("sdd status reads the explicitly selected feature policy and progress witho
       reviewAssignments: [],
       requiredChecks: [],
       checkRecords: [],
-      blockers: ["Issues are not closed: feature has no issues."],
+      blockers: ["Tickets are not closed: feature has no tickets."],
     },
   });
   expect(state.retrospectiveRequired).toBe(true);
   expect(state.reviewPolicy).toEqual({
     version: 1,
-    issue: ["sdd-reviewer"],
+    ticket: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(state.delivery).toMatchObject({
@@ -64,7 +64,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
 });
 
 test("sdd status rejects normalized traversal paths and legacy feature layouts", async () => {
-  const { repo, service, feature } = await issueFixture("Current Feature");
+  const { repo, service, feature } = await ticketFixture("Current Feature");
   const linkedFeature = join(repo, ".scratch", "0002-linked-feature");
   symlinkSync(feature.workspace, linkedFeature);
   const legacy = join(repo, ".scratch", "2026-11-06-legacy-feature");
@@ -82,11 +82,11 @@ test("sdd status rejects normalized traversal paths and legacy feature layouts",
 });
 
 test("sdd status reads a stored policy version without substituting current defaults", async () => {
-  const { service, feature } = await issueFixture("Pinned Policy");
+  const { service, feature } = await ticketFixture("Pinned Policy");
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
   ledger.reviewPolicy = {
     version: 7,
-    issue: ["pinned-issue-reviewer"],
+    ticket: ["pinned-ticket-reviewer"],
     delivery: ["pinned-delivery-reviewer"],
   };
   writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
@@ -98,29 +98,29 @@ test("sdd status reads a stored policy version without substituting current defa
 });
 
 test("sdd status rejects unsupported ledger schema versions without rewriting the ledger", async () => {
-  const { service, feature } = await issueFixture("Versioned Feature");
+  const { service, feature } = await ticketFixture("Versioned Feature");
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
-  ledger.schemaVersion = 3;
+  ledger.schemaVersion = 2;
   writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
   const before = readFileSync(feature.ledger, "utf8");
   expect(() => service.featureInspectionService.status({ spec: feature.spec })).toThrow(
-    /Unsupported feature ledger schema version: 3/,
+    /Unsupported feature ledger schema version: 2/,
   );
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
 });
 
-test("sdd status validates issue and delivery history records without rewriting the ledger", async () => {
-  const { service, feature } = await issueFixture("Nested Records");
+test("sdd status validates ticket and delivery history records without rewriting the ledger", async () => {
+  const { service, feature } = await ticketFixture("Nested Records");
   const original = JSON.parse(readFileSync(feature.ledger, "utf8"));
   const malformedLedgers = [
-    { ...original, issues: [null] },
-    { ...original, issues: [{ id: "I-0001" }] },
-    { ...original, issues: [{ id: 1, execution: "claimed" }] },
+    { ...original, tickets: [null] },
+    { ...original, tickets: [{ id: "T-0001" }] },
+    { ...original, tickets: [{ id: 1, execution: "claimed" }] },
     {
       ...original,
-      issues: [
+      tickets: [
         {
-          id: "I-0001",
+          id: "T-0001",
           title: "Work",
           reporter: "author",
           category: "bug",
@@ -151,24 +151,21 @@ test("sdd status validates issue and delivery history records without rewriting 
     const contents = `${JSON.stringify(malformed, null, 2)}\n`;
     writeFileSync(feature.ledger, contents);
     expect(() => service.featureInspectionService.status({ spec: feature.spec })).toThrow(
-      /Feature (?:issue records|delivery history records)/,
+      /Feature (?:ticket records|delivery history records)/,
     );
     expect(readFileSync(feature.ledger, "utf8")).toBe(contents);
   }
 
-  const valid = {
+  const legacy = {
     ...original,
-    schemaVersion: 1,
-    issues: [{ id: "I-0001", execution: "claimed" }],
-    delivery: {
-      execution: "unstarted",
-      history: [{ at: "2026-11-07T12:00:00Z", author: "maintainer", action: "created" }],
-    },
+    schemaVersion: 2,
+    issues: [],
   };
-  const validContents = `${JSON.stringify(valid, null, 2)}\n`;
-  writeFileSync(feature.ledger, validContents);
-  const result = service.featureInspectionService.status({ spec: feature.spec });
-  expect(result.state.issues[0].execution).toBe("claimed");
-  expect(result.state.delivery.history[0].action).toBe("created");
-  expect(readFileSync(feature.ledger, "utf8")).toBe(validContents);
+  delete legacy.tickets;
+  const legacyContents = `${JSON.stringify(legacy, null, 2)}\n`;
+  writeFileSync(feature.ledger, legacyContents);
+  expect(() => service.featureInspectionService.status({ spec: feature.spec })).toThrow(
+    /Unsupported feature ledger schema version: 2/,
+  );
+  expect(readFileSync(feature.ledger, "utf8")).toBe(legacyContents);
 });

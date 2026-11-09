@@ -2,15 +2,15 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   FeaturePaths,
-  IssueDocument,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { requiredIssueReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class AcceptancePolicy extends Service {
@@ -27,11 +27,11 @@ export class AcceptancePolicy extends Service {
   public acceptBlockers(
     feature: FeaturePaths,
     ledger: FeatureLedger,
-    issue: IssueDocument,
-    progress: IssueProgress,
+    ticket: TicketDocument,
+    progress: TicketProgress,
     identity: ContentIdentity,
   ): string[] {
-    const blockers = this.checkPolicy.reviewCheckBlockers(feature, issue, progress, identity);
+    const blockers = this.checkPolicy.reviewCheckBlockers(feature, ticket, progress, identity);
     blockers.push(...this.findingPolicy.findingBlockers(progress, identity));
     for (const decision of progress.requirementsDecisions ?? []) {
       if (
@@ -50,7 +50,7 @@ export class AcceptancePolicy extends Service {
     if (implementationBlocker) blockers.push(implementationBlocker);
 
     const assignments = progress.reviewAssignments ?? [];
-    const requiredReviewers = requiredIssueReviewers(ledger, progress);
+    const requiredReviewers = requiredTicketReviewers(ledger, progress);
     if (
       new Set(assignments.map((assignment) => assignment.id)).size !== assignments.length ||
       new Set(assignments.map((assignment) => assignment.report)).size !== assignments.length

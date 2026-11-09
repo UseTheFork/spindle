@@ -1,6 +1,6 @@
 import type { SpecialistReviewRequirement } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type {
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   DeliveryProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -20,11 +20,11 @@ export function requiredReviewers(
   ];
 }
 
-export function requiredIssueReviewers(
+export function requiredTicketReviewers(
   ledger: FeatureLedger,
-  progress: IssueProgress,
+  progress: TicketProgress,
 ): RequiredReviewer[] {
-  return requiredReviewers(ledger.reviewPolicy.issue, progress.reviewRequirements ?? []);
+  return requiredReviewers(ledger.reviewPolicy.ticket, progress.reviewRequirements ?? []);
 }
 
 export function requiredDeliveryReviewers(

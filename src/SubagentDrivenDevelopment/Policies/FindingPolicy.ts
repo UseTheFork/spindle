@@ -2,7 +2,7 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   DeliveryProgress,
   FeaturePaths,
@@ -18,7 +18,7 @@ export class FindingPolicy extends Service {
     super(app);
   }
 
-  public findingBlockers(progress: IssueProgress, identity: ContentIdentity): string[] {
+  public findingBlockers(progress: TicketProgress, identity: ContentIdentity): string[] {
     return (progress.findings ?? [])
       .filter(
         (finding) =>

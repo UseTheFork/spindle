@@ -13,7 +13,7 @@ export class ChecksRequireCommand extends Command {
       .command("require")
       .description("Add or remove a required external check.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
         "--command <command>",
@@ -28,8 +28,8 @@ export class ChecksRequireCommand extends Command {
         if (options.scope !== undefined && options.scope !== "delivery") {
           throw new Error("--scope must be 'delivery'.");
         }
-        if (Boolean(options.issue) === (options.scope === "delivery")) {
-          throw new Error("checks require needs exactly one of --issue or --scope delivery.");
+        if (Boolean(options.ticket) === (options.scope === "delivery")) {
+          throw new Error("checks require needs exactly one of --ticket or --scope delivery.");
         }
         const command = await (await createApp()).make(ChecksRequireCommand);
         console.log(JSON.stringify(await command.run(options), null, 2));

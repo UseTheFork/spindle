@@ -18,7 +18,7 @@ import { Service } from "@/Foundation/Service";
 import type {
   FeatureLedger,
   FeaturePaths,
-  IssueDocument,
+  TicketDocument,
   RecoveryWrite,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import {
@@ -35,7 +35,7 @@ export class WorkspaceTransaction extends Service {
   private readonly activeWorkspaces = new Set<string>();
 
   public run<T>(workspace: string, operation: () => T): T {
-    const release = this.acquireIssueLock(workspace);
+    const release = this.acquireTicketLock(workspace);
     this.activeWorkspaces.add(workspace);
     try {
       this.recoverWrites(workspace);
@@ -53,12 +53,12 @@ export class WorkspaceTransaction extends Service {
     super(app);
   }
 
-  private acquireIssueLock(workspace: string): () => void {
-    const lockPath = join(workspace, ".sdd-issues.lock");
+  private acquireTicketLock(workspace: string): () => void {
+    const lockPath = join(workspace, ".sdd-tickets.lock");
     const root = realpathSync(this.app.workspaceRoot);
     const relativeLock = relative(root, lockPath);
     if (this.pathSafety.isIgnored(root, relativeLock)) {
-      throw new Error(`Issue lock path is ignored: ${relativeLock}`);
+      throw new Error(`Ticket lock path is ignored: ${relativeLock}`);
     }
     const deadline = Date.now() + LOCK_TIMEOUT_MS;
     while (true) {
@@ -90,7 +90,7 @@ export class WorkspaceTransaction extends Service {
           const lockEntry = lstatIfPresent(lockPath);
           if (!lockEntry?.isFile() || lockEntry.isSymbolicLink()) {
             throw new Error(
-              `Issue lock path is not a regular file and was preserved: ${lockPath}.`,
+              `Ticket lock path is not a regular file and was preserved: ${lockPath}.`,
             );
           }
           unlinkSync(lockPath);
@@ -98,7 +98,7 @@ export class WorkspaceTransaction extends Service {
         }
         if (Date.now() >= deadline) {
           throw new Error(
-            `Timed out waiting for issue updates; inspect ${lockPath} before retrying.`,
+            `Timed out waiting for ticket updates; inspect ${lockPath} before retrying.`,
           );
         }
         waitBriefly();
@@ -111,10 +111,10 @@ export class WorkspaceTransaction extends Service {
     const entry = lstatIfPresent(journalPath);
     if (!entry) return;
     if (!entry.isFile() || entry.isSymbolicLink())
-      throw new Error("Issue recovery journal is not a regular file.");
+      throw new Error("Ticket recovery journal is not a regular file.");
     const value = JSON.parse(readFileSync(journalPath, "utf8")) as unknown;
     if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.writes)) {
-      throw new Error("Issue recovery journal has an unsupported format.");
+      throw new Error("Ticket recovery journal has an unsupported format.");
     }
     const writes = value.writes;
     const targets = new Set<string>();
@@ -125,29 +125,29 @@ export class WorkspaceTransaction extends Service {
         typeof write.path !== "string" ||
         !(write.before === null || typeof write.before === "string") ||
         typeof write.after !== "string" ||
-        !(write.path === "sdd.json" || /^issues\/I-\d{4,}\.md$/.test(write.path))
+        !(write.path === "sdd.json" || /^tickets\/T-\d{4,}\.md$/.test(write.path))
       )
-        throw new Error("Issue recovery journal contains an invalid write target.");
+        throw new Error("Ticket recovery journal contains an invalid write target.");
       if (targets.has(write.path))
-        throw new Error("Issue recovery journal contains duplicate write targets.");
+        throw new Error("Ticket recovery journal contains duplicate write targets.");
       targets.add(write.path);
       const target = join(workspace, write.path);
       const root = realpathSync(this.app.workspaceRoot);
       const relativeTarget = relative(root, target);
       if (this.pathSafety.isIgnored(root, relativeTarget)) {
-        throw new Error(`Issue write target is ignored: ${relativeTarget}`);
+        throw new Error(`Ticket write target is ignored: ${relativeTarget}`);
       }
-      if (write.path !== "sdd.json") this.pathSafety.assertIssuePath(workspace, target);
+      if (write.path !== "sdd.json") this.pathSafety.assertTicketPath(workspace, target);
       else {
         const ledgerEntry = lstatIfPresent(target);
         if (!ledgerEntry?.isFile() || ledgerEntry.isSymbolicLink()) {
-          throw new Error("Feature ledger must be a regular file during issue recovery.");
+          throw new Error("Feature ledger must be a regular file during ticket recovery.");
         }
       }
       const current = lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
       if (current !== write.before && current !== write.after) {
         throw new Error(
-          `Issue recovery found conflicting external content at ${write.path}; preserved all files.`,
+          `Ticket recovery found conflicting external content at ${write.path}; preserved all files.`,
         );
       }
       if (current !== write.after) pending.push({ target, after: write.after });
@@ -162,23 +162,23 @@ export class WorkspaceTransaction extends Service {
     }
     const journalPath = join(workspace, ".sdd-write-recovery.json");
     if (lstatIfPresent(journalPath)) {
-      throw new Error("A pending issue write recovery journal must be resolved first.");
+      throw new Error("A pending ticket write recovery journal must be resolved first.");
     }
     for (const write of writes) {
-      if (!(write.path === "sdd.json" || /^issues\/I-\d{4,}\.md$/.test(write.path))) {
-        throw new Error(`Unsafe issue write target: ${write.path}.`);
+      if (!(write.path === "sdd.json" || /^tickets\/T-\d{4,}\.md$/.test(write.path))) {
+        throw new Error(`Unsafe ticket write target: ${write.path}.`);
       }
       const root = realpathSync(this.app.workspaceRoot);
       const target = join(workspace, write.path);
       const relativeTarget = relative(root, target);
       if (this.pathSafety.isIgnored(root, relativeTarget)) {
-        throw new Error(`Issue write target is ignored: ${relativeTarget}`);
+        throw new Error(`Ticket write target is ignored: ${relativeTarget}`);
       }
     }
     const root = realpathSync(this.app.workspaceRoot);
     const relativeJournal = relative(root, journalPath);
     if (this.pathSafety.isIgnored(root, relativeJournal)) {
-      throw new Error(`Issue recovery path is ignored: ${relativeJournal}`);
+      throw new Error(`Ticket recovery path is ignored: ${relativeJournal}`);
     }
     this.atomicWrite(journalPath, `${JSON.stringify({ version: 1, writes }, null, 2)}\n`);
     this.recoverWrites(workspace);
@@ -200,15 +200,15 @@ export class WorkspaceTransaction extends Service {
 
   public writeWorkflowState(
     feature: FeaturePaths,
-    issue: IssueDocument,
-    issueAfter: string,
+    ticket: TicketDocument,
+    ticketAfter: string,
     ledger: FeatureLedger,
   ): void {
     this.applyWrites(feature.workspace, [
       {
-        path: relative(feature.workspace, issue.path),
-        before: issue.raw,
-        after: issueAfter,
+        path: relative(feature.workspace, ticket.path),
+        before: ticket.raw,
+        after: ticketAfter,
       },
       {
         path: "sdd.json",

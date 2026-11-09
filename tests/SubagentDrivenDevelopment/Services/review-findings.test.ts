@@ -7,7 +7,7 @@ import {
   execute,
   invokeAsync,
   commitAll,
-  prepareClaimableIssue,
+  prepareClaimableTicket,
   prepareImplementationForReview,
   recordReviewCheck,
   prepareReviewAssignment,
@@ -15,15 +15,15 @@ import {
 } from "../helpers/helpers";
 import type { WorkflowServices } from "../helpers/WorkflowServices";
 test("claim records the clean starting revision and explicit controller", async () => {
-  const { repo, git, spec, baseSha } = await prepareClaimableIssue();
+  const { repo, git, spec, baseSha } = await prepareClaimableTicket();
 
   const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0001", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0001", author: "controller" }),
   );
 
   expect(claimed.status, claimed.stderr).toBe(0);
   const output = JSON.parse(claimed.stdout) as {
-    issue: string;
+    ticket: string;
     execution: string;
     owner: string;
     baseSha: string;
@@ -32,7 +32,7 @@ test("claim records the clean starting revision and explicit controller", async 
     requirementsSnapshot: string;
     headSha: string;
   };
-  expect(output.issue).toBe("I-0001");
+  expect(output.ticket).toBe("T-0001");
   expect(output.execution).toBe("claimed");
   expect(output.owner).toBe("controller");
   expect(output.baseSha).toBe(baseSha);
@@ -43,8 +43,8 @@ test("claim records the clean starting revision and explicit controller", async 
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.issues[0]).toMatchObject({
-    id: "I-0001",
+  expect(ledger.tickets[0]).toMatchObject({
+    id: "T-0001",
     execution: "claimed",
     owner: "controller",
     baseSha,
@@ -58,7 +58,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
     await execute(repo, (service) =>
       service.reviewService.review({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         inventory: JSON.stringify(inventory),
         author: "controller",
       }),
@@ -80,12 +80,12 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(wrongInventory.status).not.toBe(0);
   expect(wrongInventory.stderr).toMatch(/inventory/i);
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].reviewAssignments).toBe(undefined);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].reviewAssignments).toBe(undefined);
 
   const dispatched = await review(["feature.ts"]);
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const result = JSON.parse(dispatched.stdout) as {
-    issue: string;
+    ticket: string;
     execution: string;
     assignments: {
       id: string;
@@ -98,7 +98,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
       status: string;
     }[];
   };
-  expect(result.issue).toBe("I-0001");
+  expect(result.ticket).toBe("T-0001");
   expect(result.execution).toBe("reviewing");
   expect(result.assignments.length).toBe(1);
   const assignment = result.assignments[0]!;
@@ -108,7 +108,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(assignment.scope).toBe("initial");
   expect(assignment.snapshot).toBe(submission.snapshot);
   expect(assignment.inventory).toEqual(["feature.ts"]);
-  expect(assignment.report).toMatch(/I-0001-review-/);
+  expect(assignment.report).toMatch(/T-0001-review-/);
   expect(assignment.status).toBe("pending");
 
   const status = await execute(repo, (service) =>
@@ -117,7 +117,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(status.stdout).pendingAssignments).toEqual([
     {
-      issue: "I-0001",
+      ticket: "T-0001",
       id: assignment.id,
       role: "review",
       action: "review",
@@ -133,23 +133,23 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(JSON.parse(repeated.stdout).assignments[0].id).toBe(assignment.id);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(persisted.issues[0].reviewAssignments.length).toBe(1);
-  const issueText = readFileSync(
-    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+  expect(persisted.tickets[0].reviewAssignments.length).toBe(1);
+  const ticketText = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md"),
     "utf8",
   );
-  expect(issueText.match(/Initial review assignment recorded/g)?.length).toBe(1);
+  expect(ticketText.match(/Initial review assignment recorded/g)?.length).toBe(1);
 });
 
 test("required specialist reviews are justified, distinct, provenance-bound, and gate acceptance", async () => {
   const { repo, spec, command, submission } = await prepareImplementationForReview();
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
+  const ticketPath = join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md");
   const requireReview = async (agent: string, details: string) =>
     await execute(repo, (service) =>
       service.reviewService.reviewRequire({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         agent,
         details,
         author: "controller",
@@ -157,12 +157,12 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
     );
 
   const originalLedger = readFileSync(ledgerPath, "utf8");
-  const originalIssue = readFileSync(issuePath, "utf8");
+  const originalTicket = readFileSync(ticketPath, "utf8");
   const unknownAgent = await requireReview("not-in-catalog", "Inspect generated source API usage.");
   expect(unknownAgent.status).not.toBe(0);
   expect(unknownAgent.stderr).toMatch(/unknown.*agent|catalog/i);
   expect(readFileSync(ledgerPath, "utf8")).toBe(originalLedger);
-  expect(readFileSync(issuePath, "utf8")).toBe(originalIssue);
+  expect(readFileSync(ticketPath, "utf8")).toBe(originalTicket);
 
   const ineligibleAgent = await requireReview(
     "sdd-implementer",
@@ -171,7 +171,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   expect(ineligibleAgent.status).not.toBe(0);
   expect(ineligibleAgent.stderr).toMatch(/not explicitly marked review-eligible/i);
   expect(readFileSync(ledgerPath, "utf8")).toBe(originalLedger);
-  expect(readFileSync(issuePath, "utf8")).toBe(originalIssue);
+  expect(readFileSync(ticketPath, "utf8")).toBe(originalTicket);
 
   const details = "Check that generated TypeScript declarations preserve exported API contracts.";
   const required = await requireReview("sdd-code-reviewer", details);
@@ -195,16 +195,16 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   expect(conflicting.status).not.toBe(0);
   expect(conflicting.stderr).toMatch(/already pinned/i);
   const registeredLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(registeredLedger.issues[0].reviewRequirements.length).toBe(1);
-  expect(registeredLedger.issues[0].reviewRequirements[0].details).toBe(details);
-  expect(readFileSync(issuePath, "utf8")).toMatch(/Specialist review required/);
+  expect(registeredLedger.tickets[0].reviewRequirements.length).toBe(1);
+  expect(registeredLedger.tickets[0].reviewRequirements[0].details).toBe(details);
+  expect(readFileSync(ticketPath, "utf8")).toMatch(/Specialist review required/);
 
   const check = await recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
   expect(check.status, check.stderr).toBe(0);
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
@@ -244,7 +244,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   const lateRequirement = await requireReview("sdd-reviewer", "Check for an unrelated concern.");
   expect(lateRequirement.status).not.toBe(0);
   expect(lateRequirement.stderr).toMatch(/review.*already.*assigned|frozen/i);
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].reviewRequirements.length).toBe(1);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].reviewRequirements.length).toBe(1);
 
   const defaultReviewer = assignments.find((assignment) => assignment.agent === "sdd-reviewer")!;
   const specialist = assignments.find((assignment) => assignment.agent === "sdd-code-reviewer")!;
@@ -254,7 +254,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   const substitutedSource = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: specialist.id,
       report: defaultReviewer.report,
@@ -270,7 +270,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         role: "review",
         assignment: assignment.id,
         report: assignment.report,
@@ -282,7 +282,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   const defaultSubmitted = await submit(defaultReviewer);
   expect(defaultSubmitted.status, defaultSubmitted.stderr).toBe(0);
   const incompleteAcceptance = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(incompleteAcceptance.status).not.toBe(0);
   expect(incompleteAcceptance.stderr).toMatch(/pending|coverage/i);
@@ -290,7 +290,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   const specialistSubmitted = await submit(specialist);
   expect(specialistSubmitted.status, specialistSubmitted.stderr).toBe(0);
   const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   expect(
@@ -303,7 +303,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   const required = await execute(repo, (service) =>
     service.reviewService.reviewRequire({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       agent: "sdd-code-reviewer",
       details: "Check generated declarations against the exported runtime API.",
       author: "controller",
@@ -315,7 +315,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
@@ -329,7 +329,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: assignment.id,
       report: assignment.report,
@@ -342,7 +342,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   expect(submitted.status, submitted.stderr).toBe(0);
   const stored = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
-  ).issues[0].reviewAssignments.find(
+  ).tickets[0].reviewAssignments.find(
     (candidate: { agent: string }) => candidate.agent === "sdd-code-reviewer",
   );
   expect(stored.role).toBe("review");
@@ -360,7 +360,7 @@ test("review accepts a Git-derived mixed-case inventory in its supplied order", 
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       inventory: JSON.stringify(["B.ts", "a.ts", "feature.ts"]),
       author: "controller",
     }),
@@ -374,7 +374,7 @@ test("review accepts a Git-derived mixed-case inventory in its supplied order", 
   ]);
 });
 
-test("finding registration is explicit, canonical, issue-local, and idempotent", async () => {
+test("finding registration is explicit, canonical, ticket-local, and idempotent", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nThe change has a defect.\n");
   const create = async (
@@ -383,7 +383,7 @@ test("finding registration is explicit, canonical, issue-local, and idempotent",
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source: assignment.report,
         snapshot: assignment.snapshot,
         severity: "high",
@@ -434,18 +434,18 @@ test("finding registration is explicit, canonical, issue-local, and idempotent",
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.issues[0].findings.length).toBe(1);
-  expect(ledger.issues[0].findings[0].id).toBe("F-0001");
-  const issueText = readFileSync(
-    join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md"),
+  expect(ledger.tickets[0].findings.length).toBe(1);
+  expect(ledger.tickets[0].findings[0].id).toBe("F-0001");
+  const ticketText = readFileSync(
+    join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md"),
     "utf8",
   );
-  expect(issueText).toMatch(/Finding F-0001 registered by controller/);
+  expect(ticketText).toMatch(/Finding F-0001 registered by controller/);
 
   const missingBlockingChoice = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       source: assignment.report,
       snapshot: assignment.snapshot,
       severity: "medium",
@@ -458,23 +458,23 @@ test("finding registration is explicit, canonical, issue-local, and idempotent",
   expect(missingBlockingChoice.stderr).toMatch(/--blocking or --non-blocking/);
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
-      .issues[0].findings.length,
+      .tickets[0].findings.length,
   ).toBe(1);
 });
 
-test("finding IDs restart per issue and require provenance from that issue's review", async () => {
+test("finding IDs restart per ticket and require provenance from that ticket's review", async () => {
   const { repo, git, spec, assignment } = await prepareReviewAssignment();
-  writeFileSync(assignment.report, "# First issue review\n\nFinding from the first issue.\n");
+  writeFileSync(assignment.report, "# First ticket review\n\nFinding from the first ticket.\n");
   const firstFinding = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       source: assignment.report,
       snapshot: assignment.snapshot,
       severity: "high",
       nonBlocking: true,
-      summary: "First issue observation",
-      details: "This observation belongs to issue one.",
+      summary: "First ticket observation",
+      details: "This observation belongs to ticket one.",
       author: "controller",
     }),
   );
@@ -493,9 +493,9 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   ).toBe(false);
 
   const created = await execute(repo, (service) =>
-    service.issueService.issueCreate({
+    service.ticketService.ticketCreate({
       spec,
-      title: "Second issue",
+      title: "Second ticket",
       reporter: "requester",
       category: "enhancement",
       author: "controller",
@@ -503,9 +503,9 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   );
   expect(created.status, created.stderr).toBe(0);
   const updated = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       status: "open",
       author: "controller",
     }),
@@ -513,18 +513,18 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   expect(updated.status, updated.stderr).toBe(0);
   const command = "just test::test tests/feature-two.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: "I-0002", command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: "T-0002", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(repo, git, "prepare second issue");
+  commitAll(repo, git, "prepare second ticket");
 
   const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
   writeFileSync(join(repo, "feature-two.ts"), "export const second = true;\n");
   const implementation = await execute(repo, (service) =>
-    service.assignmentService.implement({ spec, issue: "I-0002", author: "controller" }),
+    service.assignmentService.implement({ spec, ticket: "T-0002", author: "controller" }),
   );
   expect(implementation.status, implementation.stderr).toBe(0);
   const implementationReport = JSON.parse(implementation.stdout).assignment.report as string;
@@ -532,7 +532,7 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   const submittedImplementation = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       role: "implementation",
       report: implementationReport,
       author: "controller",
@@ -543,7 +543,7 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   const check = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       snapshot: secondSnapshot,
       command,
       result: "passed",
@@ -554,7 +554,7 @@ test("finding IDs restart per issue and require provenance from that issue's rev
   const review = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       inventory: JSON.stringify(["feature-two.ts"]),
       author: "controller",
     }),
@@ -564,17 +564,17 @@ test("finding IDs restart per issue and require provenance from that issue's rev
     report: string;
     snapshot: string;
   };
-  writeFileSync(secondAssignment.report, "# Second issue review\n\nFinding from issue two.\n");
+  writeFileSync(secondAssignment.report, "# Second ticket review\n\nFinding from ticket two.\n");
   const secondFinding = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       source: secondAssignment.report,
       snapshot: secondAssignment.snapshot,
       severity: "low",
       blocking: true,
-      summary: "Second issue observation",
-      details: "This observation belongs to issue two.",
+      summary: "Second ticket observation",
+      details: "This observation belongs to ticket two.",
       author: "controller",
     }),
   );
@@ -585,12 +585,12 @@ test("finding IDs restart per issue and require provenance from that issue's rev
 
 test("review submission requires canonical findings or exclusive no-findings and cannot bypass blockers", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
-  writeFileSync(assignment.report, "# Review report\n\nA blocking issue was found.\n");
+  writeFileSync(assignment.report, "# Review report\n\nA blocking ticket was found.\n");
   const createFinding = async (source = assignment.report, snapshot = assignment.snapshot) =>
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source,
         snapshot,
         severity: "low",
@@ -608,7 +608,7 @@ test("review submission requires canonical findings or exclusive no-findings and
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         role: "review",
         assignment: assignment.id,
         report: assignment.report,
@@ -635,7 +635,7 @@ test("review submission requires canonical findings or exclusive no-findings and
   expect(falseNoFindings.stderr).toMatch(/registered findings|cannot declare --no-findings/i);
 
   const wrongSource = await createFinding(
-    join(repo, ".scratch", "0001-claim-flow", "reports", "I-0001-implementation.md"),
+    join(repo, ".scratch", "0001-claim-flow", "reports", "T-0001-implementation.md"),
     assignment.snapshot,
   );
   expect(wrongSource.status).not.toBe(0);
@@ -658,9 +658,9 @@ test("review submission requires canonical findings or exclusive no-findings and
 
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(ledger.issues[0].reviewAssignments[0].findingIds).toEqual(["F-0001"]);
+  expect(ledger.tickets[0].reviewAssignments[0].findingIds).toEqual(["F-0001"]);
   const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(accepted.status).not.toBe(0);
   expect(accepted.stderr).toMatch(/F-0001.*blocking|blocking.*F-0001/i);
@@ -672,7 +672,7 @@ test("review submission requires canonical findings or exclusive no-findings and
   expect(next.status, next.stderr).toBe(0);
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(next.stdout).actions).toEqual([
-    { issue: "I-0001", action: "adjudicate-findings" },
+    { ticket: "T-0001", action: "adjudicate-findings" },
   ]);
   expect(JSON.stringify(JSON.parse(next.stdout).blockers)).toMatch(/F-0001/);
   expect(JSON.stringify(JSON.parse(status.stdout).blockers)).toMatch(/F-0001/);
@@ -687,8 +687,8 @@ test("review submission rejects equals-form declaration conflicts without regist
     "submit",
     "--spec",
     spec,
-    "--issue",
-    "I-0001",
+    "--ticket",
+    "T-0001",
     "--role",
     "review",
     "--assignment",
@@ -715,8 +715,8 @@ test("review submission permits flag-like text in a parsed option value", async 
     "submit",
     "--spec",
     spec,
-    "--issue",
-    "I-0001",
+    "--ticket",
+    "T-0001",
     "--role",
     "review",
     "--assignment",
@@ -749,7 +749,7 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source: assignment.report,
         snapshot: assignment.snapshot,
         severity: "medium",
@@ -772,7 +772,7 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
     await execute(repo, (service) =>
       service.findingService.findingUpdate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         finding,
         status,
         ...extra,
@@ -843,7 +843,7 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
 
   const prohibitedDeferral = await update("F-0001", "deferred", {
     details: "Postponed.",
-    followUp: "I-0002",
+    followUp: "T-0002",
   });
   expect(prohibitedDeferral.status).not.toBe(0);
   expect(prohibitedDeferral.stderr).toMatch(
@@ -855,11 +855,11 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
   expect(missingFollowUp.stderr).toMatch(/--follow-up/);
   const deferred = await update("F-0002", "deferred", {
     details: "Postponed for later.",
-    followUp: "I-0002",
+    followUp: "T-0002",
   });
   expect(deferred.status, deferred.stderr).toBe(0);
   expect(JSON.parse(deferred.stdout).finding.status).toBe("deferred");
-  expect(JSON.parse(deferred.stdout).finding.followUp).toBe("I-0002");
+  expect(JSON.parse(deferred.stdout).finding.followUp).toBe("T-0002");
 
   const prohibitedStatus = await update("F-0002", "wontfix", { details: "Not doing this." });
   expect(prohibitedStatus.status).not.toBe(0);
@@ -867,16 +867,16 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
 
   const repeated = await update("F-0002", "deferred", {
     details: "Postponed for later.",
-    followUp: "I-0002",
+    followUp: "T-0002",
   });
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const persisted = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
-  expect(persisted.issues[0].findings[0].status).toBe("dismissed");
-  expect(persisted.issues[0].findings[1].status).toBe("deferred");
-  expect(persisted.issues[0].findings[1].history.at(-1).author).toBe("controller");
+  expect(persisted.tickets[0].findings[0].status).toBe("dismissed");
+  expect(persisted.tickets[0].findings[1].status).toBe("deferred");
+  expect(persisted.tickets[0].findings[1].history.at(-1).author).toBe("controller");
 });
 
 test("finding duplicates link explicitly while preserving every source report provenance", async () => {
@@ -889,23 +889,23 @@ test("finding duplicates link explicitly while preserving every source report pr
     ".scratch",
     "0001-claim-flow",
     "reports",
-    `I-0001-review-${secondId}.md`,
+    `T-0001-review-${secondId}.md`,
   );
   const secondAssignment = {
-    ...ledger.issues[0].reviewAssignments[0],
+    ...ledger.tickets[0].reviewAssignments[0],
     id: secondId,
     report: secondReport,
   };
-  ledger.issues[0].reviewAssignments.push(secondAssignment);
+  ledger.tickets[0].reviewAssignments.push(secondAssignment);
   const thirdId = "review-three";
   const thirdReport = join(
     repo,
     ".scratch",
     "0001-claim-flow",
     "reports",
-    `I-0001-review-${thirdId}.md`,
+    `T-0001-review-${thirdId}.md`,
   );
-  ledger.issues[0].reviewAssignments.push({
+  ledger.tickets[0].reviewAssignments.push({
     ...secondAssignment,
     id: thirdId,
     report: thirdReport,
@@ -922,7 +922,7 @@ test("finding duplicates link explicitly while preserving every source report pr
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source,
         snapshot: assignment.snapshot,
         severity: "medium",
@@ -967,8 +967,8 @@ test("finding duplicates link explicitly while preserving every source report pr
   expect(independent.status, independent.stderr).toBe(0);
   expect(JSON.parse(independent.stdout).finding.id).toBe("F-0002");
   const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(persisted.issues[0].findings.length).toBe(2);
-  expect(persisted.issues[0].findings[0].provenance.length).toBe(2);
+  expect(persisted.tickets[0].findings.length).toBe(2);
+  expect(persisted.tickets[0].findings[0].provenance.length).toBe(2);
 });
 
 test("a fresh linked observation reopens resolved findings and blocks acceptance until reverified", async () => {
@@ -979,7 +979,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source: assignment.report,
         snapshot: assignment.snapshot,
         severity: "high",
@@ -1002,7 +1002,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   const initialSubmission = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: assignment.id,
       report: assignment.report,
@@ -1023,7 +1023,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
     await execute(repo, (service) =>
       service.findingService.findingUpdate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         finding,
         status,
         ...extra,
@@ -1044,7 +1044,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   const freshReview = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
@@ -1063,7 +1063,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
-        issue: "I-0001",
+        ticket: "T-0001",
         source: freshAssignment.report,
         snapshot: freshAssignment.snapshot,
         severity: "high",
@@ -1096,7 +1096,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   const resubmitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: freshAssignment.id,
       report: freshAssignment.report,
@@ -1109,7 +1109,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   expect(JSON.parse(resubmitted.stdout).execution).toBe("changes-requested");
 
   const beforeFreshVerification = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(beforeFreshVerification.status).not.toBe(0);
   expect(beforeFreshVerification.stderr).toMatch(/F-0001.*blocking|blocking.*F-0001/i);
@@ -1120,7 +1120,7 @@ test("a fresh linked observation reopens resolved findings and blocks acceptance
   expect(repeatedSnapshotFix.status).not.toBe(0);
   expect(repeatedSnapshotFix.stderr).toMatch(/observation|changed content|different snapshot/i);
   const blockedAccept = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(blockedAccept.status).not.toBe(0);
   expect(blockedAccept.stderr).toMatch(/F-0001.*blocking|blocking.*F-0001/i);

@@ -5,29 +5,29 @@ import { Service } from "@/Foundation/Service";
 import type {
   FeaturePaths,
   FeatureLedger,
-  IssueDocument,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 
 export class ReadinessReader extends Service {
   public constructor(
     app: Application,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly pathSafety: PathSafety,
   ) {
     super(app);
   }
-  public read(feature: FeaturePaths): { ledger: FeatureLedger; issues: IssueDocument[] } {
+  public read(feature: FeaturePaths): { ledger: FeatureLedger; tickets: TicketDocument[] } {
     let ledger: FeatureLedger | undefined;
-    let issues: IssueDocument[] | undefined;
+    let tickets: TicketDocument[] | undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
       this.pathSafety.assertReadyReadable(feature.workspace);
       const ledgerRaw = readFileSync(feature.ledger, "utf8");
       this.ledgerRepository.validateLedger(JSON.parse(ledgerRaw) as unknown, feature.feature);
-      const observedIssues = this.issueRepository.readIssues(feature.workspace);
+      const observedTickets = this.ticketRepository.readTickets(feature.workspace);
       this.pathSafety.assertReadyReadable(feature.workspace);
 
       const confirmedLedgerRaw = readFileSync(feature.ledger, "utf8");
@@ -35,21 +35,23 @@ export class ReadinessReader extends Service {
         JSON.parse(confirmedLedgerRaw) as unknown,
         feature.feature,
       );
-      const confirmedIssues = this.issueRepository.readIssues(feature.workspace);
+      const confirmedTickets = this.ticketRepository.readTickets(feature.workspace);
       this.pathSafety.assertReadyReadable(feature.workspace);
-      const observedIssueContents = new Map(observedIssues.map((issue) => [issue.id, issue.raw]));
-      const issuesMatch =
-        observedIssueContents.size === confirmedIssues.length &&
-        confirmedIssues.every((issue) => observedIssueContents.get(issue.id) === issue.raw);
-      if (ledgerRaw === confirmedLedgerRaw && issuesMatch) {
+      const observedTicketContents = new Map(
+        observedTickets.map((ticket) => [ticket.id, ticket.raw]),
+      );
+      const ticketsMatch =
+        observedTicketContents.size === confirmedTickets.length &&
+        confirmedTickets.every((ticket) => observedTicketContents.get(ticket.id) === ticket.raw);
+      if (ledgerRaw === confirmedLedgerRaw && ticketsMatch) {
         ledger = confirmedLedger;
-        issues = confirmedIssues;
+        tickets = confirmedTickets;
         break;
       }
     }
-    if (!ledger || !issues) {
-      throw new Error("Issue data changed while reading the ready queue; retry ready.");
+    if (!ledger || !tickets) {
+      throw new Error("Ticket data changed while reading the ready queue; retry ready.");
     }
-    return { ledger, issues };
+    return { ledger, tickets };
   }
 }

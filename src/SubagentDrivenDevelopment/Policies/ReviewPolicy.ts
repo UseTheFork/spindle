@@ -5,7 +5,7 @@ import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvide
 import type { ReviewAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
-  IssueProgress,
+  TicketProgress,
   DeliveryProgress,
   FeaturePaths,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -21,7 +21,7 @@ export class ReviewPolicy extends Service {
 
   public reviewAssignmentBlocker(
     feature: FeaturePaths,
-    progress: IssueProgress | DeliveryProgress,
+    progress: TicketProgress | DeliveryProgress,
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
@@ -49,7 +49,7 @@ export class ReviewPolicy extends Service {
 
   public reviewSnapshotBlocker(
     feature: FeaturePaths,
-    progress: IssueProgress | DeliveryProgress,
+    progress: TicketProgress | DeliveryProgress,
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
@@ -66,7 +66,7 @@ export class ReviewPolicy extends Service {
         assignment.codeSnapshot !== identity.codeSnapshot ||
         assignment.requirementsSnapshot !== identity.requirementsSnapshot)
     ) {
-      return `Review assignment ${assignment.id} is stale for the current issue snapshot.`;
+      return `Review assignment ${assignment.id} is stale for the current ticket snapshot.`;
     }
     if (!progress.baseSha) return "Review assignment has no recorded Git baseline.";
     let inventory: string[];

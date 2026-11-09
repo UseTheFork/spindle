@@ -11,7 +11,7 @@ export class ReadyCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root)
       .command("ready")
-      .description("List ready issues and issues waiting on dependencies.")
+      .description("List ready tickets and tickets waiting on dependencies.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .allowExcessArguments(false)
       .action(async (options: ReadyOptions) => {

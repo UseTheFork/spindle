@@ -4,13 +4,13 @@ import { expect, test } from "vitest";
 
 import { serviceFixture } from "../helpers/helpers";
 
-test("readiness rejects Markdown issues without matching ledger records", async () => {
+test("readiness rejects Markdown tickets without matching ledger records", async () => {
   const { service } = await serviceFixture();
   const feature = service.featureCreationService.create({
     title: "Readiness",
     author: "controller",
   });
-  service.issueService.issueCreate({
+  service.ticketService.ticketCreate({
     spec: feature.spec,
     title: "Work",
     reporter: "requester",
@@ -18,9 +18,9 @@ test("readiness rejects Markdown issues without matching ledger records", async 
     author: "controller",
   });
   const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
-  ledger.issues = [];
+  ledger.tickets = [];
   writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
   expect(() => service.readinessService.ready({ spec: feature.spec })).toThrow(
-    "Issue I-0001 has no ledger record.",
+    "Ticket T-0001 has no ledger record.",
   );
 });

@@ -34,9 +34,9 @@ Read canonical requirements, applicable comments/decisions, the complete assigne
 
 For **initial review**, account for every applicable feature acceptance criterion and inspect the complete assigned change with matching surrounding code.
 
-For **aggregate review**, account for the whole spec, cross-issue interactions, and omitted behavior, not merely changed files or previously accepted issues. Initial issue acceptance does not establish aggregate coverage.
+For **aggregate review**, account for the whole spec, cross-ticket interactions, and omitted behavior, not merely changed files or previously accepted tickets. Initial ticket acceptance does not establish aggregate coverage.
 
-For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs, linked issue (if any), and controller rulings; never infer or transfer scope from file paths or similar finding IDs. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers.
+For **corrective review**, evaluate supplied findings in supplied order against the fix-only diff and inspect fix-induced regressions. Preserve their IDs, linked ticket (if any), and controller rulings; never infer or transfer scope from file paths or similar finding IDs. Do not replace pending initial coverage with scoped review or redo the entire initial review. Record unrelated discoveries separately as observations for the controller rather than corrective blockers.
 
 Across the applicable scope, check:
 
@@ -79,7 +79,7 @@ Use the assigned report destination and this report shape for every scope:
 
 1. **Scope and snapshot:** phase, exact supplied identity, comparison/fix scope, canonical requirements and evidence references.
 2. **Evidence and limitations:** checks/results and exact covered identity; distinguish supplied evidence, checks personally run, and unavailable work.
-3. **Spec:** verdict and criterion assessments; aggregate coverage includes cross-issue/omitted behavior, corrective coverage states its limits.
+3. **Spec:** verdict and criterion assessments; aggregate coverage includes cross-ticket/omitted behavior, corrective coverage states its limits.
 4. **Quality:** verdict, strengths, and concrete assessments.
 5. **Findings:** stable IDs with severity, blocking, location, impact, correction; explicit `NONE` if none. Corrections include per-ID dispositions.
 6. **Observations and remaining context:** nonblocking recommendations, out-of-fix observations, pending coverage, and required controller decisions.

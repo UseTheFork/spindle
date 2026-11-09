@@ -2,7 +2,7 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { ImplementationAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { IssueProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { TicketProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
 export class AssignmentPolicy extends Service {
   public constructor(
@@ -30,7 +30,7 @@ export class AssignmentPolicy extends Service {
     return undefined;
   }
 
-  public resumeBlocker(feature: FeaturePaths, progress: IssueProgress): string | undefined {
+  public resumeBlocker(feature: FeaturePaths, progress: TicketProgress): string | undefined {
     if (progress.execution === "claimed" && (!progress.owner || !progress.baseSha)) {
       return "Claim has no recorded owner or baseline; implementation is unavailable.";
     }

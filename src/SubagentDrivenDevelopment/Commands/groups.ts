@@ -3,7 +3,7 @@ import type { Command } from "commander";
 import { CommandOptions } from "@/Commands/CommandOptions";
 
 const descriptions: Record<string, string> = {
-  issue: "Create and maintain feature issues.",
+  ticket: "Create and maintain feature tickets.",
   finding: "Register canonical review findings and explicit rulings.",
   requirements: "Record explicit requirements decisions before fresh review.",
   checks: "Declare and record required checks.",

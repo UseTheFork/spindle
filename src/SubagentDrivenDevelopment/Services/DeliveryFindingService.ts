@@ -15,12 +15,12 @@ import type {
   FindingCreateOptions,
   FindingUpdateOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { validateIssueId } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { validateTicketId } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
@@ -31,7 +31,7 @@ export class DeliveryFindingService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly checkPolicy: CheckPolicy,
@@ -58,9 +58,9 @@ export class DeliveryFindingService extends Service {
     }
     if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
     if (!options.details.trim()) throw new Error("Finding details must not be empty.");
-    if (options.relatedIssue) validateIssueId(options.relatedIssue);
-    if (options.link !== undefined && options.relatedIssue !== undefined) {
-      throw new Error("--related-issue cannot be combined with --link.");
+    if (options.relatedTicket) validateTicketId(options.relatedTicket);
+    if (options.link !== undefined && options.relatedTicket !== undefined) {
+      throw new Error("--related-ticket cannot be combined with --link.");
     }
     if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
       throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
@@ -94,12 +94,12 @@ export class DeliveryFindingService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
-      if (options.relatedIssue) {
-        const relatedIssue = ledger.issues.find((item) => item.id === options.relatedIssue);
-        if (!relatedIssue) {
-          throw new Error(`Related issue not found: ${options.relatedIssue}.`);
+      if (options.relatedTicket) {
+        const relatedTicket = ledger.tickets.find((item) => item.id === options.relatedTicket);
+        if (!relatedTicket) {
+          throw new Error(`Related ticket not found: ${options.relatedTicket}.`);
         }
       }
       const stale = this.reviewPolicy.reviewSnapshotBlocker(
@@ -147,7 +147,7 @@ export class DeliveryFindingService extends Service {
       const duplicate = findings.find(
         (finding) =>
           finding.author === options.author.trim() &&
-          finding.relatedIssue === options.relatedIssue &&
+          finding.relatedTicket === options.relatedTicket &&
           finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
@@ -170,7 +170,7 @@ export class DeliveryFindingService extends Service {
       const at = new Date().toISOString();
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
-        ...(options.relatedIssue ? { relatedIssue: options.relatedIssue } : {}),
+        ...(options.relatedTicket ? { relatedTicket: options.relatedTicket } : {}),
         severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",
@@ -248,7 +248,7 @@ export class DeliveryFindingService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       const rulingDetails = options.details?.trim();
       let requirementsDecision: RequirementsDecision | undefined;
@@ -325,7 +325,7 @@ export class DeliveryFindingService extends Service {
       const current = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (current.snapshot !== identity.snapshot) {
         throw new Error("Delivery content changed while recording the finding ruling.");

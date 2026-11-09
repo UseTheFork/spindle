@@ -7,11 +7,11 @@ import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/Fea
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
 import { IntegrationService } from "@/SubagentDrivenDevelopment/Services/IntegrationService";
-import { IssueService } from "@/SubagentDrivenDevelopment/Services/IssueService";
 import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
 import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
 
 export async function workflowServices(app: Application) {
   return {
@@ -23,7 +23,7 @@ export async function workflowServices(app: Application) {
     featureInspectionService: await app.make(FeatureInspectionService),
     findingService: await app.make(FindingService),
     integrationService: await app.make(IntegrationService),
-    issueService: await app.make(IssueService),
+    ticketService: await app.make(TicketService),
     readinessService: await app.make(ReadinessService),
     requirementsService: await app.make(RequirementsService),
     reviewService: await app.make(ReviewService),

@@ -1,7 +1,7 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type {
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   DeliveryProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -11,7 +11,7 @@ export class WorkflowPolicy extends Service {
     super(app);
   }
 
-  public nextAction(progress: IssueProgress, blocker?: string): string {
+  public nextAction(progress: TicketProgress, blocker?: string): string {
     if (progress.adjudication?.status === "pending") return "adjudicate";
     if (progress.execution === "unstarted") return "claim";
     if (progress.execution === "claimed") {
@@ -56,20 +56,20 @@ export class WorkflowPolicy extends Service {
     return "resolve-blocker";
   }
 
-  public requireProgress(ledger: FeatureLedger, issue: string): IssueProgress {
-    const progress = ledger.issues.find((item) => item.id === issue);
-    if (!progress) throw new Error(`Issue ${issue} has no ledger execution record.`);
+  public requireProgress(ledger: FeatureLedger, ticket: string): TicketProgress {
+    const progress = ledger.tickets.find((item) => item.id === ticket);
+    if (!progress) throw new Error(`Ticket ${ticket} has no ledger execution record.`);
     return progress;
   }
 
-  public acceptedInventory(progress: IssueProgress, issueId: string): string[] {
+  public acceptedInventory(progress: TicketProgress, ticketId: string): string[] {
     const corrective = progress.correctionAttempts?.at(-1)?.reviewAssignments ?? [];
     const assignments = corrective.length > 0 ? corrective : (progress.reviewAssignments ?? []);
     if (
       assignments.length === 0 ||
       assignments.some((assignment) => assignment.status !== "submitted")
     ) {
-      throw new Error(`Issue ${issueId} has no complete frozen review inventory.`);
+      throw new Error(`Ticket ${ticketId} has no complete frozen review inventory.`);
     }
     const inventory = assignments[0]!.inventory;
     if (
@@ -77,7 +77,7 @@ export class WorkflowPolicy extends Service {
         (assignment) => JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
       )
     ) {
-      throw new Error(`Issue ${issueId} review assignments disagree on the accepted inventory.`);
+      throw new Error(`Ticket ${ticketId} review assignments disagree on the accepted inventory.`);
     }
     return [...inventory];
   }

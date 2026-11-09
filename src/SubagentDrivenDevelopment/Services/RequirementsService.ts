@@ -6,12 +6,12 @@ import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { RequirementsDecision } from "@/SubagentDrivenDevelopment/Models/Findings";
 import type { RequirementsDecideOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -20,7 +20,7 @@ export class RequirementsService extends Service {
   public constructor(
     app: Application,
     private readonly gitEvidence: GitEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly workflowPolicy: WorkflowPolicy,
@@ -30,7 +30,7 @@ export class RequirementsService extends Service {
   }
 
   public requirementsDecide(options: RequirementsDecideOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     execution: ExecutionState;
     decision: RequirementsDecision;
@@ -40,13 +40,13 @@ export class RequirementsService extends Service {
   } {
     validateAuthor(options.author);
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryRequirementsDecide(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("requirements decide needs --issue or --scope delivery.");
-    validateIssueId(options.issue);
-    const issueId = options.issue;
+    if (!options.ticket) throw new Error("requirements decide needs --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
+    const ticketId = options.ticket;
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
     }
@@ -60,13 +60,13 @@ export class RequirementsService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        issueId,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, issueId);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current issue controller may record a requirements decision.");
+        throw new Error("Only the current ticket controller may record a requirements decision.");
       }
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
@@ -75,7 +75,7 @@ export class RequirementsService extends Service {
       }
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -90,7 +90,7 @@ export class RequirementsService extends Service {
       );
       if (existing) {
         return {
-          issue: issueId,
+          ticket: ticketId,
           execution: progress.execution,
           decision: existing,
           idempotent: true,
@@ -144,9 +144,9 @@ export class RequirementsService extends Service {
       }
       const currentIdentity = this.gitEvidence.contentIdentity(
         feature,
-        this.issueRepository.requireIssue(
-          this.issueRepository.readIssues(feature.workspace),
-          issueId,
+        this.ticketRepository.requireTicket(
+          this.ticketRepository.readTickets(feature.workspace),
+          ticketId,
         ),
         progress.baseSha,
         progress.checks,
@@ -155,19 +155,19 @@ export class RequirementsService extends Service {
         currentIdentity.snapshot !== identity.snapshot ||
         currentIdentity.requirementsSnapshot !== identity.requirementsSnapshot
       ) {
-        throw new Error("Issue requirements changed while recording the requirements decision.");
+        throw new Error("Ticket requirements changed while recording the requirements decision.");
       }
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `[SDD-SCOPE-RULING id=${decision.id} status=${decision.status}] ${decision.details}.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: issueId,
+        ticket: ticketId,
         execution: progress.execution,
         decision,
         snapshot: identity.snapshot,
@@ -208,7 +208,7 @@ export class RequirementsService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       const decisions = (delivery.requirementsDecisions ??= []);
       const existing = decisions.find(
@@ -276,7 +276,7 @@ export class RequirementsService extends Service {
       const confirmed = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (
         confirmed.snapshot !== identity.snapshot ||

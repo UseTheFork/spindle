@@ -8,7 +8,7 @@ import type {
 import type {
   AcceptedEvidence,
   IntegrationRecord,
-  IssueChecks,
+  TicketChecks,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
@@ -19,9 +19,9 @@ export const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
 export const HISTORICAL_DATE_DIRECTORY = /^\d{4}-\d{2}-\d{2}-/;
 
-export const ISSUE_ID = /^I-(\d{4,})$/;
+export const TICKET_ID = /^T-(\d{4,})$/;
 
-export const ISSUE_CATEGORIES = ["bug", "enhancement"] as const;
+export const TICKET_CATEGORIES = ["bug", "enhancement"] as const;
 
 export const TRACKER_STATUSES = ["open", "in-progress", "closed"] as const;
 
@@ -41,13 +41,13 @@ export const EXECUTION_STATES = [
 
 export type ExecutionState = (typeof EXECUTION_STATES)[number];
 
-export interface IssueProgress {
+export interface TicketProgress {
   id: string;
-  title?: string;
-  reporter?: string;
-  category?: (typeof ISSUE_CATEGORIES)[number];
-  status?: TrackerStatus;
-  blockedBy?: string[];
+  title: string;
+  reporter: string;
+  category: (typeof TICKET_CATEGORIES)[number];
+  status: TrackerStatus;
+  blockedBy: string[];
   blocker?: string;
   execution: ExecutionState;
   owner?: string;
@@ -61,12 +61,12 @@ export interface IssueProgress {
   reviewAssignments?: ReviewAssignment[];
   reviewHistory?: ReviewAssignment[];
   requirementsDecisions?: RequirementsDecision[];
-  checks?: IssueChecks;
+  checks?: TicketChecks;
   findings?: ReviewFinding[];
 }
 
 export interface FeatureLedger {
-  schemaVersion: number;
+  schemaVersion: 3;
   featureId: string;
   title: string;
   createdBy: string;
@@ -74,10 +74,10 @@ export interface FeatureLedger {
   retrospectiveRequired: boolean;
   reviewPolicy: {
     version: number;
-    issue: string[];
+    ticket: string[];
     delivery: string[];
   };
-  issues: IssueProgress[];
+  tickets: TicketProgress[];
   delivery: DeliveryProgress;
 }
 
@@ -92,7 +92,7 @@ export interface DeliveryProgress {
   reviewHistory?: ReviewAssignment[];
   assignment?: ImplementationAssignment;
   requirementsDecisions?: RequirementsDecision[];
-  checks?: IssueChecks;
+  checks?: TicketChecks;
   findings?: ReviewFinding[];
   correctionAttempts?: CorrectionAttempt[];
   adjudication?: CorrectionAdjudication;
@@ -118,12 +118,12 @@ export interface FeaturePaths {
   ledger: string;
 }
 
-export interface IssueDocument {
+export interface TicketDocument {
   metadata: Record<string, unknown>;
   id: string;
   title: string;
   reporter: string;
-  category: (typeof ISSUE_CATEGORIES)[number];
+  category: (typeof TICKET_CATEGORIES)[number];
   status: TrackerStatus;
   blocked_by: string[];
   blocker?: string;

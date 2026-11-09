@@ -17,16 +17,16 @@ import type {
   FindingCreateOptions,
   FindingUpdateOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredIssueReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliveryFindingService } from "@/SubagentDrivenDevelopment/Services/DeliveryFindingService";
@@ -37,7 +37,7 @@ export class FindingService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly checkPolicy: CheckPolicy,
@@ -51,7 +51,7 @@ export class FindingService extends Service {
   }
 
   public findingCreate(options: FindingCreateOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
@@ -59,15 +59,15 @@ export class FindingService extends Service {
     headSha: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryFindingService.deliveryFindingCreate(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (options.relatedIssue !== undefined) {
-      throw new Error("--related-issue is only valid for a delivery finding.");
+    if (options.relatedTicket !== undefined) {
+      throw new Error("--related-ticket is only valid for a delivery finding.");
     }
-    if (!options.issue) throw new Error("Finding creation requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("Finding creation requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (!["high", "medium", "low"].includes(options.severity)) {
       throw new Error(`Invalid finding severity: ${options.severity}.`);
@@ -84,13 +84,13 @@ export class FindingService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current issue controller may register findings.");
+        throw new Error("Only the current ticket controller may register findings.");
       }
       const report = options.source
         ? isAbsolute(options.source)
@@ -111,7 +111,7 @@ export class FindingService extends Service {
         );
       if (!assignment) {
         throw new Error(
-          "Finding source report and snapshot must match a frozen review assignment for this issue.",
+          "Finding source report and snapshot must match a frozen review assignment for this ticket.",
         );
       }
       if (assignment.status === "submitted") {
@@ -121,7 +121,7 @@ export class FindingService extends Service {
         throw new Error("Finding registration requires a recorded Git baseline.");
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -160,7 +160,7 @@ export class FindingService extends Service {
             throw new Error("This report and snapshot are already linked with different details.");
           }
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             finding: canonical,
             idempotent: true,
             snapshot: identity.snapshot,
@@ -187,17 +187,17 @@ export class FindingService extends Service {
             details: `New observation from ${report} at snapshot ${options.snapshot} requires renewed adjudication.`,
           });
         }
-        const afterIssue = matter.stringify(
-          this.issueRepository.appendAudit(
-            issue.body,
+        const afterTicket = matter.stringify(
+          this.ticketRepository.appendAudit(
+            ticket.body,
             options.author,
             `Observation linked to finding ${canonical.id}: source=${report}; snapshot=${options.snapshot}; summary=${source.summary}.`,
           ),
-          this.issueRepository.metadata(issue),
+          this.ticketRepository.metadata(ticket),
         );
-        this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+        this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           finding: canonical,
           snapshot: identity.snapshot,
           headSha: identity.headSha,
@@ -221,7 +221,7 @@ export class FindingService extends Service {
       );
       if (existing) {
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           finding: existing,
           idempotent: true,
           snapshot: identity.snapshot,
@@ -256,17 +256,17 @@ export class FindingService extends Service {
         ],
       };
       findings.push(finding);
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Finding ${finding.id} registered by ${options.author.trim()}: ${finding.summary}; source=${report}; snapshot=${options.snapshot}.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         finding,
         snapshot: identity.snapshot,
         headSha: identity.headSha,
@@ -275,19 +275,19 @@ export class FindingService extends Service {
   }
 
   public findingUpdate(options: FindingUpdateOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
     snapshot: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryFindingService.deliveryFindingUpdate(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("Finding update requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("Finding update requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
@@ -317,21 +317,21 @@ export class FindingService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
       if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current issue controller may record a finding ruling.");
+        throw new Error("Only the current ticket controller may record a finding ruling.");
       }
       if (!progress.baseSha) throw new Error("Finding rulings require a recorded Git baseline.");
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -356,7 +356,7 @@ export class FindingService extends Service {
           );
         }
         const assignments = progress.reviewAssignments ?? [];
-        for (const { agent, details } of requiredIssueReviewers(ledger, progress)) {
+        for (const { agent, details } of requiredTicketReviewers(ledger, progress)) {
           const coverage = assignments.filter(
             (assignment) => assignment.agent === agent && assignment.scope === "initial",
           );
@@ -378,7 +378,7 @@ export class FindingService extends Service {
           throw new Error("--evidence must be a CLI-returned content snapshot.");
         }
         if (options.evidence !== identity.snapshot) {
-          throw new Error("Verification evidence must match the current issue snapshot.");
+          throw new Error("Verification evidence must match the current ticket snapshot.");
         }
         if (finding.provenance.some((observation) => observation.snapshot === identity.snapshot)) {
           throw new Error(
@@ -389,7 +389,7 @@ export class FindingService extends Service {
         if (required.length === 0) {
           throw new Error("Verification requires at least one current passing required check.");
         }
-        const checkBlockers = this.checkPolicy.checkBlockers(feature, issue, progress, identity);
+        const checkBlockers = this.checkPolicy.checkBlockers(feature, ticket, progress, identity);
         if (checkBlockers.length > 0) {
           throw new Error(`Verification evidence is insufficient:\n${checkBlockers.join("\n")}`);
         }
@@ -416,21 +416,21 @@ export class FindingService extends Service {
             (verification ? `Verified at ${verification.snapshot}.` : options.status)) &&
         (options.status !== "fixed" || finding.verification?.snapshot === verification?.snapshot)
       ) {
-        return { issue: options.issue, finding, idempotent: true, snapshot: identity.snapshot };
+        return { ticket: options.ticket, finding, idempotent: true, snapshot: identity.snapshot };
       }
 
       const before = identity.snapshot;
       const currentIdentity = this.gitEvidence.contentIdentity(
         feature,
-        this.issueRepository.requireIssue(
-          this.issueRepository.readIssues(feature.workspace),
-          options.issue,
+        this.ticketRepository.requireTicket(
+          this.ticketRepository.readTickets(feature.workspace),
+          options.ticket,
         ),
         progress.baseSha,
         progress.checks,
       );
       if (currentIdentity.snapshot !== before) {
-        throw new Error("Issue content changed while recording the finding ruling.");
+        throw new Error("Ticket content changed while recording the finding ruling.");
       }
       finding.status = options.status as FindingStatus;
       if (["dismissed", "deferred"].includes(options.status)) {
@@ -454,7 +454,7 @@ export class FindingService extends Service {
         this.findingPolicy.findingBlockers(progress, identity).length === 0
       ) {
         const assignments = progress.reviewAssignments ?? [];
-        const requiredReviewers = requiredIssueReviewers(ledger, progress);
+        const requiredReviewers = requiredTicketReviewers(ledger, progress);
         const freshCoverage =
           assignments.length === requiredReviewers.length &&
           requiredReviewers.every(({ agent, details }) => {
@@ -498,12 +498,12 @@ export class FindingService extends Service {
       ]
         .filter((entry): entry is string => entry !== undefined)
         .join("; ");
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(issue.body, options.author, `${audit}.`),
-        this.issueRepository.metadata(issue),
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(ticket.body, options.author, `${audit}.`),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
-      return { issue: options.issue, finding, snapshot: identity.snapshot };
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+      return { ticket: options.ticket, finding, snapshot: identity.snapshot };
     });
   }
 }

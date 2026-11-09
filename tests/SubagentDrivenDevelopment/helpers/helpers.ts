@@ -119,8 +119,8 @@ export function commitAll(repo: string, git: (...args: string[]) => string, mess
   git("commit", "-qm", message);
 }
 
-export async function prepareClaimableIssue(
-  options: { requireRetrospective?: boolean; issueCount?: number } = {},
+export async function prepareClaimableTicket(
+  options: { requireRetrospective?: boolean; ticketCount?: number } = {},
 ) {
   const { repo, git } = fixture();
   const created = await execute(repo, (service) =>
@@ -134,10 +134,10 @@ export async function prepareClaimableIssue(
   const feature = JSON.parse(created.stdout) as { spec: string };
   commitAll(repo, git, "create feature");
 
-  for (let index = 1; index <= (options.issueCount ?? 1); index++) {
-    const issueId = `I-${String(index).padStart(4, "0")}`;
-    const issue = await execute(repo, (service) =>
-      service.issueService.issueCreate({
+  for (let index = 1; index <= (options.ticketCount ?? 1); index++) {
+    const ticketId = `T-${String(index).padStart(4, "0")}`;
+    const ticket = await execute(repo, (service) =>
+      service.ticketService.ticketCreate({
         spec: feature.spec,
         title: `Implement the flow ${index}`,
         reporter: "requester",
@@ -145,18 +145,18 @@ export async function prepareClaimableIssue(
         author: "maintainer",
       }),
     );
-    expect(issue.status, issue.stderr).toBe(0);
+    expect(ticket.status, ticket.stderr).toBe(0);
     const updated = await execute(repo, (service) =>
-      service.issueService.issueUpdate({
+      service.ticketService.ticketUpdate({
         spec: feature.spec,
-        issue: issueId,
+        ticket: ticketId,
         status: "open",
         author: "maintainer",
       }),
     );
     expect(updated.status, updated.stderr).toBe(0);
   }
-  commitAll(repo, git, "prepare issue");
+  commitAll(repo, git, "prepare ticket");
   const baseSha = git("rev-parse", "HEAD");
   return { repo, git, spec: feature.spec, baseSha };
 }
@@ -164,29 +164,29 @@ export async function prepareClaimableIssue(
 export async function prepareImplementationForReview(
   options: {
     requireRetrospective?: boolean;
-    issueCount?: number;
-    issueId?: string;
+    ticketCount?: number;
+    ticketId?: string;
     file?: string;
   } = {},
 ) {
-  const { repo, git, spec } = await prepareClaimableIssue(options);
-  const issueId = options.issueId ?? "I-0001";
+  const { repo, git, spec } = await prepareClaimableTicket(options);
+  const ticketId = options.ticketId ?? "T-0001";
   const file = options.file ?? "feature.ts";
   const command = "just test::test tests/feature.test.ts";
   const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({ spec, issue: issueId, command, author: "controller" }),
+    service.checksService.checksRequire({ spec, ticket: ticketId, command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
 
   const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: issueId, author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: ticketId, author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
-  writeFileSync(join(repo, file), `export const feature = ${JSON.stringify(issueId)};\n`);
+  writeFileSync(join(repo, file), `export const feature = ${JSON.stringify(ticketId)};\n`);
 
   const implemented = await execute(repo, (service) =>
-    service.assignmentService.implement({ spec, issue: issueId, author: "controller" }),
+    service.assignmentService.implement({ spec, ticket: ticketId, author: "controller" }),
   );
   expect(implemented.status, implemented.stderr).toBe(0);
   const implementation = JSON.parse(implemented.stdout) as {
@@ -196,7 +196,7 @@ export async function prepareImplementationForReview(
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: issueId,
+      ticket: ticketId,
       role: "implementation",
       report: implementation.assignment.report,
       author: "controller",
@@ -207,7 +207,7 @@ export async function prepareImplementationForReview(
     repo,
     git,
     spec,
-    issueId,
+    ticketId,
     file,
     command,
     report: implementation.assignment.report,
@@ -225,12 +225,12 @@ export async function recordReviewCheck(
   command: string,
   snapshot: string,
   result: "passed" | "failed",
-  issueId = "I-0001",
+  ticketId = "T-0001",
 ) {
   return await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
-      issue: issueId,
+      ticket: ticketId,
       snapshot,
       command,
       result,
@@ -257,7 +257,7 @@ export async function recordDeliveryCheck(
   if (!delivery.requiredChecks.some((check) => check.command === command && !check.removedAt)) {
     const required = await execute(repo, (service) =>
       service.checksService.checksRequire({
-        issue: "",
+        ticket: "",
         spec,
         scope: "delivery",
         command,
@@ -270,7 +270,7 @@ export async function recordDeliveryCheck(
   if (!snapshot) throw new Error("Feature status did not include a delivery snapshot.");
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot,
@@ -285,8 +285,8 @@ export async function recordDeliveryCheck(
 export async function prepareReviewAssignment(
   options: {
     requireRetrospective?: boolean;
-    issueCount?: number;
-    issueId?: string;
+    ticketCount?: number;
+    ticketId?: string;
     file?: string;
   } = {},
 ) {
@@ -297,13 +297,13 @@ export async function prepareReviewAssignment(
     prepared.command,
     prepared.submission.snapshot,
     "passed",
-    prepared.issueId,
+    prepared.ticketId,
   );
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
   const dispatched = await execute(prepared.repo, (service) =>
     service.reviewService.review({
       spec: prepared.spec,
-      issue: prepared.issueId,
+      ticket: prepared.ticketId,
       inventory: JSON.stringify([prepared.file]),
       author: "controller",
     }),
@@ -323,11 +323,11 @@ export async function prepareReviewAssignment(
   };
 }
 
-export async function prepareAcceptedIssue(
+export async function prepareAcceptedTicket(
   options: {
     requireRetrospective?: boolean;
-    issueCount?: number;
-    issueId?: string;
+    ticketCount?: number;
+    ticketId?: string;
     file?: string;
     close?: boolean;
   } = {},
@@ -337,7 +337,7 @@ export async function prepareAcceptedIssue(
   const submitted = await execute(prepared.repo, (service) =>
     service.submissionService.submit({
       spec: prepared.spec,
-      issue: prepared.issueId,
+      ticket: prepared.ticketId,
       role: "review",
       assignment: prepared.assignment.id,
       report: prepared.assignment.report,
@@ -350,18 +350,18 @@ export async function prepareAcceptedIssue(
   const accepted = await execute(prepared.repo, (service) =>
     service.integrationService.accept({
       spec: prepared.spec,
-      issue: prepared.issueId,
+      ticket: prepared.ticketId,
       author: "controller",
     }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   if (options.close) {
-    for (let index = 1; index <= (options.issueCount ?? 1); index += 1) {
-      const issue = `I-${String(index).padStart(4, "0")}`;
+    for (let index = 1; index <= (options.ticketCount ?? 1); index += 1) {
+      const ticket = `T-${String(index).padStart(4, "0")}`;
       const closed = await execute(prepared.repo, (service) =>
-        service.issueService.issueUpdate({
+        service.ticketService.ticketUpdate({
           spec: prepared.spec,
-          issue,
+          ticket,
           status: "closed",
           author: "controller",
         }),
@@ -373,13 +373,13 @@ export async function prepareAcceptedIssue(
 }
 
 export async function prepareDeliveryReady(requireRetrospective = false) {
-  const prepared = await prepareAcceptedIssue({ requireRetrospective, close: true });
+  const prepared = await prepareAcceptedTicket({ requireRetrospective, close: true });
   prepared.git("add", "feature.ts");
-  prepared.git("commit", "-qm", "deliver accepted issue");
+  prepared.git("commit", "-qm", "deliver accepted ticket");
   const integrated = await execute(prepared.repo, (service) =>
     service.integrationService.integrate({
       spec: prepared.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: prepared.git("rev-parse", "HEAD"),
       author: "controller",
     }),
@@ -405,7 +405,7 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
   writeFileSync(assignment.report, "# Whole-feature review\n\nNo findings.\n");
   const submitted = await execute(prepared.repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec: prepared.spec,
       scope: "delivery",
       role: "review",

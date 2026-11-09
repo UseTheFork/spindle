@@ -18,8 +18,8 @@ export class ReadinessService extends Service {
   }
   public ready(options: ReadyOptions) {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
-    const { issues } = this.reader.read(feature);
-    const result = this.policy.evaluate(issues);
+    const { tickets } = this.reader.read(feature);
+    const result = this.policy.evaluate(tickets);
     this.pathSafety.assertReadyReadable(feature.workspace);
     return result;
   }

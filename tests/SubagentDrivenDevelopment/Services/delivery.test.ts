@@ -8,18 +8,18 @@ import {
   commitAll,
   recordDeliveryCheck,
   recordReviewCheck,
-  prepareAcceptedIssue,
+  prepareAcceptedTicket,
   prepareDeliveryReady,
 } from "../helpers/helpers";
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
+  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
   git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted issue");
+  git("commit", "-qm", "deliver accepted ticket");
   const commitSha = git("rev-parse", "HEAD");
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -32,7 +32,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
       spec,
       scope: "delivery",
       type: "sdd-code-reviewer",
-      details: "Review compatibility across the integrated issue boundaries.",
+      details: "Review compatibility across the integrated ticket boundaries.",
       author: "controller",
     }),
   );
@@ -41,7 +41,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   const conflictingScope = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       scope: "delivery",
       inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
@@ -92,20 +92,20 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   );
   expect(ledger.delivery.reviewAssignments.length).toBe(2);
   expect(
-    ledger.issues[0].reviewAssignments.every(
+    ledger.tickets[0].reviewAssignments.every(
       (assignment: { scope: string }) => assignment.scope !== "delivery",
     ),
   ).toBeTruthy();
 });
 
-test("blocking delivery findings reopen their related issue after all required reviews submit", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
+test("blocking delivery findings reopen their related ticket after all required reviews submit", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
   git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted issue");
+  git("commit", "-qm", "deliver accepted ticket");
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: git("rev-parse", "HEAD"),
       author: "controller",
     }),
@@ -118,7 +118,7 @@ test("blocking delivery findings reopen their related issue after all required r
       spec,
       scope: "delivery",
       agent: "sdd-code-reviewer",
-      details: "Check cross-issue compatibility.",
+      details: "Check cross-ticket compatibility.",
       author: "controller",
     }),
   );
@@ -140,21 +140,21 @@ test("blocking delivery findings reopen their related issue after all required r
   }[];
   const comprehensive = assignments.find(({ agent }) => agent === "sdd-reviewer")!;
   const specialist = assignments.find(({ agent }) => agent === "sdd-code-reviewer")!;
-  writeFileSync(comprehensive.report, "# Aggregate review\n\nCross-issue note.\n");
+  writeFileSync(comprehensive.report, "# Aggregate review\n\nCross-ticket note.\n");
   writeFileSync(specialist.report, "# Specialist review\n\nNo additional findings.\n");
 
   const registered = await execute(repo, (service) =>
     service.findingService.findingCreate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
-      relatedIssue: "I-0001",
+      relatedTicket: "T-0001",
       source: comprehensive.report,
       snapshot: comprehensive.snapshot,
       severity: "medium",
       blocking: true,
-      summary: "Cross-issue behavior needs documentation",
-      details: "The integrated issues use inconsistent names for the same behavior.",
+      summary: "Cross-ticket behavior needs documentation",
+      details: "The integrated tickets use inconsistent names for the same behavior.",
       author: "controller",
     }),
   );
@@ -170,7 +170,7 @@ test("blocking delivery findings reopen their related issue after all required r
 
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -184,7 +184,7 @@ test("blocking delivery findings reopen their related issue after all required r
   expect(submitted.status, submitted.stderr).toBe(0);
   const repeated = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -200,7 +200,7 @@ test("blocking delivery findings reopen their related issue after all required r
 
   const specialistSubmission = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -214,7 +214,7 @@ test("blocking delivery findings reopen their related issue after all required r
   expect(specialistSubmission.status, specialistSubmission.stderr).toBe(0);
   const confirmed = await execute(repo, (service) =>
     service.findingService.findingUpdate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       finding: "F-0001",
@@ -228,9 +228,9 @@ test("blocking delivery findings reopen their related issue after all required r
     readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.findings.map((item: { id: string }) => item.id)).toEqual(["F-0001"]);
-  expect(ledger.delivery.findings[0].relatedIssue).toBe("I-0001");
-  expect(ledger.issues[0].status).toBe("open");
-  expect(ledger.issues[0].findings).toBe(undefined);
+  expect(ledger.delivery.findings[0].relatedTicket).toBe("T-0001");
+  expect(ledger.tickets[0].status).toBe("open");
+  expect(ledger.tickets[0].findings).toBe(undefined);
   expect(ledger.delivery.findings[0].history.at(-1).action).toBe("status:confirmed");
   expect(ledger.delivery.reviewAssignments.map((item: { status: string }) => item.status)).toEqual([
     "submitted",
@@ -239,13 +239,13 @@ test("blocking delivery findings reopen their related issue after all required r
 });
 
 test("delivery checks use their own current snapshot and stale aggregate checks block review", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
+  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
   git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted issue");
+  git("commit", "-qm", "deliver accepted ticket");
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: git("rev-parse", "HEAD"),
       author: "controller",
     }),
@@ -255,7 +255,7 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
   const command = "just test::test tests/whole-feature.test.ts";
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       command,
@@ -268,7 +268,7 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
 
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot: requiredIdentity.snapshot,
@@ -286,7 +286,7 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
   );
   const staleRecord = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot: requiredIdentity.snapshot,
@@ -316,13 +316,13 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
 });
 
 test("delivery correction attempts resume independently with the same assignment and finding history", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
+  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
   git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted issue");
+  git("commit", "-qm", "deliver accepted ticket");
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: git("rev-parse", "HEAD"),
       author: "controller",
     }),
@@ -347,7 +347,7 @@ test("delivery correction attempts resume independently with the same assignment
   writeFileSync(assignment.report, "# Aggregate review\n\nA whole-feature blocker.\n");
   const created = await execute(repo, (service) =>
     service.findingService.findingCreate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       source: assignment.report,
@@ -355,14 +355,14 @@ test("delivery correction attempts resume independently with the same assignment
       severity: "high",
       blocking: true,
       summary: "Integrated behaviors disagree",
-      details: "The independently accepted issue implementations conflict at their boundary.",
+      details: "The independently accepted ticket implementations conflict at their boundary.",
       author: "controller",
     }),
   );
   expect(created.status, created.stderr).toBe(0);
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -377,7 +377,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(submitted.status, submitted.stderr).toBe(0);
   const confirmed = await execute(repo, (service) =>
     service.findingService.findingUpdate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       finding: "F-0001",
@@ -389,11 +389,11 @@ test("delivery correction attempts resume independently with the same assignment
 
   const correction = await execute(repo, (service) =>
     service.correctionService.correct({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       findings: ["F-0001"],
-      details: "Reconcile the cross-issue behavior without weakening either criterion.",
+      details: "Reconcile the cross-ticket behavior without weakening either criterion.",
       author: "controller",
     }),
   );
@@ -410,7 +410,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(output.assignment.report).toMatch(/final-round-1-fix\.md$/);
 
   const resumed = await execute(repo, (service) =>
-    service.assignmentService.resume({ issue: "", spec, scope: "delivery", author: "controller" }),
+    service.assignmentService.resume({ ticket: "", spec, scope: "delivery", author: "controller" }),
   );
   expect(resumed.status, resumed.stderr).toBe(0);
   const resumedOutput = JSON.parse(resumed.stdout) as {
@@ -431,7 +431,7 @@ test("delivery correction attempts resume independently with the same assignment
   writeFileSync(output.assignment.report, "# Delivery correction\n\nProgress recorded.\n");
   const implementation = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "implementation",
@@ -462,7 +462,7 @@ test("delivery correction attempts resume independently with the same assignment
   writeFileSync(correctiveAssignment.report, "# Corrective aggregate review\n\nNo regressions.\n");
   const correctiveReviewSubmission = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -477,7 +477,7 @@ test("delivery correction attempts resume independently with the same assignment
 
   const paused = await execute(repo, (service) =>
     service.correctionService.correct({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       decision: "pause",
@@ -489,7 +489,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(paused.status, paused.stderr).toBe(0);
   expect(JSON.parse(paused.stdout).adjudication.status).toBe("pending");
   const adjudicationResume = await execute(repo, (service) =>
-    service.assignmentService.resume({ issue: "", spec, scope: "delivery", author: "controller" }),
+    service.assignmentService.resume({ ticket: "", spec, scope: "delivery", author: "controller" }),
   );
   expect(adjudicationResume.status, adjudicationResume.stderr).toBe(0);
   const adjudicationState = JSON.parse(adjudicationResume.stdout) as {
@@ -502,14 +502,14 @@ test("delivery correction attempts resume independently with the same assignment
 
   const continued = await execute(repo, (service) =>
     service.correctionService.correct({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       findings: ["F-0001"],
       details: "Continue with an independently reviewed plan.",
       decision: "continue",
       assessment:
-        "The revised plan isolates the cross-issue contract and can demonstrate progress.",
+        "The revised plan isolates the cross-ticket contract and can demonstrate progress.",
       assessmentResult: "productive",
       author: "controller",
     }),
@@ -524,7 +524,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(secondAttempt.assignment.report).toMatch(/final-round-2-fix\.md$/);
   expect(secondAttempt.adjudication.status).toBe("resolved");
   const resumedSecond = await execute(repo, (service) =>
-    service.assignmentService.resume({ issue: "", spec, scope: "delivery", author: "controller" }),
+    service.assignmentService.resume({ ticket: "", spec, scope: "delivery", author: "controller" }),
   );
   expect(resumedSecond.status, resumedSecond.stderr).toBe(0);
   expect(JSON.parse(resumedSecond.stdout).assignment.id).toBe(secondAttempt.assignment.id);
@@ -534,17 +534,17 @@ test("delivery correction attempts resume independently with the same assignment
   expect(ledger.delivery.correctionAttempts.length).toBe(2);
   expect(ledger.delivery.correctionAttempts[0].progressAssessment.result).toBe("productive");
   expect(ledger.delivery.adjudication.status).toBe("resolved");
-  expect(ledger.issues[0].correctionAttempts).toBe(undefined);
+  expect(ledger.tickets[0].correctionAttempts).toBe(undefined);
 });
 
 test("delivery requirements rulings authorize only a freshly reviewed deferral", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue({ close: true });
+  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
   git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted issue");
+  git("commit", "-qm", "deliver accepted ticket");
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: git("rev-parse", "HEAD"),
       author: "controller",
     }),
@@ -553,7 +553,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   const checkCommand = "just test::test tests/whole-feature.test.ts";
   const requiredBeforeReview = await execute(repo, (service) =>
     service.checksService.checksRequire({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       command: checkCommand,
@@ -564,7 +564,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   const firstSnapshot = JSON.parse(requiredBeforeReview.stdout).snapshot as string;
   const recordedBeforeReview = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot: firstSnapshot,
@@ -594,7 +594,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   );
   const findingResult = await execute(repo, (service) =>
     service.findingService.findingCreate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       source: initialAssignment.report,
@@ -610,7 +610,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   const findingId = JSON.parse(findingResult.stdout).finding.id as string;
   const initialSubmission = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -629,7 +629,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
 
   const unapprovedDeferral = await execute(repo, (service) =>
     service.findingService.findingUpdate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       finding: findingId,
@@ -670,7 +670,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
 
   const beforeFreshReview = await execute(repo, (service) =>
     service.findingService.findingUpdate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       finding: findingId,
@@ -686,7 +686,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
 
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       command: checkCommand,
@@ -697,7 +697,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   const currentSnapshot = JSON.parse(required.stdout).snapshot as string;
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot: currentSnapshot,
@@ -723,7 +723,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   writeFileSync(assignment.report, "# Fresh aggregate review\n\nApproved scope change reviewed.\n");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       role: "review",
@@ -738,7 +738,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
 
   const deferred = await execute(repo, (service) =>
     service.findingService.findingUpdate({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       finding: findingId,
@@ -852,43 +852,43 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(alteredReport.stderr).toMatch(/already finished with different retrospective evidence/i);
 });
 
-test("aggregate review covers every closed issue and stale requirements block finish", async () => {
-  const first = await prepareAcceptedIssue({ issueCount: 2 });
+test("aggregate review covers every closed ticket and stale requirements block finish", async () => {
+  const first = await prepareAcceptedTicket({ ticketCount: 2 });
   first.git("add", first.file);
-  first.git("commit", "-qm", "deliver first issue");
+  first.git("commit", "-qm", "deliver first ticket");
   const firstIntegration = await execute(first.repo, (service) =>
     service.integrationService.integrate({
       spec: first.spec,
-      issue: first.issueId,
+      ticket: first.ticketId,
       commit: first.git("rev-parse", "HEAD"),
       author: "controller",
     }),
   );
   expect(firstIntegration.status, firstIntegration.stderr).toBe(0);
-  commitAll(first.repo, first.git, "record first issue integration");
+  commitAll(first.repo, first.git, "record first ticket integration");
 
-  const secondId = "I-0002";
+  const secondId = "T-0002";
   const secondFile = "feature-two.ts";
   const command = "just test::test tests/feature.test.ts";
   const required = await execute(first.repo, (service) =>
     service.checksService.checksRequire({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       command,
       author: "controller",
     }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(first.repo, first.git, "declare second issue check");
+  commitAll(first.repo, first.git, "declare second ticket check");
   const claimed = await execute(first.repo, (service) =>
-    service.assignmentService.claim({ spec: first.spec, issue: secondId, author: "controller" }),
+    service.assignmentService.claim({ spec: first.spec, ticket: secondId, author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
   writeFileSync(join(first.repo, secondFile), "export const secondFeature = true;\n");
   const implementation = await execute(first.repo, (service) =>
     service.assignmentService.implement({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       author: "controller",
     }),
   );
@@ -896,11 +896,11 @@ test("aggregate review covers every closed issue and stale requirements block fi
   const implementationAssignment = JSON.parse(implementation.stdout).assignment as {
     report: string;
   };
-  writeFileSync(implementationAssignment.report, "# Implementation\n\nSecond issue complete.\n");
+  writeFileSync(implementationAssignment.report, "# Implementation\n\nSecond ticket complete.\n");
   const submittedImplementation = await execute(first.repo, (service) =>
     service.submissionService.submit({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       role: "implementation",
       report: implementationAssignment.report,
       author: "controller",
@@ -920,24 +920,24 @@ test("aggregate review covers every closed issue and stale requirements block fi
   const review = await execute(first.repo, (service) =>
     service.reviewService.review({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       inventory: JSON.stringify([secondFile]),
       author: "controller",
     }),
   );
   expect(review.status, review.stderr).toBe(0);
-  const issueAssignment = JSON.parse(review.stdout).assignments[0] as {
+  const ticketAssignment = JSON.parse(review.stdout).assignments[0] as {
     id: string;
     report: string;
   };
-  writeFileSync(issueAssignment.report, "# Issue review\n\nNo findings.\n");
+  writeFileSync(ticketAssignment.report, "# Ticket review\n\nNo findings.\n");
   const submittedReview = await execute(first.repo, (service) =>
     service.submissionService.submit({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       role: "review",
-      assignment: issueAssignment.id,
-      report: issueAssignment.report,
+      assignment: ticketAssignment.id,
+      report: ticketAssignment.report,
       result: "passed",
       noFindings: true,
       author: "controller",
@@ -945,26 +945,26 @@ test("aggregate review covers every closed issue and stale requirements block fi
   );
   expect(submittedReview.status, submittedReview.stderr).toBe(0);
   const accepted = await execute(first.repo, (service) =>
-    service.integrationService.accept({ spec: first.spec, issue: secondId, author: "controller" }),
+    service.integrationService.accept({ spec: first.spec, ticket: secondId, author: "controller" }),
   );
   expect(accepted.status, accepted.stderr).toBe(0);
   first.git("add", secondFile);
-  first.git("commit", "-qm", "deliver second issue");
+  first.git("commit", "-qm", "deliver second ticket");
   const secondIntegration = await execute(first.repo, (service) =>
     service.integrationService.integrate({
       spec: first.spec,
-      issue: secondId,
+      ticket: secondId,
       commit: first.git("rev-parse", "HEAD"),
       author: "controller",
     }),
   );
   expect(secondIntegration.status, secondIntegration.stderr).toBe(0);
-  commitAll(first.repo, first.git, "record second issue integration");
-  for (const issue of ["I-0001", "I-0002"]) {
+  commitAll(first.repo, first.git, "record second ticket integration");
+  for (const ticket of ["T-0001", "T-0002"]) {
     const closed = await execute(first.repo, (service) =>
-      service.issueService.issueUpdate({
+      service.ticketService.ticketUpdate({
         spec: first.spec,
-        issue,
+        ticket,
         status: "closed",
         author: "controller",
       }),
@@ -975,7 +975,7 @@ test("aggregate review covers every closed issue and stale requirements block fi
   const deliveryCommand = "just test::test tests/whole-feature.test.ts";
   const deliveryCheck = await execute(first.repo, (service) =>
     service.checksService.checksRequire({
-      issue: "",
+      ticket: "",
       spec: first.spec,
       scope: "delivery",
       command: deliveryCommand,
@@ -986,7 +986,7 @@ test("aggregate review covers every closed issue and stale requirements block fi
   const deliverySnapshot = JSON.parse(deliveryCheck.stdout).snapshot as string;
   const recordedDeliveryCheck = await execute(first.repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec: first.spec,
       scope: "delivery",
       snapshot: deliverySnapshot,
@@ -1014,7 +1014,7 @@ test("aggregate review covers every closed issue and stale requirements block fi
   writeFileSync(aggregateAssignment.report, "# Whole feature review\n\nNo findings.\n");
   const aggregateSubmission = await execute(first.repo, (service) =>
     service.submissionService.submit({
-      issue: "",
+      ticket: "",
       spec: first.spec,
       scope: "delivery",
       role: "review",
@@ -1027,17 +1027,17 @@ test("aggregate review covers every closed issue and stale requirements block fi
   );
   expect(aggregateSubmission.status, aggregateSubmission.stderr).toBe(0);
 
-  const secondIssuePath = join(
+  const secondTicketPath = join(
     first.repo,
     ".scratch",
     "0001-claim-flow",
-    "issues",
+    "tickets",
     `${secondId}.md`,
   );
-  const originalIssue = readFileSync(secondIssuePath, "utf8");
+  const originalTicket = readFileSync(secondTicketPath, "utf8");
   writeFileSync(
-    secondIssuePath,
-    originalIssue.replace(
+    secondTicketPath,
+    originalTicket.replace(
       "## Acceptance Criteria\n\n",
       "## Acceptance Criteria\n\nA whole-feature requirement added after aggregate review.\n\n",
     ),
@@ -1049,7 +1049,7 @@ test("aggregate review covers every closed issue and stale requirements block fi
   expect(staleFinish.stderr).toMatch(
     /final delivery checks are not current and passing|aggregate required reviews are not current and passing/i,
   );
-  writeFileSync(secondIssuePath, originalIssue);
+  writeFileSync(secondTicketPath, originalTicket);
   const finished = await execute(first.repo, (service) =>
     service.deliveryService.finish({ spec: first.spec, author: "controller" }),
   );
@@ -1113,7 +1113,7 @@ test("finished delivery rejects failed check recording without changing its stat
 
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       snapshot,
@@ -1141,7 +1141,7 @@ test("finished delivery rejects new check requirements without changing its stat
 
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({
-      issue: "",
+      ticket: "",
       spec,
       scope: "delivery",
       command: "just test::test tests/post-finish.test.ts",
@@ -1193,7 +1193,7 @@ test("finished delivery status, next, and resume expose completion and stale evi
     const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
     const resume = await execute(repo, (service) =>
       service.assignmentService.resume({
-        issue: "",
+        ticket: "",
         spec,
         scope: "delivery",
         author: "controller",
@@ -1220,7 +1220,7 @@ test("finished delivery status, next, and resume expose completion and stale evi
     const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
     const resume = await execute(repo, (service) =>
       service.assignmentService.resume({
-        issue: "",
+        ticket: "",
         spec,
         scope: "delivery",
         author: "controller",

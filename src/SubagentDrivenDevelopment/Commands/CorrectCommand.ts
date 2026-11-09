@@ -12,10 +12,10 @@ export class CorrectCommand extends Command {
     group(root)
       .command("correct")
       .description(
-        "Persist an issue- or delivery-scoped correction attempt and return its fix assignment.",
+        "Persist a ticket-scoped or delivery-scoped correction attempt and return its fix assignment.",
       )
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
       .option("--check-failure <command>", "Exact non-mechanical failed check command")
@@ -37,8 +37,8 @@ export class CorrectCommand extends Command {
         if (options.scope !== undefined && options.scope !== "delivery") {
           throw new Error("--scope must be 'delivery'.");
         }
-        if (Boolean(options.issue) === (options.scope === "delivery")) {
-          throw new Error("correct needs exactly one of --issue or --scope delivery.");
+        if (Boolean(options.ticket) === (options.scope === "delivery")) {
+          throw new Error("correct needs exactly one of --ticket or --scope delivery.");
         }
         const command = await (await createApp()).make(CorrectCommand);
         console.log(JSON.stringify(await command.run(options), null, 2));

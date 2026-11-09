@@ -9,7 +9,7 @@ export interface StatusOptions {
   spec: string;
 }
 
-export interface IssueCreateOptions {
+export interface TicketCreateOptions {
   spec: string;
   title: string;
   reporter: string;
@@ -17,20 +17,20 @@ export interface IssueCreateOptions {
   author: string;
 }
 
-export interface IssueSelection {
+export interface TicketSelection {
   spec: string;
-  issue: string;
+  ticket: string;
   author: string;
 }
 
 export interface ScopedSelection {
   spec: string;
-  issue?: string;
+  ticket?: string;
   scope?: string;
   author: string;
 }
 
-export interface IssueUpdateOptions extends IssueSelection {
+export interface TicketUpdateOptions extends TicketSelection {
   title?: string;
   reporter?: string;
   category?: string;
@@ -41,7 +41,7 @@ export interface IssueUpdateOptions extends IssueSelection {
   clearBlockedBy?: boolean;
 }
 
-export interface IssueCommentOptions extends IssueSelection {
+export interface TicketCommentOptions extends TicketSelection {
   details: string;
 }
 
@@ -49,11 +49,11 @@ export interface ReadyOptions {
   spec: string;
 }
 
-export type ClaimOptions = IssueSelection;
+export type ClaimOptions = TicketSelection;
 
-export type ImplementOptions = IssueSelection;
+export type ImplementOptions = TicketSelection;
 
-export interface CorrectOptions extends IssueSelection {
+export interface CorrectOptions extends TicketSelection {
   scope?: string;
   findings?: string[];
   checkFailure?: string;
@@ -64,7 +64,7 @@ export interface CorrectOptions extends IssueSelection {
   reason?: string;
 }
 
-export interface SubmitOptions extends IssueSelection {
+export interface SubmitOptions extends TicketSelection {
   scope?: string;
   role: string;
   report?: string;
@@ -77,9 +77,9 @@ export interface SubmitOptions extends IssueSelection {
   details?: string;
 }
 
-export interface FindingCreateOptions extends IssueSelection {
+export interface FindingCreateOptions extends TicketSelection {
   scope?: string;
-  relatedIssue?: string;
+  relatedTicket?: string;
   source: string;
   snapshot: string;
   severity: string;
@@ -90,7 +90,7 @@ export interface FindingCreateOptions extends IssueSelection {
   link?: string;
 }
 
-export interface FindingUpdateOptions extends IssueSelection {
+export interface FindingUpdateOptions extends TicketSelection {
   scope?: string;
   finding: string;
   status: string;
@@ -116,13 +116,13 @@ export interface ReviewRequireOptions extends ScopedSelection {
   details: string;
 }
 
-export type AcceptOptions = IssueSelection;
+export type AcceptOptions = TicketSelection;
 
-export interface IntegrateOptions extends IssueSelection {
+export interface IntegrateOptions extends TicketSelection {
   commit?: string;
 }
 
-export interface ResumeOptions extends IssueSelection {
+export interface ResumeOptions extends TicketSelection {
   scope?: string;
   confirmHandoff?: boolean;
 }
@@ -133,14 +133,14 @@ export interface FinishOptions {
   report?: string;
 }
 
-export interface ChecksRequireOptions extends IssueSelection {
+export interface ChecksRequireOptions extends TicketSelection {
   scope?: string;
   command: string;
   remove?: boolean;
   details?: string;
 }
 
-export interface ChecksRecordOptions extends IssueSelection {
+export interface ChecksRecordOptions extends TicketSelection {
   scope?: string;
   snapshot: string;
   command: string;

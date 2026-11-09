@@ -4,16 +4,16 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { createIssue, issueFixture } from "../helpers/issue-helpers";
+import { createTicket, ticketFixture } from "../helpers/ticket-helpers";
 
-test("issue comment recovers an interrupted issue/ledger write without losing history", async () => {
-  const { service, feature } = await issueFixture("Issue Recovery");
+test("ticket comment recovers an interrupted ticket/ledger write without losing history", async () => {
+  const { service, feature } = await ticketFixture("Ticket Recovery");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const ledger = JSON.parse(ledgerBefore);
-  ledger.issues.push({
-    id: "I-0001",
-    title: "Recovered issue",
+  ledger.tickets.push({
+    id: "T-0001",
+    title: "Recovered ticket",
     reporter: "Explicit reporter",
     category: "enhancement",
     status: "open",
@@ -21,9 +21,9 @@ test("issue comment recovers an interrupted issue/ledger write without losing hi
     execution: "unstarted",
   });
   const ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
-  const issueContent = [
+  const ticketContent = [
     "---",
-    "id: I-0001",
+    "id: T-0001",
     "---",
     "",
     "## Requirements",
@@ -41,28 +41,28 @@ test("issue comment recovers an interrupted issue/ledger write without losing hi
     "Existing attributed history.",
     "",
   ].join("\n");
-  const issuePath = join(feature.workspace, "issues", "I-0001.md");
+  const ticketPath = join(feature.workspace, "tickets", "T-0001.md");
   const journal = {
     version: 1,
     writes: [
-      { path: "issues/I-0001.md", before: null, after: issueContent },
+      { path: "tickets/T-0001.md", before: null, after: ticketContent },
       { path: "sdd.json", before: ledgerBefore, after: ledgerAfter },
     ],
   };
-  writeFileSync(issuePath, issueContent);
+  writeFileSync(ticketPath, ticketContent);
   writeFileSync(
     join(feature.workspace, ".sdd-write-recovery.json"),
     `${JSON.stringify(journal, null, 2)}\n`,
   );
-  service.issueService.issueComment({
+  service.ticketService.ticketComment({
     spec: feature.spec,
-    issue: "I-0001",
+    ticket: "T-0001",
     details: "Recovery followed by a comment.",
     author: "maintainer",
   });
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerAfter);
   expect(existsSync(join(feature.workspace, ".sdd-write-recovery.json"))).toBe(false);
-  const recovered = matter(readFileSync(issuePath, "utf8"));
+  const recovered = matter(readFileSync(ticketPath, "utf8"));
   expect(recovered.content).toMatch(/Keep this recovered requirement\./);
   expect(recovered.content).toMatch(/Keep this criterion\./);
   expect(recovered.content.match(/Existing attributed history\./g) ?? []).toHaveLength(1);
@@ -70,32 +70,36 @@ test("issue comment recovers an interrupted issue/ledger write without losing hi
 });
 
 test("recovery leaves every target unchanged when a later ledger conflicts", async () => {
-  const { service, feature } = await issueFixture("Conflicting Recovery");
-  createIssue(service, feature.spec, "Existing issue");
-  const issuePath = join(feature.workspace, "issues", "I-0001.md");
+  const { service, feature } = await ticketFixture("Conflicting Recovery");
+  createTicket(service, feature.spec, "Existing ticket");
+  const ticketPath = join(feature.workspace, "tickets", "T-0001.md");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const journalPath = join(feature.workspace, ".sdd-write-recovery.json");
-  const issueBefore = readFileSync(issuePath, "utf8");
+  const ticketBefore = readFileSync(ticketPath, "utf8");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const ledgerConflict = `${ledgerBefore} \n`;
   writeFileSync(ledgerPath, ledgerConflict);
   const journal = JSON.stringify({
     version: 1,
     writes: [
-      { path: "issues/I-0001.md", before: issueBefore, after: `${issueBefore}\nPending entry.\n` },
+      {
+        path: "tickets/T-0001.md",
+        before: ticketBefore,
+        after: `${ticketBefore}\nPending entry.\n`,
+      },
       { path: "sdd.json", before: ledgerBefore, after: `${ledgerBefore}\n` },
     ],
   });
   writeFileSync(journalPath, journal);
   expect(() =>
-    service.issueService.issueComment({
+    service.ticketService.ticketComment({
       spec: feature.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       details: "Must not be written.",
       author: "maintainer",
     }),
   ).toThrow(/conflict/i);
-  expect(readFileSync(issuePath, "utf8")).toBe(issueBefore);
+  expect(readFileSync(ticketPath, "utf8")).toBe(ticketBefore);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerConflict);
   expect(readFileSync(journalPath, "utf8")).toBe(journal);
 });

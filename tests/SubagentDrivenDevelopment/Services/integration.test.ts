@@ -10,26 +10,26 @@ import {
   prepareImplementationForReview,
   recordReviewCheck,
   prepareReviewAssignment,
-  prepareAcceptedIssue,
+  prepareAcceptedTicket,
   refreshReviewCheck,
 } from "../helpers/helpers";
 test("integrate hands back the frozen accepted files and delivery records without changing Git", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const headBefore = git("rev-parse", "HEAD");
   const statusBefore = git("status", "--porcelain");
 
   const prepared = await execute(repo, (service) =>
-    service.integrationService.integrate({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
   );
 
   expect(prepared.status, prepared.stderr).toBe(0);
   const output = JSON.parse(prepared.stdout) as {
-    issue: string;
+    ticket: string;
     execution: string;
     acceptedFiles: string[];
     deliveryRecords: string[];
   };
-  expect(output.issue).toBe("I-0001");
+  expect(output.ticket).toBe("T-0001");
   expect(output.execution).toBe("accepted");
   expect(output.acceptedFiles).toEqual(["feature.ts"]);
   expect(output.deliveryRecords.some((path) => path.endsWith("/sdd.json"))).toBeTruthy();
@@ -38,9 +38,9 @@ test("integrate hands back the frozen accepted files and delivery records withou
 });
 
 test("integrate confirms an exact caller-owned commit idempotently and preserves accepted evidence", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const handback = await execute(repo, (service) =>
-    service.integrationService.integrate({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(handback.status, handback.stderr).toBe(0);
 
@@ -50,7 +50,7 @@ test("integrate confirms an exact caller-owned commit idempotently and preserves
   const confirmed = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -67,40 +67,40 @@ test("integrate confirms an exact caller-owned commit idempotently and preserves
   expect(output.commitSha).toBe(commitSha);
   expect(output.acceptedFiles).toEqual(["feature.ts"]);
   expect(output.deliveryRecords.some((path) => path.endsWith("/sdd.json"))).toBeTruthy();
-  const issuePath = join(repo, ".scratch", "0001-claim-flow", "issues", "I-0001.md");
-  const issueAfterConfirmation = readFileSync(issuePath, "utf8");
+  const ticketPath = join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md");
+  const ticketAfterConfirmation = readFileSync(ticketPath, "utf8");
   expect(git("rev-parse", "HEAD")).toBe(commitSha);
 
   const repeated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
   );
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
-  expect(readFileSync(issuePath, "utf8")).toBe(issueAfterConfirmation);
+  expect(readFileSync(ticketPath, "utf8")).toBe(ticketAfterConfirmation);
   const status = await execute(repo, (service) =>
     service.featureInspectionService.status({ spec }),
   );
   expect(status.status, status.stderr).toBe(0);
   const statusOutput = JSON.parse(status.stdout);
-  expect(statusOutput.state.issues[0].execution).toBe("integrated");
+  expect(statusOutput.state.tickets[0].execution).toBe("integrated");
   expect(
     statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
   ).not.toMatch(/stale|missing.*check|review assignment/i);
 });
 
 test("integrate rejects changed accepted content and unrelated pending changes without modifying them", async () => {
-  const changedAccepted = await prepareAcceptedIssue();
+  const changedAccepted = await prepareAcceptedTicket();
   writeFileSync(join(changedAccepted.repo, "feature.ts"), "export const feature = false;\n");
   const changedStatusBefore = changedAccepted.git("status", "--porcelain");
   const changed = await execute(changedAccepted.repo, (service) =>
     service.integrationService.integrate({
       spec: changedAccepted.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       author: "controller",
     }),
   );
@@ -111,13 +111,13 @@ test("integrate rejects changed accepted content and unrelated pending changes w
     "export const feature = false;\n",
   );
 
-  const unrelated = await prepareAcceptedIssue();
+  const unrelated = await prepareAcceptedTicket();
   writeFileSync(join(unrelated.repo, "unrelated.txt"), "keep this work\n");
   const unrelatedStatusBefore = unrelated.git("status", "--porcelain");
   const rejected = await execute(unrelated.repo, (service) =>
     service.integrationService.integrate({
       spec: unrelated.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       author: "controller",
     }),
   );
@@ -128,7 +128,7 @@ test("integrate rejects changed accepted content and unrelated pending changes w
 });
 
 test("integrate rejects arbitrary pending files inside the feature workspace without changing workflow state", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const userFile = join(repo, ".scratch", "0001-claim-flow", "notes.txt");
   writeFileSync(userFile, "keep this user-authored note\n");
   const statusBefore = git("status", "--porcelain");
@@ -136,7 +136,7 @@ test("integrate rejects arbitrary pending files inside the feature workspace wit
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
 
   const rejected = await execute(repo, (service) =>
-    service.integrationService.integrate({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
   );
 
   expect(rejected.status).not.toBe(0);
@@ -144,11 +144,11 @@ test("integrate rejects arbitrary pending files inside the feature workspace wit
   expect(readFileSync(userFile, "utf8")).toBe("keep this user-authored note\n");
   expect(git("status", "--porcelain")).toBe(statusBefore);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
-  expect(JSON.parse(ledgerBefore).issues[0].execution).toBe("accepted");
+  expect(JSON.parse(ledgerBefore).tickets[0].execution).toBe("accepted");
 });
 
 test("integrate rejects divergent staged accepted-file bytes while preserving index and worktree", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const acceptedContent = readFileSync(join(repo, "feature.ts"), "utf8");
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted feature");
@@ -166,7 +166,7 @@ test("integrate rejects divergent staged accepted-file bytes while preserving in
   const rejected = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -181,11 +181,11 @@ test("integrate rejects divergent staged accepted-file bytes while preserving in
   expect(readFileSync(join(repo, "feature.ts"), "utf8")).toBe(worktreeContentBefore);
   expect(worktreeContentBefore).toBe(acceptedContent);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
-  expect(JSON.parse(ledgerBefore).issues[0].execution).toBe("accepted");
+  expect(JSON.parse(ledgerBefore).tickets[0].execution).toBe("accepted");
 });
 
 test("integrate rejects a caller commit whose blob differs from accepted content", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
   git("add", "feature.ts");
   git("commit", "-qm", "deliver mismatched feature");
@@ -196,7 +196,7 @@ test("integrate rejects a caller commit whose blob differs from accepted content
   const rejected = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -210,16 +210,16 @@ test("integrate rejects a caller commit whose blob differs from accepted content
   expect(git("status", "--porcelain")).toBe(statusBefore);
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
-      .issues[0].execution,
+      .tickets[0].execution,
   ).toBe("accepted");
 });
 
 test("integrate refuses caller confirmation when accepted required-check evidence is no longer passing", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  ledger.issues[0].checks.records[0].result = "failed";
-  ledger.issues[0].checks.records[0].details = "The accepted check is no longer passing.";
+  ledger.tickets[0].checks.records[0].result = "failed";
+  ledger.tickets[0].checks.records[0].details = "The accepted check is no longer passing.";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
 
   git("add", "feature.ts");
@@ -228,7 +228,7 @@ test("integrate refuses caller confirmation when accepted required-check evidenc
   const rejected = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -237,11 +237,11 @@ test("integrate refuses caller confirmation when accepted required-check evidenc
   expect(rejected.status).not.toBe(0);
   expect(rejected.stderr).toMatch(/required check .* is failed/i);
   expect(git("rev-parse", "HEAD")).toBe(commitSha);
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).issues[0].execution).toBe("accepted");
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].execution).toBe("accepted");
 });
 
 test("integrate rejects an altered registered review report as stale evidence", async () => {
-  const { repo, git, spec, assignment } = await prepareAcceptedIssue();
+  const { repo, git, spec, assignment } = await prepareAcceptedTicket();
   writeFileSync(assignment.report, "# Review report\n\nChanged after acceptance.\n");
   git("add", "feature.ts");
   git("commit", "-qm", "deliver accepted feature");
@@ -250,7 +250,7 @@ test("integrate rejects an altered registered review report as stale evidence", 
   const rejected = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -260,14 +260,14 @@ test("integrate rejects an altered registered review report as stale evidence", 
   expect(rejected.stderr).toMatch(/review report .*not current and submitted/i);
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
-      .issues[0].execution,
+      .tickets[0].execution,
   ).toBe("accepted");
 });
 
 test("dependent claims wait until prerequisites are closed", async () => {
-  const { repo, git, spec } = await prepareAcceptedIssue();
+  const { repo, git, spec } = await prepareAcceptedTicket();
   const prepared = await execute(repo, (service) =>
-    service.integrationService.integrate({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(prepared.status, prepared.stderr).toBe(0);
 
@@ -277,7 +277,7 @@ test("dependent claims wait until prerequisites are closed", async () => {
   const integrated = await execute(repo, (service) =>
     service.integrationService.integrate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       commit: commitSha,
       author: "controller",
     }),
@@ -285,7 +285,7 @@ test("dependent claims wait until prerequisites are closed", async () => {
   expect(integrated.status, integrated.stderr).toBe(0);
 
   const created = await execute(repo, (service) =>
-    service.issueService.issueCreate({
+    service.ticketService.ticketCreate({
       spec,
       title: "Use the prerequisite",
       reporter: "requester",
@@ -295,18 +295,18 @@ test("dependent claims wait until prerequisites are closed", async () => {
   );
   expect(created.status, created.stderr).toBe(0);
   const dependency = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0002",
-      blockedBy: ["I-0001"],
+      ticket: "T-0002",
+      blockedBy: ["T-0001"],
       author: "maintainer",
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
   const updated = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0002",
+      ticket: "T-0002",
       status: "open",
       author: "maintainer",
     }),
@@ -314,13 +314,13 @@ test("dependent claims wait until prerequisites are closed", async () => {
   expect(updated.status, updated.stderr).toBe(0);
 
   const prematureClaim = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
   );
   expect(prematureClaim.status).not.toBe(0);
-  expect(prematureClaim.stderr).toMatch(/open dependencies: I-0001/i);
+  expect(prematureClaim.stderr).toMatch(/open dependencies: T-0001/i);
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
-      .issues[1].baseSha,
+      .tickets[1].baseSha,
   ).toBe(undefined);
 
   git("add", "-A");
@@ -329,22 +329,22 @@ test("dependent claims wait until prerequisites are closed", async () => {
   expect(ready.status, ready.stderr).toBe(0);
   expect(JSON.parse(ready.stdout).ready).toEqual([]);
   const closed = await execute(repo, (service) =>
-    service.issueService.issueUpdate({
+    service.ticketService.ticketUpdate({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       status: "closed",
       author: "controller",
     }),
   );
   expect(closed.status, closed.stderr).toBe(0);
   git("add", "-A");
-  git("commit", "-qm", "close prerequisite issue");
+  git("commit", "-qm", "close prerequisite ticket");
   const readyAfterClose = await execute(repo, (service) =>
     service.readinessService.ready({ spec }),
   );
-  expect(JSON.parse(readyAfterClose.stdout).ready).toEqual(["I-0002"]);
+  expect(JSON.parse(readyAfterClose.stdout).ready).toEqual(["T-0002"]);
   const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, issue: "I-0002", author: "controller" }),
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
   );
   expect(claimed.status, claimed.stderr).toBe(0);
   expect(JSON.parse(claimed.stdout).baseSha).toBe(git("rev-parse", "HEAD"));
@@ -353,7 +353,7 @@ test("dependent claims wait until prerequisites are closed", async () => {
 test("accept rejects missing initial review coverage", async () => {
   const accept = async (repo: string, spec: string) =>
     await execute(repo, (service) =>
-      service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+      service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
     );
 
   const unreviewed = await prepareImplementationForReview();
@@ -373,7 +373,7 @@ test("accept rejects missing initial review coverage", async () => {
 test("accept rejects pending or failed initial reviews", async () => {
   const accept = async (repo: string, spec: string) =>
     await execute(repo, (service) =>
-      service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+      service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
     );
   const reviewed = await prepareReviewAssignment();
   const pending = await accept(reviewed.repo, reviewed.spec);
@@ -384,7 +384,7 @@ test("accept rejects pending or failed initial reviews", async () => {
   const failed = await execute(reviewed.repo, (service) =>
     service.submissionService.submit({
       spec: reviewed.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: reviewed.assignment.id,
       report: reviewed.assignment.report,
@@ -405,7 +405,7 @@ test("required checks cannot change after review assignment freezes the snapshot
   const additionalCheck = await execute(reviewed.repo, (service) =>
     service.checksService.checksRequire({
       spec: reviewed.spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       command: "just lint::check",
       author: "controller",
     }),
@@ -414,14 +414,14 @@ test("required checks cannot change after review assignment freezes the snapshot
   expect(additionalCheck.stderr).toMatch(/frozen.*review/i);
 });
 
-test("review command requires feature delivery scope instead of an issue scope", async () => {
+test("review command requires feature delivery scope instead of a ticket scope", async () => {
   const { repo, spec } = await prepareImplementationForReview();
   const reviewArgs = [
     "review",
     "--spec",
     spec,
-    "--issue",
-    "I-0001",
+    "--ticket",
+    "T-0001",
     "--inventory",
     JSON.stringify(["feature.ts"]),
     "--author",
@@ -429,7 +429,7 @@ test("review command requires feature delivery scope instead of an issue scope",
   ];
   const result = await invokeAsync(repo, reviewArgs);
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toMatch(/unknown option.*--issue/i);
+  expect(result.stderr).toMatch(/unknown option.*--ticket/i);
 });
 
 test("review submission and acceptance reject changed requirements, code, and report content", async () => {
@@ -440,7 +440,7 @@ test("review submission and acceptance reject changed requirements, code, and re
   const staleRequirements = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: assignment.id,
       report: assignment.report,
@@ -456,7 +456,7 @@ test("review submission and acceptance reject changed requirements, code, and re
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
-      issue: "I-0001",
+      ticket: "T-0001",
       role: "review",
       assignment: assignment.id,
       report: assignment.report,
@@ -471,7 +471,7 @@ test("review submission and acceptance reject changed requirements, code, and re
   const refreshedCodeCheck = await refreshReviewCheck(repo, spec, command);
   expect(refreshedCodeCheck.status, refreshedCodeCheck.stderr).toBe(0);
   const staleCodeAcceptance = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(staleCodeAcceptance.status).not.toBe(0);
   expect(staleCodeAcceptance.stderr).toMatch(/Review assignment .* stale/);
@@ -481,7 +481,7 @@ test("review submission and acceptance reject changed requirements, code, and re
   expect(originalCodeCheck.status, originalCodeCheck.stderr).toBe(0);
   writeFileSync(assignment.report, "# Altered report\n");
   const alteredReportAcceptance = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, issue: "I-0001", author: "controller" }),
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
   );
   expect(alteredReportAcceptance.status).not.toBe(0);
   expect(alteredReportAcceptance.stderr).toMatch(/review report .* changed after submission/i);

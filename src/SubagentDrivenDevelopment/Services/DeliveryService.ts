@@ -7,8 +7,8 @@ import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { FinishOptions, NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
@@ -22,7 +22,7 @@ export class DeliveryService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly checkPolicy: CheckPolicy,
@@ -49,27 +49,27 @@ export class DeliveryService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (ledger.issues.length === 0) {
-        throw new Error("Cannot finish; the feature must contain at least one issue.");
+      if (ledger.tickets.length === 0) {
+        throw new Error("Cannot finish; the feature must contain at least one ticket.");
       }
-      const issues = this.issueRepository.readIssues(feature.workspace);
-      const missing = ledger.issues
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      const missing = ledger.tickets
         .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
       if (missing.length > 0) {
         throw new Error(
-          `Cannot finish; every feature issue must be closed: ${missing.join(", ")}.`,
+          `Cannot finish; every feature ticket must be closed: ${missing.join(", ")}.`,
         );
       }
-      if (issues.length !== ledger.issues.length) {
-        throw new Error("Cannot finish; one or more feature issue documents are missing.");
+      if (tickets.length !== ledger.tickets.length) {
+        throw new Error("Cannot finish; one or more feature ticket documents are missing.");
       }
       if (delivery.adjudication?.status === "pending") {
         throw new Error(
           `Cannot finish; delivery correction is paused for adjudication (${delivery.adjudication.reason}).`,
         );
       }
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
+      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
       const checkBlockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
       if (checkBlockers.length > 0) {
         throw new Error(
@@ -167,7 +167,7 @@ export class DeliveryService extends Service {
       const confirmed = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (
         confirmed.snapshot !== identity.snapshot ||

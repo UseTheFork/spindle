@@ -13,7 +13,7 @@ export class ImplementCommand extends Command {
       .command("implement")
       .description("Persist and return an implementation assignment.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .requiredOption("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: ImplementOptions) => {

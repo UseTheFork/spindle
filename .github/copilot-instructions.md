@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs are tracked as local Markdown under `.scratch/YYYY-MM-DD-<feature-slug>/`. See `docs/agents/issue-tracker.md` for creation-date naming and directory reuse.
+Repository triage requests are tracked as local Markdown under `.scratch/YYYY-MM-DD-<feature-slug>/`; SDD specs and tickets live in numbered `.scratch/<feature-id>-<feature-slug>/` workspaces. See `docs/agents/issue-tracker.md` and `docs/agents/ticket-tracker.md` for their conventions.
 
 ### Triage labels
 

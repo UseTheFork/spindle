@@ -15,12 +15,12 @@ import type {
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
@@ -31,7 +31,7 @@ export class CorrectionService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly workflowPolicy: WorkflowPolicy,
@@ -42,7 +42,7 @@ export class CorrectionService extends Service {
   }
 
   public correct(options: CorrectOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     execution: ExecutionState;
     attempt?: CorrectionAttempt;
@@ -56,12 +56,12 @@ export class CorrectionService extends Service {
     headSha: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryCorrectionService.deliveryCorrect(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("correct requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("correct requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
     if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
@@ -111,13 +111,13 @@ export class CorrectionService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded issue controller may dispatch a correction.");
+        throw new Error("Only the recorded ticket controller may dispatch a correction.");
       }
 
       const attempts = (progress.correctionAttempts ??= []);
@@ -127,7 +127,7 @@ export class CorrectionService extends Service {
         }
         const identity = this.gitEvidence.contentIdentity(
           feature,
-          issue,
+          ticket,
           progress.baseSha,
           progress.checks,
         );
@@ -161,7 +161,7 @@ export class CorrectionService extends Service {
           progress.adjudication.recordedBy === adjudication.recordedBy
         ) {
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             execution: progress.execution,
             adjudication: progress.adjudication,
             paused: true,
@@ -170,17 +170,17 @@ export class CorrectionService extends Service {
           };
         }
         progress.adjudication = adjudication;
-        const afterIssue = matter.stringify(
-          this.issueRepository.appendAudit(
-            issue.body,
+        const afterTicket = matter.stringify(
+          this.ticketRepository.appendAudit(
+            ticket.body,
             options.author,
             `Corrective work paused for adjudication (${adjudication.reason}): ${adjudication.details}.`,
           ),
-          this.issueRepository.metadata(issue),
+          this.ticketRepository.metadata(ticket),
         );
-        this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+        this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: progress.execution,
           adjudication,
           paused: true,
@@ -199,12 +199,12 @@ export class CorrectionService extends Service {
         if (!current) throw new Error("Corrective assignment has no persisted attempt record.");
         const identity = this.gitEvidence.contentIdentity(
           feature,
-          issue,
+          ticket,
           progress.baseSha,
           progress.checks,
         );
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: "implementing",
           attempt: current,
           assignment: progress.assignment,
@@ -215,20 +215,20 @@ export class CorrectionService extends Service {
       const pendingAdjudication = progress.adjudication?.status === "pending";
       if (pendingAdjudication && options.decision !== "continue") {
         throw new Error(
-          `Issue ${options.issue} is paused for adjudication (${progress.adjudication?.reason}); resolve it before another correction.`,
+          `Ticket ${options.ticket} is paused for adjudication (${progress.adjudication?.reason}); resolve it before another correction.`,
         );
       }
       const checkDriven = !!options.checkFailure?.trim();
       if (!checkDriven && progress.execution !== "changes-requested") {
-        throw new Error(`Issue ${options.issue} must have a failed review before correction.`);
+        throw new Error(`Ticket ${options.ticket} must have a failed review before correction.`);
       }
       if (checkDriven && !["reviewing", "changes-requested"].includes(progress.execution)) {
         throw new Error(
-          `Issue ${options.issue} must have a submitted implementation before correction.`,
+          `Ticket ${options.ticket} must have a submitted implementation before correction.`,
         );
       }
       if (!progress.baseSha)
-        throw new Error("Correction requires the issue's recorded Git baseline.");
+        throw new Error("Correction requires the ticket's recorded Git baseline.");
       if (progress.assignment?.action === "correct" && progress.assignment.status !== "submitted") {
         throw new Error("The current correction assignment must be resumed, not replaced.");
       }
@@ -259,7 +259,7 @@ export class CorrectionService extends Service {
 
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -298,7 +298,7 @@ export class CorrectionService extends Service {
         findingIds,
         ...(checkFailure ? { checkFailure } : {}),
         objective,
-        report: join(feature.workspace, "reports", `${options.issue}-round-${number}-fix.md`),
+        report: join(feature.workspace, "reports", `${options.ticket}-round-${number}-fix.md`),
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
@@ -348,17 +348,17 @@ export class CorrectionService extends Service {
           recordedBy: options.author.trim(),
         };
       }
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Corrective attempt ${number} recorded; objective=${objective}; findings=${findingIds.join(",") || "none"}${checkFailure ? `; check-failure=${checkFailure}` : ""}; report=${assignment.report}. No agent was launched.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: "implementing",
         attempt,
         assignment,

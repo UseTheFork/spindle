@@ -12,13 +12,13 @@ import type {
 import type { ReviewFinding } from "@/SubagentDrivenDevelopment/Models/Findings";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
@@ -30,7 +30,7 @@ export class SubmissionService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly checkPolicy: CheckPolicy,
@@ -43,7 +43,7 @@ export class SubmissionService extends Service {
   }
 
   public submit(options: SubmitOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     execution: ExecutionState;
     assignment: ImplementationAssignment | ReviewAssignment;
@@ -57,14 +57,14 @@ export class SubmissionService extends Service {
     headSha: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       if (options.role === "implementation")
         return this.deliverySubmissionService.submitDeliveryImplementation(options);
       return this.deliverySubmissionService.submitDeliveryReview(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("Submit requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("Submit requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (options.role === "review") return this.submitReview(options);
     if (options.role !== "implementation") {
@@ -90,20 +90,20 @@ export class SubmissionService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
       const assignment = progress.assignment;
       if (!assignment || assignment.role !== options.role) {
-        throw new Error("No matching implementation assignment is pending for this issue.");
+        throw new Error("No matching implementation assignment is pending for this ticket.");
       }
       if (
         progress.owner !== options.author.trim() ||
@@ -115,7 +115,7 @@ export class SubmissionService extends Service {
         const details = options.details!.trim();
         if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             execution: progress.execution,
             assignment,
             unavailable: true,
@@ -128,17 +128,17 @@ export class SubmissionService extends Service {
         }
         assignment.status = "unavailable";
         assignment.unavailableDetails = details;
-        const afterIssue = matter.stringify(
-          this.issueRepository.appendAudit(
-            issue.body,
+        const afterTicket = matter.stringify(
+          this.ticketRepository.appendAudit(
+            ticket.body,
             options.author,
             `Implementation report unavailable for assignment ${assignment.id}: ${details}. Work remains pending.`,
           ),
-          this.issueRepository.metadata(issue),
+          this.ticketRepository.metadata(ticket),
         );
-        this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+        this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: progress.execution,
           assignment,
           unavailable: true,
@@ -156,7 +156,7 @@ export class SubmissionService extends Service {
           throw new Error("The registered implementation report changed after submission.");
         }
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: progress.execution,
           assignment,
           report: assignment.report,
@@ -207,17 +207,17 @@ export class SubmissionService extends Service {
         attempt.assignment = assignment;
       }
       progress.execution = "reviewing";
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Implementation report submitted for assignment ${assignment.id}: ${assignment.report} (sha256 ${reportSha256}).`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: progress.execution,
         assignment,
         report: assignment.report,
@@ -228,7 +228,7 @@ export class SubmissionService extends Service {
   }
 
   public submitReview(options: SubmitOptions): {
-    issue: string;
+    ticket: string;
     execution: ExecutionState;
     assignment: ReviewAssignment;
     report: string;
@@ -275,13 +275,13 @@ export class SubmissionService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (!["reviewing", "changes-requested"].includes(progress.execution) || !progress.owner) {
-        throw new Error(`Issue ${options.issue} is not awaiting review submission.`);
+        throw new Error(`Ticket ${options.ticket} is not awaiting review submission.`);
       }
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the current controller may submit a review result.");
@@ -297,18 +297,18 @@ export class SubmissionService extends Service {
         throw new Error(`No review assignment matches ID ${options.assignment}.`);
       }
       if (progress.execution === "changes-requested" && assignment.status !== "submitted") {
-        throw new Error(`Issue ${options.issue} is awaiting a controller correction decision.`);
+        throw new Error(`Ticket ${options.ticket} is awaiting a controller correction decision.`);
       }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
       const checkBlockers = this.checkPolicy.reviewCheckBlockers(
         feature,
-        issue,
+        ticket,
         progress,
         identity,
       );
@@ -358,7 +358,7 @@ export class SubmissionService extends Service {
           assignment.details === options.details?.trim()
         ) {
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             execution: progress.execution,
             assignment,
             report: assignment.report,
@@ -370,13 +370,13 @@ export class SubmissionService extends Service {
         throw new Error("The review assignment already has a different submitted result.");
       }
 
-      const confirmedIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const confirmedTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
       const confirmedIdentity = this.gitEvidence.contentIdentity(
         feature,
-        confirmedIssue,
+        confirmedTicket,
         progress.baseSha,
         progress.checks,
       );
@@ -414,17 +414,17 @@ export class SubmissionService extends Service {
       ) {
         progress.execution = "changes-requested";
       }
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Review report submitted for assignment ${assignment.id}: result=${assignment.result}${assignment.noFindings === true ? "; no-findings explicitly declared" : `; findings=${(assignment.findingIds ?? []).join(",")}`}; report=${assignment.report} (sha256 ${reportSha256}).`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: progress.execution,
         assignment,
         report: assignment.report,

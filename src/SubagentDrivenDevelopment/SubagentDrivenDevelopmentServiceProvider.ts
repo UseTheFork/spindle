@@ -10,9 +10,6 @@ import { FindingCreateCommand } from "@/SubagentDrivenDevelopment/Commands/Findi
 import { FindingUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingUpdateCommand";
 import { FinishCommand } from "@/SubagentDrivenDevelopment/Commands/FinishCommand";
 import { ImplementCommand } from "@/SubagentDrivenDevelopment/Commands/ImplementCommand";
-import { IssueCommentCommand } from "@/SubagentDrivenDevelopment/Commands/IssueCommentCommand";
-import { IssueCreateCommand } from "@/SubagentDrivenDevelopment/Commands/IssueCreateCommand";
-import { IssueUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/IssueUpdateCommand";
 import { NextCommand } from "@/SubagentDrivenDevelopment/Commands/NextCommand";
 import { ReadyCommand } from "@/SubagentDrivenDevelopment/Commands/ReadyCommand";
 import { RequirementsDecideCommand } from "@/SubagentDrivenDevelopment/Commands/RequirementsDecideCommand";
@@ -21,13 +18,16 @@ import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewComman
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
 import { StatusCommand } from "@/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@/SubagentDrivenDevelopment/Commands/SubmitCommand";
+import { TicketCommentCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
+import { TicketCreateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
+import { TicketUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import { ReadinessReader } from "@/SubagentDrivenDevelopment/Persistence/ReadinessReader";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
@@ -47,19 +47,19 @@ import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/Fea
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
 import { IntegrationService } from "@/SubagentDrivenDevelopment/Services/IntegrationService";
-import { IssueService } from "@/SubagentDrivenDevelopment/Services/IssueService";
 import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
 import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
 
 export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
   public static override commands(): readonly CommandConstructor[] {
     return [
       CreateCommand,
-      IssueCreateCommand,
-      IssueUpdateCommand,
-      IssueCommentCommand,
+      TicketCreateCommand,
+      TicketUpdateCommand,
+      TicketCommentCommand,
       ReadyCommand,
       ClaimCommand,
       ChecksRequireCommand,
@@ -84,14 +84,14 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       async (app) =>
         new ReadinessReader(
           app,
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(PathSafety),
         ),
     );
     this.app.singleton(
       ReadinessPolicy,
-      async (app) => new ReadinessPolicy(app, await app.make(IssueRepository)),
+      async (app) => new ReadinessPolicy(app, await app.make(TicketRepository)),
     );
     this.app.singleton(
       FeatureCreationService,
@@ -112,7 +112,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
           await app.make(FeatureWorkspace),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(AcceptancePolicy),
           await app.make(AssignmentPolicy),
           await app.make(CheckPolicy),
@@ -121,11 +121,11 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
         ),
     );
     this.app.singleton(
-      IssueService,
+      TicketService,
       async (app) =>
-        new IssueService(
+        new TicketService(
           app,
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(PathSafety),
           await app.make(WorkspaceTransaction),
@@ -150,7 +150,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(AssignmentPolicy),
@@ -167,7 +167,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(WorkflowPolicy),
@@ -182,7 +182,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(FeatureInspectionService),
@@ -194,7 +194,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
         new ChecksService(
           app,
           await app.make(GitEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(WorkflowPolicy),
@@ -208,7 +208,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(AssignmentPolicy),
@@ -225,7 +225,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(CheckPolicy),
@@ -243,7 +243,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(CheckPolicy),
@@ -258,7 +258,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
         new RequirementsService(
           app,
           await app.make(GitEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(WorkflowPolicy),
@@ -272,7 +272,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(CheckPolicy),
@@ -289,7 +289,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(CheckPolicy),
@@ -304,7 +304,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(AcceptancePolicy),
@@ -319,7 +319,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
-          await app.make(IssueRepository),
+          await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(CheckPolicy),
@@ -335,9 +335,9 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     );
     this.app.singleton(LedgerRepository, async (app) => new LedgerRepository(app));
     this.app.singleton(
-      IssueRepository,
+      TicketRepository,
       async (app) =>
-        new IssueRepository(app, await app.make(PathSafety), await app.make(LedgerRepository)),
+        new TicketRepository(app, await app.make(PathSafety), await app.make(LedgerRepository)),
     );
     this.app.singleton(
       WorkspaceTransaction,

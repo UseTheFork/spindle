@@ -3,10 +3,10 @@ import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
-  IssueProgress,
+  TicketProgress,
   DeliveryProgress,
   FeaturePaths,
-  IssueDocument,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
 export class CheckPolicy extends Service {
@@ -19,22 +19,22 @@ export class CheckPolicy extends Service {
 
   public hasCurrentCheckCoverage(
     feature: FeaturePaths,
-    issue: IssueDocument,
-    progress: IssueProgress,
+    ticket: TicketDocument,
+    progress: TicketProgress,
   ): boolean {
     const identity = this.gitEvidence.contentIdentity(
       feature,
-      issue,
+      ticket,
       progress.baseSha,
       progress.checks,
     );
-    return this.checkBlockers(feature, issue, progress, identity).length === 0;
+    return this.checkBlockers(feature, ticket, progress, identity).length === 0;
   }
 
   public checkBlockers(
     feature: FeaturePaths,
-    issue: IssueDocument,
-    progress: IssueProgress,
+    ticket: TicketDocument,
+    progress: TicketProgress,
     identity: ContentIdentity,
   ): string[] {
     const checks = progress.checks;
@@ -73,7 +73,7 @@ export class CheckPolicy extends Service {
           try {
             const scopedIdentity = this.gitEvidence.contentIdentity(
               feature,
-              issue,
+              ticket,
               progress.baseSha,
               checks,
               record.coveredPaths,
@@ -98,8 +98,8 @@ export class CheckPolicy extends Service {
 
   public reviewCheckBlockers(
     feature: FeaturePaths,
-    issue: IssueDocument,
-    progress: IssueProgress,
+    ticket: TicketDocument,
+    progress: TicketProgress,
     identity: ContentIdentity,
   ): string[] {
     const activeRequirements =
@@ -107,7 +107,7 @@ export class CheckPolicy extends Service {
     if (activeRequirements.length === 0) {
       return ["Review requires at least one currently required passing check."];
     }
-    return this.checkBlockers(feature, issue, progress, identity);
+    return this.checkBlockers(feature, ticket, progress, identity);
   }
 
   public deliveryCheckBlockers(delivery: DeliveryProgress, identity: ContentIdentity): string[] {

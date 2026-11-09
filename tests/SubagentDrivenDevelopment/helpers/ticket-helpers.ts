@@ -6,7 +6,7 @@ import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { fixture } from "./helpers";
 import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 
-export async function issueFixture(title: string) {
+export async function ticketFixture(title: string) {
   const { repo, git } = fixture();
   const app = applicationFixture(repo, resolve(repoRoot, "src/Assets/Blueprints"));
   await app.boot();
@@ -15,8 +15,8 @@ export async function issueFixture(title: string) {
   return { repo, git, service, feature };
 }
 
-export function createIssue(service: WorkflowServices, spec: string, title: string) {
-  return service.issueService.issueCreate({
+export function createTicket(service: WorkflowServices, spec: string, title: string) {
+  return service.ticketService.ticketCreate({
     spec,
     title,
     reporter: "reporter",

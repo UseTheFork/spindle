@@ -14,27 +14,27 @@ export class PathSafety extends Service {
     super(app);
   }
 
-  public assertIssuePath(workspace: string, path: string): void {
-    const issuesDirectory = join(workspace, "issues");
-    const directoryEntry = lstatIfPresent(issuesDirectory);
+  public assertTicketPath(workspace: string, path: string): void {
+    const ticketsDirectory = join(workspace, "tickets");
+    const directoryEntry = lstatIfPresent(ticketsDirectory);
     if (!directoryEntry?.isDirectory() || directoryEntry.isSymbolicLink()) {
-      throw new Error("Feature issues path must be a real directory.");
+      throw new Error("Feature tickets path must be a real directory.");
     }
     if (
-      !isPathInside(issuesDirectory, path) ||
-      !/^I-\d{4,}\.md$/.test(path.slice(issuesDirectory.length + 1))
+      !isPathInside(ticketsDirectory, path) ||
+      !/^T-\d{4,}\.md$/.test(path.slice(ticketsDirectory.length + 1))
     ) {
-      throw new Error("Issue path must be a numbered Markdown file inside issues/.");
+      throw new Error("Ticket path must be a numbered Markdown file inside tickets/.");
     }
     const entry = lstatIfPresent(path);
-    if (entry && !entry.isFile()) throw new Error(`Issue path must be a regular file: ${path}.`);
-    if (entry && !isPathInside(issuesDirectory, realpathSync(path))) {
-      throw new Error("Issue file must remain inside the feature issues directory.");
+    if (entry && !entry.isFile()) throw new Error(`Ticket path must be a regular file: ${path}.`);
+    if (entry && !isPathInside(ticketsDirectory, realpathSync(path))) {
+      throw new Error("Ticket file must remain inside the feature tickets directory.");
     }
     const root = realpathSync(this.app.workspaceRoot);
     const relativePath = relative(root, path);
     if (this.isIgnored(root, relativePath))
-      throw new Error(`Issue path is ignored: ${relativePath}`);
+      throw new Error(`Ticket path is ignored: ${relativePath}`);
   }
 
   public isIgnored(root: string, relativePath: string): boolean {
@@ -64,10 +64,10 @@ export class PathSafety extends Service {
 
   public assertReadyReadable(workspace: string): void {
     if (lstatIfPresent(join(workspace, ".sdd-write-recovery.json"))) {
-      throw new Error("Pending issue recovery journal; run a mutating issue command to recover.");
+      throw new Error("Pending ticket recovery journal; run a mutating ticket command to recover.");
     }
-    if (lstatIfPresent(join(workspace, ".sdd-issues.lock"))) {
-      throw new Error("Issue updates are in progress; retry ready after the lock is released.");
+    if (lstatIfPresent(join(workspace, ".sdd-tickets.lock"))) {
+      throw new Error("Ticket updates are in progress; retry ready after the lock is released.");
     }
   }
 }

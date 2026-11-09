@@ -6,15 +6,15 @@ import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { AcceptOptions, IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredIssueReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -23,7 +23,7 @@ export class IntegrationService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly acceptancePolicy: AcceptancePolicy,
@@ -34,7 +34,7 @@ export class IntegrationService extends Service {
   }
 
   public accept(options: AcceptOptions): {
-    issue: string;
+    ticket: string;
     execution: "accepted";
     reviews: {
       agent: string;
@@ -49,43 +49,43 @@ export class IntegrationService extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    validateIssueId(options.issue);
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (
         progress.execution !== "reviewing" &&
         progress.execution !== "changes-requested" &&
         progress.execution !== "accepted"
       ) {
-        throw new Error(`Issue ${options.issue} must be reviewing before it can be accepted.`);
+        throw new Error(`Ticket ${options.ticket} must be reviewing before it can be accepted.`);
       }
       if (!progress.owner || progress.owner !== options.author.trim()) {
-        throw new Error("Only the current controller may accept this issue.");
+        throw new Error("Only the current controller may accept this ticket.");
       }
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
       const blockers = this.acceptancePolicy.acceptBlockers(
         feature,
         ledger,
-        issue,
+        ticket,
         progress,
         identity,
       );
       if (blockers.length > 0) {
-        throw new Error(`Issue ${options.issue} cannot be accepted:\n${blockers.join("\n")}`);
+        throw new Error(`Ticket ${options.ticket} cannot be accepted:\n${blockers.join("\n")}`);
       }
-      const reviews = requiredIssueReviewers(ledger, progress).map(({ agent, details }) => {
+      const reviews = requiredTicketReviewers(ledger, progress).map(({ agent, details }) => {
         const assignment = progress.reviewAssignments!.find(
           (candidate) =>
             candidate.agent === agent &&
@@ -103,10 +103,10 @@ export class IntegrationService extends Service {
       });
       if (progress.execution === "accepted") {
         if (!progress.acceptedEvidence) {
-          throw new Error(`Accepted issue ${options.issue} has no frozen integration evidence.`);
+          throw new Error(`Accepted ticket ${options.ticket} has no frozen integration evidence.`);
         }
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: "accepted",
           reviews,
           idempotent: true,
@@ -114,34 +114,34 @@ export class IntegrationService extends Service {
         };
       }
 
-      const confirmedIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const confirmedTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
       const confirmedIdentity = this.gitEvidence.contentIdentity(
         feature,
-        confirmedIssue,
+        confirmedTicket,
         progress.baseSha,
         progress.checks,
       );
       const confirmedBlockers = this.acceptancePolicy.acceptBlockers(
         feature,
         ledger,
-        confirmedIssue,
+        confirmedTicket,
         progress,
         confirmedIdentity,
       );
       if (confirmedIdentity.snapshot !== identity.snapshot || confirmedBlockers.length > 0) {
         throw new Error(
-          `Issue content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
+          `Ticket content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
         );
       }
-      const acceptedFiles = this.workflowPolicy.acceptedInventory(progress, options.issue);
+      const acceptedFiles = this.workflowPolicy.acceptedInventory(progress, options.ticket);
       if (
         JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha!)) !==
         JSON.stringify(acceptedFiles)
       ) {
-        throw new Error("Accepted Git inventory changed while accepting the issue.");
+        throw new Error("Accepted Git inventory changed while accepting the ticket.");
       }
       const contentDigest = this.gitEvidence.worktreeContentDigest(acceptedFiles);
       progress.execution = "accepted";
@@ -152,17 +152,17 @@ export class IntegrationService extends Service {
         files: acceptedFiles,
         contentDigest,
       };
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
-          `Issue accepted with current passing checks and complete initial review coverage: ${reviews.map((review) => `${review.agent} (${review.assignment})`).join(", ")}.`,
+          `Ticket accepted with current passing checks and complete initial review coverage: ${reviews.map((review) => `${review.agent} (${review.assignment})`).join(", ")}.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: "accepted",
         reviews,
         ...identity,
@@ -171,7 +171,7 @@ export class IntegrationService extends Service {
   }
 
   public integrate(options: IntegrateOptions): {
-    issue: string;
+    ticket: string;
     execution: "accepted" | "integrated";
     acceptedFiles: string[];
     deliveryRecords: string[];
@@ -182,7 +182,7 @@ export class IntegrationService extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    validateIssueId(options.issue);
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (options.commit && !/^[0-9a-f]{40,64}$/i.test(options.commit)) {
       throw new Error("--commit must be an existing full Git commit SHA.");
@@ -190,28 +190,28 @@ export class IntegrationService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution !== "accepted" && progress.execution !== "integrated") {
-        throw new Error(`Issue ${options.issue} must be accepted before integration.`);
+        throw new Error(`Ticket ${options.ticket} must be accepted before integration.`);
       }
       if (!progress.owner || progress.owner !== options.author.trim()) {
-        throw new Error("Only the current controller may integrate this issue.");
+        throw new Error("Only the current controller may integrate this ticket.");
       }
       const accepted = progress.acceptedEvidence;
       if (!accepted) {
-        throw new Error(`Issue ${options.issue} has no frozen accepted inventory and evidence.`);
+        throw new Error(`Ticket ${options.ticket} has no frozen accepted inventory and evidence.`);
       }
       if (!progress.baseSha) {
-        throw new Error(`Issue ${options.issue} has no recorded Git baseline for integration.`);
+        throw new Error(`Ticket ${options.ticket} has no recorded Git baseline for integration.`);
       }
 
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
@@ -234,7 +234,7 @@ export class IntegrationService extends Service {
       if (!options.commit) {
         if (progress.execution === "integrated") {
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             execution: "integrated",
             acceptedFiles: accepted.files,
             deliveryRecords: this.gitEvidence.deliveryRecordPaths(feature),
@@ -246,15 +246,15 @@ export class IntegrationService extends Service {
         const blockers = this.acceptancePolicy.acceptBlockers(
           feature,
           ledger,
-          issue,
+          ticket,
           progress,
           identity,
         );
         if (blockers.length > 0) {
-          throw new Error(`Issue ${options.issue} cannot be integrated:\n${blockers.join("\n")}`);
+          throw new Error(`Ticket ${options.ticket} cannot be integrated:\n${blockers.join("\n")}`);
         }
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: "accepted",
           acceptedFiles: accepted.files,
           deliveryRecords: this.gitEvidence.deliveryRecordPaths(feature),
@@ -273,14 +273,14 @@ export class IntegrationService extends Service {
       if (progress.execution === "integrated") {
         if (progress.integration?.commitSha !== requestedCommit) {
           throw new Error(
-            `Issue ${options.issue} is already integrated through ${progress.integration?.commitSha ?? "an unknown commit"}.`,
+            `Ticket ${options.ticket} is already integrated through ${progress.integration?.commitSha ?? "an unknown commit"}.`,
           );
         }
         if (this.gitEvidence.gitIndexContentDigest(accepted.files) !== accepted.contentDigest) {
           throw new Error("Staged index content does not match the accepted file content.");
         }
         return {
-          issue: options.issue,
+          ticket: options.ticket,
           execution: "integrated",
           acceptedFiles: accepted.files,
           deliveryRecords: this.gitEvidence.deliveryRecordPaths(feature),
@@ -299,7 +299,7 @@ export class IntegrationService extends Service {
       const acceptanceBlockers = this.acceptancePolicy.acceptBlockers(
         feature,
         ledger,
-        issue,
+        ticket,
         progress,
         acceptedIdentity,
       );
@@ -366,26 +366,26 @@ export class IntegrationService extends Service {
         files: accepted.files,
         contentDigest: accepted.contentDigest,
       };
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
-          `Issue integration confirmed against caller-owned commit ${requestedCommit}; delivery records remain caller-owned.`,
+          `Ticket integration confirmed against caller-owned commit ${requestedCommit}; delivery records remain caller-owned.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         execution: "integrated",
         acceptedFiles: accepted.files,
         deliveryRecords: this.gitEvidence.deliveryRecordPaths(feature),
         commitSha: requestedCommit,
         ...this.gitEvidence.contentIdentity(
           feature,
-          this.issueRepository.requireIssue(
-            this.issueRepository.readIssues(feature.workspace),
-            options.issue,
+          this.ticketRepository.requireTicket(
+            this.ticketRepository.readTickets(feature.workspace),
+            options.ticket,
           ),
           progress.baseSha,
           progress.checks,

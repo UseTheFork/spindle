@@ -7,15 +7,14 @@ import { Service } from "@/Foundation/Service";
 import {
   FEATURE_DIRECTORY,
   EXECUTION_STATES,
-  ISSUE_CATEGORIES,
+  TICKET_CATEGORIES,
   TRACKER_STATUSES,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,
-  IssueProgress,
+  TicketProgress,
   FeatureLedger,
   FeaturePaths,
-  IssueDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import {
   isImplementationAssignment,
@@ -62,28 +61,10 @@ export class LedgerRepository extends Service {
     return value;
   }
 
-  public upgradeIssueTracking(ledger: FeatureLedger, issues: IssueDocument[]): void {
-    if (ledger.schemaVersion === 2) return;
-    const byId = new Map(issues.map((issue) => [issue.id, issue]));
-    for (const progress of ledger.issues) {
-      const issue = byId.get(progress.id);
-      if (!issue) throw new Error(`Issue ${progress.id} has no Markdown record.`);
-      progress.title = issue.title;
-      progress.reporter = issue.reporter;
-      progress.category = issue.category;
-      progress.status = issue.status;
-      progress.blockedBy = issue.blocked_by;
-      if (issue.blocker) progress.blocker = issue.blocker;
-    }
-    ledger.schemaVersion = 2;
-    ledger.delivery.status ??= "active";
-    ledger.delivery.baseSha ??= ledger.issues.find((issue) => issue.baseSha)?.baseSha;
-  }
-
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {
     if (!isRecord(value)) throw new Error("Feature ledger must contain a JSON object.");
     const id = FEATURE_DIRECTORY.exec(feature)?.[1];
-    if (value.schemaVersion !== 1 && value.schemaVersion !== 2) {
+    if (value.schemaVersion !== 3) {
       throw new Error(`Unsupported feature ledger schema version: ${String(value.schemaVersion)}.`);
     }
     if (typeof value.featureId !== "string" || value.featureId !== id) {
@@ -109,7 +90,7 @@ export class LedgerRepository extends Service {
     ) {
       throw new Error("Feature review policy version must be a positive integer.");
     }
-    for (const role of ["issue", "delivery"] as const) {
+    for (const role of ["ticket", "delivery"] as const) {
       const reviewers = value.reviewPolicy[role];
       if (
         !Array.isArray(reviewers) ||
@@ -120,72 +101,71 @@ export class LedgerRepository extends Service {
       }
     }
     if (
-      !Array.isArray(value.issues) ||
-      !value.issues.every(
-        (issue) =>
-          isRecord(issue) &&
-          typeof issue.id === "string" &&
-          /^I-\d{4,}$/.test(issue.id) &&
-          typeof issue.execution === "string" &&
-          EXECUTION_STATES.includes(issue.execution as ExecutionState) &&
-          (value.schemaVersion === 1 ||
-            (typeof issue.title === "string" &&
-              !!issue.title.trim() &&
-              typeof issue.reporter === "string" &&
-              !!issue.reporter.trim() &&
-              typeof issue.category === "string" &&
-              ISSUE_CATEGORIES.includes(issue.category as (typeof ISSUE_CATEGORIES)[number]) &&
-              typeof issue.status === "string" &&
-              TRACKER_STATUSES.includes(issue.status as (typeof TRACKER_STATUSES)[number]) &&
-              Array.isArray(issue.blockedBy) &&
-              issue.blockedBy.every((dependency) => typeof dependency === "string") &&
-              (!Object.hasOwn(issue, "blocker") ||
-                (typeof issue.blocker === "string" && !!issue.blocker.trim())))) &&
-          ((!Object.hasOwn(issue, "owner") && !Object.hasOwn(issue, "baseSha")) ||
-            (typeof issue.owner === "string" &&
-              !!issue.owner.trim() &&
-              typeof issue.baseSha === "string" &&
-              /^[0-9a-f]{40,64}$/i.test(issue.baseSha))) &&
-          (!Object.hasOwn(issue, "acceptedEvidence") ||
-            isAcceptedEvidence(issue.acceptedEvidence)) &&
-          (!Object.hasOwn(issue, "integration") ||
-            (issue.execution === "integrated" &&
-              isIntegrationRecord(issue.integration) &&
-              isAcceptedEvidence(issue.acceptedEvidence) &&
-              JSON.stringify(issue.integration.files) ===
-                JSON.stringify(issue.acceptedEvidence.files) &&
-              issue.integration.contentDigest === issue.acceptedEvidence.contentDigest)) &&
-          (!Object.hasOwn(issue, "reviewRequirements") ||
-            (Array.isArray(issue.reviewRequirements) &&
-              issue.reviewRequirements.every(isSpecialistReviewRequirement) &&
-              new Set(issue.reviewRequirements.map((requirement) => requirement.agent)).size ===
-                issue.reviewRequirements.length)) &&
-          (!Object.hasOwn(issue, "checks") ||
-            (isRecord(issue.checks) &&
-              Array.isArray(issue.checks.required) &&
-              issue.checks.required.every(isCheckRequirement) &&
-              Array.isArray(issue.checks.records) &&
-              issue.checks.records.every(isCheckRecord) &&
-              (!Object.hasOwn(issue.checks, "invalidations") ||
-                (Array.isArray(issue.checks.invalidations) &&
-                  issue.checks.invalidations.every(isCheckGateInvalidation))))) &&
-          (!Object.hasOwn(issue, "assignment") ||
-            (isImplementationAssignment(issue.assignment) &&
-              issue.assignment.report ===
+      !Array.isArray(value.tickets) ||
+      !value.tickets.every(
+        (ticket) =>
+          isRecord(ticket) &&
+          typeof ticket.id === "string" &&
+          /^T-\d{4,}$/.test(ticket.id) &&
+          typeof ticket.execution === "string" &&
+          EXECUTION_STATES.includes(ticket.execution as ExecutionState) &&
+          typeof ticket.title === "string" &&
+          !!ticket.title.trim() &&
+          typeof ticket.reporter === "string" &&
+          !!ticket.reporter.trim() &&
+          typeof ticket.category === "string" &&
+          TICKET_CATEGORIES.includes(ticket.category as (typeof TICKET_CATEGORIES)[number]) &&
+          typeof ticket.status === "string" &&
+          TRACKER_STATUSES.includes(ticket.status as (typeof TRACKER_STATUSES)[number]) &&
+          Array.isArray(ticket.blockedBy) &&
+          ticket.blockedBy.every((dependency) => typeof dependency === "string") &&
+          (!Object.hasOwn(ticket, "blocker") ||
+            (typeof ticket.blocker === "string" && !!ticket.blocker.trim())) &&
+          ((!Object.hasOwn(ticket, "owner") && !Object.hasOwn(ticket, "baseSha")) ||
+            (typeof ticket.owner === "string" &&
+              !!ticket.owner.trim() &&
+              typeof ticket.baseSha === "string" &&
+              /^[0-9a-f]{40,64}$/i.test(ticket.baseSha))) &&
+          (!Object.hasOwn(ticket, "acceptedEvidence") ||
+            isAcceptedEvidence(ticket.acceptedEvidence)) &&
+          (!Object.hasOwn(ticket, "integration") ||
+            (ticket.execution === "integrated" &&
+              isIntegrationRecord(ticket.integration) &&
+              isAcceptedEvidence(ticket.acceptedEvidence) &&
+              JSON.stringify(ticket.integration.files) ===
+                JSON.stringify(ticket.acceptedEvidence.files) &&
+              ticket.integration.contentDigest === ticket.acceptedEvidence.contentDigest)) &&
+          (!Object.hasOwn(ticket, "reviewRequirements") ||
+            (Array.isArray(ticket.reviewRequirements) &&
+              ticket.reviewRequirements.every(isSpecialistReviewRequirement) &&
+              new Set(ticket.reviewRequirements.map((requirement) => requirement.agent)).size ===
+                ticket.reviewRequirements.length)) &&
+          (!Object.hasOwn(ticket, "checks") ||
+            (isRecord(ticket.checks) &&
+              Array.isArray(ticket.checks.required) &&
+              ticket.checks.required.every(isCheckRequirement) &&
+              Array.isArray(ticket.checks.records) &&
+              ticket.checks.records.every(isCheckRecord) &&
+              (!Object.hasOwn(ticket.checks, "invalidations") ||
+                (Array.isArray(ticket.checks.invalidations) &&
+                  ticket.checks.invalidations.every(isCheckGateInvalidation))))) &&
+          (!Object.hasOwn(ticket, "assignment") ||
+            (isImplementationAssignment(ticket.assignment) &&
+              ticket.assignment.report ===
                 join(
                   this.app.workspaceRoot,
                   ".scratch",
                   feature,
                   "reports",
-                  issue.assignment.action === "implement"
-                    ? `${issue.id}-implementation.md`
-                    : `${issue.id}-round-${issue.assignment.attempt}-fix.md`,
+                  ticket.assignment.action === "implement"
+                    ? `${ticket.id}-implementation.md`
+                    : `${ticket.id}-round-${ticket.assignment.attempt}-fix.md`,
                 ))) &&
-          (!Object.hasOwn(issue, "correctionAttempts") ||
-            (Array.isArray(issue.correctionAttempts) &&
-              issue.correctionAttempts.every(isCorrectionAttempt) &&
-              issue.correctionAttempts.every((attempt, index) => attempt.number === index + 1) &&
-              issue.correctionAttempts.every(
+          (!Object.hasOwn(ticket, "correctionAttempts") ||
+            (Array.isArray(ticket.correctionAttempts) &&
+              ticket.correctionAttempts.every(isCorrectionAttempt) &&
+              ticket.correctionAttempts.every((attempt, index) => attempt.number === index + 1) &&
+              ticket.correctionAttempts.every(
                 (attempt) =>
                   attempt.assignment.report ===
                     join(
@@ -193,7 +173,7 @@ export class LedgerRepository extends Service {
                       ".scratch",
                       feature,
                       "reports",
-                      `${issue.id}-round-${attempt.number}-fix.md`,
+                      `${ticket.id}-round-${attempt.number}-fix.md`,
                     ) &&
                   (!attempt.priorAssignment ||
                     attempt.priorAssignment.report ===
@@ -203,8 +183,8 @@ export class LedgerRepository extends Service {
                         feature,
                         "reports",
                         attempt.priorAssignment.action === "implement"
-                          ? `${issue.id}-implementation.md`
-                          : `${issue.id}-round-${attempt.priorAssignment.attempt}-fix.md`,
+                          ? `${ticket.id}-implementation.md`
+                          : `${ticket.id}-round-${attempt.priorAssignment.attempt}-fix.md`,
                       )) &&
                   (attempt.reviewAssignments ?? []).every(
                     (assignment) =>
@@ -215,16 +195,17 @@ export class LedgerRepository extends Service {
                         feature,
                         "reports",
                         assignment.scope === "initial"
-                          ? `${issue.id}-review-${assignment.id}.md`
-                          : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
+                          ? `${ticket.id}-review-${assignment.id}.md`
+                          : `${ticket.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
                       ),
                   ),
               ) &&
-              hasMatchingCorrectionAttempt(issue))) &&
-          (!Object.hasOwn(issue, "adjudication") || isCorrectionAdjudication(issue.adjudication)) &&
-          (!Object.hasOwn(issue, "reviewAssignments") ||
-            (Array.isArray(issue.reviewAssignments) &&
-              issue.reviewAssignments.every(
+              hasMatchingCorrectionAttempt(ticket))) &&
+          (!Object.hasOwn(ticket, "adjudication") ||
+            isCorrectionAdjudication(ticket.adjudication)) &&
+          (!Object.hasOwn(ticket, "reviewAssignments") ||
+            (Array.isArray(ticket.reviewAssignments) &&
+              ticket.reviewAssignments.every(
                 (assignment) =>
                   isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
@@ -235,13 +216,13 @@ export class LedgerRepository extends Service {
                       feature,
                       "reports",
                       assignment.scope === "initial"
-                        ? `${issue.id}-review-${assignment.id}.md`
-                        : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
+                        ? `${ticket.id}-review-${assignment.id}.md`
+                        : `${ticket.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
                     ),
               ))) &&
-          (!Object.hasOwn(issue, "reviewHistory") ||
-            (Array.isArray(issue.reviewHistory) &&
-              issue.reviewHistory.every(
+          (!Object.hasOwn(ticket, "reviewHistory") ||
+            (Array.isArray(ticket.reviewHistory) &&
+              ticket.reviewHistory.every(
                 (assignment) =>
                   isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
@@ -252,53 +233,54 @@ export class LedgerRepository extends Service {
                       feature,
                       "reports",
                       assignment.scope === "initial"
-                        ? `${issue.id}-review-${assignment.id}.md`
-                        : `${issue.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
+                        ? `${ticket.id}-review-${assignment.id}.md`
+                        : `${ticket.id}-round-${assignment.attempt}-review-${assignment.id}.md`,
                     ),
               ))) &&
-          (!Object.hasOwn(issue, "requirementsDecisions") ||
-            (Array.isArray(issue.requirementsDecisions) &&
-              issue.requirementsDecisions.every(isRequirementsDecision))) &&
-          (!Object.hasOwn(issue, "findings") ||
-            (Array.isArray(issue.findings) && issue.findings.every(isReviewFinding))),
+          (!Object.hasOwn(ticket, "requirementsDecisions") ||
+            (Array.isArray(ticket.requirementsDecisions) &&
+              ticket.requirementsDecisions.every(isRequirementsDecision))) &&
+          (!Object.hasOwn(ticket, "findings") ||
+            (Array.isArray(ticket.findings) && ticket.findings.every(isReviewFinding))),
       )
     ) {
       throw new Error(
-        "Feature issue records must contain an issue ID and a valid execution state.",
+        "Feature ticket records must contain a ticket ID and a valid execution state.",
       );
     }
     if (
-      new Set(value.issues.map((issue) => (issue as IssueProgress).id)).size !== value.issues.length
+      new Set(value.tickets.map((ticket) => (ticket as TicketProgress).id)).size !==
+      value.tickets.length
     ) {
-      throw new Error("Feature ledger issue IDs must be unique.");
+      throw new Error("Feature ledger ticket IDs must be unique.");
     }
-    for (const issue of value.issues as IssueProgress[]) {
-      for (const requirement of issue.reviewRequirements ?? []) {
+    for (const ticket of value.tickets as TicketProgress[]) {
+      for (const requirement of ticket.reviewRequirements ?? []) {
         if (blueprintCatalog.agents[requirement.agent]?.canReview !== true) {
           throw new Error(
             `Required specialist agent '${requirement.agent}' is not explicitly marked review-eligible.`,
           );
         }
         if (
-          (value.reviewPolicy as FeatureLedger["reviewPolicy"]).issue.includes(requirement.agent)
+          (value.reviewPolicy as FeatureLedger["reviewPolicy"]).ticket.includes(requirement.agent)
         ) {
           throw new Error(
-            `Specialist reviewer '${requirement.agent}' duplicates the pinned issue review policy.`,
+            `Specialist reviewer '${requirement.agent}' duplicates the pinned ticket review policy.`,
           );
         }
       }
-      const findingIds = issue.findings?.map((finding) => finding.id) ?? [];
+      const findingIds = ticket.findings?.map((finding) => finding.id) ?? [];
       if (new Set(findingIds).size !== findingIds.length) {
-        throw new Error(`Finding IDs must be unique within issue ${issue.id}.`);
+        throw new Error(`Finding IDs must be unique within ticket ${ticket.id}.`);
       }
-      const decisionIds = issue.requirementsDecisions?.map((decision) => decision.id) ?? [];
+      const decisionIds = ticket.requirementsDecisions?.map((decision) => decision.id) ?? [];
       if (new Set(decisionIds).size !== decisionIds.length) {
-        throw new Error(`Requirements decision IDs must be unique within issue ${issue.id}.`);
+        throw new Error(`Requirements decision IDs must be unique within ticket ${ticket.id}.`);
       }
-      for (const finding of issue.findings ?? []) {
+      for (const finding of ticket.findings ?? []) {
         if (
           finding.requirementsDecision &&
-          !issue.requirementsDecisions?.some(
+          !ticket.requirementsDecisions?.some(
             (decision) =>
               decision.id === finding.requirementsDecision &&
               decision.finding === finding.id &&
@@ -309,10 +291,10 @@ export class LedgerRepository extends Service {
         }
       }
       for (const assignment of [
-        ...(issue.reviewHistory ?? []),
-        ...(issue.reviewAssignments ?? []),
+        ...(ticket.reviewHistory ?? []),
+        ...(ticket.reviewAssignments ?? []),
       ]) {
-        const reported = (issue.findings ?? []).filter((finding) =>
+        const reported = (ticket.findings ?? []).filter((finding) =>
           finding.provenance.some(
             (source) =>
               source.report === assignment.report && source.snapshot === assignment.snapshot,
@@ -324,7 +306,7 @@ export class LedgerRepository extends Service {
           );
         }
         for (const id of assignment.findingIds ?? []) {
-          const finding = (issue.findings ?? []).find((candidate) => candidate.id === id);
+          const finding = (ticket.findings ?? []).find((candidate) => candidate.id === id);
           if (
             !finding ||
             !finding.provenance.some(
@@ -349,11 +331,11 @@ export class LedgerRepository extends Service {
         }
       }
     }
-    const reviewAssignmentIds = value.issues.flatMap((issue) =>
-      isRecord(issue)
+    const reviewAssignmentIds = value.tickets.flatMap((ticket) =>
+      isRecord(ticket)
         ? [
-            ...(Array.isArray(issue.reviewHistory) ? issue.reviewHistory : []),
-            ...(Array.isArray(issue.reviewAssignments) ? issue.reviewAssignments : []),
+            ...(Array.isArray(ticket.reviewHistory) ? ticket.reviewHistory : []),
+            ...(Array.isArray(ticket.reviewAssignments) ? ticket.reviewAssignments : []),
           ].map((assignment) => (isRecord(assignment) ? assignment.id : undefined))
         : [],
     );
@@ -370,10 +352,7 @@ export class LedgerRepository extends Service {
     ) {
       throw new Error("Feature delivery execution state is invalid.");
     }
-    if (
-      value.schemaVersion === 2 &&
-      !["active", "complete"].includes(String(value.delivery.status))
-    ) {
+    if (!["active", "complete"].includes(String(value.delivery.status))) {
       throw new Error("Feature tracking status is invalid.");
     }
     if (
@@ -496,11 +475,11 @@ export class LedgerRepository extends Service {
     if (new Set(deliveryFindingIds).size !== deliveryFindingIds.length) {
       throw new Error("Delivery finding IDs must be unique.");
     }
-    const issueIds = new Set((value.issues as IssueProgress[]).map((issue) => issue.id));
+    const ticketIds = new Set((value.tickets as TicketProgress[]).map((ticket) => ticket.id));
     for (const finding of delivery.findings ?? []) {
-      if (finding.relatedIssue && !issueIds.has(finding.relatedIssue)) {
+      if (finding.relatedTicket && !ticketIds.has(finding.relatedTicket)) {
         throw new Error(
-          `Delivery finding ${finding.id} references missing issue ${finding.relatedIssue}.`,
+          `Delivery finding ${finding.id} references missing ticket ${finding.relatedTicket}.`,
         );
       }
       if (

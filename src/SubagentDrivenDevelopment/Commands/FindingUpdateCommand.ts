@@ -13,7 +13,7 @@ export class FindingUpdateCommand extends Command {
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-      .option("--issue <id>", "Issue ID", CommandOptions.once("--issue"))
+      .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--finding <id>", "Canonical finding ID", CommandOptions.once("--finding"))
       .requiredOption(
@@ -33,8 +33,8 @@ export class FindingUpdateCommand extends Command {
         if (options.scope !== undefined && options.scope !== "delivery") {
           throw new Error("--scope must be 'delivery'.");
         }
-        if (Boolean(options.issue) === (options.scope === "delivery")) {
-          throw new Error("finding update needs exactly one of --issue or --scope delivery.");
+        if (Boolean(options.ticket) === (options.scope === "delivery")) {
+          throw new Error("finding update needs exactly one of --ticket or --scope delivery.");
         }
         const command = await (await createApp()).make(FindingUpdateCommand);
         console.log(JSON.stringify(await command.run(options), null, 2));

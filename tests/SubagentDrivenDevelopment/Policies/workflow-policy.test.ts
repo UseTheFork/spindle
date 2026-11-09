@@ -5,7 +5,7 @@ import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPol
 
 import { serviceFixture } from "../helpers/helpers";
 
-test("workflow gates preserve issue selection errors and closed-delivery behavior", async () => {
+test("workflow gates preserve ticket selection errors and closed-delivery behavior", async () => {
   const { app, service } = await serviceFixture();
   const feature = service.featureCreationService.create({
     title: "Policies",
@@ -14,8 +14,8 @@ test("workflow gates preserve issue selection errors and closed-delivery behavio
 
   const ledger = (await app.make(LedgerRepository)).readLedger(feature);
   const policy = await app.make(WorkflowPolicy);
-  expect(() => policy.requireProgress(ledger, "I-0001")).toThrow(
-    "Issue I-0001 has no ledger execution record.",
+  expect(() => policy.requireProgress(ledger, "T-0001")).toThrow(
+    "Ticket T-0001 has no ledger execution record.",
   );
   ledger.delivery.finished = { at: new Date().toISOString(), author: "controller" };
   expect(() => policy.assertDeliveryOpen(ledger.delivery)).toThrow(

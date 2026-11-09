@@ -2,7 +2,7 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type {
-  IssueChecks,
+  TicketChecks,
   CheckRecord,
   ContentIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
@@ -11,12 +11,12 @@ import type {
   ChecksRecordOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
 import { isSafeCoveragePath } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -25,7 +25,7 @@ export class ChecksService extends Service {
   public constructor(
     app: Application,
     private readonly gitEvidence: GitEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly workflowPolicy: WorkflowPolicy,
@@ -35,9 +35,9 @@ export class ChecksService extends Service {
   }
 
   public checksRequire(options: ChecksRequireOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
-    checks: IssueChecks;
+    checks: TicketChecks;
     idempotent?: boolean;
     invalidatedDecision?: { from: "accepted" | "integrated"; to: "reviewing" };
     snapshot: string;
@@ -46,12 +46,12 @@ export class ChecksService extends Service {
     headSha: string;
   } {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryChecksRequire(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("checks require needs --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("checks require needs --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
@@ -64,7 +64,7 @@ export class ChecksService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "reviewing" && (progress.reviewAssignments?.length ?? 0) > 0) {
         throw new Error(
           "The review snapshot is frozen; required checks cannot change while review assignments are active.",
@@ -82,14 +82,14 @@ export class ChecksService extends Service {
       } else {
         if (active) {
           return {
-            issue: options.issue,
+            ticket: options.ticket,
             checks,
             idempotent: true,
             ...this.gitEvidence.contentIdentity(
               feature,
-              this.issueRepository.requireIssue(
-                this.issueRepository.readIssues(feature.workspace),
-                options.issue,
+              this.ticketRepository.requireTicket(
+                this.ticketRepository.readTickets(feature.workspace),
+                options.ticket,
               ),
               progress.baseSha,
               checks,
@@ -116,19 +116,19 @@ export class ChecksService extends Service {
         (checks.invalidations ??= []).push(invalidation);
         invalidatedDecision = { from, to: "reviewing" };
       }
-      const currentIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const currentTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        currentIssue,
+        currentTicket,
         progress.baseSha,
         checks,
       );
       this.workspaceTransaction.writeLedger(feature, ledger);
       return {
-        issue: options.issue,
+        ticket: options.ticket,
         checks,
         ...(invalidatedDecision ? { invalidatedDecision } : {}),
         ...identity,
@@ -137,18 +137,18 @@ export class ChecksService extends Service {
   }
 
   public checksRecord(options: ChecksRecordOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     record: CheckRecord;
     idempotent?: boolean;
   } & ContentIdentity {
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryChecksRecord(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("checks record needs --issue or --scope delivery.");
-    validateIssueId(options.issue);
+    if (!options.ticket) throw new Error("checks record needs --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
     validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
@@ -164,9 +164,9 @@ export class ChecksService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const progress = this.workflowPolicy.requireProgress(ledger, options.issue);
+      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       const checks = progress.checks;
-      if (!checks) throw new Error("No required checks are declared for this issue.");
+      if (!checks) throw new Error("No required checks are declared for this ticket.");
       const requirement = checks.required.find(
         (item) => item.command === command && !item.removedAt,
       );
@@ -181,11 +181,11 @@ export class ChecksService extends Service {
       ) {
         throw new Error("--paths must contain unique safe checkout-relative file paths.");
       }
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
-      const identity = this.gitEvidence.contentIdentity(feature, issue, progress.baseSha, checks);
+      const identity = this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, checks);
       if (identity.snapshot !== options.snapshot) {
         throw new Error(
           `Snapshot is stale; current content identity is ${identity.snapshot}. No check result was recorded.`,
@@ -203,7 +203,7 @@ export class ChecksService extends Service {
         JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
           ? latestForCommand
           : undefined;
-      if (repeat) return { issue: options.issue, record: repeat, idempotent: true, ...identity };
+      if (repeat) return { ticket: options.ticket, record: repeat, idempotent: true, ...identity };
       const record: CheckRecord = {
         command,
         result: options.result as CheckRecord["result"],
@@ -218,7 +218,7 @@ export class ChecksService extends Service {
               coveredPaths,
               coverageSnapshot: this.gitEvidence.contentIdentity(
                 feature,
-                issue,
+                ticket,
                 progress.baseSha,
                 checks,
                 coveredPaths,
@@ -241,13 +241,13 @@ export class ChecksService extends Service {
           }
         }
       }
-      const confirmedIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        options.issue,
+      const confirmedTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        options.ticket,
       );
       const confirmedIdentity = this.gitEvidence.contentIdentity(
         feature,
-        confirmedIssue,
+        confirmedTicket,
         progress.baseSha,
         checks,
       );
@@ -257,13 +257,13 @@ export class ChecksService extends Service {
         throw new Error("Content changed while recording the check; retry with a fresh snapshot.");
       }
       this.workspaceTransaction.writeLedger(feature, ledger);
-      return { issue: options.issue, record, ...identity };
+      return { ticket: options.ticket, record, ...identity };
     });
   }
 
   public deliveryChecksRequire(options: ChecksRequireOptions): {
     scope: "delivery";
-    checks: IssueChecks;
+    checks: TicketChecks;
     idempotent?: boolean;
     snapshot: string;
     codeSnapshot: string;
@@ -305,7 +305,7 @@ export class ChecksService extends Service {
           const identity = this.gitEvidence.deliveryIdentity(
             feature,
             ledger,
-            this.issueRepository.readIssues(feature.workspace),
+            this.ticketRepository.readTickets(feature.workspace),
           );
           return { scope: "delivery", checks, idempotent: true, ...identity };
         }
@@ -318,7 +318,7 @@ export class ChecksService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       delivery.history.push({
         at: new Date().toISOString(),
@@ -364,7 +364,7 @@ export class ChecksService extends Service {
       const identity = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (identity.snapshot !== options.snapshot) {
         throw new Error(
@@ -404,7 +404,7 @@ export class ChecksService extends Service {
       const confirmed = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (confirmed.snapshot !== identity.snapshot) {
         delivery.checks.records.pop();

@@ -51,7 +51,7 @@ test("schema-only registration reuses groups and preserves positional review req
   ]);
   expect(
     sdd.commands
-      .find((command) => command.name() === "issue")!
+      .find((command) => command.name() === "ticket")!
       .commands.map((command) => command.name()),
   ).toEqual(["create", "update", "comment"]);
   expect(

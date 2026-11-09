@@ -30,24 +30,24 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   expect(readFileSync(expected.spec, "utf8")).toBe(
     "# [FEATURE TITLE]\n\n## Problem Statement\n\n[PROBLEM STATEMENT]\n\n## Solution\n\n[SOLUTION]\n\n## User Stories\n\n[USER STORIES]\n\n## Implementation Decisions\n\n[IMPLEMENTATION DECISIONS]\n\n## Testing Decisions\n\n[TESTING DECISIONS]\n\n## Out of Scope\n\n[OUT OF SCOPE]\n\n## Further Notes\n\n[FURTHER NOTES]\n",
   );
-  expect(existsSync(join(featureDirectory, "issues"))).toBe(true);
+  expect(existsSync(join(featureDirectory, "tickets"))).toBe(true);
   expect(existsSync(join(featureDirectory, "reports"))).toBe(true);
   expect(readdirSync(featureDirectory).sort()).toEqual([
-    "issues",
     "reports",
     "sdd.json",
     "spec.md",
+    "tickets",
   ]);
 
   const ledger = JSON.parse(readFileSync(expected.ledger, "utf8"));
-  expect(ledger.schemaVersion).toBe(2);
+  expect(ledger.schemaVersion).toBe(3);
   expect(ledger.featureId).toBe("0001");
   expect(ledger.title).toBe("Command Driven SDD");
   expect(ledger.createdBy).toBe("maintainer");
   expect(ledger.retrospectiveRequired).toBe(false);
   expect(ledger.reviewPolicy).toEqual({
     version: 1,
-    issue: ["sdd-reviewer"],
+    ticket: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(ledger.delivery.status).toBe("active");
@@ -69,10 +69,10 @@ test("sdd create optionally copies the design template without substituting plac
   );
   expect(readdirSync(join(repo, ".scratch", result.feature)).sort()).toEqual([
     "design.md",
-    "issues",
     "reports",
     "sdd.json",
     "spec.md",
+    "tickets",
   ]);
 });
 

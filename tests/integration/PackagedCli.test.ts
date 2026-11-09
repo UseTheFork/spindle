@@ -97,17 +97,17 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
     "design.md",
-    "issues",
     "reports",
     "sdd.json",
     "spec.md",
+    "tickets",
   ]);
 
   const ledgerBeforeStatus = readFileSync(expected.ledger, "utf8");
   const ledger = JSON.parse(ledgerBeforeStatus);
   expect(ledger.reviewPolicy).toEqual({
     version: 1,
-    issue: ["sdd-reviewer"],
+    ticket: ["sdd-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(ledger.delivery).toMatchObject({
@@ -116,7 +116,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     baseSha: expect.stringMatching(/^[0-9a-f]{40}$/),
     history: [],
   });
-  expect(ledger.issues).toEqual([]);
+  expect(ledger.tickets).toEqual([]);
   const statusBefore = git("status", "--porcelain=v1");
   const inspected = cli.run(gitWorkspace, ["sdd", "status", "--spec", expected.spec]);
   expect(inspected.status, inspected.stderr).toBe(0);
@@ -137,7 +137,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
       scope: "delivery",
       status: "active",
       execution: "unstarted",
-      action: "close-issues",
+      action: "close-tickets",
       baseSha: ledger.delivery.baseSha,
       retrospectiveRequired: false,
       finished: false,
@@ -147,13 +147,34 @@ test("packaged sdd create and status expose feature state outside the checkout",
       reviewAssignments: [],
       requiredChecks: [],
       checkRecords: [],
-      blockers: ["Issues are not closed: feature has no issues."],
+      blockers: ["Tickets are not closed: feature has no tickets."],
     },
   };
   expect(inspected.stdout).toBe(`${JSON.stringify(expectedStatus, null, 2)}\n`);
   expect(JSON.parse(inspected.stdout)).toEqual(expectedStatus);
   expect(readFileSync(expected.ledger, "utf8")).toBe(ledgerBeforeStatus);
   expect(git("status", "--porcelain=v1")).toBe(statusBefore);
+
+  const createdTicket = cli.run(gitWorkspace, [
+    "sdd",
+    "ticket",
+    "create",
+    "--spec",
+    expected.spec,
+    "--title",
+    "Packaged ticket",
+    "--reporter",
+    "maintainer",
+    "--category",
+    "enhancement",
+    "--author",
+    "controller",
+  ]);
+  expect(createdTicket.status, createdTicket.stderr).toBe(0);
+  expect(JSON.parse(createdTicket.stdout).ticket).toBe("T-0001");
+  expect(readFileSync(join(featureDirectory, "tickets", "T-0001.md"), "utf8")).toContain(
+    "[REQUIREMENTS]",
+  );
 
   const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);

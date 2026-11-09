@@ -17,17 +17,17 @@ import type {
   ReviewRequireOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { IssueRepository } from "@/SubagentDrivenDevelopment/Persistence/IssueRepository";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
-  validateIssueId,
+  validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import {
-  requiredIssueReviewers,
+  requiredTicketReviewers,
   requiredDeliveryReviewers,
 } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
@@ -39,7 +39,7 @@ export class ReviewService extends Service {
     app: Application,
     private readonly gitEvidence: GitEvidence,
     private readonly reportEvidence: ReportEvidence,
-    private readonly issueRepository: IssueRepository,
+    private readonly ticketRepository: TicketRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly workspaceTransaction: WorkspaceTransaction,
     private readonly assignmentPolicy: AssignmentPolicy,
@@ -52,7 +52,7 @@ export class ReviewService extends Service {
   }
 
   public reviewRequire(options: ReviewRequireOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     requirement: SpecialistReviewRequirement;
     idempotent?: boolean;
@@ -71,7 +71,7 @@ export class ReviewService extends Service {
     }
 
     if (options.scope === "delivery") {
-      if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+      if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       const feature = this.featureInspectionService.resolveFeature(options.spec);
       return this.workspaceTransaction.run(feature.workspace, () => {
         const ledger = this.ledgerRepository.readLedger(feature);
@@ -116,20 +116,20 @@ export class ReviewService extends Service {
       });
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("Review require needs --issue or --scope delivery.");
-    validateIssueId(options.issue);
-    const issueId = options.issue;
+    if (!options.ticket) throw new Error("Review require needs --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
+    const ticketId = options.ticket;
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        issueId,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, issueId);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       if (!progress.owner || progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded issue controller may require specialist reviews.");
+        throw new Error("Only the recorded ticket controller may require specialist reviews.");
       }
 
       const existing = (progress.reviewRequirements ?? []).find(
@@ -141,7 +141,7 @@ export class ReviewService extends Service {
             `Specialist review for '${agent}' is already pinned with different details or author.`,
           );
         }
-        return { issue: issueId, requirement: existing, idempotent: true };
+        return { ticket: ticketId, requirement: existing, idempotent: true };
       }
       if (
         (progress.reviewAssignments?.length ?? 0) > 0 ||
@@ -151,8 +151,8 @@ export class ReviewService extends Service {
           "Review assignments are already frozen; specialist requirements cannot be added.",
         );
       }
-      if (ledger.reviewPolicy.issue.includes(agent)) {
-        throw new Error(`Review agent '${agent}' is already required by the pinned issue policy.`);
+      if (ledger.reviewPolicy.ticket.includes(agent)) {
+        throw new Error(`Review agent '${agent}' is already required by the pinned ticket policy.`);
       }
 
       const requirement: SpecialistReviewRequirement = {
@@ -162,21 +162,21 @@ export class ReviewService extends Service {
         requestedAt: new Date().toISOString(),
       };
       (progress.reviewRequirements ??= []).push(requirement);
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Specialist review required for '${agent}': ${details}.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
-      return { issue: issueId, requirement };
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+      return { ticket: ticketId, requirement };
     });
   }
 
   public review(options: ReviewOptions): {
-    issue?: string;
+    ticket?: string;
     scope?: "delivery";
     execution: "reviewing";
     assignments: ReviewAssignment[];
@@ -189,9 +189,9 @@ export class ReviewService extends Service {
     validateAuthor(options.author);
     if (options.scope === "delivery") return this.deliveryReview(options);
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.issue) throw new Error("Review requires --issue or --scope delivery.");
-    validateIssueId(options.issue);
-    const issueId = options.issue;
+    if (!options.ticket) throw new Error("Review requires --ticket or --scope delivery.");
+    validateTicketId(options.ticket);
+    const ticketId = options.ticket;
     let confirmedInventory: unknown;
     try {
       confirmedInventory = JSON.parse(options.inventory) as unknown;
@@ -209,13 +209,13 @@ export class ReviewService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        issueId,
+      const ticket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, issueId);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       if (progress.execution !== "reviewing" || !progress.assignment) {
-        throw new Error(`Issue ${issueId} must have a submitted implementation before review.`);
+        throw new Error(`Ticket ${ticketId} must have a submitted implementation before review.`);
       }
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the recorded controller may dispatch review.");
@@ -225,17 +225,17 @@ export class ReviewService extends Service {
         progress.assignment,
       );
       if (implementationBlocker) throw new Error(implementationBlocker);
-      if (!progress.baseSha) throw new Error("Review requires the issue's recorded Git baseline.");
+      if (!progress.baseSha) throw new Error("Review requires the ticket's recorded Git baseline.");
 
       const identity = this.gitEvidence.contentIdentity(
         feature,
-        issue,
+        ticket,
         progress.baseSha,
         progress.checks,
       );
       const reviewCheckBlockers = this.checkPolicy.reviewCheckBlockers(
         feature,
-        issue,
+        ticket,
         progress,
         identity,
       );
@@ -251,7 +251,7 @@ export class ReviewService extends Service {
         );
       }
 
-      const requiredReviewers = requiredIssueReviewers(ledger, progress);
+      const requiredReviewers = requiredTicketReviewers(ledger, progress);
       let existing = progress.reviewAssignments ?? [];
       if (progress.assignment.action === "correct") {
         const completeInitialCoverage = requiredReviewers.every(({ agent, details }) => {
@@ -286,7 +286,7 @@ export class ReviewService extends Service {
               )
             ) {
               throw new Error(
-                "The frozen corrective review assignment no longer matches the current issue snapshot.",
+                "The frozen corrective review assignment no longer matches the current ticket snapshot.",
               );
             }
             for (const assignment of correctionAssignments) {
@@ -299,7 +299,7 @@ export class ReviewService extends Service {
               if (blocker) throw new Error(blocker);
             }
             return {
-              issue: issueId,
+              ticket: ticketId,
               execution: "reviewing",
               assignments: correctionAssignments,
               idempotent: true,
@@ -316,7 +316,7 @@ export class ReviewService extends Service {
             const report = join(
               feature.workspace,
               "reports",
-              `${issueId}-round-${attempt.number}-review-${id}.md`,
+              `${ticketId}-round-${attempt.number}-review-${id}.md`,
             );
             this.reportEvidence.assertReportPath(feature, report, false);
             if (lstatIfPresent(report)) {
@@ -342,9 +342,9 @@ export class ReviewService extends Service {
           attempt.reviewAssignments = assignments;
           const confirmedIdentity = this.gitEvidence.contentIdentity(
             feature,
-            this.issueRepository.requireIssue(
-              this.issueRepository.readIssues(feature.workspace),
-              issueId,
+            this.ticketRepository.requireTicket(
+              this.ticketRepository.readTickets(feature.workspace),
+              ticketId,
             ),
             progress.baseSha,
             progress.checks,
@@ -356,23 +356,23 @@ export class ReviewService extends Service {
           ) {
             delete attempt.reviewAssignments;
             throw new Error(
-              "Issue content changed while freezing corrective review; retry with a fresh inventory.",
+              "Ticket content changed while freezing corrective review; retry with a fresh inventory.",
             );
           }
           const assignmentSummary = assignments
             .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
             .join("; ");
-          const afterIssue = matter.stringify(
-            this.issueRepository.appendAudit(
-              issue.body,
+          const afterTicket = matter.stringify(
+            this.ticketRepository.appendAudit(
+              ticket.body,
               options.author,
               `Corrective review assignments for attempt ${attempt.number} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
             ),
-            this.issueRepository.metadata(issue),
+            this.ticketRepository.metadata(ticket),
           );
-          this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+          this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
           return {
-            issue: issueId,
+            ticket: ticketId,
             execution: "reviewing",
             assignments,
             ...identity,
@@ -399,7 +399,7 @@ export class ReviewService extends Service {
           )
         ) {
           throw new Error(
-            "The frozen review assignment no longer matches the current issue snapshot.",
+            "The frozen review assignment no longer matches the current ticket snapshot.",
           );
         }
         for (const assignment of existing) {
@@ -412,7 +412,7 @@ export class ReviewService extends Service {
           if (blocker) throw new Error(blocker);
         }
         return {
-          issue: issueId,
+          ticket: ticketId,
           execution: "reviewing",
           assignments: existing,
           idempotent: true,
@@ -426,7 +426,7 @@ export class ReviewService extends Service {
           throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
         }
         const id = randomUUID();
-        const report = join(feature.workspace, "reports", `${issueId}-review-${id}.md`);
+        const report = join(feature.workspace, "reports", `${ticketId}-review-${id}.md`);
         this.reportEvidence.assertReportPath(feature, report, false);
         if (lstatIfPresent(report)) {
           throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
@@ -448,13 +448,13 @@ export class ReviewService extends Service {
         };
       });
 
-      const confirmedIssue = this.issueRepository.requireIssue(
-        this.issueRepository.readIssues(feature.workspace),
-        issueId,
+      const confirmedTicket = this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        ticketId,
       );
       const confirmedIdentity = this.gitEvidence.contentIdentity(
         feature,
-        confirmedIssue,
+        confirmedTicket,
         progress.baseSha,
         progress.checks,
       );
@@ -464,24 +464,24 @@ export class ReviewService extends Service {
         JSON.stringify(confirmedCurrentInventory) !== JSON.stringify(inventory)
       ) {
         throw new Error(
-          "Issue content changed while freezing review; retry with a fresh inventory.",
+          "Ticket content changed while freezing review; retry with a fresh inventory.",
         );
       }
       progress.reviewAssignments = assignments;
       const assignmentSummary = assignments
         .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
         .join("; ");
-      const afterIssue = matter.stringify(
-        this.issueRepository.appendAudit(
-          issue.body,
+      const afterTicket = matter.stringify(
+        this.ticketRepository.appendAudit(
+          ticket.body,
           options.author,
           `Initial review assignment${assignments.length === 1 ? "" : "s"} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
         ),
-        this.issueRepository.metadata(issue),
+        this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, issue, afterIssue, ledger);
+      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        issue: issueId,
+        ticket: ticketId,
         execution: "reviewing",
         assignments,
         ...identity,
@@ -499,7 +499,7 @@ export class ReviewService extends Service {
     requirementsSnapshot: string;
     headSha: string;
   } {
-    if (options.issue) throw new Error("--issue and --scope delivery are mutually exclusive.");
+    if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
     let confirmedInventory: unknown;
     try {
       confirmedInventory = JSON.parse(options.inventory) as unknown;
@@ -516,22 +516,22 @@ export class ReviewService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const issues = this.issueRepository.readIssues(feature.workspace);
-      const incomplete = ledger.issues
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      const incomplete = ledger.tickets
         .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
       if (incomplete.length > 0) {
-        throw new Error(`Feature review requires every issue closed: ${incomplete.join(", ")}.`);
+        throw new Error(`Feature review requires every ticket closed: ${incomplete.join(", ")}.`);
       }
-      if (issues.length !== ledger.issues.length) {
-        throw new Error("Feature review requires every issue document to be present.");
+      if (tickets.length !== ledger.tickets.length) {
+        throw new Error("Feature review requires every ticket document to be present.");
       }
       const delivery = ledger.delivery;
       if (delivery.adjudication?.status === "pending") {
         throw new Error("Delivery correction is paused for adjudication.");
       }
       delivery.owner = options.author.trim();
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, issues);
+      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
       const blockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
       const baseline = delivery.baseSha;
@@ -640,7 +640,7 @@ export class ReviewService extends Service {
       const confirmed = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
-        this.issueRepository.readIssues(feature.workspace),
+        this.ticketRepository.readTickets(feature.workspace),
       );
       if (
         confirmed.snapshot !== identity.snapshot ||
