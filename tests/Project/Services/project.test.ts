@@ -44,6 +44,7 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       "docs/agents",
       ".github",
       "docs/agents/domain.md",
+      "docs/agents/ticket-tracker.md",
       ".github/spindle.json",
       "docs/agents/tooling.md",
     ],
@@ -56,6 +57,9 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     );
   }
   const config = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
+  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).toEqual(
+    readFileSync(join(repoRoot, "src/Assets/Templates/project/ticket-tracker.md")),
+  );
   expect(config).toMatchObject({ stacks: [], variables: {} });
   expect(config.tooling.map(({ key }: { key: string }) => key)).toEqual([
     "spindle-init",
@@ -91,12 +95,18 @@ test("initialization seeds a registry in legacy Config and preserves existing en
   });
   const customDomain = Buffer.from("preserve domain docs\n");
   writeFileSync(join(workspace, "docs/agents/domain.md"), customDomain);
+  const customTicketTracker = Buffer.from("preserve ticket tracker docs\n");
+  writeFileSync(join(workspace, "docs/agents/ticket-tracker.md"), customTicketTracker);
   writeFileSync(join(workspace, "docs/agents/tooling.md"), "stale generated contents\n");
   const repeated = await service.initialize();
   expect(repeated.created).toEqual([]);
   expect(repeated.preserved).toContain("docs/agents/domain.md");
+  expect(repeated.preserved).toContain("docs/agents/ticket-tracker.md");
   expect(repeated.updated).toEqual([".github/spindle.json", "docs/agents/tooling.md"]);
   expect(readFileSync(join(workspace, "docs/agents/domain.md"))).toEqual(customDomain);
+  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).toEqual(
+    customTicketTracker,
+  );
   expect(
     JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8")).tooling,
   ).toHaveLength(4);

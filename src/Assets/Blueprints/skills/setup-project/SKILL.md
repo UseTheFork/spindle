@@ -22,7 +22,7 @@ Run from the target Git working tree:
 spindle project init
 ```
 
-The command infers the Git root and fails if it cannot. It creates missing project documentation directories and `docs/agents/domain.md`, initializes the tooling registry with Spindle commands when the registry is new, and regenerates `docs/agents/tooling.md`. It preserves other existing project guidance and existing tooling entries.
+The command infers the Git root and fails if it cannot. It creates missing project documentation directories and copies the bundled `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those files are absent, initializes the tooling registry with Spindle commands when the registry is new, and regenerates `docs/agents/tooling.md`. It preserves other existing project guidance and existing tooling entries.
 
 **Complete when:** initialization succeeds and the command's output confirms the project root and generated tooling guide.
 
