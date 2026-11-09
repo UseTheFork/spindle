@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { runCli } from "../../helpers";
+import { runCli } from "../../helpers/Cli.ts";
 import { invokeAsync, serviceFixture } from "../helpers/helpers";
 
 test("sdd create requires named non-empty title and author options", async () => {

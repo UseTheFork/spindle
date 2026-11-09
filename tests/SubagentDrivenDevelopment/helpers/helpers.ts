@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { applicationFixture } from "../../application-fixture";
+import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
 import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 

@@ -7,12 +7,11 @@ import { beforeEach, test, expect, vi } from "vitest";
 vi.setConfig({ testTimeout: 30_000 });
 
 import {
-  makeTempDir,
-  repoRoot,
   runCliRaw,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../helpers.ts";
+} from "../../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 let stubs: string;
 

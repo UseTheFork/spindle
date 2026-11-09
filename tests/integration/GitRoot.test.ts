@@ -8,8 +8,8 @@ import { test, expect, vi } from "vitest";
 vi.setConfig({ testTimeout: 30_000 });
 import { pathToFileURL } from "node:url";
 
-import { makeTempDir, runCliRaw, runCliWithFixtureCatalogRaw as runCli } from "../helpers.ts";
-import { repoRoot } from "../helpers/TemporaryDirectories.ts";
+import { runCliRaw, runCliWithFixtureCatalogRaw as runCli } from "../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../helpers/TemporaryDirectories.ts";
 
 test("init from a nested directory installs into the Git worktree root", async () => {
   const project = await makeTempDir("spindle-git-root-");

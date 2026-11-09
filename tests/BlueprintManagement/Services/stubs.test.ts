@@ -2,7 +2,8 @@ import { expect, test } from "vitest";
 
 import { Stacks } from "@/Support/Stacks";
 
-import { makeTempDir, runCli } from "../../helpers.ts";
+import { runCli } from "../../helpers/Cli.ts";
+import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 const stackSelections = Stacks.supported
   .reduce<string[][]>(

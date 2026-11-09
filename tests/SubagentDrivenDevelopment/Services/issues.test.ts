@@ -13,7 +13,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { runCli } from "../../helpers";
+import { runCli } from "../../helpers/Cli.ts";
 import { createIssue, issueFixture } from "../helpers/issue-helpers";
 
 test("issue create persists attributed metadata and unstarted progress without overwriting", async () => {

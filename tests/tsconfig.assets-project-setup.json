@@ -8,8 +8,7 @@
     "./Config/**/*.ts",
     "./Git/**/*.ts",
     "./integration/PackagedCli.test.ts",
-    "./helpers.ts",
     "./helpers/**/*.ts",
-    "./application-fixture.ts"
+    "./helpers/ApplicationFixture.ts"
   ]
 }

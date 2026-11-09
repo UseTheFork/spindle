@@ -19,8 +19,10 @@ import {
 import { renderText } from "@/BlueprintManagement/Rendering/RenderText";
 import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
 
-import { applicationFixture } from "../../application-fixture";
-import { makeTempDir, repoRoot, runCliWithCatalog, writeCatalogFixture } from "../../helpers.ts";
+import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
+import { writeCatalogFixture } from "../../helpers/CatalogFixtures.ts";
+import { runCliWithCatalog } from "../../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 const description =
   "This is an internal skill do not load it unless explicitly required by the user or another skill.";

@@ -4,10 +4,10 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import {
-  makeTempDir,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../helpers.ts";
+} from "../../helpers/Cli.ts";
+import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 interface Definition {
   name: string;

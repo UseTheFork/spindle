@@ -3,7 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { makeTempDir, runCliWithFixtureCatalog as runCli } from "../../helpers.ts";
+import { runCliWithFixtureCatalog as runCli } from "../../helpers/Cli.ts";
+import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 const instruction = (name: string, version: string | null, body: string) =>
   `---\nname: ${name}\n${version === null ? "" : `metadata:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;

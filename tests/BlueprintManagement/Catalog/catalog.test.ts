@@ -10,13 +10,9 @@ import {
   type BlueprintCatalogDefinition,
 } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
-import {
-  makeTempDir,
-  repoRoot,
-  runCli as runBundledCli,
-  runCliWithCatalog as runCli,
-  writeCatalogFixture,
-} from "../../helpers.ts";
+import { writeCatalogFixture } from "../../helpers/CatalogFixtures.ts";
+import { runCli as runBundledCli, runCliWithCatalog as runCli } from "../../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
   expect(blueprintCatalog).toBe(assetCatalog);

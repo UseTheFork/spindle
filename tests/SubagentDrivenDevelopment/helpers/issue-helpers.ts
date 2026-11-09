@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { applicationFixture } from "../../application-fixture";
+import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
 import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { fixture } from "./helpers";
 import { workflowServices, type WorkflowServices } from "./WorkflowServices";

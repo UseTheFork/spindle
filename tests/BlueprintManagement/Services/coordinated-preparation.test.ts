@@ -5,12 +5,9 @@ import { expect, test } from "vitest";
 
 import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
-import {
-  writeCatalogFixture,
-  makeTempDir,
-  repoRoot,
-  runCliWithCatalog as runCli,
-} from "../../helpers.ts";
+import { writeCatalogFixture } from "../../helpers/CatalogFixtures.ts";
+import { runCliWithCatalog as runCli } from "../../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;

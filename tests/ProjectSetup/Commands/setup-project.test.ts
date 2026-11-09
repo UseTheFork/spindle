@@ -13,7 +13,7 @@ import { test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
-import { runCli, runCliRaw } from "../../helpers.ts";
+import { runCli, runCliRaw } from "../../helpers/Cli.ts";
 import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 const copies = [

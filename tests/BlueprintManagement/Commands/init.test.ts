@@ -8,11 +8,11 @@ vi.setConfig({ testTimeout: 30_000 });
 import { Chalk } from "chalk";
 
 import {
-  makeTempDir,
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw as runCliRaw,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../helpers.ts";
+} from "../../helpers/Cli.ts";
+import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 let stubsDirectory: string;
 const fixtureVariables = {

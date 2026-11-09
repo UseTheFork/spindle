@@ -7,13 +7,12 @@ import { expect, test } from "vitest";
 
 import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
+import { writeCatalogFixture } from "../../helpers/CatalogFixtures.ts";
 import {
-  writeCatalogFixture,
-  makeTempDir,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../helpers.ts";
-import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
+} from "../../helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 test("init installs and reports a rendered Agent alongside a same-named Skill", async () => {
   const blueprints = await makeTempDir("spindle-agent-blueprints-");

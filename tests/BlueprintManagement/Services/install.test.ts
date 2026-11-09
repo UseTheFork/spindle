@@ -10,8 +10,8 @@ import { InstallationService } from "@/BlueprintManagement/Services/Installation
 import { preparePlannedBlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
 import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBlueprintSourceRoot";
 
-import { applicationFixture } from "../../application-fixture";
-import { makeTempDir } from "../../helpers.ts";
+import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
+import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 test("source Blueprint roots resolve from the module location, independent of App roots", async () => {
   const workspace = await makeTempDir("spindle-install-relative-root-");

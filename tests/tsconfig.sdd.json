@@ -7,8 +7,7 @@
     "./Foundation/**/*.ts",
     "./Support/**/*.ts",
     "./integration/GitRoot.test.ts",
-    "./helpers.ts",
     "./helpers/**/*.ts",
-    "./application-fixture.ts"
+    "./helpers/ApplicationFixture.ts"
   ]
 }

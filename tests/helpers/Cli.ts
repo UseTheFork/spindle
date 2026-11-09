@@ -1,19 +1,14 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import type {
-  BlueprintCatalogDefinition,
-  CatalogSourceEntry,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-
-import { makeTempDir, repoRoot } from "./helpers/TemporaryDirectories.ts";
+import { withCatalogFixture, writeFixtureCatalog } from "./CatalogFixtures.ts";
+import { repoRoot } from "./TemporaryDirectories.ts";
 
 const cli = join(repoRoot, "src/index.ts");
 const tsconfig = join(repoRoot, "tsconfig.json");
 const checkout = repoRoot;
 const tsxLoader = import.meta.resolve("tsx");
-const catalogLoader = join(repoRoot, "tests/load-catalog-fixture.ts");
+const catalogLoader = join(repoRoot, "tests/helpers/preloads/load-catalog-fixture.ts");
 
 function nodeArguments(env: Record<string, string>) {
   return [
@@ -27,10 +22,6 @@ function nodeArguments(env: Record<string, string>) {
   ];
 }
 
-export { makeTempDir, repoRoot };
-
-// Runs the real CLI in `project`; node and tsx use absolute paths, and callers supply the desired PATH.
-// Colors are off unless a test opts in, so output assertions stay independent of the parent's terminal.
 export function runCli(
   project: string,
   args: string[],
@@ -78,10 +69,6 @@ function ensureGitWorkspace(project: string) {
   }
 }
 
-export function writeCatalogFixture(blueprints: string, catalog: BlueprintCatalogDefinition) {
-  writeFileSync(join(blueprints, "catalog.fixture.json"), JSON.stringify(catalog, null, 2));
-}
-
 export function runCliWithCatalog(
   project: string,
   args: string[],
@@ -89,56 +76,6 @@ export function runCliWithCatalog(
   env: Record<string, string> = {},
 ) {
   return runCli(project, args, searchPath, withCatalogFixture(env));
-}
-
-function withCatalogFixture(env: Record<string, string>) {
-  return env.SPINDLE_TEST_BLUEPRINTS_DIR
-    ? {
-        ...env,
-        SPINDLE_TEST_CATALOG: join(env.SPINDLE_TEST_BLUEPRINTS_DIR, "catalog.fixture.json"),
-      }
-    : env;
-}
-
-// Discover legacy test assets only; production always uses the compiled catalog.
-function writeFixtureCatalog(blueprints: string) {
-  const catalogPath = join(blueprints, "catalog.fixture.json");
-  if (existsSync(catalogPath)) return;
-
-  const filesUnder = (root: string, predicate: (path: string) => boolean): string[] => {
-    const files: string[] = [];
-    const visit = (directory: string) => {
-      for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) visit(path);
-        else if (entry.isFile() && predicate(path)) files.push(path.slice(root.length + 1));
-      }
-    };
-    if (existsSync(root)) visit(root);
-    return files.sort();
-  };
-  const entries = (paths: string[]): Record<string, CatalogSourceEntry> =>
-    Object.fromEntries(paths.map((path) => [path, { path, status: "active", stacks: [] }]));
-  const skillPaths = existsSync(join(blueprints, "skills"))
-    ? readdirSync(join(blueprints, "skills"), { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => join(entry.name, ""))
-        .filter((path) => existsSync(join(blueprints, "skills", path, "SKILL.md")))
-        .map((path) => `${path.replaceAll("\\", "/").replace(/\/?$/, "/")}`)
-    : [];
-  const catalog: BlueprintCatalogDefinition = {
-    agents: entries(filesUnder(join(blueprints, "agents"), (path) => path.endsWith(".agent.md"))),
-    instructions: entries(
-      filesUnder(join(blueprints, "instructions"), (path) => path.endsWith(".instructions.md")),
-    ),
-    skills: Object.fromEntries(
-      skillPaths.map((path) => [
-        path,
-        { path: `${path.replace(/\/$/, "")}/`, status: "active", stacks: [] },
-      ]),
-    ),
-  };
-  writeCatalogFixture(blueprints, catalog);
 }
 
 export function runCliWithFixtureCatalog(
