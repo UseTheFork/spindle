@@ -29,7 +29,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
     service.reviewService.reviewRequire({
       spec,
       scope: "delivery",
-      agent: "sdd-code-reviewer",
+      type: "sdd-code-reviewer",
       details: "Review compatibility across the integrated issue boundaries.",
       author: "controller",
     }),

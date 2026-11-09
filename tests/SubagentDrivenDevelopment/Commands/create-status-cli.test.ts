@@ -59,6 +59,37 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
   expect(existsSync(join(repo, ".scratch", ".sdd-create.lock"))).toBe(false);
 });
 
+test("sdd review require accepts a catalog reviewer through --type", async () => {
+  const { repo } = await serviceFixture();
+  const created = await invokeAsync(repo, [
+    "create",
+    "--title",
+    "Review Feature",
+    "--author",
+    "controller",
+  ]);
+  expect(created.status, created.stderr).toBe(0);
+  const spec = join(repo, ".scratch", "0001-review-feature", "spec.md");
+
+  const required = await invokeAsync(repo, [
+    "review",
+    "require",
+    "--spec",
+    spec,
+    "--scope",
+    "delivery",
+    "--type",
+    "sdd-code-reviewer",
+    "--details",
+    "Review the feature for security risks.",
+    "--author",
+    "controller",
+  ]);
+
+  expect(required.status, required.stderr).toBe(0);
+  expect(JSON.parse(required.stdout).requirement.agent).toBe("sdd-code-reviewer");
+});
+
 test("sdd help advertises guarded workflow commands instead of the legacy workspace resolver", async () => {
   const { repo } = await serviceFixture();
   const searchPath = process.env.PATH ?? "";

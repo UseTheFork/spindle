@@ -18,6 +18,10 @@ export class ReviewCommand extends Command {
         options: Partial<ReviewOptions & ReviewRequireOptions>,
       ) => {
         if (action === "require") {
+          if (options.type && options.agent && options.type !== options.agent) {
+            throw new Error("--type and --agent must identify the same review agent.");
+          }
+          const reviewType = options.type ?? options.agent;
           const deliveryScope = options.scope === "delivery";
           if (options.scope !== undefined && !deliveryScope) {
             throw new Error("--scope must be 'delivery'.");
@@ -25,9 +29,9 @@ export class ReviewCommand extends Command {
           if (Boolean(options.issue) === deliveryScope) {
             throw new Error("review require needs exactly one of --issue or --scope delivery.");
           }
-          if (!options.spec || !options.agent || !options.details || !options.author) {
+          if (!options.spec || !reviewType || !options.details || !options.author) {
             throw new Error(
-              "review require needs --spec, one scope selector, --agent, --details, and --author.",
+              "review require needs --spec, one scope selector, --type, --details, and --author.",
             );
           }
           if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
@@ -37,7 +41,7 @@ export class ReviewCommand extends Command {
               await command.run({
                 ...options,
                 spec: options.spec,
-                agent: options.agent,
+                type: reviewType,
                 details: options.details,
                 author: options.author,
               }),
@@ -48,8 +52,8 @@ export class ReviewCommand extends Command {
           return;
         }
         if (action !== undefined) throw new Error(`Unknown review action: ${action}.`);
-        if (options.agent || options.details) {
-          throw new Error("--agent and --details are only valid with 'review require'.");
+        if (options.type || options.agent || options.details) {
+          throw new Error("--type, --agent, and --details are only valid with 'review require'.");
         }
         if (options.scope !== undefined && options.scope !== "delivery") {
           throw new Error("--scope must be 'delivery'.");

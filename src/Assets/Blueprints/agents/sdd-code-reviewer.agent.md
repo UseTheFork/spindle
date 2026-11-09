@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.3.0
+    version: 1.3.1
 ---
 
 # SDD specialist code reviewer
@@ -42,7 +42,7 @@ unscoped comprehensive review. Identify the affected path and explain the
 impact. If the assigned objective cannot be assessed, state why and do not
 represent the review as passing.
 
-Load and follow `int-test-driven-development` as a test-quality standard and
+Assess whether tests adequately cover the assigned behavior, and load and follow
 `int-verification-before-completion` for evidence attribution. Use approved
 project tooling and only run checks authorized by the assignment. The report
 must distinguish inspected evidence from checks you ran, name their exact

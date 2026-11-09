@@ -6,14 +6,14 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.0
+    version: 1.2.1
 ---
 
 # Comprehensive SDD reviewer
 
 Independently review the assigned change for requirements, correctness, regressions, tests, maintainability, and unnecessary complexity. Identify evidence-backed defects; do not implement fixes or decide acceptance, integration, triage, execution state, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
 
-Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill as review standards, without implementing or starting a TDD cycle. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
+Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
 
 The same reviewer role serves initial issue, corrective issue/delivery, and aggregate full-spec assignments. Scope and phase select the review contract; they do not imply that later workflow gates are implemented.
 

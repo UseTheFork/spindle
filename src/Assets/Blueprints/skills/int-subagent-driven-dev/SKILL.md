@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.6.1
+    version: 1.6.2
 ---
 
 # Subagent-Driven Development
@@ -24,7 +24,7 @@ check harness access.
 | Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`      | [reviewer](./assets/reviewer-prompt.md)       |
 | Justified specialist code-review objective             | `sdd-code-reviewer` | The CLI-pinned specialist assignment          |
 
-Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Use the SDD ledger and workflow commands as the execution authority; Markdown remains the requirements, comments, and report record. Workflow commands persist intent and validate gates but never launch agents, execute checks, or mutate Git.
+Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-verification-before-completion` skill. The TDD skill remains available when a user or task chooses test-first development, but SDD does not require that method. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Use the SDD ledger and workflow commands as the execution authority; Markdown remains the requirements, comments, and report record. Workflow commands persist intent and validate gates but never launch agents, execute checks, or mutate Git.
 
 ## Controller flow
 
@@ -91,7 +91,7 @@ Apply formatting, then applicable lint, type, and ticket-wide regression checks.
 
 ### E. Freeze and review
 
-Before preparing assignments, read [review inputs](./references/review-inputs.md). Use one independent `sdd-reviewer` as the comprehensive default in `INITIAL` mode. Add a specialist only for a recorded, justified risk. Before the review snapshot is frozen, register its objective with `sdd review require --spec <path> --issue <id> --agent <name> --details <objective> --author <controller>`. The command records intent but does not check agent callability; confirm actual harness access separately before dispatch.
+Before preparing the feature review, read [review inputs](./references/review-inputs.md). Use one independent `sdd-reviewer` as the comprehensive default after all feature issues are closed. Add specialist reviewers only for a recorded, justified risk. Before the review snapshot is frozen, register a specialist with `sdd review require --spec <path> --scope delivery --type <agent-name> --details <objective> --author <controller>`. The catalog's `canReview: true` flag limits eligible agent names; the command does not check harness callability, so confirm actual access separately before dispatch.
 
 Run `sdd review` to freeze the snapshot and get one distinct `review` assignment and report path per pinned reviewer. Preserve each assignment's ID, agent, objective, snapshot, inventory, and exact destination; pass those fields without substitution. Give the default reviewer the comprehensive review template and each specialist only its recorded objective plus its own assignment provenance. Submit each exact assignment ID and report path. Acceptance waits for the full recorded batch; a missing, pending, failed, unavailable, stale, or mismatched assignment blocks. The CLI has no default specialist batch or requirement-removal operation.
 

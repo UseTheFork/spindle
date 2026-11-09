@@ -1,50 +1,46 @@
-# Subagent-driven development
+# Subagent-Driven Development
 
-**Subagent-driven development (SDD)**:
-The controller-owned workflow that dispatches implementation and review to
-subagents and records evidence before acceptance, integration, and delivery.
+Subagent-driven development coordinates feature-scoped work, records issue progress, and verifies feature-level completion evidence.
 
-**Feature workspace**:
-A numbered `.scratch/<feature-id>-<slug>/` directory containing `spec.md`,
-`sdd.json`, issue records, and reports.
+## Work tracking
+
+**Feature**:
+A scoped body of work that groups related issues and their shared requirements.
 
 **Issue**:
-An attributed `I-<number>` Markdown record describing work, its triage decision,
-and dependencies. Execution state is recorded separately in the feature ledger.
+An independently actionable unit of work with its own acceptance criteria.
 
-**Controller**:
-The recorded owner authorized to dispatch assignments, adjudicate corrections,
-and advance an issue or delivery. A handoff requires confirmation that the
-previous controller stopped.
+**Issue status**:
+The tracker lifecycle of an issue: open, in progress, or closed.
 
-**Assignment**:
-A recorded implementation or review dispatch with an identity, controller,
-report path, and submission state.
+**Dependency**:
+A relationship in which one issue must be closed before another can become ready.
 
-**Correction attempt**:
-A bounded dispatch addressing canonical findings or a specified failed check,
-with recorded progress assessment and outcome.
+**Blocker**:
+A dependency or explicit reason that prevents an issue or feature from progressing.
 
-**Canonical finding**:
-A stable `F-<number>` review observation with report provenance and attributed
-dispositions. Linking additional observations does not create duplicate findings.
+**Ready issue**:
+An open issue with no unresolved dependencies or explicit blockers.
 
-**Requirements decision**:
-An attributed approval or rejection of a requirements change, tied to the
-requirements snapshot and requiring fresh review.
+## Review and completion
+
+**Feature review**:
+A review of the completed feature changes before the feature is declared complete.
+
+**Review requirement**:
+A required review role for a feature, including the default comprehensive reviewer and any optional specialist reviewers.
 
 **Evidence snapshot**:
-The identity of relevant code and requirements used to detect stale checks,
-review reports, and accepted evidence.
+The identity of the feature changes and requirements assessed by a check or review.
 
-**Acceptance**:
-The gate confirming current passing checks, complete review coverage, and
-resolved blocking findings before integration.
+**Finding**:
+A review observation that may require work on an issue before the feature can complete.
 
-**Integration**:
-Preparation of accepted files for a caller-owned Git commit, or verification of
-an existing caller-created commit. Spindle does not create the commit.
+**Verification evidence**:
+Recorded check commands and results that establish whether the relevant tests pass for a feature snapshot.
 
-**Delivery**:
-The aggregate feature scope with its own assignments, checks, findings, review,
-and optional required retrospective before completion.
+**Feature completion**:
+The state reached when all feature issues are closed and required checks and reviews pass on the current feature snapshot.
+
+**Assignment**:
+A recorded implementation or review dispatch with its owner, report destination, and submission state.

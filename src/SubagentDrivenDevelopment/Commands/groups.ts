@@ -41,10 +41,11 @@ export function reviewSchema(root: Command): Command {
     )
     .option("--author <author>", "Controller author", CommandOptions.once("--author"))
     .option(
-      "--agent <name>",
-      "Known review-eligible Blueprint agent",
-      CommandOptions.once("--agent"),
+      "--type <name>",
+      "Review-eligible Blueprint agent key to require",
+      CommandOptions.once("--type"),
     )
+    .option("--agent <name>", "Alias for --type", CommandOptions.once("--agent"))
     .option(
       "--details <text>",
       "Justified specialist review objective",

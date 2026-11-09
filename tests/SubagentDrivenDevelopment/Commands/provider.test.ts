@@ -43,6 +43,7 @@ test("schema-only registration reuses groups and preserves positional review req
     "--scope",
     "--inventory",
     "--author",
+    "--type",
     "--agent",
     "--details",
   ]);

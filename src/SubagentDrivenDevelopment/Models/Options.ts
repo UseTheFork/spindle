@@ -111,7 +111,8 @@ export interface ReviewOptions extends ScopedSelection {
 }
 
 export interface ReviewRequireOptions extends ScopedSelection {
-  agent: string;
+  type?: string;
+  agent?: string;
   details: string;
 }
 
