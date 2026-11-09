@@ -7,16 +7,16 @@ checks, review assignments, findings, and corrections.
 
 ## Checks and review
 
-Inspect `sdd status --spec <spec>` and `sdd next --spec <spec>`. Establish
-required final checks with `sdd checks require --scope delivery`, run them, and
+Inspect `spindle sdd status --spec <spec>` and `spindle sdd next --spec <spec>`. Establish
+required final checks with `spindle sdd checks require --scope delivery`, run them, and
 record actual results against the returned snapshot. Then dispatch the
 comprehensive review with
-`sdd review --scope delivery --inventory <json-array>`. Its inventory must
+`spindle sdd review --scope delivery --inventory <json-array>`. Its inventory must
 cover the feature's current Git-derived changes.
 
 The `sdd-reviewer` is the default comprehensive reviewer. Before dispatch,
 record any justified specialist with
-`sdd review require --scope delivery --type <agent-name> --details <objective>`.
+`spindle sdd review require --scope delivery --type <agent-name> --details <objective>`.
 Only catalog agents with `canReview: true` are eligible. Confirm that the
 controller can actually dispatch each selected agent; catalog eligibility does
 not guarantee harness access.
@@ -28,24 +28,24 @@ failed, unavailable, stale, or mismatched review blocks completion.
 ## Findings and correction
 
 Register findings from their assigned reports and snapshots with
-`sdd finding create --scope delivery`. Delivery findings have feature-scoped
+`spindle sdd finding create --scope delivery`. Delivery findings have feature-scoped
 IDs, provenance, ruling history, and status. Use `--related-issue <id>` for a
 finding that should return work to a specific issue. A blocking linked finding
 reopens its issue after the complete review batch is submitted; dependent
 issues remain blocked until that issue is closed again.
 
-Use `sdd finding update --scope delivery` for explicit rulings. Deferring a
+Use `spindle sdd finding update --scope delivery` for explicit rulings. Deferring a
 blocker requires rationale, a follow-up reference, and an approved delivery
 requirements decision. Record that decision with
-`sdd requirements decide --scope delivery` only after a requirements change
+`spindle sdd requirements decide --scope delivery` only after a requirements change
 and completed prior review. Approval invalidates earlier aggregate assignments.
 
 For actionable feature findings, follow [feature correction](./corrective-rounds.md)
-and use `sdd correct --scope delivery` to record
+and use `spindle sdd correct --scope delivery` to record
 each independent correction attempt. Record passing checks against the changed
 feature snapshot and submit the implementation report before requesting a new
 feature review. Pause unproductive work, recurring failures, or requirements
-disagreement for adjudication. Resume with `sdd resume --scope delivery`;
+disagreement for adjudication. Resume with `spindle sdd resume --scope delivery`;
 preserve existing assignments, attempts, evidence, and adjudication.
 
 ## Finish
@@ -59,13 +59,14 @@ the original comparison baseline is identified. Do not silently use the
 current `HEAD` after implementation; that could omit completed feature work
 from review.
 
-Finish with `sdd finish --spec <spec> --author <author>`. Completion requires
+Finish with `spindle sdd finish --spec <spec> --author <author>`. Completion requires
 at least one issue, every issue closed, current passing required feature
 checks and reviews, and no unresolved delivery blockers. The retrospective
 policy is stored at feature creation: when required, attach a Markdown report
 with `--report`; otherwise it is optional. Any report must remain inside that
 feature's `reports/` directory.
 
-Use `status`, `next`, and `resume --scope delivery` to inspect blockers and
+Use `spindle sdd status`, `spindle sdd next`, and
+`spindle sdd resume --scope delivery` to inspect blockers and
 restore interrupted feature-level work. These commands do not close issues or
 publish changes.
