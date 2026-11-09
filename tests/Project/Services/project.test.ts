@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { projectCatalog } from "@/Assets/Project/Catalog";
+import { templateCatalog } from "@/Assets/Templates/Catalog";
 import { Application } from "@/Foundation/Application";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { ProjectService } from "@/Project/Services/ProjectService";
@@ -50,9 +50,9 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     preserved: [],
     updated: [],
   });
-  for (const { source, destination } of projectCatalog) {
+  for (const { source, destination } of templateCatalog.project) {
     expect(readFileSync(join(workspace, destination))).toEqual(
-      readFileSync(join(repoRoot, "src/Assets/Project", source)),
+      readFileSync(join(repoRoot, "src/Assets/Templates", source)),
     );
   }
   const config = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));

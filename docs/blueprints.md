@@ -11,9 +11,9 @@ version output remain available outside Git.
 `init` and `update` always manage `.github` at the discovered root, including
 when invoked from a nested directory. `project init` creates project guidance
 at the discovered root, and its tooling subcommands maintain the registry in
-`.github/spindle.json` and generated `docs/agents/tooling.md`. `sdd create`
-creates an ID-based feature workspace beneath `.scratch/` in the discovered
-root. `sdd status` requires an
+`.github/spindle.json` and generated `docs/agents/tooling.md`. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
+discovered root, copying the shared SDD spec template and optionally a design
+template with `--with-design`. `sdd status` requires an
 explicit `--spec` path within that checkout and reads the stored ledger without
 mutation. The old report-path resolver is not available, and dated feature
 workspaces are not migrated.
@@ -135,11 +135,14 @@ nonoverlapping paths, source types and existence, symbolic links, and required
 
 ## Project initialization and tooling
 
-`src/Assets/Project/Catalog.ts` declares typed source/destination pairs for
-static project assets. `ProjectService` initializes those assets at the Git root,
+`src/Assets/Templates/Catalog.ts` declares typed source/destination pairs for
+project assets and shared SDD document templates. `ProjectService` initializes
+the project assets at the Git root,
 creates `.github/spindle.json` with an empty `stacks` list when needed, and
 generates `docs/agents/tooling.md` from the explicit tooling registry. The
 `spindle project tooling` commands list, add, update, and remove entries; they
 do not discover or execute project commands. `spindle init` can add Blueprint
 stacks to a Project-created Config and preserves the tooling registry. Blueprint
-rendering and update still require at least one selected Stack.
+rendering and update still require at least one selected Stack. SDD feature
+documents use the numbered feature workspace: a design is optional, but when
+present it is approved before the spec, and tickets are derived from the spec.

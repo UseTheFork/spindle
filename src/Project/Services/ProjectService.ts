@@ -14,7 +14,7 @@ import {
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { projectCatalog } from "@/Assets/Project/Catalog";
+import { templateCatalog } from "@/Assets/Templates/Catalog";
 import {
   loadProjectConfiguration,
   type ProjectConfigurationData,
@@ -22,7 +22,7 @@ import {
 } from "@/Config/ProjectConfiguration";
 import { Service } from "@/Foundation/Service";
 
-const assets = fileURLToPath(new URL("../../Assets/Project/", import.meta.url));
+const assets = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 const toolingPath = "docs/agents/tooling.md";
 const configPath = ".github/spindle.json";
 const toolingKeyPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
@@ -92,7 +92,7 @@ export class ProjectService extends Service {
       (wasCreated ? created : preserved).push(directory);
     }
 
-    for (const { source, destination } of projectCatalog) {
+    for (const { source, destination } of templateCatalog.project) {
       const target = absolute(destination);
       this.assertRegularFileOrMissing(target, destination);
       if (existsSync(target)) {

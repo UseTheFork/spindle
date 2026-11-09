@@ -27,7 +27,9 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
     ledger: join(featureDirectory, "sdd.json"),
   };
   expect(result).toEqual(expected);
-  expect(readFileSync(expected.spec, "utf8")).toBe("# Command Driven SDD\n");
+  expect(readFileSync(expected.spec, "utf8")).toBe(
+    "# [FEATURE TITLE]\n\n## Problem Statement\n\n[PROBLEM STATEMENT]\n\n## Solution\n\n[SOLUTION]\n\n## User Stories\n\n[USER STORIES]\n\n## Implementation Decisions\n\n[IMPLEMENTATION DECISIONS]\n\n## Testing Decisions\n\n[TESTING DECISIONS]\n\n## Out of Scope\n\n[OUT OF SCOPE]\n\n## Further Notes\n\n[FURTHER NOTES]\n",
+  );
   expect(existsSync(join(featureDirectory, "issues"))).toBe(true);
   expect(existsSync(join(featureDirectory, "reports"))).toBe(true);
   expect(readdirSync(featureDirectory).sort()).toEqual([
@@ -50,6 +52,28 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   });
   expect(ledger.delivery.status).toBe("active");
   expect(ledger.delivery.baseSha).toMatch(/^[0-9a-f]{40}$/);
+});
+
+test("sdd create optionally copies the design template without substituting placeholders", async () => {
+  const { repo, service } = await serviceFixture();
+  const result = service.featureCreationService.create({
+    title: "Command Driven SDD",
+    author: "maintainer",
+    withDesign: true,
+  });
+  const design = join(repo, ".scratch", "0001-command-driven-sdd", "design.md");
+
+  expect(readFileSync(result.spec, "utf8")).toContain("# [FEATURE TITLE]");
+  expect(readFileSync(design, "utf8")).toBe(
+    "# [FEATURE TITLE]\n\n## Intent\n\n[INTENT]\n\n## Success Criteria\n\n[SUCCESS CRITERIA]\n\n## Scope and Constraints\n\n[SCOPE AND CONSTRAINTS]\n\n## Approaches Considered\n\n[APPROACHES AND TRADE-OFFS]\n\n## Selected Direction\n\n[SELECTED DIRECTION]\n\n## Assumptions and Open Decisions\n\n[ASSUMPTIONS AND OPEN DECISIONS]\n",
+  );
+  expect(readdirSync(join(repo, ".scratch", result.feature)).sort()).toEqual([
+    "design.md",
+    "issues",
+    "reports",
+    "sdd.json",
+    "spec.md",
+  ]);
 });
 
 test("sdd create allocates above matching IDs and ignores dated and unrelated directories", async () => {
@@ -126,5 +150,14 @@ test("sdd create rejects symlinked and ignored destinations without overwriting 
   expect(existsSync(join(repo, ".scratch"))).toBe(false);
   writeFileSync(join(repo, ".gitignore"), ".scratch/*/sdd.json\n");
   expect(create).toThrow();
+  expect(existsSync(join(repo, ".scratch", "0001-unsafe-feature"))).toBe(false);
+  writeFileSync(join(repo, ".gitignore"), ".scratch/*/design.md\n");
+  expect(() =>
+    service.featureCreationService.create({
+      title: "Unsafe Feature",
+      author: "maintainer",
+      withDesign: true,
+    }),
+  ).toThrow(/Feature destination is ignored: .scratch\/0001-unsafe-feature\/design\.md/);
   expect(existsSync(join(repo, ".scratch", "0001-unsafe-feature"))).toBe(false);
 });

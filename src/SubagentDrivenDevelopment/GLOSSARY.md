@@ -7,6 +7,12 @@ Subagent-driven development coordinates feature-scoped work, records issue progr
 **Feature**:
 A scoped body of work that groups related issues and their shared requirements.
 
+**Feature design**:
+An optional document that records a feature's intent, success criteria, scope, and chosen direction. When present, it is completed and approved before the feature spec.
+
+**Feature spec**:
+The approved requirements document for a feature, grounded in its approved design when one exists. Tickets are derived from the feature spec.
+
 **Issue**:
 An independently actionable unit of work with its own acceptance criteria.
 

@@ -1,88 +1,52 @@
 ---
 name: to-spec
-description: "Turn the current conversation or a referenced design file into a spec and publish it to the project issue tracker."
-argument-hint: "[design file path; omit to use the current conversation]"
+description: "Turn an agreed feature request or approved design into a spec in its SDD feature workspace, then publish it to the configured issue tracker."
+argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.1.0
 ---
 
-This skill produces a spec from the current conversation or a referenced design file, grounded in the codebase. Synthesize the chosen source without restarting requirements discovery. Source clarification and the test-seam confirmation below are still required when applicable.
+# To Spec
 
-Use the issue-tracker conventions in project guidance when available. If the tracker or publication status is unclear, ask the user before publishing; do not assume triage labels or invent status values.
+Turn an agreed feature request or an approved design into a codebase-grounded spec, then publish it to the configured issue tracker. A design is optional; when one exists, it must be completed and approved before the spec, and tickets follow the spec.
 
-## Select the source
+Use the issue-tracker conventions in project guidance when available. If tracker or publication status is unclear, ask the user before publishing; do not assume triage labels or invent status values.
 
-- **No design reference:** use the current conversation's agreed requirements and decisions. Do not require or automatically select a design file.
-- **Design reference supplied:** read the entire referenced file before drafting. Use it as the requirements source; older conversation must not override it. Apply explicit changes the user requests to that design, and use other conversation only as non-conflicting supporting context.
-- **Missing, unreadable, or ambiguous reference:** report the problem and ask for a corrected or unambiguous reference. Pause drafting and publishing; do not silently fall back to chat.
-- Preserve explicitly unresolved decisions as open questions in Further Notes rather than inventing answers. Resolve any gap that blocks a ready-for-agent spec before publishing it as ready.
+## Argument
 
-**Complete when:** the requirements source is identified and, for a design reference, the full file has been read.
+An optional design file path may be supplied. Read the entire file before drafting. Without a path, use the already-agreed requirements in the conversation; do not restart requirements discovery.
 
-## Process
+## Workflow
 
-1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the spec, and respect any ADRs in the area you're touching.
+1. **Select the requirements source.**
+   - With a design path, treat that complete design as the requirements source. Older conversation cannot override it; apply only explicit user-requested changes and use other conversation as non-conflicting context.
+   - Without a design path, reuse an existing SDD feature workspace from the task context and treat its `design.md`, when present, as the requirements source. If no workspace design exists, use the agreed conversation. Do not require a design or create one automatically.
+   - If the supplied path is missing, unreadable, or ambiguous, explain the problem and ask for a corrected reference. Do not fall back to chat.
+   - Preserve unresolved decisions as open questions in Further Notes. Resolve gaps that block a ready-for-agent spec before publishing.
 
-2. Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can. The fewer seams across the codebase, the better - the ideal number is one.
+   **Complete when:** the source is unambiguous and every supplied design has been read in full.
 
-Check with the user that these seams match their expectations.
+2. **Select or create the SDD feature workspace.**
+   - Reuse the existing numbered `.scratch/<feature-id>-<slug>/` workspace when the selected design or spec belongs to one. Use its `spec.md`; do not create a second workspace for the same feature.
+   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
+   - When the workspace has `design.md`, read it fully and use it as the requirements source. If it still contains `[PLACEHOLDER]` markers or has not been approved, pause and ask the user to finish or approve the design before drafting the spec.
+   - The selected SDD workspace's pre-created `spec.md` is the output. Replace its template content with the completed spec; do not create a dated folder or a second spec.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. For a local design under `.scratch/YYYY-MM-DD-<feature-slug>/`, write `spec.md` in that same feature directory, preserving its original date and the source design. Otherwise follow the configured tracker conventions and use its agreed status.
+   **Complete when:** one numbered SDD feature workspace is selected, its spec path is known, and any present design is complete and approved.
 
-<spec-template>
+3. **Explore and confirm the test seams.**
+   - Explore the repo to understand the current state if it has not already been explored. Use the relevant domain glossary and ADRs.
+   - Sketch the highest useful seams at which the feature should be tested. Prefer existing seams. If new seams are needed, propose them at the highest practical boundary.
+   - Ask the user to confirm the proposed seams before drafting. If the user corrects them, update the seam proposal and confirm the revision.
 
-## Problem Statement
+   **Complete when:** the codebase context and user-confirmed test seams are recorded.
 
-The problem that the user is facing, from the user's perspective.
+4. **Write and publish the spec.**
+   - Fill the sections in the SDD-created `spec.md`: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
+   - Use domain glossary terms. Do not include file paths or code snippets unless a prototype captures a decision more clearly than prose.
+   - Publish the completed spec according to the configured issue-tracker guidance. Ask before publishing if the destination or status is unclear.
+   - Once the spec is published, ask the user to invoke `/to-tickets` for planning. Do not invoke it automatically or start implementation here.
 
-## Solution
-
-The solution to the problem, from the user's perspective.
-
-## User Stories
-
-A LONG, numbered list of user stories. Each user story should be in the format of:
-
-1. As an <actor>, I want a <feature>, so that <benefit>
-
-<user-story-example>
-1. As a mobile bank customer, I want to see balance on my accounts, so that I can make better informed decisions about my spending
-</user-story-example>
-
-This list of user stories should be extremely extensive and cover all aspects of the feature.
-
-## Implementation Decisions
-
-A list of implementation decisions that were made. This can include:
-
-- The modules that will be built/modified
-- The interfaces of those modules that will be modified
-- Technical clarifications from the developer
-- Architectural decisions
-- Schema changes
-- API contracts
-- Specific interactions
-
-Do NOT include specific file paths or code snippets. They may end up being outdated very quickly.
-
-Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
-
-## Testing Decisions
-
-A list of testing decisions that were made. Include:
-
-- A description of what makes a good test (only test external behavior, not implementation details)
-- Which modules will be tested
-- Prior art for the tests (i.e. similar types of tests in the codebase)
-
-## Out of Scope
-
-A description of the things that are out of scope for this spec.
-
-## Further Notes
-
-Any further notes about the feature.
-
-</spec-template>
+   **Complete when:** the spec is published at the feature workspace's `spec.md` path, tracker publication is resolved, and no blocking ambiguity is hidden.

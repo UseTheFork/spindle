@@ -217,8 +217,9 @@ choices and noninteractive options live in
 `BlueprintManagement/Commands/BlueprintCommandOptions.ts`.
 Shipped Blueprint metadata lives in `Assets/Blueprints/Catalog.ts`;
 Blueprint Management owns its types, validation, and validated export used by
-SDD. `Assets/Project/Catalog.ts` declares typed relative source/destination pairs
-for project defaults. Build copies distributed content under `build/Assets/` and
+SDD. `Assets/Templates/Catalog.ts` declares typed relative source/destination
+pairs for project defaults and SDD document templates. Build copies distributed
+content under `build/Assets/` and
 leaves emitted catalog JavaScript intact.
 Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
 Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so

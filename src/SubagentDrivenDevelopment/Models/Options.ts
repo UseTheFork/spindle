@@ -2,6 +2,7 @@ export interface CreateOptions {
   title: string;
   author: string;
   requireRetrospective?: boolean;
+  withDesign?: boolean;
 }
 
 export interface StatusOptions {

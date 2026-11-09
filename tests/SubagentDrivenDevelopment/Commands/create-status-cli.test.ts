@@ -106,6 +106,7 @@ test("sdd help advertises guarded workflow commands instead of the legacy worksp
   expect(createHelp.stdout).toMatch(/--title <title>/);
   expect(createHelp.stdout).toMatch(/--author <author>/);
   expect(createHelp.stdout).toMatch(/--require-retrospective/);
+  expect(createHelp.stdout).toMatch(/--with-design/);
   const submitHelp = runCli(repo, ["sdd", "submit", "--help"], searchPath);
   expect(submitHelp.status, submitHelp.stderr).toBe(0);
   expect(submitHelp.stdout).toMatch(/--role <role>/);
@@ -135,6 +136,7 @@ test("sdd create and status expose JSON results and report path errors through t
       "--author",
       "maintainer",
       "--require-retrospective",
+      "--with-design",
     ],
     searchPath,
   );
@@ -147,6 +149,7 @@ test("sdd create and status expose JSON results and report path errors through t
     ledger: join(repo, ".scratch", "0001-cli-feature", "sdd.json"),
   };
   expect(JSON.parse(created.stdout)).toEqual(expected);
+  expect(existsSync(join(repo, ".scratch", "0001-cli-feature", "design.md"))).toBe(true);
   const status = runCli(repo, ["sdd", "status", "--spec", expected.spec], searchPath);
   expect(status.status, status.stderr).toBe(0);
   expect(status.stderr).toBe("");

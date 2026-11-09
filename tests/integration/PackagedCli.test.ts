@@ -80,6 +80,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "Packaged Feature",
     "--author",
     "maintainer",
+    "--with-design",
   ]);
   expect(created.status, created.stderr).toBe(0);
   expect(created.stderr).toBe("");
@@ -92,8 +93,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
   };
   expect(created.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`);
   expect(JSON.parse(created.stdout)).toEqual(expected);
-  expect(readFileSync(expected.spec, "utf8")).toBe("# Packaged Feature\n");
+  expect(readFileSync(expected.spec, "utf8")).toContain("# [FEATURE TITLE]");
+  expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
+    "design.md",
     "issues",
     "reports",
     "sdd.json",
