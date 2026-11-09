@@ -20,7 +20,8 @@ repository working directory. Replace `<args>` with optional command arguments.
 ## Type checking
 
 - `just tool pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
-- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD and impacted Git/configuration/application test files only.
+- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD, Foundation, Git, Config, and Git-root integration tests.
+- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.assets-project-setup.json` - Type-check BlueprintManagement, ProjectSetup, Foundation, and related tests.
 
 ## Tooling
 
@@ -33,10 +34,11 @@ repository working directory. Replace `<args>` with optional command arguments.
 ## Testing
 
 - `just tool pnpm exec vitest run <explicit-files>` - Run selected Vitest tests once.
-- `just tool pnpm exec vitest run tests/app.test.ts tests/bootstrap.test.ts` - Run application composition and bootstrap tests.
+- `just tool pnpm exec vitest run tests/Foundation/app.test.ts tests/Foundation/bootstrap.test.ts` - Run application composition and bootstrap tests.
 - `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment/Services/create.test.ts tests/SubagentDrivenDevelopment/Services/status.test.ts` - Run initial feature workflow tests.
 - `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment` - Run all mirrored SDD tests, without selecting unrelated repository tests.
-- `just tool pnpm exec vitest run tests/Git/git-service.test.ts tests/config/project-configuration.test.ts tests/git-root.test.ts tests/update.test.ts tests/init.test.ts` - Run explicitly impacted Git, project configuration, and installation commands.
+- `just tool pnpm exec vitest run tests/Git/git-service.test.ts tests/Config/project-configuration.test.ts tests/integration/GitRoot.test.ts tests/BlueprintManagement/Commands/update.test.ts tests/BlueprintManagement/Commands/init.test.ts` - Run explicitly impacted Git, project configuration, and installation commands.
+- `just tool pnpm exec vitest run tests/integration/PackagedCli.test.ts` - Run the packaged CLI smoke tests after `just build`.
 - `just tool pnpm exec vitest <explicit-files>` - Watch selected tests during local development.
 - `just tool pnpm exec vitest run --coverage <explicit-files>` - Collect selected-test coverage; requires a compatible Vitest coverage provider.
 

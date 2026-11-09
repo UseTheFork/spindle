@@ -182,7 +182,7 @@ test("joinPaths preserves empty bases and replaces bases with absolute suffixes"
 
 test("path helpers use distinct workspace, installation and invocation roots", () => {
   const app = new Application({ basePath: "/unrelated/invocation/nested/.." });
-  const installationRoot = fileURLToPath(new URL("../src/", import.meta.url));
+  const installationRoot = fileURLToPath(new URL("../../src/", import.meta.url));
   expect(() => app.path()).toThrow(/Unbound/);
   expect(() => app.path("nested/file")).toThrow(/Unbound/);
   expect(() => app.path("/absolute/file")).toThrow(/Unbound/);
@@ -210,7 +210,7 @@ test("path helpers use distinct workspace, installation and invocation roots", (
 
 test("appPath remains module-relative when cwd is unrelated", () => {
   const app = new Application({ basePath: "/invocation" });
-  const installationRoot = fileURLToPath(new URL("../src/", import.meta.url));
+  const installationRoot = fileURLToPath(new URL("../../src/", import.meta.url));
   vi.spyOn(process, "cwd").mockReturnValue("/unrelated/cwd");
   expect(app.appPath()).toBe(installationRoot);
   expect(app.appPath("nested/file")).toBe(join(installationRoot, "nested/file"));

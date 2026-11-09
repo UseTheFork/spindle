@@ -196,7 +196,7 @@ test("application Config failure reports completed Blueprint installs", async ()
       process.env.PATH ?? "",
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-config-write.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-config-write.ts"),
       },
     );
 
@@ -260,7 +260,7 @@ test("application write failure reports earlier cross-kind changes without claim
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-agent-write.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-agent-write.ts"),
       },
     );
 
@@ -320,7 +320,10 @@ test("partial Skill application reports each applied file and the exact later fa
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_FILE: failingFile,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-skill-file-write.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(
+          process.cwd(),
+          "tests/helpers/preloads/fail-skill-file-write.ts",
+        ),
       },
     );
 
@@ -389,7 +392,7 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_REMOVE_TARGET: secondRemoval,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-removal.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-removal.ts"),
       },
     );
 

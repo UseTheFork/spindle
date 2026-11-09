@@ -31,33 +31,15 @@ test("ready does not combine triage states from interleaved serialized updates",
   triage("I-0001", "ready-for-agent");
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
-  const preloadPath = join(repo, "ready-pause.mjs");
-  writeFileSync(
-    preloadPath,
-    `
-import fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
-
-const originalReadFileSync = fs.readFileSync;
-const originalWriteFileSync = fs.writeFileSync;
-const originalExistsSync = fs.existsSync;
-let paused = false;
-fs.readFileSync = function (path, ...args) {
-  if (!paused && String(path) === ${JSON.stringify(join(feature.workspace, "issues", "I-0002.md"))}) {
-    paused = true;
-    originalWriteFileSync(${JSON.stringify(pausePath)}, "paused");
-    const signal = new Int32Array(new SharedArrayBuffer(4));
-    const deadline = Date.now() + 15000;
-    while (!originalExistsSync(${JSON.stringify(resumePath)}) && Date.now() < deadline) {
-      Atomics.wait(signal, 0, 0, 10);
-    }
-  }
-  return originalReadFileSync.apply(this, [path, ...args]);
-};
-syncBuiltinESMExports();
-`,
-  );
-  const ready = invokeAsync(repo, ["ready", "--spec", feature.spec], { preload: preloadPath });
+  const preloadPath = join(process.cwd(), "tests/helpers/preloads/ready-pause.ts");
+  const ready = invokeAsync(repo, ["ready", "--spec", feature.spec], {
+    preload: preloadPath,
+    env: {
+      SPINDLE_TEST_READY_TARGET: join(feature.workspace, "issues", "I-0002.md"),
+      SPINDLE_TEST_READY_PAUSE: pausePath,
+      SPINDLE_TEST_READY_RESUME: resumePath,
+    },
+  });
   try {
     await waitForFile(pausePath, 10_000);
     triage("I-0001", "needs-info");

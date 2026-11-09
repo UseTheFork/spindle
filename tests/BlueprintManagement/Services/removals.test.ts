@@ -394,7 +394,7 @@ test("update reports a failed removal and already completed deletions", async ()
 
     const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-      NODE_OPTIONS: `--import=${resolve(process.cwd(), "tests/fail-removal.mjs")}`,
+      SPINDLE_TEST_PRELOAD: resolve(process.cwd(), "tests/helpers/preloads/fail-removal.ts"),
       SPINDLE_TEST_FAIL_REMOVE_TARGET: secondTarget,
     });
 

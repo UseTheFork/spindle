@@ -7,5 +7,6 @@
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "exclude": ["./.generated/**"]
 }

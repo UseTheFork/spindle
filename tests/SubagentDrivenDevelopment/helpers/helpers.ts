@@ -52,7 +52,7 @@ export async function execute(repo: string, run: (service: WorkflowServices) => 
 export function invokeAsync(
   repo: string,
   args: string[],
-  options: { preload?: string; killOnOutput?: string } = {},
+  options: { preload?: string; killOnOutput?: string; env?: Record<string, string> } = {},
 ) {
   const command = join(process.cwd(), "src", "index.ts");
   return new Promise<{
@@ -66,7 +66,12 @@ export function invokeAsync(
     childArgs.push(command, "sdd", ...args);
     const child = spawn(process.execPath, childArgs, {
       cwd: repo,
-      env: { ...process.env, TSX_TSCONFIG_PATH: resolve("tsconfig.json"), FORCE_COLOR: "0" },
+      env: {
+        ...process.env,
+        TSX_TSCONFIG_PATH: resolve("tsconfig.json"),
+        FORCE_COLOR: "0",
+        ...options.env,
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const timer = setTimeout(() => {

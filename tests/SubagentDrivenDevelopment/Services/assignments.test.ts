@@ -85,28 +85,21 @@ test("resume recovers dispatch interrupted after replacing only the issue target
   const issueBefore = readFileSync(issuePath, "utf8");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const marker = "INTERRUPTED_AFTER_ISSUE_REPLACEMENT";
-  const preload = join(repo, "interrupt-after-issue-replacement.mjs");
-  writeFileSync(
-    preload,
-    [
-      'import fs from "node:fs";',
-      'import { syncBuiltinESMExports } from "node:module";',
-      "const rename = fs.renameSync;",
-      "fs.renameSync = (source, destination) => {",
-      "  rename(source, destination);",
-      '  if (String(destination).endsWith("/issues/I-0001.md")) {',
-      `    process.stdout.write(${JSON.stringify(marker)});`,
-      '    process.kill(process.pid, "SIGSTOP");',
-      "  }",
-      "};",
-      "syncBuiltinESMExports();",
-      "",
-    ].join("\n"),
+  const preload = join(
+    process.cwd(),
+    "tests/helpers/preloads/interrupt-after-issue-replacement.ts",
   );
   const interrupted = await invokeAsync(
     repo,
     ["implement", "--spec", spec, "--issue", "I-0001", "--author", "controller"],
-    { preload, killOnOutput: marker },
+    {
+      preload,
+      killOnOutput: marker,
+      env: {
+        SPINDLE_TEST_INTERRUPT_TARGET: issuePath,
+        SPINDLE_TEST_INTERRUPT_MARKER: marker,
+      },
+    },
   );
 
   expect(interrupted.signal, interrupted.stderr).toBe("SIGKILL");

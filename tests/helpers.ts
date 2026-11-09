@@ -18,6 +18,7 @@ function nodeArguments(env: Record<string, string>) {
   return [
     "--import",
     tsxLoader,
+    ...(env.SPINDLE_TEST_PRELOAD ? ["--import", resolve(env.SPINDLE_TEST_PRELOAD)] : []),
     ...(env.SPINDLE_TEST_CATALOG || env.SPINDLE_TEST_BLUEPRINTS_DIR
       ? ["--import", catalogLoader]
       : []),

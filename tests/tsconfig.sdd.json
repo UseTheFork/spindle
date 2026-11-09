@@ -3,11 +3,12 @@
   "include": [
     "./SubagentDrivenDevelopment/**/*.ts",
     "./Git/**/*.ts",
-    "./config/**/*.ts",
-    "./app.test.ts",
-    "./bootstrap.test.ts",
-    "./git-root.test.ts",
-    "./update.test.ts",
-    "./init.test.ts"
+    "./Config/**/*.ts",
+    "./Foundation/**/*.ts",
+    "./Support/**/*.ts",
+    "./integration/GitRoot.test.ts",
+    "./helpers.ts",
+    "./helpers/**/*.ts",
+    "./application-fixture.ts"
   ]
 }

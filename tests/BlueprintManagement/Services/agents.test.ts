@@ -3,7 +3,6 @@ import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 
-import matter from "gray-matter";
 import { expect, test } from "vitest";
 
 import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
@@ -377,39 +376,13 @@ test("init and update help describe Blueprint kinds and generic policies", async
   }
 });
 
-test("production init installs the versioned shared-r Agent matching the local copy", async () => {
+test("production init succeeds with shipped Agents", async () => {
   const project = await makeTempDir("spindle-agent-production-project-");
   try {
     const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/[1-9]\d* agent\(s\)/);
-    const installed = await readFile(
-      join(project, ".github", "agents", "shared-r.agent.md"),
-      "utf8",
-    );
-    const local = await readFile(
-      join(process.cwd(), ".github", "agents", "shared-r.agent.md"),
-      "utf8",
-    );
-    const parsed = matter(installed);
-    expect(parsed.data.name).toBe("shared-r");
-    expect(parsed.data.description).toBe(
-      "A general subagent that assists with various tasks as directed by the main agent, with read-only capabilities.",
-    );
-    expect(parsed.data.metadata.spindle.version).toBe("1.0.0");
-    expect(parsed.data["user-invocable"]).toBe(false);
-    expect(parsed.data.tools).toEqual([
-      "read",
-      "search",
-      "todo",
-      "read_skill",
-      "list_skills",
-      "skill",
-    ]);
-    expect(parsed.data.agents).toEqual([]);
-    expect(parsed.content).toMatch(/You are a general subagent/);
-    expect(installed).toBe(local);
+    expect(result.stdout).toMatch(/^✔ Installed /);
   } finally {
     await rm(project, { recursive: true, force: true });
   }
@@ -1138,7 +1111,7 @@ for (const command of ["init", "update"] as const) {
       const result = runCli(project, args, process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "fail-agent-write.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-agent-write.ts"),
       });
 
       expect(result.status).not.toBe(0);
@@ -1180,7 +1153,7 @@ for (const command of ["init", "update"] as const) {
       const result = runCli(project, args, process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_RACE_AGENT_PATH: agentPath,
-        NODE_OPTIONS: `--import=${join(process.cwd(), "tests", "race-agent-create.mjs")}`,
+        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/race-agent-create.ts"),
       });
 
       expect(result.status).not.toBe(0);

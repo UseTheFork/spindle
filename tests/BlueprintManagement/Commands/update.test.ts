@@ -758,7 +758,7 @@ test(
       missing: skill("1.0.0"),
       bad: skill("1.0.0"),
     };
-    const failureHook = join(process.cwd(), "tests", "fail-config-write.mjs");
+    const failureHook = join(process.cwd(), "tests/helpers/preloads/fail-config-write.ts");
     await withProject(
       { config: originalConfig, skills: currentSkills },
       ["--include-new"],
@@ -774,7 +774,7 @@ test(
       (project, args, searchPath, env) =>
         runCliInteractive(project, args, searchPath, [], {
           ...env,
-          NODE_OPTIONS: `--import=${failureHook}`,
+          SPINDLE_TEST_PRELOAD: failureHook,
         }),
     );
   },

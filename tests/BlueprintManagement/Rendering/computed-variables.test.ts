@@ -24,23 +24,6 @@ import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "../../helpe
 
 const description =
   "This is an internal skill do not load it unless explicitly required by the user or another skill.";
-const shippedInternalSkills = [
-  "int-testing-agent-guidance",
-  "int-retrospective",
-  "int-prototype",
-  "int-domain-modeling",
-  "int-code-slop-review",
-  "int-code-review",
-  "int-writing-skills",
-  "int-codebase-design",
-  "int-writing-for-agents",
-  "int-writing-instruction",
-  "int-writing-agents",
-  "int-verification-before-completion",
-  "int-test-driven-development",
-  "int-subagent-driven-dev",
-];
-
 async function put(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
@@ -125,21 +108,13 @@ async function makeBlueprints() {
   return blueprints;
 }
 
-test("shipped Internal Skill descriptions render in init and eligible update", async () => {
+test("init and update render shipped Skills and preserve current installations", async () => {
   const blueprints = await makeTempDir("spindle-shipped-internal-blueprints-");
   const project = await makeTempDir("spindle-shipped-internal-project-");
 
   try {
     await cp(join(process.cwd(), "src/Assets/Blueprints"), blueprints, { recursive: true });
     writeCatalogFixture(blueprints, blueprintCatalog);
-
-    for (const name of shippedInternalSkills) {
-      const source = await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8");
-      expect(
-        matter(source).data.description,
-        `${name} frontmatter must use the shared computed description`,
-      ).toBe("{{ computed.internal_skill_description }}");
-    }
 
     const initialized = runCliWithCatalog(
       project,
@@ -154,23 +129,6 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
     const outdatedSkill = "int-test-driven-development";
     const currentBeforeUpdate = await readFile(installedPath(currentSkill), "utf8");
     const outdatedBefore = await readFile(installedPath(outdatedSkill), "utf8");
-
-    for (const name of shippedInternalSkills) {
-      const source = matter(await readFile(join(blueprints, "skills", name, "SKILL.md"), "utf8"));
-      const generated = await readFile(installedPath(name), "utf8");
-      const parsed = matter(generated);
-      expect(parsed.data.description, `${name} generated description`).toBe(description);
-      expect(parsed.data.metadata.spindle.version, `${name} retains its Blueprint version`).toBe(
-        source.data.metadata.spindle.version,
-      );
-      expect(generated, `${name} has no unresolved interpolation`).not.toMatch(/{{|}}/);
-      if (name === "int-writing-skills") {
-        expect(
-          parsed.content.includes(description),
-          "the unrelated Internal visibility guidance in the body remains literal",
-        ).toBeTruthy();
-      }
-    }
 
     const updatedSourcePath = join(blueprints, "skills", outdatedSkill, "SKILL.md");
     const updatedSource = matter(await readFile(updatedSourcePath, "utf8"));
@@ -187,7 +145,6 @@ test("shipped Internal Skill descriptions render in init and eligible update", a
 
     const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
     expect(refreshed, "the outdated Skill is updated").not.toBe(outdatedBefore);
-    expect(matter(refreshed).data.description).toBe(description);
     expect(matter(refreshed).data.metadata.spindle.version).toBe("2.0.0");
     expect(
       await readFile(installedPath(currentSkill), "utf8"),

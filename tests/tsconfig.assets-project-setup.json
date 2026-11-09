@@ -3,9 +3,13 @@
   "include": [
     "./BlueprintManagement/**/*.ts",
     "./ProjectSetup/**/*.ts",
-    "./SubagentDrivenDevelopment/Commands/**/*.ts",
-    "./app.test.ts",
-    "./bootstrap.test.ts",
-    "./packaged-cli.test.ts"
+    "./Foundation/**/*.ts",
+    "./Support/**/*.ts",
+    "./Config/**/*.ts",
+    "./Git/**/*.ts",
+    "./integration/PackagedCli.test.ts",
+    "./helpers.ts",
+    "./helpers/**/*.ts",
+    "./application-fixture.ts"
   ]
 }

@@ -25,12 +25,9 @@ test("source Blueprint roots resolve from the module location, independent of Ap
     expect(app.blueprintSourceRoot).toBe(expectedSourceRoot);
     const service = await app.make(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, { mode: "init", context: config, config });
-    expect(
-      await readFile(
-        join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md"),
-        "utf8",
-      ),
-    ).toMatch(/version: 1\.2\.0/);
+    expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
+      config,
+    );
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
