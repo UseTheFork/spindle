@@ -69,7 +69,7 @@ test("update cleans selected directory membership without changing version decis
   const agentDir = join(github, "agents", "grouped");
   const instructionDir = join(github, "instructions", "grouped");
   const skills = join(github, "skills");
-  try {
+  {
     writeCatalogFixture(blueprints, catalog);
 
     await put(join(blueprints, "agents/grouped/current.agent.md"), versioned("1.0.0", "source"));
@@ -262,9 +262,6 @@ test("update cleans selected directory membership without changing version decis
       versioned("1.0.0", "new"),
     );
     expect(includeNew.stdout).not.toMatch(/Removed agent 'grouped\/vanished/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -272,7 +269,7 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
   const blueprints = await makeTempDir("spindle-file-membership-blueprints-");
   const project = await makeProject();
   const github = join(project, ".github");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         selected: {
@@ -306,9 +303,6 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
       "user-owned neighbor\n",
     );
     expect(result.stdout).not.toMatch(/Removed agent/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -317,7 +311,7 @@ test("init removes destination-only files within selected directories only", asy
   const project = await makeProject();
   const github = join(project, ".github");
   const target = join(github, "agents", "grouped");
-  try {
+  {
     await rm(join(github, "spindle.json"));
     writeCatalogFixture(blueprints, catalog);
     await put(join(blueprints, "agents/grouped/keep.agent.md"), versioned("1.0.0", "source"));
@@ -346,9 +340,6 @@ test("init removes destination-only files within selected directories only", asy
     );
     expect(await readFile(join(github, "agents/neighbor.agent.md"), "utf8")).toBe("neighbor\n");
     expect(result.stdout).toMatch(/Removed agent 'grouped\/vanished\/deep\/local\.txt'/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -358,7 +349,7 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
   const github = join(project, ".github");
   const target = join(github, "agents", "grouped");
   const outside = join(project, "outside.txt");
-  try {
+  {
     writeCatalogFixture(blueprints, catalog);
     await put(join(blueprints, "agents/grouped/current.agent.md"), versioned("1.0.0", "source"));
     await put(
@@ -387,8 +378,5 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
     expect(await readFile(join(target, "stale.txt"), "utf8")).toBe(
       "must remain on validation failure\n",
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });

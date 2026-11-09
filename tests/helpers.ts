@@ -1,6 +1,5 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
-import { mkdir, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import type {
@@ -8,17 +7,19 @@ import type {
   CatalogSourceEntry,
 } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
-const cli = resolve(process.cwd(), "src/index.ts");
-const tsconfig = resolve(process.cwd(), "tsconfig.json");
-const checkout = resolve(process.cwd());
+import { makeTempDir, repoRoot } from "./helpers/TemporaryDirectories.ts";
+
+const cli = join(repoRoot, "src/index.ts");
+const tsconfig = join(repoRoot, "tsconfig.json");
+const checkout = repoRoot;
 const tsxLoader = import.meta.resolve("tsx");
-const catalogLoader = resolve(process.cwd(), "tests/load-catalog-fixture.ts");
+const catalogLoader = join(repoRoot, "tests/load-catalog-fixture.ts");
 
 function nodeArguments(env: Record<string, string>) {
   return [
     "--import",
     tsxLoader,
-    ...(env.SPINDLE_TEST_PRELOAD ? ["--import", resolve(env.SPINDLE_TEST_PRELOAD)] : []),
+    ...(env.SPINDLE_TEST_PRELOAD ? ["--import", resolve(repoRoot, env.SPINDLE_TEST_PRELOAD)] : []),
     ...(env.SPINDLE_TEST_CATALOG || env.SPINDLE_TEST_BLUEPRINTS_DIR
       ? ["--import", catalogLoader]
       : []),
@@ -26,11 +27,7 @@ function nodeArguments(env: Record<string, string>) {
   ];
 }
 
-export async function makeTempDir(prefix = "spindle-cli-") {
-  const parent = join(process.cwd(), "tests", ".generated");
-  await mkdir(parent, { recursive: true });
-  return mkdtemp(join(parent, prefix));
-}
+export { makeTempDir, repoRoot };
 
 // Runs the real CLI in `project`; node and tsx use absolute paths, and callers supply the desired PATH.
 // Colors are off unless a test opts in, so output assertions stay independent of the parent's terminal.

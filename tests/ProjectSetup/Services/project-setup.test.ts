@@ -1,15 +1,7 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, onTestFinished, test } from "vitest";
+import { expect, test } from "vitest";
 
 import { setupProjectCatalog } from "@/Assets/SetupProject/Catalog";
 import { Application } from "@/Foundation/Application";
@@ -17,9 +9,10 @@ import { SetupProjectCommand } from "@/ProjectSetup/Commands/SetupProjectCommand
 import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
 import { ProjectSetupService } from "@/ProjectSetup/Services/ProjectSetupService";
 
+import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
+
 async function fixture() {
-  const workspace = mkdtempSync(join(process.cwd(), "project-setup-service-"));
-  onTestFinished(() => rmSync(workspace, { recursive: true, force: true }));
+  const workspace = makeTempDirSync("project-setup-service-");
   const app = new Application({ basePath: workspace });
   app.register(ProjectSetupServiceProvider);
   return { app, workspace, service: await app.make(ProjectSetupService) };
@@ -44,7 +37,7 @@ test("the provider declares its command and resolves an application-owned single
   expect(result.preserved).toEqual([]);
   for (const [source, destination] of setupProjectCatalog) {
     expect(readFileSync(join(workspace, destination))).toEqual(
-      readFileSync(join(process.cwd(), "src/Assets/SetupProject", source)),
+      readFileSync(join(repoRoot, "src/Assets/SetupProject", source)),
     );
   }
 });
@@ -80,7 +73,7 @@ test("direct setup resolves a workspace symlink and targets it instead of the ap
   expect(readdirSync(workspace).sort()).toEqual(["explicit target", "workspace-link"]);
   for (const [source, destination] of setupProjectCatalog) {
     expect(readFileSync(join(target, destination))).toEqual(
-      readFileSync(join(process.cwd(), "src/Assets/SetupProject", source)),
+      readFileSync(join(repoRoot, "src/Assets/SetupProject", source)),
     );
   }
 });
@@ -149,7 +142,7 @@ test("direct setup retains earlier writes when a later default is a conflicting 
   ]);
   for (const [source, destination] of setupProjectCatalog.slice(0, 2)) {
     expect(readFileSync(join(workspace, destination))).toEqual(
-      readFileSync(join(process.cwd(), "src/Assets/SetupProject", source)),
+      readFileSync(join(repoRoot, "src/Assets/SetupProject", source)),
     );
   }
 });

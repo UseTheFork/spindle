@@ -1,11 +1,16 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
 import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
-import { writeCatalogFixture, makeTempDir, runCliWithCatalog as runCli } from "../../helpers.ts";
+import {
+  writeCatalogFixture,
+  makeTempDir,
+  repoRoot,
+  runCliWithCatalog as runCli,
+} from "../../helpers.ts";
 
 const versioned = (version: string, body: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
@@ -33,7 +38,7 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
   const instructionBytes = Buffer.from("destination-only Instruction content\n");
   const outsideBytes = Buffer.from("outside the managed roots\n");
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         new: {
@@ -108,9 +113,6 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
     expect(await readFile(join(retiredSkill, "local.txt"))).toEqual(retiredBytes);
     expect(await readFile(staleInstruction)).toEqual(instructionBytes);
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -125,7 +127,7 @@ test("init preparation failure leaves planned Config and target deletion untouch
   const retiredBytes = Buffer.from("retired Skill local content\n");
   const outsideBytes = Buffer.from("outside the managed roots\n");
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         new: {
@@ -160,9 +162,6 @@ test("init preparation failure leaves planned Config and target deletion untouch
     await expect(readFile(agentPath)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(retiredSkill)).toEqual(retiredBytes);
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -176,7 +175,7 @@ test("application Config failure reports completed Blueprint installs", async ()
     `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
   );
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         new: {
@@ -196,7 +195,7 @@ test("application Config failure reports completed Blueprint installs", async ()
       process.env.PATH ?? "",
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-config-write.ts"),
+        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-config-write.ts"),
       },
     );
 
@@ -207,9 +206,6 @@ test("application Config failure reports completed Blueprint installs", async ()
     expect(result.stderr).toMatch(/Application stopped; rollback was not attempted/);
     expect(await readFile(agentPath)).toEqual(agentBytes);
     await expect(readFile(configPath)).rejects.toMatchObject({ code: "ENOENT" });
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -226,7 +222,7 @@ test("application write failure reports earlier cross-kind changes without claim
   );
   const configBytes = Buffer.from('{"stacks":["python"],"variables":{}}\n');
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         write: {
@@ -260,7 +256,7 @@ test("application write failure reports earlier cross-kind changes without claim
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
-        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-agent-write.ts"),
+        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-agent-write.ts"),
       },
     );
 
@@ -274,9 +270,6 @@ test("application write failure reports earlier cross-kind changes without claim
     expect(await readFile(skillPath, "utf8")).toBe(versioned("2.0.0", "updated Skill"));
     expect(await readFile(agentPath)).toEqual(originalAgent);
     expect(await readFile(configPath)).toEqual(configBytes);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -293,7 +286,7 @@ test("partial Skill application reports each applied file and the exact later fa
   const outsideSentinel = join(project, "outside-sentinel.txt");
   const outsideBytes = Buffer.from("outside managed targets\n");
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {},
       instructions: {},
@@ -320,10 +313,7 @@ test("partial Skill application reports each applied file and the exact later fa
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_FILE: failingFile,
-        SPINDLE_TEST_PRELOAD: join(
-          process.cwd(),
-          "tests/helpers/preloads/fail-skill-file-write.ts",
-        ),
+        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-skill-file-write.ts"),
       },
     );
 
@@ -341,9 +331,6 @@ test("partial Skill application reports each applied file and the exact later fa
     await expect(readFile(join(skill, "local.txt"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(configPath)).toEqual(configBytes);
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -355,7 +342,7 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
   const firstRemoval = join(github, "agents", "first.agent.md");
   const secondRemoval = join(github, "agents", "second.agent.md");
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         new: {
@@ -392,7 +379,7 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_REMOVE_TARGET: secondRemoval,
-        SPINDLE_TEST_PRELOAD: join(process.cwd(), "tests/helpers/preloads/fail-removal.ts"),
+        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-removal.ts"),
       },
     );
 
@@ -406,9 +393,6 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
     expect(await readFile(newAgent, "utf8")).toMatch(/new Agent/);
     await expect(readFile(firstRemoval)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await readFile(secondRemoval, "utf8")).toBe("second installed Agent\n");
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -426,7 +410,7 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
   const preservedAsset = Buffer.from("preserve surviving installed asset\n");
   const outsideBytes = Buffer.from("outside managed targets\n");
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         new: {
@@ -513,8 +497,5 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     expect(second.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 instruction\(s\)/);
     expect(second.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 skill\(s\)/);
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });

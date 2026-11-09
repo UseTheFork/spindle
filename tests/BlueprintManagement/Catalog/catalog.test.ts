@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import { expect, test } from "vitest";
@@ -12,6 +12,7 @@ import {
 
 import {
   makeTempDir,
+  repoRoot,
   runCli as runBundledCli,
   runCliWithCatalog as runCli,
   writeCatalogFixture,
@@ -181,7 +182,7 @@ test("init selects supported catalog entries and preserves their source paths", 
     "Instruction body",
     "",
   ].join("\n");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         shared: {
@@ -279,9 +280,6 @@ test("init selects supported catalog entries and preserves their source paths", 
     await expect(
       readFile(join(project, ".github", "agents", "retired.agent.md")),
     ).rejects.toThrow();
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -291,7 +289,7 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
   const agent = (name: string) =>
     `---\nname: ${name}\ndescription: ${name} agent\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${name}\n`;
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         laravel: {
@@ -319,9 +317,6 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
       agent("laravel"),
     );
     await expect(readFile(join(project, ".github", "agents", "python.agent.md"))).rejects.toThrow();
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -330,7 +325,7 @@ test("init validates symlinks in active nonmatching catalog directories before p
   const project = await makeTempDir("spindle-catalog-invalid-project-");
   const outside = await makeTempDir("spindle-catalog-outside-");
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {},
       instructions: {},
@@ -358,10 +353,6 @@ test("init validates symlinks in active nonmatching catalog directories before p
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/symbolic link/i);
     await expect(readdir(join(project, ".github"))).rejects.toThrow();
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
-    await rm(outside, { recursive: true, force: true });
   }
 });
 
@@ -376,7 +367,7 @@ test("update applies version decisions independently to grouped Agents and Instr
     await mkdir(join(path, ".."), { recursive: true });
     await writeFile(path, content);
   };
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         "review-group": {
@@ -468,9 +459,6 @@ test("update applies version decisions independently to grouped Agents and Instr
         "utf8",
       ),
     ).toBe(versioned("new instruction", "1.0.0", "new Instruction"));
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -479,7 +467,7 @@ test("init rejects a nested destination symlink before writing outside the GitHu
   const project = await makeTempDir("spindle-catalog-destination-link-project-");
   const outside = await makeTempDir("spindle-catalog-destination-link-outside-");
   const target = join(outside, "agent.agent.md");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         nested: {
@@ -506,10 +494,6 @@ test("init rejects a nested destination symlink before writing outside the GitHu
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/symbolic link/i);
     await expect(readFile(target)).rejects.toThrow();
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
-    await rm(outside, { recursive: true, force: true });
   }
 });
 
@@ -519,7 +503,7 @@ test("a current Skill receives new supporting content only after its version inc
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
   const skill = (version: string) =>
     `---\nname: authoring\nmetadata:\n  spindle:\n    version: ${version}\n---\nSkill ${version}\n`;
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {},
       instructions: {},
@@ -564,9 +548,6 @@ test("a current Skill receives new supporting content only after its version inc
     expect(
       await readFile(join(project, ".github", "skills", "authoring", "SKILL.md"), "utf8"),
     ).toBe(skill("2.0.0"));
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -583,7 +564,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     "skill-mechanics.md",
   );
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {},
       instructions: {},
@@ -593,7 +574,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     } satisfies BlueprintCatalogDefinition);
     for (const name of names) {
       await cp(
-        resolve("src", "Assets", "Blueprints", "skills", name),
+        resolve(repoRoot, "src", "Assets", "Blueprints", "skills", name),
         join(blueprints, "skills", name),
         {
           recursive: true,
@@ -654,9 +635,6 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
         ).toBeTruthy();
       }
     }
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -736,7 +714,7 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
   for (const { label, source, diagnostic } of cases) {
     const blueprints = await makeTempDir(`spindle-catalog-${label.replaceAll(" ", "-")}-`);
     const project = await makeTempDir("spindle-catalog-invalid-project-");
-    try {
+    {
       writeCatalogFixture(blueprints, source);
       const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
@@ -744,9 +722,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
       expect(result.status, label).not.toBe(0);
       expect(result.stderr, label).toMatch(diagnostic);
       await expect(readdir(join(project, ".github"))).rejects.toMatchObject({ code: "ENOENT" });
-    } finally {
-      await rm(blueprints, { recursive: true, force: true });
-      await rm(project, { recursive: true, force: true });
     }
   }
 });
@@ -754,14 +729,14 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
 test("the compiled catalog ignores external catalog files", async () => {
   const blueprints = await makeTempDir("spindle-static-catalog-assets-");
   const project = await makeTempDir("spindle-static-catalog-project-");
-  try {
+  {
     const catalog = validateBlueprintCatalog(blueprintCatalog);
     for (const kind of ["agents", "instructions", "skills"] as const) {
       for (const entry of catalog[kind]) {
         if (entry.status !== "active") continue;
         const destination = join(blueprints, kind, entry.path);
         await mkdir(dirname(destination), { recursive: true });
-        await cp(resolve("src/Assets/Blueprints", kind, entry.path), destination, {
+        await cp(resolve(repoRoot, "src/Assets/Blueprints", kind, entry.path), destination, {
           recursive: true,
         });
       }
@@ -791,19 +766,14 @@ test("the compiled catalog ignores external catalog files", async () => {
       env,
     );
     expect(withExternalCatalogs.status, withExternalCatalogs.stderr).toBe(0);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
 test("the shipped Blueprint collection initializes through the compiled catalog", async () => {
   const project = await makeTempDir("spindle-catalog-shipped-project-");
-  try {
+  {
     const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/^✔ Installed /);
-  } finally {
-    await rm(project, { recursive: true, force: true });
   }
 });

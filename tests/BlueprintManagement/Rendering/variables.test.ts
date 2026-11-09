@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -32,7 +32,7 @@ async function withManifest(
 ) {
   const stubs = await makeTempDir("spindle-stubs-");
   const project = await makeTempDir();
-  try {
+  {
     await mkdir(join(stubs, "skills", "demo"), { recursive: true });
     await writeFile(
       join(stubs, "skills", "demo", "SKILL.md"),
@@ -42,9 +42,6 @@ async function withManifest(
       SPINDLE_TEST_BLUEPRINTS_DIR: stubs,
     });
     await check(result, project);
-  } finally {
-    await rm(stubs, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 }
 
@@ -173,7 +170,7 @@ test("typed Variable definitions apply independently of Blueprint fixtures", asy
 
 test("root help discovers commands and init help documents init options", async () => {
   const project = await makeTempDir();
-  try {
+  {
     const rootHelp = runCli(project, ["--help"], process.env.PATH ?? "");
     expect(rootHelp.status, rootHelp.stderr).toBe(0);
     for (const command of ["init", "update", "sdd", "setup-project"]) {
@@ -187,7 +184,5 @@ test("root help discovers commands and init help documents init options", async 
     }
     expect(initHelp.stdout).toMatch(/php-laravel/);
     await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
-  } finally {
-    await rm(project, { recursive: true, force: true });
   }
 });

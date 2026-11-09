@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +18,7 @@ test("source Blueprint roots resolve from the module location, independent of Ap
   const expectedSourceRoot = ResolveBlueprintSourceRoot.resolveBlueprintSourceRoot();
   const config = { stacks: ["typescript"], variables: {} };
 
-  try {
+  {
     const app = applicationFixture(workspace, expectedSourceRoot);
 
     expect(isAbsolute(app.blueprintSourceRoot)).toBeTruthy();
@@ -28,8 +28,6 @@ test("source Blueprint roots resolve from the module location, independent of Ap
     expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
       config,
     );
-  } finally {
-    await rm(workspace, { recursive: true, force: true });
   }
 });
 
@@ -43,7 +41,7 @@ test("installation renders recognized UTF-8 text and preserves files that must n
     ["assets/nul.txt", Buffer.from("A\0B")],
     ["assets/invalid-utf8.md", Buffer.from([0x41, 0xc3, 0x28, 0x42])],
   ]);
-  try {
+  {
     await writeFile(join(source, "SKILL.md"), "Hello {{ variables.name }}!");
     await mkdir(join(source, "templates/sub"), { recursive: true });
     await writeFile(join(source, "templates/a.md"), "a {{ stacks | join(',') }}\n");
@@ -75,9 +73,6 @@ test("installation renders recognized UTF-8 text and preserves files that must n
     for (const [path, content] of preservedFiles) {
       expect(await readFile(join(target, path)), path).toEqual(content);
     }
-  } finally {
-    await rm(source, { recursive: true, force: true });
-    await rm(target, { recursive: true, force: true });
   }
 });
 
@@ -99,7 +94,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     variables: { lint_command: "just lint second", owner: "second" },
   };
 
-  try {
+  {
     await cp(sourceRoot, firstSourceRoot, { recursive: true });
 
     const firstApp = applicationFixture(firstWorkspace, firstSourceRoot);
@@ -147,9 +142,5 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     expect(firstInstalledSkill).toMatch(/Application one update marker\./);
     expect(secondInstalledSkill).toMatch(/version: 1\.2\.0/);
     expect(secondInstalledSkill).not.toMatch(/Application one update marker\./);
-  } finally {
-    await rm(firstWorkspace, { recursive: true, force: true });
-    await rm(secondWorkspace, { recursive: true, force: true });
-    await rm(sourceParent, { recursive: true, force: true });
   }
 });

@@ -1,9 +1,7 @@
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -11,11 +9,12 @@ import {
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { test, expect, onTestFinished, vi } from "vitest";
+import { test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
 import { runCli, runCliRaw } from "../../helpers.ts";
+import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 const copies = [
   ["domain.md", "docs/agents/domain.md"],
@@ -25,9 +24,7 @@ const copies = [
 ] as const;
 
 function fixture() {
-  const directory = mkdtempSync(join(process.cwd(), "setup-project-test-"));
-  onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
-  return directory;
+  return makeTempDirSync("setup-project-test-");
 }
 
 test("setup-project creates the required directories and exact defaults", async () => {
@@ -61,7 +58,7 @@ test("setup-project creates the required directories and exact defaults", async 
   }
   for (const [source, destination] of copies) {
     expect(readFileSync(join(workspace, destination), "utf8")).toBe(
-      readFileSync(join(process.cwd(), "src/Assets/SetupProject/templates", source), "utf8"),
+      readFileSync(join(repoRoot, "src/Assets/SetupProject/templates", source), "utf8"),
     );
   }
   expect(existsSync(join(workspace, "GLOSSARY.md"))).toBe(false);

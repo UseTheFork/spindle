@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import type { Command as CommanderCommand } from "commander";
-import { afterEach, expect, onTestFinished, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
@@ -25,6 +25,8 @@ import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewServic
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Repository } from "@/Support/Repository";
 
+import { makeTempDirSync, repoRoot } from "../helpers/TemporaryDirectories.ts";
+
 afterEach(() => {
   RegisterProviders.merge([]);
   vi.restoreAllMocks();
@@ -32,8 +34,7 @@ afterEach(() => {
 });
 
 function workspace() {
-  const root = mkdtempSync(join(process.cwd(), ".bootstrap-test-"));
-  onTestFinished(() => rmSync(root, { recursive: true, force: true }));
+  const root = makeTempDirSync("spindle-bootstrap-test-");
   execFileSync("git", ["init", "-q"], { cwd: root });
   const nested = join(root, "packages", "nested");
   mkdirSync(nested, { recursive: true });
@@ -188,7 +189,7 @@ test("packaged source defaults resolve from the helper location, independent of 
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.blueprintSourceRoot).toBe(resolve("src/Assets/Blueprints") + "/");
+  expect(app.blueprintSourceRoot).toBe(resolve(repoRoot, "src/Assets/Blueprints") + "/");
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {

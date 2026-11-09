@@ -1,13 +1,13 @@
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 
 import { makeTempDir, runCliWithFixtureCatalog as runCli } from "../../helpers.ts";
 
 let stubsDirectory: string;
 
-beforeAll(async () => {
+beforeEach(async () => {
   stubsDirectory = await makeTempDir("spindle-existing-stubs-");
   for (const name of ["alpha", "beta"]) {
     await mkdir(join(stubsDirectory, "skills", name, "nested"), { recursive: true });
@@ -22,25 +22,17 @@ beforeAll(async () => {
   }
 });
 
-afterAll(async () => {
-  await rm(stubsDirectory, { recursive: true, force: true });
-});
-
 async function withProject(
   setup: (project: string) => Promise<void>,
   args: string[],
   check: (project: string, result: ReturnType<typeof runCli>) => Promise<void>,
 ) {
   const project = await makeTempDir();
-  try {
-    await setup(project);
-    const result = runCli(project, ["init", ...args], process.env.PATH ?? "", {
-      SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory,
-    });
-    await check(project, result);
-  } finally {
-    await rm(project, { recursive: true, force: true });
-  }
+  await setup(project);
+  const result = runCli(project, ["init", ...args], process.env.PATH ?? "", {
+    SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory,
+  });
+  await check(project, result);
 }
 
 async function seed(project: string, files: Record<string, string>) {

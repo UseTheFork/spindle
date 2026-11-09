@@ -3,22 +3,23 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
-import { test, expect, onTestFinished, vi } from "vitest";
+import { test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
-const checkout = resolve(process.cwd());
+import { makeTempDirSync, repoRoot } from "../helpers/TemporaryDirectories.ts";
+
+const checkout = repoRoot;
 const setupTemplates = [
   ["domain.md", "docs/agents/domain.md"],
   ["issue-tracker-local.md", "docs/agents/issue-tracker.md"],
@@ -27,8 +28,7 @@ const setupTemplates = [
 ] as const;
 
 function packagedCli() {
-  const packageRoot = mkdtempSync(join(process.cwd(), "spindle-packaged-cli-"));
-  onTestFinished(() => rmSync(packageRoot, { recursive: true, force: true }));
+  const packageRoot = makeTempDirSync("spindle-packaged-cli-");
   cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
   cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
   // Use installed runtime dependencies as an installed package would, while keeping
@@ -43,8 +43,8 @@ function packagedCli() {
         encoding: "utf8",
         env: {
           ...process.env,
-          TSX_TSCONFIG_PATH: resolve("tsconfig.json"),
-          GIT_CEILING_DIRECTORIES: resolve(process.cwd()),
+          TSX_TSCONFIG_PATH: join(repoRoot, "tsconfig.json"),
+          GIT_CEILING_DIRECTORIES: repoRoot,
           ...env,
           FORCE_COLOR: "0",
         },
@@ -54,9 +54,7 @@ function packagedCli() {
 }
 
 function tempDirectory(prefix: string) {
-  const directory = mkdtempSync(join(process.cwd(), prefix));
-  onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
-  return directory;
+  return makeTempDirSync(prefix);
 }
 
 function makeGitWorkspace(directory: string) {

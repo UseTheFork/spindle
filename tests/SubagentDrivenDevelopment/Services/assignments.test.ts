@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
+import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { execute, invokeAsync, commitAll, prepareClaimableIssue } from "../helpers/helpers";
 import type { WorkflowServices } from "../helpers/WorkflowServices";
 test("resume preserves a dispatch and requires confirmation for a controller handoff", async () => {
@@ -85,10 +86,7 @@ test("resume recovers dispatch interrupted after replacing only the issue target
   const issueBefore = readFileSync(issuePath, "utf8");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const marker = "INTERRUPTED_AFTER_ISSUE_REPLACEMENT";
-  const preload = join(
-    process.cwd(),
-    "tests/helpers/preloads/interrupt-after-issue-replacement.ts",
-  );
+  const preload = join(repoRoot, "tests/helpers/preloads/interrupt-after-issue-replacement.ts");
   const interrupted = await invokeAsync(
     repo,
     ["implement", "--spec", spec, "--issue", "I-0001", "--author", "controller"],

@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { test, expect, vi } from "vitest";
@@ -20,7 +20,7 @@ import { renderText } from "@/BlueprintManagement/Rendering/RenderText";
 import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
 
 import { applicationFixture } from "../../application-fixture";
-import { makeTempDir, runCliWithCatalog, writeCatalogFixture } from "../../helpers.ts";
+import { makeTempDir, repoRoot, runCliWithCatalog, writeCatalogFixture } from "../../helpers.ts";
 
 const description =
   "This is an internal skill do not load it unless explicitly required by the user or another skill.";
@@ -112,8 +112,8 @@ test("init and update render shipped Skills and preserve current installations",
   const blueprints = await makeTempDir("spindle-shipped-internal-blueprints-");
   const project = await makeTempDir("spindle-shipped-internal-project-");
 
-  try {
-    await cp(join(process.cwd(), "src/Assets/Blueprints"), blueprints, { recursive: true });
+  {
+    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
     writeCatalogFixture(blueprints, blueprintCatalog);
 
     const initialized = runCliWithCatalog(
@@ -150,9 +150,6 @@ test("init and update render shipped Skills and preserve current installations",
       await readFile(installedPath(currentSkill), "utf8"),
       "an otherwise-current matching Skill remains byte-identical",
     ).toBe(currentBeforeUpdate);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -160,7 +157,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
   const blueprints = await makeBlueprints();
   const project = await makeTempDir("spindle-computed-init-");
 
-  try {
+  {
     const result = runCliWithCatalog(
       project,
       ["init", "--stack", "python", "--var", "owner=core", "--no-interactive"],
@@ -200,9 +197,6 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
       );
     }
     expect(JSON.stringify(config)).not.toMatch(/computed|internal_skill_description/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -213,7 +207,7 @@ test("update reuses computed output and leaves Config and version metadata intac
     JSON.stringify({ stacks: ["typescript"], variables: { owner: "existing" } }, null, 2),
   );
 
-  try {
+  {
     await put(
       join(blueprints, "skills/demo/SKILL.md"),
       [
@@ -267,9 +261,6 @@ test("update reuses computed output and leaves Config and version metadata intac
     );
     expect(await readFile(join(github, "spindle.json"))).toEqual(configBytes);
     expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -286,7 +277,7 @@ test("update identifies a missing computed output and applies no planned changes
     '{\n  "stacks": ["python"],\n  "variables": {"owner": "keep"}\n}\n',
   );
 
-  try {
+  {
     writeCatalogFixture(blueprints, {
       skills: {
         current: { path: "current/", status: "active", stacks: [] },
@@ -338,9 +329,6 @@ test("update identifies a missing computed output and applies no planned changes
       code: "ENOENT",
     });
     expect(result.stderr).toMatch(/not_registered/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -352,13 +340,13 @@ test("repeated Updates through one App render fresh Config with computed outputs
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(
-    join(process.cwd(), "src/Assets/Blueprints/skills", skillName, "SKILL.md"),
+    join(repoRoot, "src/Assets/Blueprints/skills", skillName, "SKILL.md"),
     "utf8",
   );
   const app = applicationFixture(project, blueprints);
 
-  try {
-    await cp(join(process.cwd(), "src/Assets/Blueprints"), blueprints, { recursive: true });
+  {
+    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
     const source = matter(descriptionSkill);
     source.content += "\nRun owner={{ variables.owner }}\n";
     await writeFile(sourcePath, matter.stringify(source.content, source.data));
@@ -392,9 +380,6 @@ test("repeated Updates through one App render fresh Config with computed outputs
     await updateSource("901.0.0", "third-run");
     await update.run(false, "overwrite");
     await assertRendered("third-run", "901.0.0");
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 

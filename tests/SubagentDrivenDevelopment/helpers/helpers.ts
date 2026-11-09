@@ -1,17 +1,17 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
 import { applicationFixture } from "../../application-fixture";
+import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 
 vi.setConfig({ testTimeout: 30_000 });
 
 export function fixture() {
-  const directory = mkdtempSync(join(process.cwd(), ".sdd-workflow-test-"));
-  onTestFinished(() => rmSync(directory, { recursive: true, force: true }));
+  const directory = makeTempDirSync("spindle-sdd-workflow-test-");
   const repo = join(directory, "checkout");
   mkdirSync(repo);
   const git = (...args: string[]) =>
@@ -27,14 +27,14 @@ export function fixture() {
 
 export async function serviceFixture() {
   const workspace = fixture();
-  const app = applicationFixture(workspace.repo, resolve("src/Assets/Blueprints"));
+  const app = applicationFixture(workspace.repo, join(repoRoot, "src/Assets/Blueprints"));
   await app.boot();
   const service = await workflowServices(app);
   return { ...workspace, service, app };
 }
 
 export async function execute(repo: string, run: (service: WorkflowServices) => unknown) {
-  const app = applicationFixture(repo, resolve(process.cwd(), "src/Assets/Blueprints"));
+  const app = applicationFixture(repo, join(repoRoot, "src/Assets/Blueprints"));
   await app.boot();
   const command = await workflowServices(app);
   try {
@@ -54,7 +54,7 @@ export function invokeAsync(
   args: string[],
   options: { preload?: string; killOnOutput?: string; env?: Record<string, string> } = {},
 ) {
-  const command = join(process.cwd(), "src", "index.ts");
+  const command = join(repoRoot, "src", "index.ts");
   return new Promise<{
     status: number | null;
     signal: NodeJS.Signals | null;
@@ -68,7 +68,7 @@ export function invokeAsync(
       cwd: repo,
       env: {
         ...process.env,
-        TSX_TSCONFIG_PATH: resolve("tsconfig.json"),
+        TSX_TSCONFIG_PATH: join(repoRoot, "tsconfig.json"),
         FORCE_COLOR: "0",
         ...options.env,
       },

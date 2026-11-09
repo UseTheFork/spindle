@@ -1,5 +1,5 @@
-import { lstat, mkdir, readFile, rm, symlink, writeFile as fsWriteFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { lstat, mkdir, readFile, symlink, writeFile as fsWriteFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
@@ -10,6 +10,7 @@ import {
   makeTempDir,
   runCliWithFixtureCatalog as runCli,
 } from "../../helpers.ts";
+import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
 const versioned = (name: string, body: string) =>
   `---\nname: ${name}\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
@@ -88,7 +89,7 @@ for (const mode of ["init", "update"] as const) {
     const project = await makeTempDir(`spindle-${mode}-removal-project-`);
     const github = join(project, ".github");
     const outside = join(project, "unrelated.txt");
-    try {
+    {
       writeCatalogFixture(blueprints, removalCatalog);
       await writeFile(
         join(blueprints, "agents", "baseline.agent.md"),
@@ -192,9 +193,6 @@ for (const mode of ["init", "update"] as const) {
         expect(repeated.status, repeated.stderr).toBe(0);
         expect(repeated.stdout).not.toMatch(/Removed /);
       }
-    } finally {
-      await rm(blueprints, { recursive: true, force: true });
-      await rm(project, { recursive: true, force: true });
     }
   });
 }
@@ -224,7 +222,7 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     instructions: {},
     skills: {},
   } satisfies BlueprintCatalogDefinition;
-  try {
+  {
     writeCatalogFixture(blueprints, catalogForTransition);
     for (const name of ["multi", "python-only", "new"]) {
       await writeFile(
@@ -264,9 +262,6 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     );
     expect(typescriptResult.stdout).toMatch(/Removed agent 'python-only\.agent\.md'/);
     expect(typescriptResult.stdout).not.toMatch(/Removed agent '(?:multi|old|unlisted)/);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -277,7 +272,7 @@ test("update rejects unsafe deletion targets before changing any target or outsi
   const outside = join(project, "outside.txt");
   const firstTarget = join(github, "agents", "first.agent.md");
   const secondTarget = join(github, "agents", "second.agent.md");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         first: {
@@ -311,9 +306,6 @@ test("update rejects unsafe deletion targets before changing any target or outsi
     expect(await readFile(firstTarget, "utf8")).toBe("first target must remain\n");
     expect(await readFile(outside, "utf8")).toBe("outside target must remain\n");
     expect((await lstat(secondTarget)).isSymbolicLink()).toBe(true);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -324,7 +316,7 @@ test("update rejects a directory at a file-removal target before deleting other 
   const firstTarget = join(github, "agents", "first.agent.md");
   const wrongTarget = join(github, "agents", "second.agent.md");
   const child = join(wrongTarget, "keep.txt");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         first: {
@@ -356,9 +348,6 @@ test("update rejects a directory at a file-removal target before deleting other 
     expect(result.stderr).toMatch(/expected a regular file/i);
     expect(await readFile(firstTarget, "utf8")).toBe("first target must remain\n");
     expect(await readFile(child, "utf8")).toBe("directory content must remain\n");
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -368,7 +357,7 @@ test("update reports a failed removal and already completed deletions", async ()
   const github = join(project, ".github");
   const firstTarget = join(github, "agents", "first.agent.md");
   const secondTarget = join(github, "agents", "second.agent.md");
-  try {
+  {
     writeCatalogFixture(blueprints, {
       agents: {
         first: {
@@ -394,7 +383,7 @@ test("update reports a failed removal and already completed deletions", async ()
 
     const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
       SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-      SPINDLE_TEST_PRELOAD: resolve(process.cwd(), "tests/helpers/preloads/fail-removal.ts"),
+      SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-removal.ts"),
       SPINDLE_TEST_FAIL_REMOVE_TARGET: secondTarget,
     });
 
@@ -404,8 +393,5 @@ test("update reports a failed removal and already completed deletions", async ()
     expect(result.stderr).toMatch(/Completed changes: removed Agent 'first\.agent\.md'/);
     await assertMissing(firstTarget);
     expect(await readFile(secondTarget, "utf8")).toBe("second target\n");
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });

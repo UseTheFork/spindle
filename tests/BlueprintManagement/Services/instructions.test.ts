@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -23,7 +23,7 @@ test("init and update install selected Instructions as single versioned files", 
   const project = await makeTempDir("spindle-instruction-project-");
   const installed = join(project, ".github", "instructions");
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  try {
+  {
     await writeInstruction(
       blueprints,
       "style",
@@ -90,9 +90,6 @@ test("init and update install selected Instructions as single versioned files", 
       /Instruction 'invalid\.instructions\.md'.*non-semver version 'v1'/,
     );
     expect(update.stdout).toBe("✔ Added 0, updated 1, skipped 2, up to date 2 instruction(s)\n");
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -101,7 +98,7 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
   const project = await makeTempDir("spindle-instruction-conflict-project-");
   const target = join(project, ".github", "instructions", "style.instructions.md");
   const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  try {
+  {
     await mkdir(join(target, ".."), { recursive: true });
     await writeFile(target, "local\n");
     await writeInstruction(blueprints, "style", instruction("style", "v1", "shipped"));
@@ -135,15 +132,12 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
     );
     expect(overwrite.status, overwrite.stderr).toBe(0);
     expect(await readFile(target, "utf8")).toBe(instruction("style", "1.0.0", "shipped"));
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
 test("production init and update omit the empty Instructions kind", async () => {
   const project = await makeTempDir("spindle-instruction-production-project-");
-  try {
+  {
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(init.status, init.stderr).toBe(0);
     expect(init.stdout).toMatch(/skill\(s\), [1-9]\d* agent\(s\) for python/);
@@ -153,7 +147,5 @@ test("production init and update omit the empty Instructions kind", async () => 
     const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "");
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).not.toMatch(/instruction/i);
-  } finally {
-    await rm(project, { recursive: true, force: true });
   }
 });

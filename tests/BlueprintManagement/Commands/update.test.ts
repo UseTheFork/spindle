@@ -1,13 +1,14 @@
 import { writeFileSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterAll, beforeAll, test, expect, vi } from "vitest";
+import { beforeEach, test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
 import {
   makeTempDir,
+  repoRoot,
   runCliRaw,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
@@ -15,7 +16,7 @@ import {
 
 let stubs: string;
 
-beforeAll(async () => {
+beforeEach(async () => {
   stubs = await makeTempDir("spindle-update-stubs-");
   const stubSkills: Record<string, string> = {
     newer: "2.0.0",
@@ -32,10 +33,6 @@ beforeAll(async () => {
       `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
     );
   }
-});
-
-afterAll(async () => {
-  await rm(stubs, { recursive: true, force: true });
 });
 
 const skill = (version: string | null, body = "old") =>
@@ -65,26 +62,22 @@ async function withProject(
   ) => CliResult | Promise<CliResult> = runCli,
 ) {
   const project = await makeTempDir();
-  try {
-    await mkdir(join(project, ".github"), { recursive: true });
-    if (setup.config !== undefined) {
-      await writeFile(
-        join(project, ".github/spindle.json"),
-        typeof setup.config === "string" ? setup.config : JSON.stringify(setup.config),
-      );
-    }
-    for (const [name, content] of Object.entries(setup.skills ?? {})) {
-      await mkdir(join(project, ".github/skills", name), { recursive: true });
-      await writeFile(join(project, ".github/skills", name, "SKILL.md"), content);
-      await writeFile(join(project, ".github/skills", name, "extra.txt"), "stale");
-    }
-    const result = await runner(project, ["update", ...args], process.env.PATH ?? "", {
-      SPINDLE_TEST_BLUEPRINTS_DIR: stubsDir,
-    });
-    await check(project, result);
-  } finally {
-    await rm(project, { recursive: true, force: true });
+  await mkdir(join(project, ".github"), { recursive: true });
+  if (setup.config !== undefined) {
+    await writeFile(
+      join(project, ".github/spindle.json"),
+      typeof setup.config === "string" ? setup.config : JSON.stringify(setup.config),
+    );
   }
+  for (const [name, content] of Object.entries(setup.skills ?? {})) {
+    await mkdir(join(project, ".github/skills", name), { recursive: true });
+    await writeFile(join(project, ".github/skills", name, "SKILL.md"), content);
+    await writeFile(join(project, ".github/skills", name, "extra.txt"), "stale");
+  }
+  const result = await runner(project, ["update", ...args], process.env.PATH ?? "", {
+    SPINDLE_TEST_BLUEPRINTS_DIR: stubsDir,
+  });
+  await check(project, result);
 }
 
 const read = (project: string, name: string) =>
@@ -95,7 +88,7 @@ const goodConfig = { stacks: ["python", "typescript"], variables: { owner: "core
 test("update copies a Skill's stacks directory as ordinary recursive content", async () => {
   const blueprints = await makeTempDir("spindle-update-stacks-content-blueprints-");
   const skillDirectory = join(blueprints, "skills", "demo");
-  try {
+  {
     await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
     await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
     await mkdir(join(skillDirectory, "stacks", "php-laravel"), { recursive: true });
@@ -134,15 +127,13 @@ test("update copies a Skill's stacks directory as ordinary recursive content", a
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
 test("update reads Skill metadata from its catalog-selected root entry", async () => {
   const blueprints = await makeTempDir("spindle-update-catalog-skill-blueprints-");
   const skillDirectory = join(blueprints, "skills", "demo");
-  try {
+  {
     await mkdir(skillDirectory, { recursive: true });
     await writeFile(join(skillDirectory, "SKILL.md"), skill("2.0.0", "new"));
 
@@ -155,15 +146,13 @@ test("update reads Skill metadata from its catalog-selected root entry", async (
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
 test("update preserves paths for duplicate basenames in a Skill's stacks directory", async () => {
   const blueprints = await makeTempDir("spindle-update-stacks-blueprints-");
   const skillDirectory = join(blueprints, "skills", "demo");
-  try {
+  {
     await mkdir(join(skillDirectory, "stacks", "python"), { recursive: true });
     await mkdir(join(skillDirectory, "stacks", "typescript"), { recursive: true });
     await writeFile(
@@ -200,8 +189,6 @@ test("update preserves paths for duplicate basenames in a Skill's stacks directo
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
@@ -242,7 +229,7 @@ test("update reads a Nunjucks-rendered nested Skill version", async () => {
   const blueprints = await makeTempDir("spindle-update-nested-templated-version-");
   const skillFile = join(blueprints, "skills", "demo", "SKILL.md");
   const installed = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
-  try {
+  {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
       skillFile,
@@ -272,15 +259,13 @@ test("update reads a Nunjucks-rendered nested Skill version", async () => {
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
 test("top-level version is not a fallback for shipped or installed Skills", async () => {
   const blueprints = await makeTempDir("spindle-update-no-version-fallback-");
   const source = join(blueprints, "skills", "demo", "SKILL.md");
-  try {
+  {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(source, "---\nversion: 2.0.0\n---\nshipped\n");
     await withProject(
@@ -306,8 +291,6 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
@@ -317,7 +300,7 @@ test("update renders a complete static Skill entry before checking an equal vers
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");
   const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
   const configText = JSON.stringify({ stacks: ["python"], variables: {} });
-  try {
+  {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
       join(blueprints, "skills", "demo", "SKILL.md"),
@@ -335,9 +318,6 @@ test("update renders a complete static Skill entry before checking an equal vers
     expect(result.stderr).toMatch(/undefined|not_supplied/i);
     expect(await readFile(installed, "utf8")).toBe(original);
     expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(configText);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -349,7 +329,7 @@ test("update refuses to install a Skill entry changed after version planning", a
   const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
   const changedSource =
     "---\nmetadata:\n  spindle:\n    version: 3.0.0\n---\nchanged after planning\n";
-  try {
+  {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(source, "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped\n");
     await mkdir(join(installed, ".."), { recursive: true });
@@ -376,9 +356,6 @@ test("update refuses to install a Skill entry changed after version planning", a
     expect(result.status).not.toBe(0);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/changed while planning/);
     expect(await readFile(installed, "utf8")).toBe(original);
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
-    await rm(project, { recursive: true, force: true });
   }
 });
 
@@ -387,7 +364,7 @@ test("update aborts on malformed installed Skill YAML before replacing another S
   const malformed =
     "---\nname: broken\nmetadata:\n  spindle:\n    version: [unterminated\n---\nlocal broken Skill\n";
   const config = JSON.stringify({ stacks: ["python"], variables: {} });
-  try {
+  {
     for (const name of ["a-outdated", "z-broken"]) {
       await mkdir(join(blueprints, "skills", name), { recursive: true });
       await writeFile(join(blueprints, "skills", name, "SKILL.md"), skill("2.0.0", "shipped"));
@@ -408,8 +385,6 @@ test("update aborts on malformed installed Skill YAML before replacing another S
       },
       blueprints,
     );
-  } finally {
-    await rm(blueprints, { recursive: true, force: true });
   }
 });
 
@@ -633,7 +608,7 @@ test(
       variables: { owner: "configured" },
       unrelated: { preserve: true },
     };
-    try {
+    {
       await withProject(
         {
           config: projectConfig,
@@ -672,8 +647,6 @@ test(
             env,
           ),
       );
-    } finally {
-      await rm(variableStubs, { recursive: true, force: true });
     }
   },
 );
@@ -696,7 +669,7 @@ test(
         `---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`,
       );
     }
-    await rm(join(failureStubs, "catalog.fixture.json"));
+    await rm(join(failureStubs, "catalog.fixture.json"), { force: true });
     const originalConfig = {
       stacks: ["python"],
       variables: { owner: "configured" },
@@ -709,7 +682,7 @@ test(
       missing: skill("1.0.0"),
       bad: skill("1.0.0"),
     };
-    try {
+    {
       await withProject(
         { config: originalConfig, skills: currentSkills },
         [],
@@ -736,8 +709,6 @@ test(
             env,
           ),
       );
-    } finally {
-      await rm(failureStubs, { recursive: true, force: true });
     }
   },
 );
@@ -758,7 +729,7 @@ test(
       missing: skill("1.0.0"),
       bad: skill("1.0.0"),
     };
-    const failureHook = join(process.cwd(), "tests/helpers/preloads/fail-config-write.ts");
+    const failureHook = join(repoRoot, "tests/helpers/preloads/fail-config-write.ts");
     await withProject(
       { config: originalConfig, skills: currentSkills },
       ["--include-new"],
@@ -882,50 +853,38 @@ test("missing or malformed config points to init", async () => {
 });
 
 test("update Commander help accepts -h and help update outside Git", async () => {
-  const project = await mkdtemp(join(process.cwd(), "spindle-update-help-"));
-  try {
-    for (const args of [
-      ["update", "-h"],
-      ["help", "update"],
-    ]) {
-      const result = runCliRaw(project, args, process.env.PATH ?? "");
-      expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
-      expect(result.stderr).toBe("");
-      expect(result.stdout).toMatch(/Usage: spindle update/);
-      expect(result.stdout).toMatch(/-h, --help/);
-    }
-    expect(await readdir(project)).toEqual([]);
-  } finally {
-    await rm(project, { recursive: true, force: true });
+  const project = await makeTempDir("spindle-update-help-");
+  for (const args of [
+    ["update", "-h"],
+    ["help", "update"],
+  ]) {
+    const result = runCliRaw(project, args, process.env.PATH ?? "");
+    expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatch(/Usage: spindle update/);
+    expect(result.stdout).toMatch(/-h, --help/);
   }
+  expect(await readdir(project)).toEqual([]);
 });
 
 test("update reports invalid arguments before Git discovery outside a working tree", async () => {
-  const project = await mkdtemp(join(process.cwd(), "spindle-update-invalid-no-git-"));
-  try {
-    const result = runCliRaw(project, ["update", "--stack", "python"], "");
-    expect(result.status).not.toBe(0);
-    expect(result.stdout).toBe("");
-    expect(result.stderr).toMatch(/unknown option.*--stack/i);
-    expect(result.stderr).not.toMatch(/Git working-tree root/i);
-    expect(await readdir(project)).toEqual([]);
-  } finally {
-    await rm(project, { recursive: true, force: true });
-  }
+  const project = await makeTempDir("spindle-update-invalid-no-git-");
+  const result = runCliRaw(project, ["update", "--stack", "python"], "");
+  expect(result.status).not.toBe(0);
+  expect(result.stdout).toBe("");
+  expect(result.stderr).toMatch(/unknown option.*--stack/i);
+  expect(result.stderr).not.toMatch(/Git working-tree root/i);
+  expect(await readdir(project)).toEqual([]);
 });
 
 test("valid update requires Git discovery outside a working tree", async () => {
-  const project = await mkdtemp(join(process.cwd(), "spindle-update-valid-no-git-"));
-  try {
-    for (const searchPath of [process.env.PATH ?? "", ""]) {
-      const result = runCliRaw(project, ["update", "--no-interactive"], searchPath);
-      expect(result.status).not.toBe(0);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toMatch(/Git working-tree root/i);
-      expect(await readdir(project)).toEqual([]);
-    }
-  } finally {
-    await rm(project, { recursive: true, force: true });
+  const project = await makeTempDir("spindle-update-valid-no-git-");
+  for (const searchPath of [process.env.PATH ?? "", ""]) {
+    const result = runCliRaw(project, ["update", "--no-interactive"], searchPath);
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toMatch(/Git working-tree root/i);
+    expect(await readdir(project)).toEqual([]);
   }
 });
 
@@ -970,7 +929,7 @@ test(
     for (const { label, link } of cases) {
       const project = await makeTempDir();
       const outside = join(project, "outside");
-      try {
+      {
         await mkdir(outside, { recursive: true });
         await writeFile(join(outside, "sentinel"), "keep");
         if (link === "github") {
@@ -1012,8 +971,6 @@ test(
         } else {
           expect(await readFile(join(outside, "SKILL.md"), "utf8")).toBe(skill("1.0.0"));
         }
-      } finally {
-        await rm(project, { recursive: true, force: true });
       }
     }
   },

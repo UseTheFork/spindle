@@ -4,6 +4,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
+import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { invokeAsync } from "../helpers/helpers";
 import { createIssue, issueFixture, workspaceSnapshot } from "../helpers/issue-helpers";
 
@@ -31,7 +32,7 @@ test("ready does not combine triage states from interleaved serialized updates",
   triage("I-0001", "ready-for-agent");
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
-  const preloadPath = join(process.cwd(), "tests/helpers/preloads/ready-pause.ts");
+  const preloadPath = join(repoRoot, "tests/helpers/preloads/ready-pause.ts");
   const ready = invokeAsync(repo, ["ready", "--spec", feature.spec], {
     preload: preloadPath,
     env: {
