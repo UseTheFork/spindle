@@ -93,7 +93,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   };
   expect(created.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`);
   expect(JSON.parse(created.stdout)).toEqual(expected);
-  expect(readFileSync(expected.spec, "utf8")).toContain("# [FEATURE TITLE]");
+  expect(readFileSync(expected.spec, "utf8")).toContain("# Packaged Feature");
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
     "design.md",
@@ -172,9 +172,11 @@ test("packaged sdd create and status expose feature state outside the checkout",
   ]);
   expect(createdTicket.status, createdTicket.stderr).toBe(0);
   expect(JSON.parse(createdTicket.stdout).ticket).toBe("T-0001");
-  expect(readFileSync(join(featureDirectory, "tickets", "T-0001.md"), "utf8")).toContain(
-    "[REQUIREMENTS]",
-  );
+  const ticket = readFileSync(join(featureDirectory, "tickets", "T-0001.md"), "utf8");
+  expect(ticket).toContain("# Packaged ticket");
+  expect(ticket).toContain("**Reporter:** maintainer");
+  expect(ticket).toContain("**Category:** enhancement");
+  expect(ticket).toContain("[REQUIREMENTS]");
 
   const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);

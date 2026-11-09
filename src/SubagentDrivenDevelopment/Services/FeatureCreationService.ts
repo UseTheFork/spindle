@@ -1,9 +1,8 @@
 import {
-  constants,
-  copyFileSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
@@ -30,6 +29,8 @@ import {
   validateCreateOptions,
   featureSlug,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
 const templates = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 
@@ -103,6 +104,19 @@ export class FeatureCreationService extends Service {
       try {
         mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));
+        const context = resolveRenderContext({
+          variables: {
+            title: options.title.trim(),
+            author: options.author.trim(),
+          },
+        });
+        const spec = renderText(
+          readFileSync(join(templates, templateCatalog.sdd.spec), "utf8"),
+          context,
+        );
+        const design = options.withDesign
+          ? renderText(readFileSync(join(templates, templateCatalog.sdd.design), "utf8"), context)
+          : undefined;
         const ledger: FeatureLedger = {
           schemaVersion: 3,
           featureId: id,
@@ -123,17 +137,9 @@ export class FeatureCreationService extends Service {
             baseSha: this.gitEvidence.headSha(),
           },
         };
-        copyFileSync(
-          join(templates, templateCatalog.sdd.spec),
-          join(staging, "spec.md"),
-          constants.COPYFILE_EXCL,
-        );
-        if (options.withDesign) {
-          copyFileSync(
-            join(templates, templateCatalog.sdd.design),
-            join(staging, "design.md"),
-            constants.COPYFILE_EXCL,
-          );
+        writeFileSync(join(staging, "spec.md"), spec, { flag: "wx" });
+        if (design !== undefined) {
+          writeFileSync(join(staging, "design.md"), design, { flag: "wx" });
         }
         writeFileSync(join(staging, "sdd.json"), `${JSON.stringify(ledger, null, 2)}\n`, {
           flag: "wx",

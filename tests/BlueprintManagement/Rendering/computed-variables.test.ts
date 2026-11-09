@@ -11,13 +11,13 @@ import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/B
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import { ComputedContextService } from "@/BlueprintManagement/Computed/ComputedContextService";
+import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
+import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import {
   ComputedVariableProvider,
-  type ResolvedConfig,
-} from "@/BlueprintManagement/Computed/ComputedVariableProvider";
-import { renderText } from "@/BlueprintManagement/Rendering/RenderText";
-import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
+  type ResolvedInputs,
+} from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
 import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
 import { writeCatalogFixture } from "../../helpers/CatalogFixtures.ts";
@@ -392,15 +392,15 @@ test("providers receive immutable resolved Config once per run and refresh acros
       definition.default ?? "supplied by test",
     ]),
   );
-  const config: ResolvedConfig = {
+  const config: ResolvedInputs = {
     stacks: ["python", "typescript"],
     variables: defaultVariables,
   };
-  let providerConfig: ResolvedConfig | undefined;
+  let providerConfig: ResolvedInputs | undefined;
   class ConfigProvider extends ComputedVariableProvider {
     render() {
-      providerConfig = this.config;
-      return `${this.config.stacks.join(",")}:${this.config.variables.owner}:${this.config.variables.lint_command}`;
+      providerConfig = this.inputs;
+      return `${this.inputs.stacks.join(",")}:${this.inputs.variables.owner}:${this.inputs.variables.lint_command}`;
     }
   }
   let evaluations = 0;

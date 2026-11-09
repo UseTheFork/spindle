@@ -3,7 +3,7 @@ import type {
   CatalogKind,
   CatalogSelection,
 } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { RenderContext } from "@/BlueprintManagement/Rendering/RenderText";
+import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintUpdateInput {
   name: string;

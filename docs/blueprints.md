@@ -89,26 +89,29 @@ description: "{{ computed.internal_skill_description }}"
 ```
 
 Computed Variable names are explicit public keys in the typed
-`computedVariableProviders` registry in `src/BlueprintManagement/Computed/ComputedVariableProviders.ts`;
-they are not inferred from class names. Each provider has its own module under
-`src/BlueprintManagement/Computed/Providers/`. To add one, implement a `ComputedVariableProvider`
-subclass and register its class under the desired template name. The provider
-receives the resolved Config in its constructor: the selected Stacks and
-effective Variables after normal resolution, including defaults. The Config is
-read-only. Implement a parameterless synchronous `render(): string` method to
-return the value, and add the provider class to the registry under its chosen
-name.
+`computedVariableProviders` registry in
+`src/TemplateRendering/Computed/ComputedVariableProviders.ts`; they are not
+inferred from class names. Each provider has its own module under
+`src/TemplateRendering/Computed/Providers/`. To add one, implement a
+`ComputedVariableProvider` subclass and register its class under the desired
+template name. Providers receive only the caller's selected Stacks and Variables
+as read-only inputs. Blueprint commands supply resolved project inputs, while
+workflow callers supply their own inputs without loading project Config or
+inheriting Blueprint defaults. Implement a synchronous `render(): string`
+method to return the value, and add the provider class to the registry under its
+chosen name.
 
 Each reconciliation run gets a fresh application-managed computed-context
-service. It copies and freezes the resolved Stacks and Variables passed to
-providers. Each registered provider is instantiated and rendered once after
-Config resolution; repeated or concurrent context requests in that run share
-the resolved context and values, including across Blueprints and version
-inspection. A later run resolves them again. Computed values are not persisted
-in Config, prompted for, or directly overridable by project Variables or CLI
-options. They are developer-shipped providers, not project plugins. The
-provider contract does not expose machine-wide settings or arbitrary
-environment inputs.
+service. It copies and freezes the supplied Stacks and Variables passed to
+providers. Each registered provider is instantiated and rendered once per
+operation; repeated context requests reuse the resolved values across
+Blueprints and version inspection. SDD feature creation likewise shares one
+render context across its spec and optional design, and ticket creation renders
+with its existing command inputs. A later operation resolves providers again.
+Computed values are not persisted in Config, prompted for, or directly
+overridable by project Variables or CLI options. They are developer-shipped
+providers, not project plugins. The provider contract does not expose
+machine-wide settings or arbitrary environment inputs.
 
 Errors identify the missing computed name or failing registered provider and are
 reported during preparation, before Spindle applies generated files, Config

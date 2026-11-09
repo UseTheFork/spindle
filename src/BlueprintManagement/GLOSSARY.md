@@ -3,6 +3,8 @@
 This context owns the catalog-driven lifecycle that installs and updates
 Blueprints. Shared Stack, Variable, and Config terms are defined in the
 [project glossary](../../GLOSSARY.md).
+Templates and Computed Variables belong to
+[Template Rendering](../TemplateRendering/GLOSSARY.md).
 
 **Blueprint**:
 A definition for a kind of spindle-managed content, such as a Skill,
@@ -18,11 +20,6 @@ Blueprint Management owns its validation and selection lifecycle.
 The files present in a catalog-selected source directory. Its installed
 destination subtree is authoritative: files absent from the source, including
 local additions, are removed during reconciliation.
-
-**Computed Variable**:
-A named text value derived from Config for use in Blueprints during generation.
-Unlike a Variable, its value is not supplied by the user, stored in Config, or
-directly overridden.
 
 **Blueprint reconciliation**:
 The coordinated planning and application of selected Blueprint installations,

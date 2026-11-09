@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
-import { renderText } from "@/BlueprintManagement/Rendering/RenderText";
+import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
 const context = {
   stacks: ["python", "typescript"],
@@ -35,6 +36,29 @@ test("rendering keeps autoescaping disabled", () => {
 
 test("undefined values remain errors", () => {
   expect(() => renderText("{{ variables.missing }}", context)).toThrow(/undefined/i);
+});
+
+test("syntax failures and unknown computed values fail rendering", () => {
+  expect(() => renderText("{% if %}broken{% endif %}", context)).toThrow();
+  expect(() => renderText("{{ computed.not_registered }}", context)).toThrow(
+    /Unknown computed output .*computed\.not_registered/,
+  );
+});
+
+test("supplied values are rendered as data rather than recursively parsed as templates", () => {
+  const supplied = "{{ variables.missing }}";
+  expect(renderText("{{ variables.name }}", { ...context, variables: { name: supplied } })).toBe(
+    supplied,
+  );
+});
+
+test("shared context accepts caller inputs without Config or Blueprint defaults", () => {
+  const resolved = resolveRenderContext({ variables: { title: "Caller title" } });
+
+  expect(resolved.stacks).toEqual([]);
+  expect(resolved.variables).toEqual({ title: "Caller title" });
+  expect(renderText("{{ variables.title }}", resolved)).toBe("Caller title");
+  expect(() => renderText("{{ variables.owner }}", resolved)).toThrow(/undefined/i);
 });
 
 test("missing computed outputs name the reference in CRLF templates", () => {

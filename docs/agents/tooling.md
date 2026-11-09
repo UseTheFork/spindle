@@ -205,7 +205,9 @@ for both CLI schema discovery and application registration. The
 Project provider owns `spindle project init` and tooling command operations,
 and explicitly binds the `ProjectService` singleton. The Blueprint Management
 provider owns `init` and `update`, and registers reconciliation and installation
-singletons plus transient computed-context services. The SDD provider owns thin per-operation Commands
+singletons. Shared rendering and Computed Variables belong to Template Rendering;
+computed-context results are scoped to one operation, never a singleton workflow's
+lifetime. The SDD provider owns thin per-operation Commands
 and explicitly injected singleton Services, Persistence, Evidence, and Policies
 under `src/SubagentDrivenDevelopment/`. Git process execution lives in
 `src/Git/Services/GitService.ts`; SDD-specific content and report verification stays

@@ -46,8 +46,8 @@ before its provider's register hook; providers explicitly bind dependencies.
 `BlueprintManagementServiceProvider` owns `init` and `update`, and registers
 reconciliation and installation as explicit singletons. `ProjectServiceProvider`
 separately owns `spindle project` and its explicitly bound `ProjectService`
-singleton. `ComputedContextService` is a transient
-Blueprint Management dependency.
+singleton. `ComputedContextService` is a transient Template Rendering dependency,
+as established by [ADR-0009](./0009-shared-template-rendering.md).
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
 runs. Config, prompt answers, plans, and operational mutable state remain per-run.

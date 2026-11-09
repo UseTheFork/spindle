@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "include": [
     "./BlueprintManagement/**/*.ts",
+    "./TemplateRendering/**/*.ts",
     "./Project/**/*.ts",
     "./Foundation/**/*.ts",
     "./Support/**/*.ts",

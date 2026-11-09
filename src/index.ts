@@ -9,6 +9,7 @@ import { dispatch } from "@/cli";
 import { Application } from "@/Foundation/Application";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
   await dispatch(
@@ -16,6 +17,7 @@ export async function runExecutable(args: string[], startingDirectory: string): 
     (_invocation, providers) => Application.configure(startingDirectory, providers).create(),
     process.argv[1] ?? "spindle",
     [
+      TemplateRenderingServiceProvider,
       BlueprintManagementServiceProvider,
       ProjectServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,

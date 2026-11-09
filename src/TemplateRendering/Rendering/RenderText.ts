@@ -30,13 +30,18 @@ function missingComputedOutput(source: string, error: unknown) {
     .find((name) => name !== undefined);
 }
 
-export interface RenderContext {
-  stacks: string[];
-  variables: Record<string, string>;
-  computed?: Record<string, string>;
+export interface RenderInputs {
+  readonly stacks?: readonly string[];
+  readonly variables?: Readonly<Record<string, string>>;
 }
 
-export function renderText(source: string, context: RenderContext) {
+export interface RenderContext {
+  readonly stacks: string[];
+  readonly variables: Record<string, string>;
+  readonly computed?: Record<string, string>;
+}
+
+export function renderText(source: string, context: RenderContext): string {
   try {
     return environment.renderString(source, context);
   } catch (error) {

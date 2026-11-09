@@ -28,7 +28,7 @@ Resolve identity from the basename, not the frontmatter display name. Reject uns
 
 ### 2. Reconcile Blueprint source
 
-Consult [Blueprint decisions](../../../docs/adr/) and [installation](../../../src/BlueprintManagement/Services/InstallationService.ts), [rendering](../../../src/BlueprintManagement/Rendering/RenderText.ts), and [Variables](../../../src/BlueprintManagement/Rendering/Variables.ts) for current behavior.
+Consult [Blueprint decisions](../../../docs/adr/) and [installation](../../../src/BlueprintManagement/Services/InstallationService.ts), [shared rendering](../../../src/TemplateRendering/Rendering/RenderText.ts), and [Blueprint Variables](../../../src/BlueprintManagement/Rendering/Variables.ts) for current behavior.
 
 - Transfer intended content and frontmatter changes into the existing authoring structure. Preserve Blueprint metadata, unrelated content, Stack branches, and overlays.
 - Skills include referenced supporting files with their relative paths. Retain unmatched destination files unless their removal is part of the supplied change. Agents and Instructions must install exactly one entry file; ask if additional files are needed.

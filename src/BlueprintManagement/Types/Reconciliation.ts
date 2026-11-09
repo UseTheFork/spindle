@@ -1,5 +1,4 @@
 import type { CatalogDeletion } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { RenderContext } from "@/BlueprintManagement/Rendering/RenderText";
 import type { BlueprintHandler, BlueprintUpdatePlan } from "@/BlueprintManagement/Types/Blueprint";
 import type {
   ConflictPolicy,
@@ -7,6 +6,7 @@ import type {
 } from "@/BlueprintManagement/Types/Installation";
 import type { ProjectConfigurationData } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintOutcome {
   kind: string;

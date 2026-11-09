@@ -1,29 +1,29 @@
-# [FEATURE TITLE]
+# {{ variables.title | default("[FEATURE TITLE]") }}
 
 ## Problem Statement
 
-[PROBLEM STATEMENT]
+{{ variables.problem_statement | default("[PROBLEM STATEMENT]") }}
 
 ## Solution
 
-[SOLUTION]
+{{ variables.solution | default("[SOLUTION]") }}
 
 ## User Stories
 
-[USER STORIES]
+{{ variables.user_stories | default("[USER STORIES]") }}
 
 ## Implementation Decisions
 
-[IMPLEMENTATION DECISIONS]
+{{ variables.implementation_decisions | default("[IMPLEMENTATION DECISIONS]") }}
 
 ## Testing Decisions
 
-[TESTING DECISIONS]
+{{ variables.testing_decisions | default("[TESTING DECISIONS]") }}
 
 ## Out of Scope
 
-[OUT OF SCOPE]
+{{ variables.out_of_scope | default("[OUT OF SCOPE]") }}
 
 ## Further Notes
 
-[FURTHER NOTES]
+{{ variables.further_notes | default("[FURTHER NOTES]") }}

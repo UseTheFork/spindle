@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import matter from "gray-matter";
 
-import { renderText, type RenderContext } from "@/BlueprintManagement/Rendering/RenderText";
+import { renderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;

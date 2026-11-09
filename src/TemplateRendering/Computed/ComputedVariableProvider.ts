@@ -1,14 +1,14 @@
-export interface ResolvedConfig {
+export interface ResolvedInputs {
   readonly stacks: readonly string[];
   readonly variables: Readonly<Record<string, string>>;
 }
 
 export abstract class ComputedVariableProvider {
-  constructor(readonly config: ResolvedConfig) {}
+  public constructor(public readonly inputs: ResolvedInputs) {}
 
-  abstract render(): string;
+  public abstract render(): string;
 }
 
-type ComputedVariableProviderClass = new (config: ResolvedConfig) => ComputedVariableProvider;
+type ComputedVariableProviderClass = new (inputs: ResolvedInputs) => ComputedVariableProvider;
 
 export type ComputedVariableRegistry = Readonly<Record<string, ComputedVariableProviderClass>>;

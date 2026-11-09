@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -26,6 +26,22 @@ test("sdd create requires named non-empty title and author options", async () =>
     expect(result.stderr.trim(), args.join(" ")).not.toBe("");
     expect(existsSync(join(repo, ".scratch")), args.join(" ")).toBe(false);
   }
+});
+
+test("SDD creation does not require valid project Config", async () => {
+  const { repo } = await serviceFixture();
+  mkdirSync(join(repo, ".github"), { recursive: true });
+  writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
+  const result = runCli(
+    repo,
+    ["sdd", "create", "--title", "Config Independent", "--author", "maintainer"],
+    process.env.PATH ?? "",
+  );
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(
+    readFileSync(join(repo, ".scratch", "0001-config-independent", "spec.md"), "utf8"),
+  ).toContain("# Config Independent");
 });
 
 test("concurrent sdd create commands allocate distinct consecutive feature IDs", async () => {
@@ -149,6 +165,7 @@ test("sdd create and status expose JSON results and report path errors through t
     ledger: join(repo, ".scratch", "0001-cli-feature", "sdd.json"),
   };
   expect(JSON.parse(created.stdout)).toEqual(expected);
+  expect(readFileSync(expected.spec, "utf8")).toContain("# CLI Feature");
   expect(existsSync(join(repo, ".scratch", "0001-cli-feature", "design.md"))).toBe(true);
   const status = runCli(repo, ["sdd", "status", "--spec", expected.spec], searchPath);
   expect(status.status, status.stderr).toBe(0);
@@ -203,6 +220,10 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
     "utf8",
   );
   expect(ticket).toMatch(/^id: T-0001$/m);
+  expect(ticket).toContain("# Add export");
+  expect(ticket).toContain("**Reporter:** maintainer");
+  expect(ticket).toContain("**Category:** enhancement");
+  expect(ticket).toContain("**Author:** controller");
   expect(ticket).toContain("## Requirements\n\n[REQUIREMENTS]");
   expect(ticket).toContain("## Acceptance Criteria\n\n[ACCEPTANCE CRITERIA]");
   expect(ticket).toContain("## Comments");

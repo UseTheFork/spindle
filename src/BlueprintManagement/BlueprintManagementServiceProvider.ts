@@ -1,6 +1,5 @@
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import { ComputedContextService } from "@/BlueprintManagement/Computed/ComputedContextService";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
 import type { CommandConstructor } from "@/Commands/Command";
@@ -14,7 +13,6 @@ export class BlueprintManagementServiceProvider extends ServiceProvider {
   public register(): void {
     this.app.singleton(BlueprintReconciliationService);
     this.app.singleton(InstallationService);
-    this.app.bind(ComputedContextService);
   }
 
   public async boot(): Promise<void> {}

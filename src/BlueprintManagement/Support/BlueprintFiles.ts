@@ -2,11 +2,11 @@ import { type Stats } from "node:fs";
 import { access, lstat, readFile } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import { renderText, type RenderContext } from "@/BlueprintManagement/Rendering/RenderText";
 import type {
   PlannedBlueprintFile,
   PreparedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
+import { renderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 // Only known text formats are rendered; all other files are copied unchanged.
 const textExtensions = new Set([

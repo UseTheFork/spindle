@@ -5,7 +5,6 @@ import {
   type CatalogDeletion,
   type CatalogSelection,
 } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import { ComputedContextService } from "@/BlueprintManagement/Computed/ComputedContextService";
 import { planBlueprintCatalogReconciliation } from "@/BlueprintManagement/Reconciliation/BlueprintCatalogPlanner";
 import {
   applyRemovalOperations,
@@ -15,7 +14,6 @@ import {
   type PlannedDeletionOperation,
   type PlannedMembershipCleanupOperation,
 } from "@/BlueprintManagement/Reconciliation/BlueprintRemovalCoordinator";
-import type { RenderContext } from "@/BlueprintManagement/Rendering/RenderText";
 import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
 import {
   assertSafeInstallPaths,
@@ -44,6 +42,8 @@ import type {
 import { readBlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
+import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
+import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 function willInstallBlueprint(
   blueprint: PlannedBlueprint,

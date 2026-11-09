@@ -42,11 +42,13 @@ An opinionated language-and-framework choice the user selects during `init`, suc
 _Avoid_: Language, framework
 
 **Variable**:
-A named value the user supplies for use in Blueprints.
+A named value supplied by a caller for use in a Template, including user inputs
+collected by a workflow command.
 _Avoid_: Setting, parameter
 
 **Computed Variable**:
-A named text value derived from Config for use in Blueprints during generation. Unlike a Variable, its value is not supplied by the user, stored in Config, or directly overridden.
+A named text value derived from a workflow's supplied inputs for use in Templates.
+Unlike a Variable, its value is not supplied by the user, stored in Config, or directly overridden.
 
 **Config**:
 The `.github/spindle.json` file holding the user's selected stacks, variables,

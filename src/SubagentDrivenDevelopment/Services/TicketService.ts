@@ -29,6 +29,8 @@ import {
   validateCategory,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
 const templates = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 
@@ -71,12 +73,20 @@ export class TicketService extends Service {
         status: "open" as const,
         blockedBy: [],
       };
+      const context = resolveRenderContext({
+        variables: {
+          title: options.title.trim(),
+          reporter: options.reporter.trim(),
+          category: options.category,
+          author: options.author.trim(),
+        },
+      });
+      const template = renderText(
+        readFileSync(join(templates, templateCatalog.sdd.ticket), "utf8"),
+        context,
+      );
       const document = matter.stringify(
-        this.ticketRepository.appendAudit(
-          readFileSync(join(templates, templateCatalog.sdd.ticket), "utf8"),
-          options.author,
-          "Ticket created.",
-        ),
+        this.ticketRepository.appendAudit(template, options.author, "Ticket created."),
         { id },
       );
       ledger.tickets.push({

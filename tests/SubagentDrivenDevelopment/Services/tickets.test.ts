@@ -11,7 +11,9 @@ import {
 import { join } from "node:path";
 
 import matter from "gray-matter";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+
+import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
 
 import { runCli } from "../../helpers/Cli.ts";
 import { createTicket, ticketFixture } from "../helpers/ticket-helpers";
@@ -33,8 +35,12 @@ test("ticket create persists attributed metadata and unstarted progress without 
   const createdDocument = matter(readFileSync(ticketPath, "utf8"));
   expect(createdDocument.data).toEqual({ id: "T-0001" });
   expect("execution" in createdDocument.data).toBe(false);
+  expect(createdDocument.content).toContain("# Preserve ticket requirements");
+  expect(createdDocument.content).toContain("**Reporter:** A maintainer");
+  expect(createdDocument.content).toContain("**Category:** enhancement");
+  expect(createdDocument.content).toContain("**Author:** controller");
   expect(createdDocument.content).toMatch(
-    /^## Requirements\n\n\[REQUIREMENTS\]\n\n## Acceptance Criteria\n\n\[ACCEPTANCE CRITERIA\]\n\n## Comments\n/,
+    /^# Preserve ticket requirements\n\n- \*\*Reporter:\*\* A maintainer\n- \*\*Category:\*\* enhancement\n- \*\*Author:\*\* controller\n\n## Requirements\n\n\[REQUIREMENTS\]\n\n## Acceptance Criteria\n\n\[ACCEPTANCE CRITERIA\]\n\n## Comments\n/,
   );
   expect(createdDocument.content).toMatch(
     /\*\*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z - controller\*\*/,
@@ -115,6 +121,30 @@ test("ticket creation rejects invalid categories and missing attribution without
   expect(missingAuthor.stderr.trim()).not.toBe("");
   expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+});
+
+test("computed provider failures leave ticket and ledger unpublished", async () => {
+  const { service, feature } = await ticketFixture("Failed Ticket Rendering");
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+  const render = vi
+    .spyOn(InternalSkillDescriptionProvider.prototype, "render")
+    .mockImplementation(() => {
+      throw new Error("provider failed");
+    });
+
+  expect(() =>
+    service.ticketService.ticketCreate({
+      spec: feature.spec,
+      title: "Failed ticket",
+      reporter: "reporter",
+      category: "bug",
+      author: "maintainer",
+    }),
+  ).toThrow(/Computed Variable 'internal_skill_description' failed: provider failed/);
+  expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+  render.mockRestore();
 });
 
 test("ticket commands reject legacy I-prefixed identifiers", async () => {
@@ -308,9 +338,10 @@ test("ticket comment appends explicit UTC attribution without inferring reporter
     /The investigation is complete\.\nNo content should be inferred\./,
   );
   expect(document.content).toMatch(/\*\*\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z - investigator\*\*/);
-  expect(document.content).not.toMatch(/Reporter Name/);
+  const [content, followUp] = document.content.split("## Follow-up\n");
+  const comments = content?.split("## Comments\n")[1];
+  expect(comments).not.toContain("Reporter Name");
   expect(document.content.match(/investigator\*\*/g) ?? []).toHaveLength(1);
-  const [comments, followUp] = document.content.split("## Follow-up\n");
   expect(comments).toMatch(/The investigation is complete\./);
   expect(followUp).toBe("\nPreserve this later section.\n");
   const missingAuthor = runCli(
