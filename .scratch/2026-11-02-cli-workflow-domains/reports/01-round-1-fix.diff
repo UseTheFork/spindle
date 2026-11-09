@@ -1,9 +1,0 @@
-diff --git a/src/index.ts b/src/index.ts
---- a/src/index.ts
-+++ b/src/index.ts
-@@ -150 +150 @@
--async function runSdd(args: string[]) {
-+function runSdd(args: string[]) {
-@@ -213 +213 @@
--    await runSdd(args.slice(1));
-+    runSdd(args.slice(1));

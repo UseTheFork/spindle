@@ -1,8 +1,0 @@
---- src/blueprints/just.ts
-+++ src/blueprints/just.ts
-@@ -115 +115 @@
--async function prepareModules(githubDirectory: string, context: RenderContext) {
-+async function prepareModules(context: RenderContext) {
-@@ -154 +154 @@
--  const prepared = await prepareModules(githubDirectory, context);
-+  const prepared = await prepareModules(context);
