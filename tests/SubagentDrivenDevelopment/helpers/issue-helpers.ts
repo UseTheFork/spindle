@@ -7,7 +7,7 @@ import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 
 export async function issueFixture(title: string) {
   const { repo, git } = fixture();
-  const app = applicationFixture(repo, resolve("src/blueprints"));
+  const app = applicationFixture(repo, resolve("src/Blueprints"));
   await app.boot();
   const service = await workflowServices(app);
   const feature = service.featureCreationService.create({ title, author: "maintainer" });

@@ -5,9 +5,10 @@ import { join, resolve } from "node:path";
 import type { Command as CommanderCommand } from "commander";
 import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 
+import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
+import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { dispatch } from "@/cli";
 import { Command, type CommandConstructor } from "@/Commands/Command";
-import { InitCommand } from "@/Commands/init/init-command";
 import { Application } from "@/Foundation/Application";
 import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
@@ -18,11 +19,11 @@ import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBluepr
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
-import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
-import { Repository } from "@/utilities/Repository";
+import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { Repository } from "@/Support/Repository";
 
 afterEach(() => {
   RegisterProviders.merge([]);
@@ -75,14 +76,13 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
 
 test("kernel supplies invocation first, resolves distinct roots, then registers and boots providers", async () => {
   const { root, nested } = workspace();
-  vi.stubEnv("SPINDLE_BLUEPRINTS_DIR", "blueprint-assets");
   const events: string[] = [];
   class Provider extends ServiceProvider {
     public constructor(app: Application) {
       super(app);
       expect(app.basePath()).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
-      expect(app.blueprintSourceRoot).toBe(join(root, "blueprint-assets"));
+      expect(app.blueprintSourceRoot).toBe(ResolveBlueprintSourceRoot.resolveBlueprintSourceRoot());
       expect(app.value("console.invocation")).toBe(invocation);
       expect(consoleArgs(app).array("raw")).toBe(invocation.raw);
       events.push("construct");
@@ -185,11 +185,10 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
 
 test("packaged source defaults resolve from the helper location, independent of basePath", async () => {
   const { root, nested } = workspace();
-  vi.stubEnv("SPINDLE_BLUEPRINTS_DIR", "");
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.blueprintSourceRoot).toBe(resolve("src/blueprints") + "/");
+  expect(app.blueprintSourceRoot).toBe(resolve("src/Blueprints") + "/");
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {
@@ -214,13 +213,18 @@ test("Commander alone supplies validated repeated options to the executable comp
     raw,
     () => {
       application = Application.configure(nested, [
+        BlueprintManagementServiceProvider,
         ProductionServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ]).create();
       return application;
     },
     "/installed/spindle",
-    [ProductionServiceProvider, SubagentDrivenDevelopmentServiceProvider],
+    [
+      BlueprintManagementServiceProvider,
+      ProductionServiceProvider,
+      SubagentDrivenDevelopmentServiceProvider,
+    ],
   );
   if (!application) throw new Error("Missing dispatched application.");
   expect(application.value("console.invocation")).toEqual({
@@ -271,13 +275,18 @@ test("Commander preserves a real positional action and nested command path witho
       raw,
       () => {
         application = Application.configure(nested, [
+          BlueprintManagementServiceProvider,
           ProductionServiceProvider,
           SubagentDrivenDevelopmentServiceProvider,
         ]).create();
         return application;
       },
       "spindle",
-      [ProductionServiceProvider, SubagentDrivenDevelopmentServiceProvider],
+      [
+        BlueprintManagementServiceProvider,
+        ProductionServiceProvider,
+        SubagentDrivenDevelopmentServiceProvider,
+      ],
     ),
   ).rejects.toBe(operationFailure);
   if (!application) throw new Error("Missing dispatched application.");
@@ -298,7 +307,7 @@ test("semantic invalid input fails before Application construction or Git bootst
         return Application.configure("/missing").create();
       },
       "spindle",
-      [ProductionServiceProvider],
+      [BlueprintManagementServiceProvider, ProductionServiceProvider],
     ),
   ).rejects.toThrow(/stack/i);
   expect(constructions).toBe(0);

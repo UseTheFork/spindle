@@ -1,3 +1,3 @@
-import { Repository } from "../utilities/Repository.js";
+import { Repository } from "@/Support/Repository";
 
 export class Config extends Repository {}

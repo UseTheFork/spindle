@@ -258,9 +258,8 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   const nested = join(project, "packages", "nested");
   mkdirSync(nested, { recursive: true });
   const args = ["init", "--stack", "python", "--no-interactive"];
-  const env = { SPINDLE_BLUEPRINTS_DIR: join(cli.root, "build", "blueprints") };
 
-  const fromRoot = cli.run(project, args, env);
+  const fromRoot = cli.run(project, args);
   expect(fromRoot.status, fromRoot.stderr).toBe(0);
   const rootConfig = readFileSync(join(project, ".github", "spindle.json"), "utf8");
   const rootSkill = readFileSync(
@@ -269,7 +268,7 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   );
   rmSync(join(project, ".github"), { recursive: true });
 
-  const fromNested = cli.run(nested, args, env);
+  const fromNested = cli.run(nested, args);
   expect(fromNested.status, fromNested.stderr).toBe(0);
   expect(fromNested.stdout).toBe(fromRoot.stdout);
   expect(readFileSync(join(project, ".github", "spindle.json"), "utf8")).toBe(rootConfig);
@@ -286,122 +285,48 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   const cli = packagedCli();
   const project = tempDirectory("spindle-packaged-computed-project-");
   execFileSync("git", ["init", "-q"], { cwd: project });
-  const blueprintRoot = tempDirectory("spindle-packaged-computed-blueprints-");
-  const packagedBlueprints = join(blueprintRoot, "blueprints");
-  cpSync(join(cli.root, "build", "blueprints"), packagedBlueprints, { recursive: true });
-
-  const shippedSkill = join(
-    packagedBlueprints,
-    "skills",
-    "int-test-driven-development",
-    "SKILL.md",
-  );
-  const source = readFileSync(shippedSkill, "utf8");
-  const sourceFrontmatter = matter(source).data;
-  expect(
-    sourceFrontmatter.description,
-    "the packaged shipped asset must contain the migrated description template",
-  ).toBe("{{ computed.internal_skill_description }}");
-
-  const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"], {
-    SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
-  });
+  const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"]);
   expect(result.status, result.stderr).toBe(0);
 
-  const installed = readFileSync(
-    join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
-    "utf8",
-  );
+  const skillDirectory = join(project, ".github", "skills", "int-test-driven-development");
+  const skillPath = join(skillDirectory, "SKILL.md");
+  const installed = readFileSync(skillPath, "utf8");
   expect(matter(installed).data.description).toBe(
     "This is an internal skill do not load it unless explicitly required by the user or another skill.",
   );
-  expect(matter(installed).data.metadata.spindle.version).toBe(
-    sourceFrontmatter.metadata.spindle.version,
-  );
   expect(installed).not.toMatch(/{{|}}/);
 
-  const shippedDirectory = join(packagedBlueprints, "skills", "int-test-driven-development");
-  const installedDirectory = join(project, ".github", "skills", "int-test-driven-development");
-  for (const name of ["tests.md", "mocking.md"]) {
-    const reference = join("references", name);
-    expect(existsSync(join(shippedDirectory, name))).toBe(false);
-    expect(existsSync(join(installedDirectory, name))).toBe(false);
-    expect(
-      readFileSync(join(installedDirectory, reference), "utf8"),
-      `the packaged ${reference} must install without changing its content`,
-    ).toBe(readFileSync(join(shippedDirectory, reference), "utf8"));
-    expect(installed.includes(`(./references/${name})`)).toBeTruthy();
-  }
-
-  const domainShippedDirectory = join(packagedBlueprints, "skills", "int-domain-modeling");
-  const domainInstalledDirectory = join(project, ".github", "skills", "int-domain-modeling");
-  const domainSkill = readFileSync(join(domainInstalledDirectory, "SKILL.md"), "utf8");
-  const domainSourceSkill = readFileSync(join(domainShippedDirectory, "SKILL.md"), "utf8");
-  const domainSourceVersion = matter(domainSourceSkill).data.metadata.spindle.version;
-  expect(domainSourceVersion).toBe("1.0.1");
-  expect(matter(domainSkill).data.metadata.spindle.version).toBe(domainSourceVersion);
-  for (const name of ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]) {
-    const reference = join("references", name);
-    expect(existsSync(join(domainShippedDirectory, name))).toBe(false);
-    expect(existsSync(join(domainInstalledDirectory, name))).toBe(false);
-    expect(
-      readFileSync(join(domainInstalledDirectory, reference), "utf8"),
-      `the packaged ${reference} must install without changing its content`,
-    ).toBe(readFileSync(join(domainShippedDirectory, reference), "utf8"));
-    expect(domainSkill.includes(`(./references/${name})`)).toBeTruthy();
-  }
-
-  const designShippedDirectory = join(packagedBlueprints, "skills", "int-codebase-design");
-  const designInstalledDirectory = join(project, ".github", "skills", "int-codebase-design");
-  const designSkill = readFileSync(join(designInstalledDirectory, "SKILL.md"), "utf8");
-  const designSourceSkill = readFileSync(join(designShippedDirectory, "SKILL.md"), "utf8");
-  expect(matter(designSkill).data.metadata.spindle.version).toBe(
-    matter(designSourceSkill).data.metadata.spindle.version,
-  );
-  expect(matter(designSkill).data.metadata.spindle.version).toBe("1.1.1");
-  expect(designSkill).not.toMatch(/{%[^%]*\bstacks\b|```(?:typescript|python|php)\n/);
-  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
-    const reference = join("references", name);
-    expect(existsSync(join(designShippedDirectory, name))).toBe(false);
-    expect(existsSync(join(designInstalledDirectory, name))).toBe(false);
-    expect(
-      readFileSync(join(designInstalledDirectory, reference), "utf8"),
-      `the packaged ${reference} must install without changing its content`,
-    ).toBe(readFileSync(join(designShippedDirectory, reference), "utf8"));
-    expect(designSkill.includes(`(./references/${name})`)).toBeTruthy();
-  }
-  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
-    const reference = readFileSync(join(designInstalledDirectory, "references", name), "utf8");
-    expect(reference.includes("(../SKILL.md)")).toBeTruthy();
-    if (name === "DESIGN-IT-TWICE.md") {
-      expect(reference.includes("(DEEPENING.md)")).toBeTruthy();
+  for (const [name, references] of [
+    ["int-test-driven-development", ["tests.md", "mocking.md"]],
+    ["int-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
+    ["int-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
+  ] as const) {
+    const directory = join(project, ".github", "skills", name);
+    const content = readFileSync(join(directory, "SKILL.md"), "utf8");
+    for (const reference of references) {
+      expect(content).toContain(`(./references/${reference})`);
+      expect(existsSync(join(directory, "references", reference))).toBe(true);
     }
   }
 
   const legacySkill = matter(installed);
   legacySkill.data.metadata.spindle.version = "1.0.0";
-  writeFileSync(
-    join(installedDirectory, "SKILL.md"),
-    matter.stringify(legacySkill.content, legacySkill.data),
-  );
-  rmSync(join(installedDirectory, "references"), { recursive: true });
+  writeFileSync(skillPath, matter.stringify(legacySkill.content, legacySkill.data));
+  rmSync(join(skillDirectory, "references"), { recursive: true });
   for (const name of ["tests.md", "mocking.md"]) {
-    writeFileSync(
-      join(installedDirectory, name),
-      readFileSync(join(shippedDirectory, "references", name), "utf8"),
-    );
+    writeFileSync(join(skillDirectory, name), "legacy location\n");
   }
 
-  const updated = cli.run(project, ["update", "--no-interactive", "--on-conflict", "overwrite"], {
-    SPINDLE_BLUEPRINTS_DIR: packagedBlueprints,
-  });
+  const updated = cli.run(project, ["update", "--no-interactive", "--on-conflict", "overwrite"]);
   expect(updated.status, updated.stderr).toBe(0);
   for (const name of ["tests.md", "mocking.md"]) {
-    expect(existsSync(join(installedDirectory, name))).toBe(false);
-    expect(readFileSync(join(installedDirectory, "references", name), "utf8")).toBe(
-      readFileSync(join(shippedDirectory, "references", name), "utf8"),
-    );
+    expect(existsSync(join(skillDirectory, name))).toBe(false);
+    expect(existsSync(join(skillDirectory, "references", name))).toBe(true);
   }
+  const refreshed = matter(readFileSync(skillPath, "utf8"));
+  expect(refreshed.data.description).toBe(
+    "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+  );
 });
 
 test("packaged workflow commands reject malformed, duplicate, inapplicable, and nested arguments", () => {

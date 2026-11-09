@@ -3,7 +3,10 @@ import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import type { BlueprintCatalogDefinition, CatalogSourceEntry } from "@/blueprints/catalog";
+import type {
+  BlueprintCatalogDefinition,
+  CatalogSourceEntry,
+} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 
 const cli = resolve(process.cwd(), "src/index.ts");
 const tsconfig = resolve(process.cwd(), "tsconfig.json");
@@ -15,7 +18,9 @@ function nodeArguments(env: Record<string, string>) {
   return [
     "--import",
     tsxLoader,
-    ...(env.SPINDLE_TEST_CATALOG ? ["--import", catalogLoader] : []),
+    ...(env.SPINDLE_TEST_CATALOG || env.SPINDLE_TEST_BLUEPRINTS_DIR
+      ? ["--import", catalogLoader]
+      : []),
     cli,
   ];
 }
@@ -89,8 +94,11 @@ export function runCliWithCatalog(
 }
 
 function withCatalogFixture(env: Record<string, string>) {
-  return env.SPINDLE_BLUEPRINTS_DIR
-    ? { ...env, SPINDLE_TEST_CATALOG: join(env.SPINDLE_BLUEPRINTS_DIR, "catalog.fixture.json") }
+  return env.SPINDLE_TEST_BLUEPRINTS_DIR
+    ? {
+        ...env,
+        SPINDLE_TEST_CATALOG: join(env.SPINDLE_TEST_BLUEPRINTS_DIR, "catalog.fixture.json"),
+      }
     : env;
 }
 
@@ -141,7 +149,7 @@ export function runCliWithFixtureCatalog(
   searchPath: string,
   env: Record<string, string> = {},
 ) {
-  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  const blueprints = env.SPINDLE_TEST_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliWithCatalog(project, args, searchPath, env);
 }
@@ -152,7 +160,7 @@ export function runCliWithFixtureCatalogRaw(
   searchPath: string,
   env: Record<string, string> = {},
 ) {
-  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  const blueprints = env.SPINDLE_TEST_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliRaw(project, args, searchPath, withCatalogFixture(env));
 }
@@ -246,7 +254,7 @@ export function runCliInteractiveWithFixtureCatalog(
   responses: { trigger: string; input: string; beforeInput?: () => void }[],
   env: Record<string, string> = {},
 ) {
-  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  const blueprints = env.SPINDLE_TEST_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliInteractive(project, args, searchPath, responses, withCatalogFixture(env));
 }
@@ -258,7 +266,7 @@ export function runCliInteractiveWithFixtureCatalogRaw(
   responses: { trigger: string; input: string; beforeInput?: () => void }[],
   env: Record<string, string> = {},
 ) {
-  const blueprints = env.SPINDLE_BLUEPRINTS_DIR;
+  const blueprints = env.SPINDLE_TEST_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
   return runCliInteractiveRaw(project, args, searchPath, responses, withCatalogFixture(env));
 }

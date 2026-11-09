@@ -1,7 +1,7 @@
 import type { Application } from "@/Foundation/Application";
 import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
-import { Repository } from "@/utilities/Repository";
+import { Repository } from "@/Support/Repository";
 
 function isStringArray(value: unknown): value is readonly string[] {
   if (!Array.isArray(value)) return false;

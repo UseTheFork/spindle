@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import chalk from "chalk";
 
 import { dispatch } from "@/cli";
+import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
 import { Application } from "@/Foundation/Application";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { ProductionServiceProvider } from "@/services/ProductionServiceProvider";
@@ -14,7 +15,11 @@ export async function runExecutable(args: string[], startingDirectory: string): 
     args,
     (_invocation, providers) => Application.configure(startingDirectory, providers).create(),
     process.argv[1] ?? "spindle",
-    [ProductionServiceProvider, SubagentDrivenDevelopmentServiceProvider],
+    [
+      BlueprintManagementServiceProvider,
+      ProductionServiceProvider,
+      SubagentDrivenDevelopmentServiceProvider,
+    ],
   );
 }
 

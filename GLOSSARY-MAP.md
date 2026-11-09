@@ -1,7 +1,9 @@
 # Context glossary map
 
-- [Blueprint installation and reconciliation](GLOSSARY.md): Blueprints, Stacks,
-  Variables, Config, and Application Configuration.
+- [Blueprint management](src/BlueprintManagement/GLOSSARY.md): Blueprints,
+  catalog selection, rendering, reconciliation, and installation.
+- [Shared project terms](GLOSSARY.md): Stacks, Variables, Config, and
+  Application Configuration.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
   feature workspaces, issues, assignments, findings, evidence, and delivery.
 - [Git](src/Git/GLOSSARY.md): repositories, working trees, index, and commits.

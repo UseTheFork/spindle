@@ -7,7 +7,9 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import { isCheckRecord } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import { isReviewAssignment } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export function isImplementationAssignment(value: unknown): value is ImplementationAssignment {
   if (

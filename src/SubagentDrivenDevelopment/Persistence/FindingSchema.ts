@@ -4,7 +4,9 @@ import type {
   RequirementsDecision,
   ReviewFinding,
 } from "@/SubagentDrivenDevelopment/Models/Findings";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export function isReviewFinding(value: unknown): value is ReviewFinding {
   return (

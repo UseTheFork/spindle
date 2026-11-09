@@ -4,7 +4,9 @@ import type {
   ReviewAssignment,
   SpecialistReviewRequirement,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export function isReviewAssignment(value: unknown): value is ReviewAssignment {
   if (

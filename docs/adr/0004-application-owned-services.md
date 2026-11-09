@@ -43,7 +43,10 @@ which requires a static Commander schema registration method. TypeScript cannot
 declare an abstract static method, so the constructor contract enforces it at
 the provider boundary. Application binds each distinct command class as a singleton
 before its provider's register hook; providers explicitly bind dependencies.
-Reconciliation and installation are explicit production singletons.
+`BlueprintManagementServiceProvider` owns `init` and `update`, and registers
+reconciliation and installation as explicit singletons. The production provider
+retains unrelated project setup commands. `ComputedContextService` is a transient
+Blueprint Management dependency.
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
 runs. Config, prompt answers, plans, and operational mutable state remain per-run.

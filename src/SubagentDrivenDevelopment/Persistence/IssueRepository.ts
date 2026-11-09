@@ -14,7 +14,9 @@ import {
   validateCategory,
   validateTriageStatus,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export class IssueRepository extends Service {
   public constructor(

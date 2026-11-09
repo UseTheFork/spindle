@@ -27,14 +27,14 @@ export function fixture() {
 
 export async function serviceFixture() {
   const workspace = fixture();
-  const app = applicationFixture(workspace.repo, resolve("src/blueprints"));
+  const app = applicationFixture(workspace.repo, resolve("src/Blueprints"));
   await app.boot();
   const service = await workflowServices(app);
   return { ...workspace, service, app };
 }
 
 export async function execute(repo: string, run: (service: WorkflowServices) => unknown) {
-  const app = applicationFixture(repo, resolve(process.cwd(), "src/blueprints"));
+  const app = applicationFixture(repo, resolve(process.cwd(), "src/Blueprints"));
   await app.boot();
   const command = await workflowServices(app);
   try {

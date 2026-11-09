@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { InitCommand } from "@/Commands/init/init-command";
-import { UpdateCommand } from "@/Commands/update/update-command";
+import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
+import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
 import {
   parseProjectConfiguration,
   loadProjectConfiguration,

@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 
 import type { Application } from "@/Foundation/Application";
-import { isRecord } from "@/utilities/records";
-import { validateStacks } from "@/utilities/stacks";
+import { Records } from "@/Support/Records";
+import { Stacks } from "@/Support/Stacks";
 
 export interface ProjectConfigurationData extends Record<string, unknown> {
   stacks: string[];
@@ -18,12 +18,12 @@ const malformed =
   '.github/spindle.json is malformed; expected {"stacks": [...], "variables": {...}}. Fix the file or run `spindle init`.';
 
 function isStringRecord(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+  return Records.isRecord(value) && Object.values(value).every((item) => typeof item === "string");
 }
 
 function isConfiguration(value: unknown): value is ProjectConfigurationData {
   return (
-    isRecord(value) &&
+    Records.isRecord(value) &&
     Array.isArray(value.stacks) &&
     value.stacks.length > 0 &&
     value.stacks.every((stack) => typeof stack === "string") &&
@@ -48,7 +48,7 @@ export function parseProjectConfiguration(raw: string): ProjectConfigurationStat
     return { status: "invalid", data, error: new Error(malformed), reason: malformed };
   }
   try {
-    validateStacks(data.stacks);
+    Stacks.validate(data.stacks);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     return { status: "invalid", data, error, reason: error.message };
@@ -61,7 +61,7 @@ export async function loadProjectConfiguration(path: string): Promise<ProjectCon
   try {
     raw = await readFile(path, "utf8");
   } catch (error) {
-    if (isRecord(error) && error.code === "ENOENT") return { status: "absent" };
+    if (Records.isRecord(error) && error.code === "ENOENT") return { status: "absent" };
     throw error;
   }
   return parseProjectConfiguration(raw);
@@ -69,7 +69,7 @@ export async function loadProjectConfiguration(path: string): Promise<ProjectCon
 
 export function projectConfiguration(application: Application): ProjectConfigurationState {
   const state = application.value("config.project");
-  if (isRecord(state)) {
+  if (Records.isRecord(state)) {
     if (state.status === "absent") return { status: "absent" };
     if (state.status === "valid" && isConfiguration(state.data)) {
       return { status: "valid", data: state.data };

@@ -12,7 +12,8 @@ parallel discovery and layout conventions while preserving rendering and
 existing update units.
 
 The inventory is a static, typed TypeScript object in
-`src/blueprints/catalog.ts`, compiled with the CLI rather than loaded from YAML.
+`src/BlueprintManagement/Catalog/BlueprintCatalog.ts`, compiled with the CLI
+rather than loaded from YAML.
 Asset-root overrides do not replace this inventory. Runtime validation retains
 path safety and filesystem checks.
 
@@ -28,5 +29,5 @@ content, and all deletions and membership cleanup before applying any
 installation changes. A preparation failure leaves the project unchanged. An
 application-time filesystem failure stops reconciliation and reports completed
 changes; it does not promise rollback. The package build
-bundles the catalog and Blueprint assets under `build/blueprints`, which is the
+bundles the catalog and Blueprint assets under `build/Blueprints`, which is the
 runtime source for packaged CLI use.

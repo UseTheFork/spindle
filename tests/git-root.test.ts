@@ -25,7 +25,7 @@ test("init from a nested directory installs into the Git worktree root", async (
     );
 
     const env = {
-      SPINDLE_BLUEPRINTS_DIR: blueprints,
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
     };
     const rootResult = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(rootResult.status, rootResult.stderr).toBe(0);
@@ -76,7 +76,7 @@ test("update from a nested directory reads Config and reconciles at the Git work
       ["update", "--no-interactive", "--on-conflict", "overwrite"],
       process.env.PATH ?? "",
       {
-        SPINDLE_BLUEPRINTS_DIR: blueprints,
+        SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
       },
     );
 

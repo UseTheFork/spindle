@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import matter from "gray-matter";
 
-import { blueprintCatalog } from "@/blueprints/catalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { blueprintCatalog } from "@/blueprints/catalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { FEATURE_DIRECTORY, EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -35,7 +35,9 @@ import {
   isReviewAssignment,
   isSpecialistReviewRequirement,
 } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export class LedgerRepository extends Service {
   public constructor(app: Application) {

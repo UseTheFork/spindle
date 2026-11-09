@@ -18,7 +18,7 @@ mutation. The old report-path resolver is not available, and dated feature
 workspaces are not migrated.
 
 The shipped collection is controlled by the typed `blueprintCatalog` object in
-`src/blueprints/catalog.ts`. Edit this object to add or retire entries, then
+`src/BlueprintManagement/Catalog/BlueprintCatalog.ts`. Edit this object to add or retire entries, then
 rebuild Spindle. TypeScript checks entry fields, lifecycle statuses, supported
 Stack names, and the trailing slash required for Skill directories. Every
 catalog entry has a logical key, a source `path`, a `status` (`active` or
@@ -42,7 +42,7 @@ changing its path does not infer a deletion of its previous destination. Keep an
 explicit `removed` entry for any old target that needs cleanup.
 
 Paths are relative to the corresponding kind directory under
-`src/blueprints/`. A path ending in `/` selects a directory recursively; its
+`src/Blueprints/`. A path ending in `/` selects a directory recursively; its
 filenames and relative structure are preserved. A path without a trailing slash
 selects one file. Do not use glob patterns or internal Stack overlays. A nested
 directory named `stacks/` is ordinary content.
@@ -85,9 +85,9 @@ description: "{{ computed.internal_skill_description }}"
 ```
 
 Computed Variable names are explicit public keys in the typed
-`computedVariableProviders` registry in `src/computed/computed-variable-providers.ts`;
+`computedVariableProviders` registry in `src/BlueprintManagement/Computed/ComputedVariableProviders.ts`;
 they are not inferred from class names. Each provider has its own module under
-`src/computed/providers/`. To add one, implement a `ComputedVariableProvider`
+`src/BlueprintManagement/Computed/Providers/`. To add one, implement a `ComputedVariableProvider`
 subclass and register its class under the desired template name. The provider
 receives the resolved Config in its constructor: the selected Stacks and
 effective Variables after normal resolution, including defaults. The Config is
@@ -117,17 +117,12 @@ cleanup. Preparation failures leave the project unchanged. An application-time
 filesystem failure stops reconciliation and reports completed changes;
 application is not transactional and does not roll back earlier writes.
 
-The package build compiles the catalog and bundles the Blueprint tree under `build/blueprints`.
+The package build compiles the catalog and bundles the Blueprint tree under `build/Blueprints`.
 Published packages use that bundled tree and do not include a separate
-`src/blueprints` fallback.
+`src/Blueprints` fallback.
 
-`SPINDLE_BLUEPRINTS_DIR` overrides only the Blueprint asset root, not the catalog.
-The CLI resolves this override when it creates the application; installation
-services use that application's fixed Blueprint source root for every operation.
-Relative overrides are resolved against the discovered Git workspace root, not
-the invocation directory, and remain fixed if the process later changes directory.
-Without an override, source execution uses `src/blueprints/` and packaged
-execution uses the bundled `build/blueprints/` assets. External YAML catalogs
-are not loaded; overridden assets must satisfy the same compiled catalog.
-Runtime validation still checks safe, nonoverlapping paths, source types and
-existence, symbolic links, and required `SKILL.md` files.
+The CLI uses module-relative Blueprint assets: source execution uses
+`src/Blueprints/` and packaged execution uses the bundled `build/Blueprints/`
+assets. External YAML catalogs are not loaded. Runtime validation checks safe,
+nonoverlapping paths, source types and existence, symbolic links, and required
+`SKILL.md` files.

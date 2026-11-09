@@ -18,9 +18,9 @@ The user must supply an item path or an unambiguous kind and name. If absent or 
 
 | Source                                            | Blueprint entry                                     |
 | ------------------------------------------------- | --------------------------------------------------- |
-| `.github/agents/<name>.agent.md`                  | `src/blueprints/agents/<name>/AGENT.md`             |
-| `.github/skills/<name>/SKILL.md` or its directory | `src/blueprints/skills/<name>/SKILL.md`             |
-| `.github/instructions/<name>.instructions.md`     | `src/blueprints/instructions/<name>/INSTRUCTION.md` |
+| `.github/agents/<name>.agent.md`                  | `src/Blueprints/agents/<name>/AGENT.md`             |
+| `.github/skills/<name>/SKILL.md` or its directory | `src/Blueprints/skills/<name>/SKILL.md`             |
+| `.github/instructions/<name>.instructions.md`     | `src/Blueprints/instructions/<name>/INSTRUCTION.md` |
 
 Resolve identity from the basename, not the frontmatter display name. Reject unsupported paths explicitly. Read the complete source item, existing Blueprint, relevant handler, and repository instructions. Inspect local changes before editing.
 
@@ -28,7 +28,7 @@ Resolve identity from the basename, not the frontmatter display name. Reject uns
 
 ### 2. Reconcile Blueprint source
 
-Consult [Blueprint decisions](../../../docs/adr/) and [planning](../../../src/install.ts), [rendering](../../../src/render.ts), and [Variables](../../../src/variables.ts) for current behavior.
+Consult [Blueprint decisions](../../../docs/adr/) and [installation](../../../src/BlueprintManagement/Services/InstallationService.ts), [rendering](../../../src/BlueprintManagement/Rendering/RenderText.ts), and [Variables](../../../src/BlueprintManagement/Rendering/Variables.ts) for current behavior.
 
 - Transfer intended content and frontmatter changes into the existing authoring structure. Preserve Blueprint metadata, unrelated content, Stack branches, and overlays.
 - Skills include referenced supporting files with their relative paths. Retain unmatched destination files unless their removal is part of the supplied change. Agents and Instructions must install exactly one entry file; ask if additional files are needed.
@@ -41,7 +41,7 @@ Consult [Blueprint decisions](../../../docs/adr/) and [planning](../../../src/in
 
 ### 3. Bump the item version
 
-Read [version rules](../../../src/version.ts). Set entry frontmatter `metadata.spindle.version` to valid SemVer, preserving other metadata. Honor a supplied version or bump, but require the result to exceed both existing Blueprint and installed source versions: equal versions do not update content.
+Read [version rules](../../../src/BlueprintManagement/Versioning/BlueprintVersion.ts). Set entry frontmatter `metadata.spindle.version` to valid SemVer, preserving other metadata. Honor a supplied version or bump, but require the result to exceed both existing Blueprint and installed source versions: equal versions do not update content.
 
 Without an explicit release choice, patch-bump the higher stable version. Ask for a release version when neither version exists or when either existing version is invalid or a prerelease. Bump only the Blueprint entry, not the package or installed source.
 

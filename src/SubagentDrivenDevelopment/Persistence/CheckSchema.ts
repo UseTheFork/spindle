@@ -5,7 +5,9 @@ import type {
   CheckGateInvalidation,
   CheckRecord,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export function isCheckRequirement(value: unknown): value is CheckRequirement {
   if (

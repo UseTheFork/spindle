@@ -27,7 +27,9 @@ import {
   LOCK_TIMEOUT_MS,
 } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export class WorkspaceTransaction extends Service {
   private readonly activeWorkspaces = new Set<string>();

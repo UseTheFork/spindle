@@ -14,7 +14,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "rm -rf build/blueprints && tsc && tsc-alias && mkdir -p build/blueprints build/setup-project/templates && cp -R src/blueprints/. build/blueprints/ && cp -R src/setup-project/templates/. build/setup-project/templates/ && chmod 755 build/index.js",
+    "build": "rm -rf build/Blueprints build/blueprints && tsc && tsc-alias && mkdir -p build/Blueprints build/setup-project/templates && cp -R src/Blueprints/. build/Blueprints/ && cp -R src/setup-project/templates/. build/setup-project/templates/ && chmod 755 build/index.js",
     "start": "node build/index.js",
     "spindle": "tsx src/index.ts",
     "init": "tsx src/index.ts init",

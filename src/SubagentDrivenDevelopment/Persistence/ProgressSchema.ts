@@ -25,7 +25,9 @@ import {
   isReviewAssignment,
   isSpecialistReviewRequirement,
 } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { isRecord } from "@/utilities/records";
+import { Records } from "@/Support/Records";
+
+const isRecord = Records.isRecord;
 
 export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
   return (

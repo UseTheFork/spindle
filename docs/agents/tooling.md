@@ -73,7 +73,7 @@ Unexpected I/O errors propagate. Update requires a valid snapshot; init still
 rejects an existing malformed Config as already existing. SDD and setup-project
 do not require valid Config.
 
-`Config` extends the self-contained `Repository` from `src/utilities/Repository.ts`.
+`Config` extends the self-contained `Repository` from `src/Support/Repository.ts`.
 `get(key, default?)` returns `unknown` (or `undefined` when absent without a default);
 `set(key, value)` stores a live value, `has(key)` checks presence, and `delete(key)`
 returns whether an own key was removed without pruning empty parents.
@@ -194,11 +194,13 @@ on the application for bootstrap, so concurrent dispatches do not compete throug
 the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
-`runExecutable` supplies `ProductionServiceProvider` and
-`SubagentDrivenDevelopmentServiceProvider` as siblings in one provider list used
+`runExecutable` supplies `BlueprintManagementServiceProvider`,
+`ProductionServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
+siblings in one provider list used
 for both CLI schema discovery and application registration. The production
-provider registers reconciliation and installation singletons, plus transient
-computed-context services. The SDD provider owns thin per-operation Commands
+provider owns unrelated setup-project services. The Blueprint Management
+provider owns `init` and `update`, and registers reconciliation and installation
+singletons plus transient computed-context services. The SDD provider owns thin per-operation Commands
 and explicitly injected singleton Services, Persistence, Evidence, and Policies
 under `src/SubagentDrivenDevelopment/`. Git process execution lives in
 `src/Git/Services/GitService.ts`; SDD-specific content and report verification stays
