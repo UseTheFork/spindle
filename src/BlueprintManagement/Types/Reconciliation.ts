@@ -5,6 +5,7 @@ import type {
   ConflictPolicy,
   PlannedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
+import type { ProjectConfigurationData } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
 
 export interface BlueprintOutcome {
@@ -39,11 +40,11 @@ export type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "init";
       context: RenderContext;
-      config: { stacks: string[]; variables: Record<string, string> };
+      config: ProjectConfigurationData;
     })
   | (ReconcileCommon & {
       mode: "update";
-      config?: { stacks: string[]; variables: Record<string, string> };
+      config?: ProjectConfigurationData;
       includeNew?: boolean;
       prepareConfigWrite?: () => PlannedConfigWrite | undefined;
     });

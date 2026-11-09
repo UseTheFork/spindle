@@ -2,6 +2,8 @@
 
 - [Blueprint management](src/BlueprintManagement/GLOSSARY.md): Blueprints,
   catalog selection, rendering, reconciliation, and installation.
+- [Project](src/Project/GLOSSARY.md): project initialization and registered
+  tooling guidance.
 - [Shared project terms](GLOSSARY.md): Stacks, Variables, Config, and
   Application Configuration.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):

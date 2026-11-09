@@ -95,9 +95,8 @@ test("workspace commands fail without Git discovery and leave the directory unch
   }
 });
 
-test("setup-project and SDD status fail without Git discovery before using explicit paths", async () => {
+test("project init and SDD status fail without Git discovery", async () => {
   const invocation = await makeTempDir("spindle-command-no-git-");
-  const setupTarget = await makeTempDir("spindle-command-target-");
   const workspace = await makeTempDir("spindle-command-workspace-");
   execFileSync("git", ["init", "-q"], { cwd: workspace });
   execFileSync("git", ["-C", workspace, "config", "user.name", "Fixture"]);
@@ -107,11 +106,11 @@ test("setup-project and SDD status fail without Git discovery before using expli
   execFileSync("git", ["-C", workspace, "commit", "-qm", "base"]);
 
   for (const searchPath of [process.env.PATH ?? "", ""]) {
-    const setup = runCliRaw(invocation, ["setup-project", "--workspace", setupTarget], searchPath);
+    const setup = runCliRaw(invocation, ["project", "init"], searchPath);
     expect(setup.status).not.toBe(0);
     expect(setup.stdout).toBe("");
     expect(setup.stderr).toMatch(/Git working-tree root/i);
-    expect(await readdir(setupTarget)).toEqual([]);
+    expect(await readdir(invocation)).toEqual([]);
 
     const sdd = runCliRaw(
       invocation,
@@ -138,9 +137,10 @@ test("help and version work outside Git when Git is unavailable", async () => {
     ["sdd", "status", "-h"],
     ["help", "sdd"],
     ["help", "sdd", "status"],
-    ["setup-project", "--help"],
-    ["setup-project", "-h"],
-    ["help", "setup-project"],
+    ["project", "--help"],
+    ["project", "init", "--help"],
+    ["project", "tooling", "--help"],
+    ["help", "project"],
     ["--version"],
   ]) {
     const result = runCliRaw(project, args, "");
@@ -178,10 +178,11 @@ test("CLI argument errors take precedence over Git-root discovery", async () => 
       "03",
       "unexpected",
     ],
-    ["setup-project", "--workspace", "relative"],
-    ["setup-project", "--workspace", join(project, "target"), "unexpected"],
+    ["project", "init", "--workspace", "relative"],
+    ["project", "init", "unexpected"],
     [
-      "setup-project",
+      "project",
+      "init",
       "--workspace",
       join(project, "target"),
       "--workspace",

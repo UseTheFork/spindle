@@ -7,6 +7,14 @@ import { Stacks } from "@/Support/Stacks";
 export interface ProjectConfigurationData extends Record<string, unknown> {
   stacks: string[];
   variables: Record<string, string>;
+  tooling?: ToolingEntry[];
+}
+
+export interface ToolingEntry {
+  key: string;
+  section: string;
+  command: string;
+  description?: string;
 }
 
 export type ProjectConfigurationState =
@@ -15,19 +23,37 @@ export type ProjectConfigurationState =
   | { status: "invalid"; data: unknown; error: Error; reason: string };
 
 const malformed =
-  '.github/spindle.json is malformed; expected {"stacks": [...], "variables": {...}}. Fix the file or run `spindle init`.';
+  '.github/spindle.json is malformed; expected {"stacks": [...], "variables": {...}, "tooling"?: [...]}. Fix the file or run `spindle init`.';
 
 function isStringRecord(value: unknown): value is Record<string, string> {
   return Records.isRecord(value) && Object.values(value).every((item) => typeof item === "string");
+}
+
+function isToolingEntry(value: unknown): value is ToolingEntry {
+  const isSingleLine = (text: string) => text.trim().length > 0 && !/[\r\n]/.test(text);
+  return (
+    Records.isRecord(value) &&
+    typeof value.key === "string" &&
+    /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value.key) &&
+    typeof value.section === "string" &&
+    isSingleLine(value.section) &&
+    typeof value.command === "string" &&
+    isSingleLine(value.command) &&
+    (value.description === undefined ||
+      (typeof value.description === "string" && isSingleLine(value.description)))
+  );
 }
 
 function isConfiguration(value: unknown): value is ProjectConfigurationData {
   return (
     Records.isRecord(value) &&
     Array.isArray(value.stacks) &&
-    value.stacks.length > 0 &&
     value.stacks.every((stack) => typeof stack === "string") &&
-    isStringRecord(value.variables)
+    isStringRecord(value.variables) &&
+    (value.tooling === undefined ||
+      (Array.isArray(value.tooling) &&
+        value.tooling.every(isToolingEntry) &&
+        new Set(value.tooling.map((entry) => entry.key)).size === value.tooling.length))
   );
 }
 
@@ -47,11 +73,13 @@ export function parseProjectConfiguration(raw: string): ProjectConfigurationStat
   if (!isConfiguration(data)) {
     return { status: "invalid", data, error: new Error(malformed), reason: malformed };
   }
-  try {
-    Stacks.validate(data.stacks);
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return { status: "invalid", data, error, reason: error.message };
+  if (data.stacks.length > 0) {
+    try {
+      Stacks.validate(data.stacks);
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      return { status: "invalid", data, error, reason: error.message };
+    }
   }
   return { status: "valid", data };
 }

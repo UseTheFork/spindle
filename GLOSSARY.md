@@ -49,7 +49,8 @@ _Avoid_: Setting, parameter
 A named text value derived from Config for use in Blueprints during generation. Unlike a Variable, its value is not supplied by the user, stored in Config, or directly overridden.
 
 **Config**:
-The `.github/spindle.json` file holding the user's selected stacks and variables.
+The `.github/spindle.json` file holding the user's selected stacks, variables,
+and registered tooling commands.
 _Avoid_: Settings file, manifest
 
 **Application Configuration**:
@@ -66,7 +67,7 @@ reports, and delivery history.
 
 **Issue**:
 A numbered Markdown work item scoped to a feature workspace, with requirements,
-triage state, and delivery progress.
+tracker status, dependencies, and delivery progress.
 _Avoid_: Ticket
 
 **Review finding**:

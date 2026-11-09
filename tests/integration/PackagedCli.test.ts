@@ -20,13 +20,6 @@ import matter from "gray-matter";
 import { makeTempDirSync, repoRoot } from "../helpers/TemporaryDirectories.ts";
 
 const checkout = repoRoot;
-const setupTemplates = [
-  ["domain.md", "docs/agents/domain.md"],
-  ["issue-tracker-local.md", "docs/agents/issue-tracker.md"],
-  ["triage-labels.md", "docs/agents/triage-labels.md"],
-  ["tooling.md", "docs/agents/tooling.md"],
-] as const;
-
 function packagedCli() {
   const packageRoot = makeTempDirSync("spindle-packaged-cli-");
   cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
@@ -159,69 +152,74 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(readFileSync(expected.ledger, "utf8")).toBe(ledgerBeforeStatus);
   expect(git("status", "--porcelain=v1")).toBe(statusBefore);
 
-  const invocationWorkspace = tempDirectory("spindle-packaged-setup-invocation-");
+  const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);
-  const setupWorkspace = tempDirectory("spindle-packaged-setup-");
-  expect(existsSync(join(setupWorkspace, ".git"))).toBe(false);
-  expect(existsSync(join(setupWorkspace, ".github", "spindle.json"))).toBe(false);
-  const setup = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
+  const setup = cli.run(invocationWorkspace, ["project", "init"]);
   expect(setup.status, setup.stderr).toBe(0);
-
-  const expectedSetup = {
-    workspace: setupWorkspace,
+  expect(JSON.parse(setup.stdout)).toEqual({
+    workspace: invocationWorkspace,
     created: [
       "docs",
       "docs/adr",
-      ".scratch",
       "docs/agents",
+      ".github",
       "docs/agents/domain.md",
-      "docs/agents/issue-tracker.md",
-      "docs/agents/triage-labels.md",
+      ".github/spindle.json",
       "docs/agents/tooling.md",
     ],
-    preserved: [],
-  };
-  expect(setup.stdout).toBe(`${JSON.stringify(expectedSetup, null, 2)}\n`);
-  expect(JSON.parse(setup.stdout)).toEqual(expectedSetup);
-  expect(setup.stderr).toBe("");
-
-  for (const [template, destination] of setupTemplates) {
-    expect(readFileSync(join(setupWorkspace, destination))).toEqual(
-      readFileSync(join(cli.root, "build", "Assets", "SetupProject", "templates", template)),
-    );
-  }
-
-  const customDomain = Buffer.from("custom setup guidance\r\n");
-  writeFileSync(join(setupWorkspace, "docs/agents/domain.md"), customDomain);
-  const repeated = cli.run(invocationWorkspace, ["setup-project", "--workspace", setupWorkspace]);
-  expect(repeated.status, repeated.stderr).toBe(0);
-  expect(JSON.parse(repeated.stdout)).toEqual({
-    workspace: setupWorkspace,
-    created: [],
-    preserved: [
-      "docs",
-      "docs/adr",
-      ".scratch",
-      "docs/agents",
-      "docs/agents/domain.md",
-      "docs/agents/issue-tracker.md",
-      "docs/agents/triage-labels.md",
-      "docs/agents/tooling.md",
-    ],
+    preserved: [".scratch"],
+    updated: [],
   });
-  expect(readFileSync(join(setupWorkspace, "docs/agents/domain.md"))).toEqual(customDomain);
+  expect(setup.stderr).toBe("");
+  const add = cli.run(invocationWorkspace, [
+    "project",
+    "tooling",
+    "add",
+    "--key",
+    "test-unit",
+    "--section",
+    "Testing",
+    "--command",
+    "pnpm test -- --run",
+  ]);
+  expect(add.status, add.stderr).toBe(0);
+  expect(readFileSync(join(invocationWorkspace, "docs/agents/tooling.md"), "utf8")).toContain(
+    "pnpm test -- --run",
+  );
+  const registry = JSON.parse(
+    readFileSync(join(invocationWorkspace, ".github/spindle.json"), "utf8"),
+  );
+  expect(registry.tooling).toContainEqual({
+    key: "test-unit",
+    section: "Testing",
+    command: "pnpm test -- --run",
+  });
+  const blueprintInit = cli.run(invocationWorkspace, [
+    "init",
+    "--stack",
+    "typescript",
+    "--no-interactive",
+  ]);
+  expect(blueprintInit.status, blueprintInit.stderr).toBe(0);
+  expect(
+    JSON.parse(readFileSync(join(invocationWorkspace, ".github/spindle.json"), "utf8")),
+  ).toMatchObject({
+    stacks: ["typescript"],
+    tooling: registry.tooling,
+  });
 });
 test("packaged command discovery and help remain intact", () => {
   const cli = packagedCli();
-  const setupWorkspace = tempDirectory("spindle-packaged-help-setup-");
+  const projectWorkspace = tempDirectory("spindle-packaged-help-project-");
 
-  const rootHelp = cli.run(setupWorkspace, ["--help"]);
+  const rootHelp = cli.run(projectWorkspace, ["--help"]);
   expect(rootHelp.status, rootHelp.stderr).toBe(0);
   expect(rootHelp.stdout).toMatch(/^\s*sdd\b/m);
-  expect(rootHelp.stdout).toMatch(/^\s*setup-project\b/m);
+  expect(rootHelp.stdout).toMatch(/^\s*project\b/m);
+  expect(rootHelp.stdout).not.toMatch(/^\s*setup-project\b/m);
   expect(rootHelp.stderr).toBe("");
 
-  const sddHelp = cli.run(setupWorkspace, ["sdd", "--help"]);
+  const sddHelp = cli.run(projectWorkspace, ["sdd", "--help"]);
   expect(sddHelp.status, sddHelp.stderr).toBe(0);
   expect(sddHelp.stdout).toMatch(/^\s+create\s/m);
   expect(sddHelp.stdout).toMatch(/^\s+status\s/m);
@@ -233,9 +231,13 @@ test("packaged command discovery and help remain intact", () => {
       ["--title <title>", "--author <author>", "--require-retrospective"],
     ],
     [["sdd", "status", "--help"], ["--spec <path>"]],
-    [["setup-project", "--help"], ["--workspace"]],
+    [["project", "init", "--help"], ["Usage: spindle project init"]],
+    [
+      ["project", "tooling", "add", "--help"],
+      ["--key", "--section", "--command"],
+    ],
   ] as const) {
-    const result = cli.run(setupWorkspace, args);
+    const result = cli.run(projectWorkspace, args);
     expect(result.status, result.stderr).toBe(0);
     for (const content of expectedContent) {
       expect(
@@ -329,7 +331,7 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
   const cli = packagedCli();
   const gitWorkspace = tempDirectory("spindle-packaged-invalid-git-");
   const { git } = makeGitWorkspace(gitWorkspace);
-  const setupWorkspace = tempDirectory("spindle-packaged-invalid-setup-");
+  const projectWorkspace = tempDirectory("spindle-packaged-invalid-project-");
   const beforeStatus = git("status", "--porcelain=v1");
 
   const invalidCases = [
@@ -349,13 +351,14 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["sdd", "unknown"],
     ].map((args) => [args, gitWorkspace] as const),
     ...[
-      ["setup-project"],
-      ["setup-project", "--workspace"],
-      ["setup-project", "--workspace", setupWorkspace, "--unknown"],
-      ["setup-project", "--workspace", setupWorkspace, "--workspace", setupWorkspace],
-      ["setup-project", "--workspace", setupWorkspace, "--reports-dir", ".scratch/reports"],
-      ["setup-project", "nested", "--workspace", setupWorkspace],
-      ["setup-project", "init", "--workspace", setupWorkspace],
+      ["project"],
+      ["project", "init", "--unknown"],
+      ["project", "init", "nested"],
+      ["project", "tooling"],
+      ["project", "tooling", "add"],
+      ["project", "tooling", "update"],
+      ["project", "tooling", "remove"],
+      ["project", "tooling", "list", "unexpected"],
     ].map((args) => [args, gitWorkspace] as const),
   ];
 
@@ -367,7 +370,7 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
     expect(result.stderr, args.join(" ")).not.toMatch(
       /Unable to discover the Git working-tree root/,
     );
-    expect(readdirSync(setupWorkspace).length).toBe(0);
+    expect(readdirSync(projectWorkspace).length).toBe(0);
     expect(git("status", "--porcelain=v1")).toBe(beforeStatus);
   }
 });

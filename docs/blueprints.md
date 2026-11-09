@@ -3,16 +3,17 @@
 ## CLI workspace root
 
 Spindle discovers the Git working-tree root before running workspace commands:
-`init`, `update`, `sdd`, and `setup-project`. They fail without
+`init`, `update`, `project`, and `sdd`. They fail without
 running if Git is unavailable or the current directory is not inside a Git
 working tree; Spindle does not fall back to the current directory. Help and
 version output remain available outside Git.
 
 `init` and `update` always manage `.github` at the discovered root, including
-when invoked from a nested directory. The explicit `--workspace` argument to
-`setup-project` remains its target directory, even when it differs from the
-discovered root or is outside Git. `sdd create` creates an ID-based feature
-workspace beneath `.scratch/` in the discovered root. `sdd status` requires an
+when invoked from a nested directory. `project init` creates project guidance
+at the discovered root, and its tooling subcommands maintain the registry in
+`.github/spindle.json` and generated `docs/agents/tooling.md`. `sdd create`
+creates an ID-based feature workspace beneath `.scratch/` in the discovered
+root. `sdd status` requires an
 explicit `--spec` path within that checkout and reads the stored ledger without
 mutation. The old report-path resolver is not available, and dated feature
 workspaces are not migrated.
@@ -132,14 +133,13 @@ assets. External YAML catalogs are not loaded. Runtime validation checks safe,
 nonoverlapping paths, source types and existence, symbolic links, and required
 `SKILL.md` files.
 
-## Project setup defaults
+## Project initialization and tooling
 
-`src/Assets/SetupProject/Catalog.ts` declares the four relative template source
-and destination pairs. Their byte-preserved sources live under
-`src/Assets/SetupProject/templates/` and ship under `build/Assets/SetupProject/templates/`.
-`ProjectSetupService` owns explicit absolute target validation, real-directory
-and regular-file checks, ordered missing-only creation, and preservation of
-existing bytes. Earlier writes remain when a later destination fails.
-`ProjectSetupServiceProvider` separately declares `SetupProjectCommand` and
-binds its service as an application singleton. The command owns Commander
-validation and prints the service result as JSON; it does not copy templates.
+`src/Assets/Project/Catalog.ts` declares typed source/destination pairs for
+static project assets. `ProjectService` initializes those assets at the Git root,
+creates `.github/spindle.json` with an empty `stacks` list when needed, and
+generates `docs/agents/tooling.md` from the explicit tooling registry. The
+`spindle project tooling` commands list, add, update, and remove entries; they
+do not discover or execute project commands. `spindle init` can add Blueprint
+stacks to a Project-created Config and preserves the tooling registry. Blueprint
+rendering and update still require at least one selected Stack.

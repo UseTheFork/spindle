@@ -173,7 +173,7 @@ test("root help discovers commands and init help documents init options", async 
   {
     const rootHelp = runCli(project, ["--help"], process.env.PATH ?? "");
     expect(rootHelp.status, rootHelp.stderr).toBe(0);
-    for (const command of ["init", "update", "sdd", "setup-project"]) {
+    for (const command of ["init", "update", "sdd", "project"]) {
       expect(rootHelp.stdout).toMatch(new RegExp(`^\\s*${command}\\b`, "m"));
     }
 

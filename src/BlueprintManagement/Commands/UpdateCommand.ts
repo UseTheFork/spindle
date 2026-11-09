@@ -22,6 +22,7 @@ import {
   requireProjectConfiguration,
 } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import { Stacks } from "@/Support/Stacks";
 
 async function resolveVariables(
   config: { stacks: string[]; variables: Record<string, string> },
@@ -104,6 +105,11 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     const config = this.app.bound("config.project")
       ? requireProjectConfiguration(projectConfiguration(this.app))
       : await readConfig(configPath);
+    if (config.stacks.length === 0) {
+      throw new Error(
+        `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
+      );
+    }
     let prompted: Record<string, string> = {};
 
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {

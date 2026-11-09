@@ -7,7 +7,7 @@ import chalk from "chalk";
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
 import { dispatch } from "@/cli";
 import { Application } from "@/Foundation/Application";
-import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
+import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
@@ -17,7 +17,7 @@ export async function runExecutable(args: string[], startingDirectory: string): 
     process.argv[1] ?? "spindle",
     [
       BlueprintManagementServiceProvider,
-      ProjectSetupServiceProvider,
+      ProjectServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );

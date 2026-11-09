@@ -20,7 +20,7 @@ import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { ProjectSetupServiceProvider } from "@/ProjectSetup/ProjectSetupServiceProvider";
+import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Repository } from "@/Support/Repository";
@@ -215,7 +215,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     () => {
       application = Application.configure(nested, [
         BlueprintManagementServiceProvider,
-        ProjectSetupServiceProvider,
+        ProjectServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ]).create();
       return application;
@@ -223,7 +223,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     "/installed/spindle",
     [
       BlueprintManagementServiceProvider,
-      ProjectSetupServiceProvider,
+      ProjectServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );
@@ -277,7 +277,7 @@ test("Commander preserves a real positional action and nested command path witho
       () => {
         application = Application.configure(nested, [
           BlueprintManagementServiceProvider,
-          ProjectSetupServiceProvider,
+          ProjectServiceProvider,
           SubagentDrivenDevelopmentServiceProvider,
         ]).create();
         return application;
@@ -285,7 +285,7 @@ test("Commander preserves a real positional action and nested command path witho
       "spindle",
       [
         BlueprintManagementServiceProvider,
-        ProjectSetupServiceProvider,
+        ProjectServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ],
     ),
@@ -308,7 +308,7 @@ test("semantic invalid input fails before Application construction or Git bootst
         return Application.configure("/missing").create();
       },
       "spindle",
-      [BlueprintManagementServiceProvider, ProjectSetupServiceProvider],
+      [BlueprintManagementServiceProvider, ProjectServiceProvider],
     ),
   ).rejects.toThrow(/stack/i);
   expect(constructions).toBe(0);

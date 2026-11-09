@@ -16,10 +16,10 @@ import {
   parseVariableFlags,
 } from "@/BlueprintManagement/Rendering/Variables";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
-import { exists } from "@/BlueprintManagement/Support/BlueprintFiles";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
+import { loadProjectConfiguration } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
 import { Stacks } from "@/Support/Stacks";
 
@@ -60,7 +60,7 @@ export class InitCommand extends Command {
         `
 Fails if .github/spindle.json already exists; use \`spindle update\` instead.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), sdd (see \`spindle sdd --help\`), setup-project (see \`spindle setup-project --help\`).
+Other commands: update (see \`spindle update --help\`), project (see \`spindle project --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
 `,
       )
@@ -116,9 +116,14 @@ Run \`spindle --version\` to print the installed version.
     policy: ConflictPolicy | undefined,
   ): Promise<void> {
     const githubDirectory = join(this.app.workspaceRoot, ".github");
-    if (await exists(join(githubDirectory, "spindle.json"))) {
+    const configPath = join(githubDirectory, "spindle.json");
+    const existing = await loadProjectConfiguration(configPath);
+    if (existing.status === "invalid") {
+      throw new Error(existing.reason, { cause: existing.error });
+    }
+    if (existing.status === "valid" && existing.data.stacks.length > 0) {
       throw new Error(
-        "This repository already has .github/spindle.json; run `spindle update` instead of `init`.",
+        "This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
       );
     }
 
@@ -151,7 +156,11 @@ Run \`spindle --version\` to print the installed version.
       }
     }
 
-    const config = { stacks, variables };
+    const config = {
+      ...(existing.status === "valid" ? existing.data : {}),
+      stacks,
+      variables,
+    };
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
       context: config,

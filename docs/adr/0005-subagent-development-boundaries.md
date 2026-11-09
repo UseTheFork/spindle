@@ -47,9 +47,11 @@ registration, and project configuration is available to external providers.
 It is not the mutable `app.config` repository. Loading never rewrites the file,
 deduplicates stacks, removes unknown fields, or injects defaults. Unexpected I/O
 errors propagate. The shared parser also serves direct update reads.
-Update demands valid configuration with existing messages. Init continues to
-reject an existing malformed file as already existing; SDD and setup-project do
-not demand valid configuration.
+Update demands valid configuration with existing messages. Init accepts a valid
+configuration with no selected stacks and preserves its other fields while
+installing selected Blueprints. Project initialization validates an existing
+configuration and creates one with an empty stack list when none exists. SDD
+does not demand valid configuration.
 
 Tests mirror the SDD context and use typed direct services for workflows and
 extracted boundaries. CLI subprocesses remain for executable parsing,

@@ -44,8 +44,8 @@ declare an abstract static method, so the constructor contract enforces it at
 the provider boundary. Application binds each distinct command class as a singleton
 before its provider's register hook; providers explicitly bind dependencies.
 `BlueprintManagementServiceProvider` owns `init` and `update`, and registers
-reconciliation and installation as explicit singletons. `ProjectSetupServiceProvider`
-separately owns `SetupProjectCommand` and its explicitly bound `ProjectSetupService`
+reconciliation and installation as explicit singletons. `ProjectServiceProvider`
+separately owns `spindle project` and its explicitly bound `ProjectService`
 singleton. `ComputedContextService` is a transient
 Blueprint Management dependency.
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
@@ -141,7 +141,7 @@ explicit root values without Git discovery.
 
 Source imports use extensionless `@/` aliases with TypeScript Bundler resolution.
 The production build rewrites aliases and file extensions for Node ESM, preserves
-the Blueprint bundle and setup-project templates, and is verified as an executable
+the Blueprint bundle and Project assets, and is verified as an executable
 package. Source subprocess runners explicitly select the repository tsconfig when
 their fixture working directory is elsewhere.
 

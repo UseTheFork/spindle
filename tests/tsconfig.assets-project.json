@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "include": [
     "./BlueprintManagement/**/*.ts",
-    "./ProjectSetup/**/*.ts",
+    "./Project/**/*.ts",
     "./Foundation/**/*.ts",
     "./Support/**/*.ts",
     "./Config/**/*.ts",

@@ -16,6 +16,6 @@ update *args:
 sdd *args:
     @cd {{ justfile_directory() }} && pnpm run spindle sdd "$@"
 
-[doc('Bootstrap missing project documentation defaults')]
-setup-project *args:
-    @cd {{ justfile_directory() }} && pnpm run spindle setup-project "$@"
+[doc('Initialize project guidance and manage the tooling registry')]
+project *args:
+    @cd {{ justfile_directory() }} && pnpm run spindle project "$@"

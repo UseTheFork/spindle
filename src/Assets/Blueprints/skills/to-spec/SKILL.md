@@ -10,7 +10,7 @@ metadata:
 
 This skill produces a spec from the current conversation or a referenced design file, grounded in the codebase. Synthesize the chosen source without restarting requirements discovery. Source clarification and the test-seam confirmation below are still required when applicable.
 
-The issue tracker and triage label vocabulary should have been provided to you. If not, tell the user to run `/setup-project`.
+Use the issue-tracker conventions in project guidance when available. If the tracker or publication status is unclear, ask the user before publishing; do not assume triage labels or invent status values.
 
 ## Select the source
 
@@ -29,7 +29,7 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. For a local design under `.scratch/YYYY-MM-DD-<feature-slug>/`, write `spec.md` in that same feature directory, preserving its original date and the source design. Otherwise follow the configured tracker conventions. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below, then publish it to the project issue tracker. For a local design under `.scratch/YYYY-MM-DD-<feature-slug>/`, write `spec.md` in that same feature directory, preserving its original date and the source design. Otherwise follow the configured tracker conventions and use its agreed status.
 
 <spec-template>
 

@@ -29,6 +29,22 @@ test("configuration parsing preserves duplicate stacks, empty variables, and unk
   expect(config.variables).not.toHaveProperty("project");
 });
 
+test("configuration accepts an empty stack list and an optional tooling registry", () => {
+  const state = parseProjectConfiguration(
+    JSON.stringify({
+      stacks: [],
+      variables: {},
+      tooling: [{ key: "test-unit", section: "Testing", command: "pnpm test" }],
+    }),
+  );
+  expect(state.status).toBe("valid");
+  if (state.status !== "valid") throw new Error("Expected valid state");
+  expect(state.data.stacks).toEqual([]);
+  expect(state.data.tooling).toEqual([
+    { key: "test-unit", section: "Testing", command: "pnpm test" },
+  ]);
+});
+
 test("invalid JSON retains its original text and SyntaxError separately from command messaging", () => {
   const state = parseProjectConfiguration("{");
   expect(state.status).toBe("invalid");
@@ -42,11 +58,23 @@ test("invalid JSON retains its original text and SyntaxError separately from com
 
 test.each([
   null,
-  { stacks: [], variables: {} },
   { stacks: ["python"], variables: [] },
   { stacks: ["python"], variables: { owner: 1 } },
   { stacks: [1], variables: {} },
   { stacks: ["python"] },
+  {
+    stacks: [],
+    variables: {},
+    tooling: [{ key: "bad key", section: "Testing", command: "pnpm test" }],
+  },
+  {
+    stacks: [],
+    variables: {},
+    tooling: [
+      { key: "duplicate", section: "Testing", command: "pnpm test" },
+      { key: "duplicate", section: "Testing", command: "pnpm test --watch" },
+    ],
+  },
 ])("schema-invalid configuration remains inspectable without injecting defaults: %j", (data) => {
   const state = parseProjectConfiguration(JSON.stringify(data));
   expect(state.status).toBe("invalid");
@@ -79,15 +107,18 @@ test("bootstrap binds invalid project data independently from application config
   const { repo } = await serviceFixture();
   mkdirSync(join(repo, ".github"));
   const path = join(repo, ".github", "spindle.json");
-  writeFileSync(path, '{"stacks":[]}');
+  writeFileSync(path, '{"stacks":["unsupported"]}');
   const app = new Application({ basePath: repo });
   app.instance("path.workspace", repo);
   app.config.set("owner", "application");
   await new LoadProjectConfiguration().bootstrap(app);
-  expect(app.value("config.project")).toMatchObject({ status: "invalid", data: { stacks: [] } });
+  expect(app.value("config.project")).toMatchObject({
+    status: "invalid",
+    data: { stacks: ["unsupported"] },
+  });
   expect(app.config.string("owner")).toBe("application");
   expect(app.config.has("project")).toBe(false);
-  expect(readFileSync(path, "utf8")).toBe('{"stacks":[]}');
+  expect(readFileSync(path, "utf8")).toBe('{"stacks":["unsupported"]}');
 });
 
 test("init still rejects an existing malformed file and update demands valid bootstrapped configuration", async () => {
@@ -96,7 +127,7 @@ test("init still rejects an existing malformed file and update demands valid boo
   writeFileSync(join(repo, ".github", "spindle.json"), "{");
   await new LoadProjectConfiguration().bootstrap(app);
   await expect((await app.make(InitCommand)).run([], [], false, undefined)).rejects.toThrow(
-    "This repository already has .github/spindle.json;",
+    "not valid JSON",
   );
   await expect((await app.make(UpdateCommand)).run(false, undefined)).rejects.toThrow(
     ".github/spindle.json is not valid JSON.",

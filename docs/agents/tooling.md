@@ -21,7 +21,7 @@ repository working directory. Replace `<args>` with optional command arguments.
 
 - `just tool pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
 - `just tool pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD, Foundation, Git, Config, and Git-root integration tests.
-- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.assets-project-setup.json` - Type-check BlueprintManagement, ProjectSetup, Foundation, and related tests.
+- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json` - Type-check BlueprintManagement, Project, Foundation, and related tests.
 
 ## Tooling
 
@@ -48,7 +48,8 @@ repository working directory. Replace `<args>` with optional command arguments.
 - `just tool pnpm run spindle init <args>` - Install project Blueprints.
 - `just tool pnpm run spindle update <args>` - Update installed project Blueprints.
 - `just tool pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
-- `just tool pnpm run spindle setup-project <args>` - Bootstrap missing project documentation defaults.
+- `just tool pnpm run spindle project init` - Bootstrap project documentation defaults.
+- `just tool pnpm run spindle project tooling <list|add|update|remove>` - Manage the documented tooling registry.
 
 Pass workspace and spec paths as absolute paths. Append `--help` to inspect
 command options, for example `just tool pnpm run spindle sdd create --help`.
@@ -71,9 +72,10 @@ argument or persistence for Application Configuration. After Git discovery,
 `LoadProjectConfiguration` separately binds `config.project` as an absent,
 valid, or invalid snapshot containing original project data/error. Loading does
 not rewrite Config, inject defaults, deduplicate Stacks, or discard unknown fields.
-Unexpected I/O errors propagate. Update requires a valid snapshot; init still
-rejects an existing malformed Config as already existing. SDD and setup-project
-do not require valid Config.
+Unexpected I/O errors propagate. Update requires a valid snapshot. Init accepts a valid Config with no selected
+Stacks and preserves its other fields while installing selected Blueprints.
+Project initialization creates an empty-stack Config when absent and rejects an
+existing invalid Config. SDD does not require valid Config.
 
 `Config` extends the self-contained `Repository` from `src/Support/Repository.ts`.
 `get(key, default?)` returns `unknown` (or `undefined` when absent without a default);
@@ -197,11 +199,11 @@ the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
 `runExecutable` supplies `BlueprintManagementServiceProvider`,
-`ProjectSetupServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
+`ProjectServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
 siblings in one provider list used
 for both CLI schema discovery and application registration. The
-ProjectSetup provider owns `SetupProjectCommand` and explicitly binds the
-`ProjectSetupService` singleton. The Blueprint Management
+Project provider owns `spindle project init` and tooling command operations,
+and explicitly binds the `ProjectService` singleton. The Blueprint Management
 provider owns `init` and `update`, and registers reconciliation and installation
 singletons plus transient computed-context services. The SDD provider owns thin per-operation Commands
 and explicitly injected singleton Services, Persistence, Evidence, and Policies
@@ -215,12 +217,12 @@ choices and noninteractive options live in
 `BlueprintManagement/Commands/BlueprintCommandOptions.ts`.
 Shipped Blueprint metadata lives in `Assets/Blueprints/Catalog.ts`;
 Blueprint Management owns its types, validation, and validated export used by
-SDD. `Assets/SetupProject/Catalog.ts` declares relative source/destination pairs
-for setup defaults. Build copies distributed content under `build/Assets/` and
+SDD. `Assets/Project/Catalog.ts` declares typed relative source/destination pairs
+for project defaults. Build copies distributed content under `build/Assets/` and
 leaves emitted catalog JavaScript intact.
 Source subprocess fixtures set `TSX_TSCONFIG_PATH` to the repository tsconfig.
 Compilation uses Bundler resolution and `tsc-alias` rewrites full `.js` paths so
 the emitted ESM runs with Node. Build validation must include the packaged CLI
-and preserved Blueprint/setup-project assets, not only source tests.
+and Project assets, not only source tests.
 
 See [ADR 0004](../adr/0004-application-owned-services.md) for lifecycle rationale.
