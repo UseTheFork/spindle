@@ -15,19 +15,19 @@ Spindle SDD stores feature work in `.scratch/` workspaces. A workspace contains 
 Create each approved ticket in dependency order:
 
 ```sh
-spindle sdd ticket create --spec <absolute-spec-path> --title "..." --reporter "..." --category enhancement --author maintainer
+pnpm spindle sdd ticket create --spec <absolute-spec-path> --title "..." --reporter "..." --category enhancement --author maintainer
 ```
 
 The command returns the new ticket ID and path. Complete its template, then set dependencies with `ticket update`:
 
 ```sh
-spindle sdd ticket update --spec <absolute-spec-path> --ticket T-0002 --blocked-by T-0001 --author maintainer
-spindle sdd ticket comment --spec <absolute-spec-path> --ticket T-0001 --details "..." --author maintainer
-spindle sdd ready --spec <absolute-spec-path>
+pnpm spindle sdd ticket update --spec <absolute-spec-path> --ticket T-0002 --blocked-by T-0001 --author maintainer
+pnpm spindle sdd ticket comment --spec <absolute-spec-path> --ticket T-0001 --details "..." --author maintainer
+pnpm spindle sdd ready --spec <absolute-spec-path>
 ```
 
 Use `--clear-blocked-by` to remove dependencies. Use `ticket update --status` to change status. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file: execution transitions are recorded in `sdd.json`.
 
 ## Delivery
 
-Use `spindle sdd status` and `spindle sdd ready` to inspect work. Claim and dispatch ready tickets with `spindle sdd claim` and `spindle sdd implement`, submit the assigned report with `spindle sdd submit`, and close completed tickets with `spindle sdd ticket update --status closed`. Follow the `int-subagent-driven-dev` skill for review, correction, and feature completion.
+Use `pnpm spindle sdd status` and `pnpm spindle sdd ready` to inspect work. Claim and dispatch ready tickets with `pnpm spindle sdd claim` and `pnpm spindle sdd implement`, submit the assigned report with `pnpm spindle sdd submit`, and close completed tickets with `pnpm spindle sdd ticket update --status closed`. Follow the `int-subagent-driven-dev` skill for review, correction, and feature completion.
