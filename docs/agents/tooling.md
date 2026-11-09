@@ -1,58 +1,58 @@
 # Project Tooling
 
-Run project commands through Just from the repository root. Recipes select the
-repository working directory. Replace `<args>` with optional command arguments.
+Run project commands with pnpm from the repository root. Replace `<args>` with
+optional command arguments.
 
 ## Build
 
-- `just build` - Rebuild the Blueprint bundle from current sources and compile the CLI, removing stale bundled files.
+- `pnpm run build` - Rebuild the Blueprint bundle from current sources and compile the CLI, removing stale bundled files.
 
 ## Linting
 
-- `just lint check <args>` - Check files without modifying them.
-- `just lint lint <args>` - Apply lint fixes.
+- `pnpm run lint -- <args>` - Check files without modifying them.
+- `pnpm run lint:fix -- <args>` - Apply lint fixes.
 
 ## Formatting
 
-- `just format format <args>` - Format files.
-- `just format check <args>` - Check formatting without modifying files.
+- `pnpm run fmt -- <args>` - Format files.
+- `pnpm run fmt:check -- <args>` - Check formatting without modifying files.
 
 ## Type checking
 
-- `just tool pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
-- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD, Foundation, Git, Config, and Git-root integration tests.
-- `just tool pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json` - Type-check BlueprintManagement, Project, Foundation, and related tests.
+- `pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
+- `pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD, Foundation, Git, Config, and Git-root integration tests.
+- `pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json` - Type-check BlueprintManagement, Project, Foundation, and related tests.
 
 ## Tooling
 
-- `just tool git --no-pager <args>` - Run Git without an interactive pager.
-- `just tool git --no-pager status --short --branch` - Inspect repository status.
-- `just tool git --no-pager diff --no-ext-diff` - Inspect unstaged changes.
-- `just tool git --no-pager diff --cached --no-ext-diff` - Inspect staged changes.
-- `just tool git ls-files --others --exclude-standard` - List untracked files.
+- `git --no-pager <args>` - Run Git without an interactive pager.
+- `git --no-pager status --short --branch` - Inspect repository status.
+- `git --no-pager diff --no-ext-diff` - Inspect unstaged changes.
+- `git --no-pager diff --cached --no-ext-diff` - Inspect staged changes.
+- `git ls-files --others --exclude-standard` - List untracked files.
 
 ## Testing
 
-- `just tool pnpm exec vitest run <explicit-files>` - Run selected Vitest tests once.
-- `just tool pnpm exec vitest run tests/Foundation/app.test.ts tests/Foundation/bootstrap.test.ts` - Run application composition and bootstrap tests.
-- `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment/Services/create.test.ts tests/SubagentDrivenDevelopment/Services/status.test.ts` - Run initial feature workflow tests.
-- `just tool pnpm exec vitest run tests/SubagentDrivenDevelopment` - Run all mirrored SDD tests, without selecting unrelated repository tests.
-- `just tool pnpm exec vitest run tests/Git/git-service.test.ts tests/Config/project-configuration.test.ts tests/integration/GitRoot.test.ts tests/BlueprintManagement/Commands/update.test.ts tests/BlueprintManagement/Commands/init.test.ts` - Run explicitly impacted Git, project configuration, and installation commands.
-- `just tool pnpm exec vitest run tests/integration/PackagedCli.test.ts` - Run the packaged CLI smoke tests after `just build`.
-- `just tool pnpm exec vitest <explicit-files>` - Watch selected tests during local development.
-- `just tool pnpm exec vitest run --coverage <explicit-files>` - Collect selected-test coverage; requires a compatible Vitest coverage provider.
+- `pnpm exec vitest run <explicit-files>` - Run selected Vitest tests once.
+- `pnpm exec vitest run tests/Foundation/app.test.ts tests/Foundation/bootstrap.test.ts` - Run application composition and bootstrap tests.
+- `pnpm exec vitest run tests/SubagentDrivenDevelopment/Services/create.test.ts tests/SubagentDrivenDevelopment/Services/status.test.ts` - Run initial feature workflow tests.
+- `pnpm exec vitest run tests/SubagentDrivenDevelopment` - Run all mirrored SDD tests, without selecting unrelated repository tests.
+- `pnpm exec vitest run tests/Git/git-service.test.ts tests/Config/project-configuration.test.ts tests/integration/GitRoot.test.ts tests/BlueprintManagement/Commands/update.test.ts tests/BlueprintManagement/Commands/init.test.ts` - Run explicitly impacted Git, project configuration, and installation commands.
+- `pnpm exec vitest run tests/integration/PackagedCli.test.ts` - Run the packaged CLI smoke tests after `pnpm run build`.
+- `pnpm exec vitest <explicit-files>` - Watch selected tests during local development.
+- `pnpm exec vitest run --coverage <explicit-files>` - Collect selected-test coverage; requires a compatible Vitest coverage provider.
 
 ## Spindle workflows
 
-- `just tool pnpm run spindle <args>` - Run the CLI from source with arbitrary arguments.
-- `just tool pnpm run spindle init <args>` - Install project Blueprints.
-- `just tool pnpm run spindle update <args>` - Update installed project Blueprints.
-- `just tool pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
-- `just tool pnpm run spindle project init` - Bootstrap project documentation defaults.
-- `just tool pnpm run spindle project tooling <list|add|update|remove>` - Manage the documented tooling registry.
+- `pnpm run spindle <args>` - Run the CLI from source with arbitrary arguments.
+- `pnpm run spindle init <args>` - Install project Blueprints.
+- `pnpm run spindle update <args>` - Update installed project Blueprints.
+- `pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
+- `pnpm run spindle project init` - Bootstrap project documentation defaults.
+- `pnpm run spindle project tooling <list|add|update|remove>` - Manage the documented tooling registry.
 
 Pass workspace and spec paths as absolute paths. Append `--help` to inspect
-command options, for example `just tool pnpm run spindle sdd create --help`.
+command options, for example `pnpm run spindle sdd create --help`.
 
 ## Application services
 
