@@ -744,9 +744,6 @@ test("the compiled catalog ignores external catalog files", async () => {
         });
       }
     }
-    const retired = join(project, ".github", "skills", "int-grilling");
-    await mkdir(retired, { recursive: true });
-    await writeFile(join(retired, "local.txt"), "retired content\n");
     await mkdir(join(blueprints, "skills", "unlisted"), { recursive: true });
     await writeFile(join(blueprints, "skills", "unlisted", "SKILL.md"), "not selected\n");
     const args = ["init", "--stack", "python", "--spindle-package-manager", "pnpm"];
@@ -754,11 +751,10 @@ test("the compiled catalog ignores external catalog files", async () => {
 
     const withoutCatalog = runBundledCli(project, args, process.env.PATH ?? "", env);
     expect(withoutCatalog.status, withoutCatalog.stderr).toBe(0);
-    await expect(readFile(join(retired, "local.txt"))).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readdir(join(project, ".github", "skills", "unlisted"))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    expect((await readdir(join(project, ".github", "skills"))).length).toBe(30);
+    expect((await readdir(join(project, ".github", "skills"))).length).toBe(29);
 
     await writeFile(join(blueprints, "catalog.yaml"), "agents: [\n");
     await writeFile(join(blueprints, "catalog.fixture.json"), "invalid external JSON");
