@@ -18,7 +18,12 @@ for (const stacks of stackSelections) {
     {
       const result = runCli(
         project,
-        ["init", ...stacks.flatMap((stack) => ["--stack", stack])],
+        [
+          "init",
+          ...stacks.flatMap((stack) => ["--stack", stack]),
+          "--spindle-package-manager",
+          "pnpm",
+        ],
         process.env.PATH ?? "",
       );
 

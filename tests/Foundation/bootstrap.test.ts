@@ -198,10 +198,8 @@ test("Commander alone supplies validated repeated options to the executable comp
     "python",
     "--stack",
     "typescript",
-    "--var",
-    "owner=first",
-    "--var",
-    "owner=second",
+    "--spindle-package-manager",
+    "custom run",
     "--no-interactive",
     "--on-conflict",
     "overwrite",
@@ -235,18 +233,13 @@ test("Commander alone supplies validated repeated options to the executable comp
     positionals: [],
     options: {
       stack: ["python", "typescript"],
-      var: ["owner=first", "owner=second"],
+      spindlePackageManager: "custom run",
       interactive: false,
       onConflict: "overwrite",
     },
   });
-  expect(consoleArgs(application).array("options.var")).toEqual(["owner=first", "owner=second"]);
-  expect(run).toHaveBeenCalledWith(
-    ["python", "typescript"],
-    ["owner=first", "owner=second"],
-    false,
-    "overwrite",
-  );
+  expect(consoleArgs(application).string("options.spindlePackageManager")).toBe("custom run");
+  expect(run).toHaveBeenCalledWith(["python", "typescript"], "custom run", false, "overwrite");
 });
 
 test("Commander preserves a real positional action and nested command path without reparsing", async () => {

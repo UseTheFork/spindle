@@ -180,7 +180,14 @@ test("packaged sdd create and status expose feature state outside the checkout",
 
   const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);
-  const setup = cli.run(invocationWorkspace, ["init", "--stack", "typescript", "--no-interactive"]);
+  const setup = cli.run(invocationWorkspace, [
+    "init",
+    "--stack",
+    "typescript",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
   expect(setup.status, setup.stderr).toBe(0);
   expect(setup.stdout).toContain("Initialized project guidance and tooling documentation.");
   expect(setup.stderr).toBe("");
@@ -264,7 +271,14 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   makeGitWorkspace(project);
   const nested = join(project, "packages", "nested");
   mkdirSync(nested, { recursive: true });
-  const args = ["init", "--stack", "python", "--no-interactive"];
+  const args = [
+    "init",
+    "--stack",
+    "python",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ];
 
   const fromRoot = cli.run(project, args);
   expect(fromRoot.status, fromRoot.stderr).toBe(0);
@@ -292,7 +306,14 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   const cli = packagedCli();
   const project = tempDirectory("spindle-packaged-computed-project-");
   execFileSync("git", ["init", "-q"], { cwd: project });
-  const result = cli.run(project, ["init", "--stack", "python", "--no-interactive"]);
+  const result = cli.run(project, [
+    "init",
+    "--stack",
+    "python",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
   expect(result.status, result.stderr).toBe(0);
 
   const skillDirectory = join(project, ".github", "skills", "int-test-driven-development");

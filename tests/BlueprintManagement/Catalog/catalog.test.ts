@@ -749,7 +749,7 @@ test("the compiled catalog ignores external catalog files", async () => {
     await writeFile(join(retired, "local.txt"), "retired content\n");
     await mkdir(join(blueprints, "skills", "unlisted"), { recursive: true });
     await writeFile(join(blueprints, "skills", "unlisted", "SKILL.md"), "not selected\n");
-    const args = ["init", "--stack", "python"];
+    const args = ["init", "--stack", "python", "--spindle-package-manager", "pnpm"];
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
 
     const withoutCatalog = runBundledCli(project, args, process.env.PATH ?? "", env);

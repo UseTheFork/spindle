@@ -6,7 +6,7 @@ disable-model-invocation: false
 user-invocable: true
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.1.0
 ---
 
 # Update Tooling
@@ -67,6 +67,7 @@ spindle tool add \
 ```
 
 Use `spindle tool update <key>` with the approved `--section`, `--command`, or `--description` fields; `--clear-description` explicitly removes a description. Use `spindle tool remove <key>` for approved removals. Each successful mutation regenerates the guide, grouped by section with empty sections omitted.
+Run project scripts with `{{ computed.spindle_package_manager }} <script>`, such as `{{ computed.spindle_package_manager }} lint`.
 
 If the inspected registry or relevant configuration has changed since approval, stop and return to A, then obtain approval for a refreshed proposal. If a command fails, stop and report the failure and any already-applied changes; do not claim atomicity or completion.
 

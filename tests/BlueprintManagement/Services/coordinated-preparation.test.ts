@@ -28,7 +28,9 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
   const retiredSkill = join(github, "skills", "retired");
   const staleInstruction = join(github, "instructions", "owned", "local.txt");
   const outsideSentinel = join(project, "outside-sentinel.txt");
-  const configBytes = Buffer.from('{\n  "stacks": ["python"],\n  "variables": {}\n}\n');
+  const configBytes = Buffer.from(
+    '{\n  "stacks": ["python"],\n  "spindle_package_manager": "pnpm",\n  "variables": {}\n}\n',
+  );
   const currentSkillBytes = Buffer.from(versioned("1.0.0", "installed and current"));
   const skippedSkillBytes = Buffer.from(versioned("1.0.0", "installed and outdated"));
   const retiredBytes = Buffer.from("retired Skill local content\n");
@@ -217,7 +219,9 @@ test("application write failure reports earlier cross-kind changes without claim
   const originalAgent = Buffer.from(
     `---\nname: write\nmetadata:\n  spindle:\n    version: 1.0.0\n---\ninstalled Agent\n`,
   );
-  const configBytes = Buffer.from('{"stacks":["python"],"variables":{}}\n');
+  const configBytes = Buffer.from(
+    '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
+  );
 
   {
     writeCatalogFixture(blueprints, {
@@ -279,7 +283,9 @@ test("partial Skill application reports each applied file and the exact later fa
   const firstFile = join(skill, "a-first.txt");
   const failingFile = join(skill, "z-failing.txt");
   const configPath = join(github, "spindle.json");
-  const configBytes = Buffer.from('{"stacks":["python"],"variables":{}}\n');
+  const configBytes = Buffer.from(
+    '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
+  );
   const outsideSentinel = join(project, "outside-sentinel.txt");
   const outsideBytes = Buffer.from("outside managed targets\n");
 
@@ -365,7 +371,10 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
       join(blueprints, "agents", "new.agent.md"),
       `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
-    await put(join(github, "spindle.json"), '{"stacks":["python"],"variables":{}}\n');
+    await put(
+      join(github, "spindle.json"),
+      '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
+    );
     await put(firstRemoval, "first installed Agent\n");
     await put(secondRemoval, "second installed Agent\n");
 
@@ -447,7 +456,10 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     await put(join(blueprints, "skills", "current", "SKILL.md"), currentSkillSource);
     await put(join(blueprints, "skills", "current", "asset.txt"), "source asset\n");
 
-    await put(join(github, "spindle.json"), '{"stacks":["python"],"variables":{}}\n');
+    await put(
+      join(github, "spindle.json"),
+      '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
+    );
     await put(join(github, "skills", "current", "SKILL.md"), currentSkillInstall);
     await put(join(currentSkill, "asset.txt"), preservedAsset);
     await put(join(currentSkill, "local.txt"), "destination-only content\n");

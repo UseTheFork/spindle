@@ -31,7 +31,7 @@ test("init and update install selected Instructions as single versioned files", 
       instruction(
         "style",
         "1.0.0",
-        "{% if 'python' in stacks %}Python{% endif %} {{ variables.owner }}",
+        "{% if 'python' in stacks %}Python{% endif %} {{ computed.spindle_package_manager }}",
       ),
     );
     await writeInstruction(blueprints, "invalid", instruction("invalid", "1.0.0", "shipped"));
@@ -43,7 +43,7 @@ test("init and update install selected Instructions as single versioned files", 
 
     const init = runCli(
       project,
-      ["init", "--stack", "python", "--var", "owner=team", "--on-conflict", "skip"],
+      ["init", "--stack", "python", "--on-conflict", "skip"],
       process.env.PATH ?? "",
       env,
     );
@@ -60,13 +60,13 @@ test("init and update install selected Instructions as single versioned files", 
       "ts.instructions.md",
     ]);
     expect(await readFile(join(installed, "style.instructions.md"), "utf8")).toBe(
-      instruction("style", "1.0.0", "Python team"),
+      instruction("style", "1.0.0", "Python pnpm"),
     );
 
     await writeInstruction(
       blueprints,
       "style",
-      instruction("style", "2.0.0", "{{ variables.owner }} v2"),
+      instruction("style", "2.0.0", "{{ computed.spindle_package_manager }} v2"),
     );
     const invalidInstalled = join(installed, "invalid.instructions.md");
     const invalidLocal = instruction("invalid", "v1", "local");
@@ -80,7 +80,7 @@ test("init and update install selected Instructions as single versioned files", 
 
     expect(update.status, update.stderr).toBe(0);
     expect(await readFile(join(installed, "style.instructions.md"), "utf8")).toBe(
-      instruction("style", "2.0.0", "team v2"),
+      instruction("style", "2.0.0", "pnpm v2"),
     );
     expect(await readFile(join(installed, "local.instructions.md"), "utf8")).toBe(
       instruction("local", null, "mine"),

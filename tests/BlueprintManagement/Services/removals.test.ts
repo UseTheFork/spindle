@@ -157,7 +157,7 @@ for (const mode of ["init", "update"] as const) {
       if (mode === "update") {
         await writeFile(
           join(github, "spindle.json"),
-          JSON.stringify({ stacks: ["python"], variables: {} }),
+          JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
         );
       }
 
@@ -234,7 +234,10 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     await writeFile(join(github, "agents", "old.agent.md"), "old path content\n");
     await writeFile(join(github, "agents", "unlisted.agent.md"), "unlisted content\n");
     const configPath = join(github, "spindle.json");
-    await writeFile(configPath, JSON.stringify({ stacks: ["python"], variables: {} }));
+    await writeFile(
+      configPath,
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
+    );
 
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
     const args = ["update", "--no-interactive", "--on-conflict", "skip"];
@@ -244,7 +247,10 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
       versioned("python-only", "installed python-only"),
     );
 
-    await writeFile(configPath, JSON.stringify({ stacks: ["typescript"], variables: {} }));
+    await writeFile(
+      configPath,
+      JSON.stringify({ stacks: ["typescript"], spindle_package_manager: "pnpm" }),
+    );
     const typescriptResult = runCli(project, args, process.env.PATH ?? "", env);
     expect(typescriptResult.status, typescriptResult.stderr).toBe(0);
     await assertMissing(join(github, "agents", "python-only.agent.md"));
@@ -291,7 +297,7 @@ test("update rejects unsafe deletion targets before changing any target or outsi
     await symlink(outside, secondTarget);
     await writeFile(
       join(github, "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 
     const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
@@ -334,7 +340,7 @@ test("update rejects a directory at a file-removal target before deleting other 
     await writeFile(child, "directory content must remain\n");
     await writeFile(
       join(github, "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 
     const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
@@ -375,7 +381,7 @@ test("update reports a failed removal and already completed deletions", async ()
     await writeFile(secondTarget, "second target\n");
     await writeFile(
       join(github, "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 
     const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {

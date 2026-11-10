@@ -487,7 +487,7 @@ async function performReconciliation(
           path: join(options.githubDirectory, "spindle.json"),
           content: `${JSON.stringify(options.config, null, 2)}\n`,
         }
-      : options.prepareConfigWrite?.();
+      : undefined;
   const preparedInitializers: {
     handler: BlueprintHandler;
     initialization: PreparedBlueprintInitialization;

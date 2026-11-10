@@ -12,7 +12,7 @@ import { serviceFixture } from "../SubagentDrivenDevelopment/helpers/helpers";
 
 test("configuration commands require a booted application", async () => {
   const app = new Application({ basePath: "/workspace" });
-  await expect(new InitCommand(app).run([], [], false, undefined)).rejects.toThrow(
+  await expect(new InitCommand(app).run([], undefined, false, undefined)).rejects.toThrow(
     "Application services can only run after the application has booted.",
   );
   await expect(new UpdateCommand(app).run(false, undefined)).rejects.toThrow(
@@ -20,7 +20,7 @@ test("configuration commands require a booted application", async () => {
   );
 });
 
-test("configuration parsing preserves duplicate stacks, empty variables, and unknown data without defaults", () => {
+test("configuration parsing ignores legacy variables and preserves unknown data without defaults", () => {
   const raw = '{"stacks":["python","python"],"variables":{"owner":""},"custom":{"enabled":true}}';
   const state = LoadProjectConfiguration.parse(raw);
   expect(state.status).toBe("valid");
@@ -29,8 +29,6 @@ test("configuration parsing preserves duplicate stacks, empty variables, and unk
   const config = LoadProjectConfiguration.require(state);
   expect(config.config).toBe(state.data);
   expect(config.stacks).toBe(state.data.stacks);
-  expect(config.variables).toBe(state.data.variables);
-  expect(config.variables).not.toHaveProperty("project");
 });
 
 test("configuration accepts an empty stack list and an optional tooling registry", () => {
@@ -38,12 +36,14 @@ test("configuration accepts an empty stack list and an optional tooling registry
     JSON.stringify({
       stacks: [],
       variables: {},
+      spindle_package_manager: "pnpm",
       tooling: [{ key: "test-unit", section: "Testing", command: "pnpm test" }],
     }),
   );
   expect(state.status).toBe("valid");
   if (state.status !== "valid") throw new Error("Expected valid state");
   expect(state.data.stacks).toEqual([]);
+  expect(state.data.spindle_package_manager).toBe("pnpm");
   expect(state.data.tooling).toEqual([
     { key: "test-unit", section: "Testing", command: "pnpm test" },
   ]);
@@ -62,10 +62,9 @@ test("invalid JSON retains its original text and SyntaxError separately from com
 
 test.each([
   null,
-  { stacks: ["python"], variables: [] },
-  { stacks: ["python"], variables: { owner: 1 } },
   { stacks: [1], variables: {} },
-  { stacks: ["python"] },
+  { stacks: ["python"], spindle_package_manager: "" },
+  { stacks: ["python"], spindle_package_manager: "pnpm\nrun" },
   {
     stacks: [],
     variables: {},
@@ -135,7 +134,7 @@ test("init still rejects an existing malformed file and update demands valid boo
   mkdirSync(join(repo, ".github"));
   writeFileSync(join(repo, ".github", "spindle.json"), "{");
   await new LoadProjectConfiguration().bootstrap(app);
-  await expect((await app.make(InitCommand)).run([], [], false, undefined)).rejects.toThrow(
+  await expect((await app.make(InitCommand)).run([], undefined, false, undefined)).rejects.toThrow(
     "not valid JSON",
   );
   await expect((await app.make(UpdateCommand)).run(false, undefined)).rejects.toThrow(

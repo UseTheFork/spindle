@@ -49,7 +49,7 @@ const existingAlpha = {
   ".github/skills/alpha/nested/old.md": "old\n",
 };
 
-test("existing config: init fails, points to update and changes nothing", async () => {
+test("existing config: init initializes project guidance and points to update", async () => {
   const files = { ".github/spindle.json": '{"stacks":["python"],"variables":{}}\n' };
   await withProject(
     (project) => seed(project, files),
@@ -57,10 +57,14 @@ test("existing config: init fails, points to update and changes nothing", async 
     async (project, result) => {
       expect(result.status).not.toBe(0);
       expect(result.stderr).toMatch(/spindle update/);
-      expect(result.stdout).toBe("");
-      expect(await readdir(join(project, ".github"))).toEqual(["spindle.json"]);
-      expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(
-        files[".github/spindle.json"],
+      expect(result.stdout).toContain("Initialized project guidance and tooling documentation.");
+      expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
+      const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+      expect(config.stacks).toEqual(["python"]);
+      expect(config.variables).toEqual({});
+      expect(config).not.toHaveProperty("spindle_package_manager");
+      expect(config.tooling).toEqual(
+        expect.arrayContaining([expect.objectContaining({ key: "spindle-init" })]),
       );
     },
   );
@@ -118,12 +122,11 @@ test("--on-conflict skip leaves existing skills untouched and installs new ones"
       expect(await readFile(join(project, ".github/skills/beta/SKILL.md"), "utf8")).toBe(
         "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nfresh beta\n",
       );
-      expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
+      expect(
+        JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+      ).toMatchObject({
         stacks: ["python"],
-        variables: {
-          lint_command: "just lint",
-          owner: "nobody",
-        },
+        spindle_package_manager: "pnpm",
       });
       expect(result.stdout).toMatch(/Installed 1 skill\(s\)/);
       expect(result.stdout).toMatch(/Skipped 1/);

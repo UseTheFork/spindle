@@ -3,13 +3,8 @@ import type { Command as CommanderCommand } from "commander";
 
 import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
 import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
-import {
-  promptNewBlueprints,
-  promptOutdated,
-  promptVariable,
-} from "@/BlueprintManagement/Commands/Prompts";
+import { promptNewBlueprints, promptOutdated } from "@/BlueprintManagement/Commands/Prompts";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
@@ -17,28 +12,6 @@ import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Stacks } from "@/Support/Stacks";
-
-async function resolveVariables(
-  config: { stacks: string[]; variables: Record<string, string> },
-  interactive: boolean,
-) {
-  const variables: Record<string, string> = {};
-  const prompted: Record<string, string> = {};
-  for (const definition of loadVariableDefinitions()) {
-    let value = config.variables[definition.name] ?? definition.default;
-    if (value === undefined && interactive) {
-      value = await promptVariable(definition);
-      prompted[definition.name] = value;
-    }
-    if (value === undefined) {
-      throw new Error(
-        `Variable '${definition.name}' (${definition.description}) has no value in .github/spindle.json and no default; add it under "variables".`,
-      );
-    }
-    variables[definition.name] = value;
-  }
-  return { context: { stacks: config.stacks, variables }, prompted };
-}
 
 export class UpdateCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
@@ -49,8 +22,8 @@ export class UpdateCommand extends Command {
       .command("update")
       .description(
         `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
-Reads stacks and variables from .github/spindle.json (edit it by hand to change them)
-and normally leaves it unchanged. New shipped Blueprints are offered interactively; use
+Reads stacks and the Spindle package-manager command from .github/spindle.json and leaves it unchanged.
+New shipped Blueprints are offered interactively; use
 --include-new to install all of them without a prompt.`,
       )
       .addOption(BlueprintCommandOptions.conflictPolicyOption("Policy for outdated Blueprints"))
@@ -95,18 +68,24 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     includeNew = false,
   ): Promise<void> {
     this.assertApplicationBooted();
-    const configPath = this.app.workspacePath(".github/spindle.json");
-    const config = LoadProjectConfiguration.requireCurrent(this.app);
+    const config = LoadProjectConfiguration.require(
+      await LoadProjectConfiguration.refresh(this.app),
+    );
     if (config.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
       );
     }
-    let prompted: Record<string, string> = {};
+    const spindlePackageManager = config.config.spindle_package_manager;
+    if (spindlePackageManager === undefined) {
+      throw new Error(
+        'Missing "spindle_package_manager" in .github/spindle.json; add the preferred Spindle package-manager command before running `spindle update`.',
+      );
+    }
 
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
-      config: { stacks: config.stacks, variables: config.variables },
+      config: config.config,
       includeNew,
       chooseNew: interactive && !includeNew ? promptNewBlueprints : undefined,
       conflictPolicy: policy,
@@ -115,25 +94,10 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
           ? async (kind, name, installed, available) =>
               promptOutdated(kind, name, installed!, available!)
           : undefined,
-      resolveContext: async () => {
-        const resolved = await resolveVariables(config, interactive);
-        prompted = resolved.prompted;
-        return resolved.context;
-      },
-      prepareConfigWrite: () =>
-        Object.keys(prompted).length === 0
-          ? undefined
-          : {
-              path: configPath,
-              content: `${JSON.stringify(
-                {
-                  ...config.config,
-                  variables: { ...config.variables, ...prompted },
-                },
-                null,
-                2,
-              )}\n`,
-            },
+      resolveContext: async () => ({
+        stacks: config.stacks,
+        variables: { spindle_package_manager: spindlePackageManager },
+      }),
     });
     await LoadProjectConfiguration.refresh(this.app);
     for (const outcome of outcomes) {

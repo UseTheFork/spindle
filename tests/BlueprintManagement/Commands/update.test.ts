@@ -29,7 +29,7 @@ beforeEach(async () => {
     await mkdir(join(stubs, "skills", name), { recursive: true });
     await writeFile(
       join(stubs, "skills", name, "SKILL.md"),
-      `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+      `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ computed.spindle_package_manager }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
     );
   }
 });
@@ -82,7 +82,11 @@ async function withProject(
 const read = (project: string, name: string) =>
   readFile(join(project, ".github/skills", name, "SKILL.md"), "utf8");
 
-const goodConfig = { stacks: ["python", "typescript"], variables: { owner: "core" } };
+const goodConfig = {
+  stacks: ["python", "typescript"],
+  spindle_package_manager: "pnpm",
+  variables: { owner: "legacy" },
+};
 
 test("update copies a Skill's stacks directory as ordinary recursive content", async () => {
   const blueprints = await makeTempDir("spindle-update-stacks-content-blueprints-");
@@ -137,7 +141,10 @@ test("update reads Skill metadata from its catalog-selected root entry", async (
     await writeFile(join(skillDirectory, "SKILL.md"), skill("2.0.0", "new"));
 
     await withProject(
-      { config: { stacks: ["python"], variables: {} }, skills: { demo: skill("1.0.0") } },
+      {
+        config: { stacks: ["python"], spindle_package_manager: "pnpm", variables: {} },
+        skills: { demo: skill("1.0.0") },
+      },
       ["--no-interactive", "--on-conflict", "overwrite"],
       async (project, result) => {
         expect(result.status, result.stderr).toBe(0);
@@ -191,7 +198,7 @@ test("update preserves paths for duplicate basenames in a Skill's stacks directo
   }
 });
 
-test("newer is overwritten with stored stacks and variables; equal, lower, non-semver and absent are not", async () => {
+test("newer is overwritten with stored stacks and package manager; other versions are not", async () => {
   const configText = JSON.stringify(goodConfig, null, 4);
   await withProject(
     {
@@ -208,7 +215,7 @@ test("newer is overwritten with stored stacks and variables; equal, lower, non-s
     async (project, result) => {
       expect(result.status, result.stderr).toBe(0);
       expect(await read(project, "newer")).toBe(
-        "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=core stacks=python;typescript;\n",
+        "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=pnpm stacks=python;typescript;\n",
       );
       expect(await read(project, "equal")).toBe(skill("1.0.0"));
       expect(await read(project, "lower")).toBe(skill("9.0.0"));
@@ -238,15 +245,15 @@ test("update reads a Nunjucks-rendered nested Skill version", async () => {
         "  vendor:",
         "    version: 8.0.0",
         "  spindle:",
-        "    version: {{ variables.owner }}",
+        "    version: {{ computed.spindle_package_manager }}",
         "---",
-        "rendered {{ variables.owner }}",
+        "rendered {{ computed.spindle_package_manager }}",
         "",
       ].join("\n"),
     );
     await withProject(
       {
-        config: { stacks: ["python"], variables: { owner: "2.0.0" } },
+        config: { stacks: ["python"], spindle_package_manager: "2.0.0" },
         skills: { demo: installed },
       },
       ["--no-interactive", "--on-conflict", "overwrite"],
@@ -298,7 +305,11 @@ test("update renders a complete static Skill entry before checking an equal vers
   const project = await makeTempDir("spindle-static-version-project-");
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");
   const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
-  const configText = JSON.stringify({ stacks: ["python"], variables: {} });
+  const configText = JSON.stringify({
+    stacks: ["python"],
+    spindle_package_manager: "pnpm",
+    variables: {},
+  });
   {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
@@ -335,7 +346,11 @@ test("update refuses to install a Skill entry changed after version planning", a
     await writeFile(installed, original);
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: { owner: "team" } }),
+      JSON.stringify({
+        stacks: ["python"],
+        spindle_package_manager: "pnpm",
+        variables: { owner: "team" },
+      }),
     );
 
     const result = await runCliInteractive(
@@ -362,7 +377,7 @@ test("update aborts on malformed installed Skill YAML before replacing another S
   const blueprints = await makeTempDir("spindle-malformed-skill-blueprints-");
   const malformed =
     "---\nname: broken\nmetadata:\n  spindle:\n    version: [unterminated\n---\nlocal broken Skill\n";
-  const config = JSON.stringify({ stacks: ["python"], variables: {} });
+  const config = JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" });
   {
     for (const name of ["a-outdated", "z-broken"]) {
       await mkdir(join(blueprints, "skills", name), { recursive: true });
@@ -444,7 +459,10 @@ test("no-op updates do not require missing Variables", async () => {
     bad: skill("1.0.0"),
   };
   await withProject(
-    { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
+    {
+      config: { stacks: ["python"], spindle_package_manager: "pnpm", variables: {} },
+      skills: currentSkills,
+    },
     ["--no-interactive"],
     async (project, result) => {
       expect(result.status, result.stderr).toBe(0);
@@ -467,7 +485,10 @@ test(
       absent: skill("1.0.0"),
     };
     await withProject(
-      { config: { stacks: ["python"], variables: {} }, skills: currentSkills },
+      {
+        config: { stacks: ["python"], spindle_package_manager: "pnpm", variables: {} },
+        skills: currentSkills,
+      },
       [],
       async (_project, result) => {
         expect(result.status, result.stdout).toBe(0);
@@ -520,7 +541,7 @@ test("--include-new installs new Skills and reports them separately from updates
     async (project, result) => {
       expect(result.status, result.stderr).toBe(0);
       expect(await read(project, "absent")).toMatch(
-        /fresh absent owner=core stacks=python;typescript;/,
+        /fresh absent owner=pnpm stacks=python;typescript;/,
       );
       expect(result.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 5 skill\(s\)/);
     },
@@ -588,7 +609,7 @@ test(
 );
 
 test(
-  "shared Variable defaults render every changed Skill without rewriting Config",
+  "legacy Variables are ignored while the configured package manager renders without rewriting Config",
   { skip: process.platform !== "linux" },
   async () => {
     const variableStubs = await makeTempDir("spindle-update-variable-stubs-");
@@ -599,11 +620,12 @@ test(
     ]) {
       await writeFile(
         join(variableStubs, "skills", name, "SKILL.md"),
-        `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} owner={{ variables.owner }} lint={{ variables.lint_command }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
+        `---\nmetadata:\n  spindle:\n    version: ${version}\n---\nfresh ${name} manager={{ computed.spindle_package_manager }} stacks={% for s in stacks %}{{ s }};{% endfor %}\n`,
       );
     }
     const projectConfig = {
       stacks: ["python"],
+      spindle_package_manager: "pnpm",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
     };
@@ -623,12 +645,8 @@ test(
         async (project, result) => {
           expect(result.status, result.stdout).toBe(0);
           expect(result.stdout).toMatch(/Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
-          expect(await read(project, "newer")).toMatch(
-            /fresh newer owner=configured lint=just lint stacks=python;/,
-          );
-          expect(await read(project, "absent")).toMatch(
-            /fresh absent owner=configured lint=just lint stacks=python;/,
-          );
+          expect(await read(project, "newer")).toMatch(/fresh newer manager=pnpm stacks=python;/);
+          expect(await read(project, "absent")).toMatch(/fresh absent manager=pnpm stacks=python;/);
           expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
             projectConfig,
           );
@@ -671,6 +689,7 @@ test(
     await rm(join(failureStubs, "catalog.fixture.json"), { force: true });
     const originalConfig = {
       stacks: ["python"],
+      spindle_package_manager: "npm run",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
     };
@@ -713,11 +732,12 @@ test(
 );
 
 test(
-  "update does not attempt a Config write when using shared Variable defaults",
+  "update leaves legacy Variables untouched and does not attempt a Config write",
   { skip: process.platform !== "linux" },
   async () => {
     const originalConfig = {
       stacks: ["python"],
+      spindle_package_manager: "npm run",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
     };
@@ -735,7 +755,7 @@ test(
       async (project, result) => {
         expect(result.status, result.stdout).toBe(0);
         expect(result.stdout).not.toMatch(/forced Config write failure/);
-        expect(await read(project, "absent")).toMatch(/fresh absent owner=configured/);
+        expect(await read(project, "absent")).toMatch(/fresh absent owner=npm run/);
         expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
           originalConfig,
         );
@@ -785,30 +805,31 @@ test(
   },
 );
 
-test("a hand-edited spindle.json is re-resolved on each run", async () => {
+test("a hand-edited package-manager command is re-resolved on each run", async () => {
   await withProject(
     {
-      config: { stacks: ["php-laravel"], variables: { owner: "edited" } },
+      config: { stacks: ["php-laravel"], spindle_package_manager: "npm run" },
       skills: { newer: skill("1.0.0") },
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
       expect(result.status, result.stderr).toBe(0);
-      expect(await read(project, "newer")).toMatch(/owner=edited stacks=php-laravel;/);
+      expect(await read(project, "newer")).toMatch(/owner=npm run stacks=php-laravel;/);
     },
   );
 });
 
-test("variables missing from the config fall back to product defaults", async () => {
+test("update rejects Config without a Spindle package-manager command", async () => {
   await withProject(
     {
-      config: { stacks: ["python"], variables: {} },
+      config: '{"stacks":["python"],"variables":{"owner":"legacy"}}',
       skills: { newer: skill("1.0.0") },
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
     async (project, result) => {
-      expect(result.status, result.stderr).toBe(0);
-      expect(await read(project, "newer")).toMatch(/owner=nobody/);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toMatch(/Missing "spindle_package_manager"/);
+      expect(await read(project, "newer")).toBe(skill("1.0.0"));
     },
   );
 });
@@ -816,7 +837,11 @@ test("variables missing from the config fall back to product defaults", async ()
 test("invalid stack ids in the config are rejected", async () => {
   await withProject(
     {
-      config: { stacks: ["cobol"], variables: goodConfig.variables },
+      config: {
+        stacks: ["cobol"],
+        spindle_package_manager: "pnpm",
+        variables: goodConfig.variables,
+      },
       skills: { newer: skill("1.0.0") },
     },
     ["--no-interactive", "--on-conflict", "overwrite"],
@@ -833,7 +858,7 @@ test("missing or malformed config points to init", async () => {
     undefined,
     "{not json",
     { variables: {} },
-    { stacks: ["python"] },
+    { stacks: ["python"], spindle_package_manager: "" },
     { stacks: ["python"], variables: null },
     { stacks: ["python"], variables: [] },
     { stacks: ["python"], variables: { owner: 42 } },
@@ -844,7 +869,7 @@ test("missing or malformed config points to init", async () => {
       ["--no-interactive"],
       async (project, result) => {
         expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/spindle init/);
+        expect(result.stderr).toMatch(/spindle init|Missing "spindle_package_manager"/);
         expect(await read(project, "newer")).toBe(skill("1.0.0"));
       },
     );
@@ -910,7 +935,7 @@ test("update --help documents its flags", async () => {
       expect(result.stdout.includes(flag), flag).toBeTruthy();
     }
     expect(result.stdout).toMatch(/spindle update/);
-    expect(result.stdout).toMatch(/Reads stacks and variables from \.github\/spindle\.json/);
+    expect(result.stdout).toMatch(/Reads stacks and the Spindle package-manager command/);
     expect(result.stdout).toMatch(/run `spindle init` first/);
   });
 });

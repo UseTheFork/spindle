@@ -8,7 +8,7 @@ import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 export interface ProjectConfigurationData extends Record<string, unknown> {
   stacks: string[];
-  variables: Record<string, string>;
+  spindle_package_manager?: string;
   tooling?: ToolingEntry[];
 }
 
@@ -18,7 +18,7 @@ export type ProjectConfigurationState =
   | { status: "invalid"; data: unknown; error: Error; reason: string };
 
 const malformed =
-  '.github/spindle.json is malformed; expected {"stacks": [...], "variables": {...}, "tooling"?: [...]}. Fix the file or run `spindle init`.';
+  '.github/spindle.json is malformed; expected {"stacks": [...], "spindle_package_manager"?: string, "tooling"?: [...]}. Fix the file or run `spindle init`.';
 
 export class LoadProjectConfiguration extends Bootstrapper {
   public static parse(raw: string): ProjectConfigurationState {
@@ -89,7 +89,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
       if (state.reason.startsWith("Invalid stack '")) throw state.error;
       throw new Error(`${state.reason} Run \`spindle init\` to create .github/spindle.json.`);
     }
-    return { config: state.data, stacks: state.data.stacks, variables: state.data.variables };
+    return { config: state.data, stacks: state.data.stacks };
   }
 
   public static requireCurrent(application: Application) {
@@ -122,17 +122,13 @@ export class LoadProjectConfiguration extends Bootstrapper {
       Records.isRecord(value) &&
       Array.isArray(value.stacks) &&
       value.stacks.every((stack) => typeof stack === "string") &&
-      this.isStringRecord(value.variables) &&
+      (value.spindle_package_manager === undefined ||
+        (typeof value.spindle_package_manager === "string" &&
+          this.isSingleLine(value.spindle_package_manager))) &&
       (value.tooling === undefined ||
         (Array.isArray(value.tooling) &&
           value.tooling.every((entry) => this.isToolingEntry(entry)) &&
           new Set(value.tooling.map((entry) => entry.key)).size === value.tooling.length))
-    );
-  }
-
-  private static isStringRecord(value: unknown): value is Record<string, string> {
-    return (
-      Records.isRecord(value) && Object.values(value).every((item) => typeof item === "string")
     );
   }
 

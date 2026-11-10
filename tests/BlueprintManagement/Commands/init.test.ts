@@ -15,10 +15,6 @@ import {
 import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 let stubsDirectory: string;
-const fixtureVariables = {
-  lint_command: "just lint",
-  owner: "nobody",
-};
 
 beforeEach(async () => {
   stubsDirectory = await makeTempDir("spindle-init-stubs-");
@@ -56,6 +52,7 @@ test("init help uses Commander conventions without starting the workflow", async
   expect(result.stdout).toMatch(/Usage: spindle init \[options\]/);
   expect(result.stdout).toMatch(/-h, --help/);
   expect(result.stdout).toMatch(/--stack <id>/);
+  expect(result.stdout).toMatch(/--spindle-package-manager <command>/);
   expect(result.stdout).not.toMatch(/Installed/);
 });
 
@@ -80,10 +77,13 @@ test("init reports semantic argument errors before Git discovery outside a worki
   const project = await makeTempDir("spindle-init-semantic-errors-");
   const cases = [
     { args: ["--stack", "cobol"], error: /Invalid stack 'cobol'/ },
-    { args: ["--stack", "python", "--var", "owner"], error: /Invalid --var 'owner'/ },
     {
-      args: ["--stack", "python", "--var", "unknown=value"],
-      error: /Unknown variable 'unknown'/,
+      args: ["--stack", "python", "--var", "owner"],
+      error: /unknown option.*var/i,
+    },
+    {
+      args: ["--stack", "python", "--spindle-package-manager", "\n"],
+      error: /single-line command/,
     },
     { args: ["--no-interactive"], error: /Provide at least one --stack flag/ },
   ];
@@ -104,7 +104,7 @@ test("init rejects inapplicable options, missing values, invalid policies, and p
   const cases = [
     { args: ["--include-new", "--stack", "python"], error: /unknown option.*include-new/i },
     { args: ["--stack"], error: /argument.*missing/i },
-    { args: ["--var"], error: /argument.*missing/i },
+    { args: ["--var"], error: /unknown option.*var/i },
     { args: ["--stack", "python", "--on-conflict", "merge"], error: /allowed choices/i },
     { args: ["--stack", "python", "extra"], error: /too many arguments/i },
   ];
@@ -141,7 +141,7 @@ test("init installs its configured skill and records repeatable stack flags", as
   expect(result.status, result.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["php-laravel", "typescript"],
-    variables: fixtureVariables,
+    spindle_package_manager: "pnpm",
     tooling: expect.arrayContaining([
       expect.objectContaining({ command: "spindle init" }),
       expect.objectContaining({ command: "spindle update" }),
@@ -154,20 +154,18 @@ test("init installs its configured skill and records repeatable stack flags", as
   expect(await readdir(join(project, ".github/skills"))).toEqual(["demo"]);
 });
 
-test("init applies repeated Variable flags in command-line order", async () => {
+test("init accepts an explicit Spindle package-manager command", async () => {
   const { project, result } = await runInit([
     "--stack",
     "python",
-    "--var",
-    "owner=first",
-    "--var",
-    "owner=second",
+    "--spindle-package-manager",
+    "npm run",
   ]);
 
   expect(result.status, result.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
-    variables: { lint_command: "just lint", owner: "second" },
+    spindle_package_manager: "npm run",
     tooling: expect.any(Array),
   });
 });
@@ -184,7 +182,7 @@ test(
 
     const result = await runCliInteractive(
       project,
-      ["init", "--stack", "python", "--var", "lint_command=just lint", "--var", "owner=nobody"],
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
       process.env.PATH ?? "",
       [{ trigger: "What should happen?", input: "\r" }],
       { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
@@ -199,7 +197,7 @@ test(
   },
 );
 
-test("init renders nested Markdown with shared Variables and selected Stack values", async () => {
+test("init renders computed package-manager and selected Stack values", async () => {
   const blueprints = await makeTempDir("spindle-init-rendering-blueprints-");
   const project = await makeTempDir();
   const skillDirectory = join(blueprints, "skills", "demo");
@@ -213,7 +211,7 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
-      'description: "{{ variables.owner }}"',
+      'description: "{{ computed.spindle_package_manager }}"',
       "---",
       "",
       "{% if 'python' in stacks %}Python guidance{% endif %}",
@@ -222,13 +220,13 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
   );
   await writeFile(
     join(skillDirectory, "guidance", "nested", "python.md"),
-    "Owner={{ variables.owner }}{% if 'python' in stacks %}; stack=python{% endif %}\n",
+    "Command={{ computed.spindle_package_manager }}{% if 'python' in stacks %}; stack=python{% endif %}\n",
   );
   await writeFile(join(skillDirectory, "assets.bin"), binaryAsset);
 
   const result = runCli(
     project,
-    ["init", "--stack", "python", "--var", "owner=team"],
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
     process.env.PATH ?? "",
     { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
   );
@@ -236,15 +234,15 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
   expect(result.status, result.stderr).toBe(0);
   expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
-    variables: { lint_command: "just lint", owner: "team" },
+    spindle_package_manager: "pnpm",
     tooling: expect.any(Array),
   });
   expect(await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8")).toBe(
-    '---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
+    '---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\ndescription: "pnpm"\n---\n\nPython guidance\n',
   );
   expect(
     await readFile(join(project, ".github/skills/demo/guidance/nested/python.md"), "utf8"),
-  ).toBe("Owner=team; stack=python\n");
+  ).toBe("Command=pnpm; stack=python\n");
   expect(await readFile(join(project, ".github/skills/demo/assets.bin"))).toEqual(binaryAsset);
 });
 
@@ -271,7 +269,7 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
   );
   expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
     stacks: ["typescript"],
-    variables: fixtureVariables,
+    spindle_package_manager: "pnpm",
     tooling: expect.any(Array),
   });
 });

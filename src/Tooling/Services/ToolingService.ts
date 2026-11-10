@@ -69,7 +69,6 @@ export class ToolingService extends Service {
     const config: ProjectConfigurationData = {
       ...previous,
       stacks: previous.stacks,
-      variables: previous.variables,
       tooling,
     };
 

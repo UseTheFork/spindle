@@ -12,13 +12,14 @@ export function resolveRenderContext(
   const stacks = [...(inputs.stacks ?? [])];
   const variables = { ...inputs.variables };
   const resolvedInputs: ResolvedInputs = {
-    stacks: Object.freeze(stacks),
-    variables: Object.freeze(variables),
+    stacks: Object.freeze([...stacks]),
+    variables: Object.freeze({ ...variables }),
   };
   const computed: Record<string, string> = {};
   for (const [name, Provider] of Object.entries(registry)) {
     try {
-      computed[name] = new Provider(resolvedInputs).render();
+      const value = new Provider(resolvedInputs).render();
+      if (value !== undefined) computed[name] = value;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Computed Variable '${name}' failed: ${detail}`, { cause: error });

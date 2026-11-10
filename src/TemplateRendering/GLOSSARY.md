@@ -20,5 +20,6 @@ project value or a workflow command's title.
 _Avoid_: Setting, parameter
 
 **Computed Variable**:
-A named text value derived from a workflow's supplied inputs for use in Templates.
-Its value is not supplied by the user, stored in Config, or directly overridden.
+A named text value derived from context available to a workflow for use in
+Templates. It may be derived from Config values but is not independently
+supplied, stored, or directly overridden.

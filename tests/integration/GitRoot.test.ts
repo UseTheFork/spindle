@@ -27,12 +27,22 @@ test("init from a nested directory installs into the Git worktree root", async (
   const env = {
     SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
   };
-  const rootResult = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
+  const rootResult = runCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+    env,
+  );
   expect(rootResult.status, rootResult.stderr).toBe(0);
   const rootConfig = await readFile(join(project, ".github", "spindle.json"), "utf8");
   await rm(join(project, ".github"), { recursive: true, force: true });
 
-  const nestedResult = runCli(nested, ["init", "--stack", "python"], process.env.PATH ?? "", env);
+  const nestedResult = runCli(
+    nested,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+    env,
+  );
 
   expect(nestedResult.status, nestedResult.stderr).toBe(0);
   expect(nestedResult.stdout).toBe(rootResult.stdout);
@@ -59,7 +69,7 @@ test("update from a nested directory reads Config and reconciles at the Git work
   await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
   await writeFile(
     join(project, ".github", "spindle.json"),
-    JSON.stringify({ stacks: ["python"], variables: {} }),
+    JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await writeFile(
     join(project, ".github", "skills", "demo", "SKILL.md"),
@@ -87,7 +97,11 @@ test("workspace commands fail without Git discovery and leave the directory unch
   const project = await makeTempDir("spindle-no-git-");
   for (const searchPath of [process.env.PATH ?? "", ""]) {
     const before = await readdir(project);
-    const result = runCli(project, ["init", "--stack", "python"], searchPath);
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+      searchPath,
+    );
     expect(result.status).not.toBe(0);
     expect(result.stdout).toBe("");
     expect(result.stderr).toMatch(/Git working-tree root/i);
@@ -108,7 +122,7 @@ test("init and SDD status fail without Git discovery", async () => {
   for (const searchPath of [process.env.PATH ?? "", ""]) {
     const setup = runCliRaw(
       invocation,
-      ["init", "--stack", "typescript", "--no-interactive"],
+      ["init", "--stack", "typescript", "--spindle-package-manager", "pnpm", "--no-interactive"],
       searchPath,
     );
     expect(setup.status).not.toBe(0);

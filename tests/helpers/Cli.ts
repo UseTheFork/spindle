@@ -10,6 +10,19 @@ const checkout = repoRoot;
 const tsxLoader = import.meta.resolve("tsx");
 const catalogLoader = join(repoRoot, "tests/helpers/preloads/load-catalog-fixture.ts");
 
+function withSpindlePackageManager(args: string[]) {
+  if (
+    args[0] !== "init" ||
+    args.includes("--spindle-package-manager") ||
+    args.includes("--help") ||
+    args.includes("-h") ||
+    args.at(-1) === "--stack"
+  ) {
+    return args;
+  }
+  return [...args, "--spindle-package-manager", "pnpm"];
+}
+
 function nodeArguments(env: Record<string, string>) {
   return [
     "--import",
@@ -75,7 +88,7 @@ export function runCliWithCatalog(
   searchPath: string,
   env: Record<string, string> = {},
 ) {
-  return runCli(project, args, searchPath, withCatalogFixture(env));
+  return runCli(project, withSpindlePackageManager(args), searchPath, withCatalogFixture(env));
 }
 
 export function runCliWithFixtureCatalog(
@@ -191,7 +204,13 @@ export function runCliInteractiveWithFixtureCatalog(
 ) {
   const blueprints = env.SPINDLE_TEST_BLUEPRINTS_DIR;
   if (blueprints) writeFixtureCatalog(blueprints);
-  return runCliInteractive(project, args, searchPath, responses, withCatalogFixture(env));
+  return runCliInteractive(
+    project,
+    withSpindlePackageManager(args),
+    searchPath,
+    responses,
+    withCatalogFixture(env),
+  );
 }
 
 export function runCliInteractiveWithFixtureCatalogRaw(

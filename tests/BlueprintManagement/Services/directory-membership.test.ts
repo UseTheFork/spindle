@@ -59,7 +59,7 @@ async function makeProject() {
   const project = await makeTempDir("spindle-directory-membership-");
   await put(
     join(project, ".github", "spindle.json"),
-    JSON.stringify({ stacks: ["python"], variables: {} }),
+    JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   return project;
 }

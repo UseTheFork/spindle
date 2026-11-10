@@ -29,7 +29,7 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
       [
         "---",
         "name: demo",
-        'description: "Agent for {{ variables.owner }}"',
+        'description: "Agent for {{ computed.spindle_package_manager }}"',
         "metadata:",
         "  spindle:",
         "    version: 1.0.0",
@@ -39,18 +39,17 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
       ].join("\n"),
     );
 
-    const result = runCli(
-      project,
-      ["init", "--stack", "python", "--var", "owner=team"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toBe("✔ Installed 1 skill(s), 1 agent(s) for python\n");
+    expect(result.stdout).toBe(
+      "✔ Installed 1 skill(s), 1 agent(s) for python\n✔ Initialized project guidance and tooling documentation.\n",
+    );
     expect(await readdir(join(project, ".github", "agents"))).toEqual(["demo.agent.md"]);
     expect(await readFile(join(project, ".github", "agents", "demo.agent.md"), "utf8")).toBe(
-      '---\nname: demo\ndescription: "Agent for team"\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nPython Agent\n',
+      '---\nname: demo\ndescription: "Agent for pnpm"\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nPython Agent\n',
     );
     expect(await readFile(join(project, ".github", "skills", "demo", "SKILL.md"), "utf8")).toMatch(
       /Skill/,
@@ -68,7 +67,7 @@ test("update replaces only older versioned Agents and warns about unknown versio
     await mkdir(installedAgents, { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: { owner: "team" } }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
     for (const [name, shipped, installed] of [
       ["outdated", "2.0.0", "1.0.0"],
@@ -81,7 +80,7 @@ test("update replaces only older versioned Agents and warns about unknown versio
       await mkdir(join(blueprints, "agents", name), { recursive: true });
       await writeFile(
         join(blueprints, "agents", `${name}.agent.md`),
-        contents(name, shipped, "shipped {{ variables.owner }}"),
+        contents(name, shipped, "shipped {{ computed.spindle_package_manager }}"),
       );
       if (installed !== undefined) {
         await writeFile(
@@ -112,7 +111,7 @@ test("update replaces only older versioned Agents and warns about unknown versio
       contents("invalid", "v1", "preserve local content"),
     );
     expect(await readFile(join(installedAgents, "outdated.agent.md"), "utf8")).toBe(
-      contents("outdated", "2.0.0", "shipped team"),
+      contents("outdated", "2.0.0", "shipped pnpm"),
     );
     await expect(readFile(join(installedAgents, "new.agent.md"))).rejects.toThrow();
     expect(result.stderr).toMatch(/Agent 'unversioned\.agent\.md'.*no version/);
@@ -211,7 +210,7 @@ test(
 
       const result = await runCliInteractive(
         project,
-        ["init", "--stack", "python", "--var", "owner=team", "--var", "lint_command=just lint"],
+        ["init", "--stack", "python"],
         process.env.PATH ?? "",
         [{ trigger: "What should happen?", input: "\r" }],
         { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
@@ -246,7 +245,7 @@ test(
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], variables: { owner: "team" } }),
+        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
       );
       await writeFile(
         join(project, ".github", "agents", "demo.agent.md"),
@@ -288,14 +287,14 @@ test("init preserves an existing Agent when rendered version metadata is invalid
     await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
     await writeFile(
       join(blueprints, "agents", "demo.agent.md"),
-      "---\nname: demo\nmetadata:\n  spindle:\n    version: {{ variables.owner }}\n---\nshipped Agent\n",
+      "---\nname: demo\nmetadata:\n  spindle:\n    version: {{ computed.spindle_package_manager }}\n---\nshipped Agent\n",
     );
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(agentPath, "existing Agent\n");
 
     const result = runCli(
       project,
-      ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
+      ["init", "--stack", "python", "--on-conflict", "overwrite"],
       process.env.PATH ?? "",
       { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
     );
@@ -341,7 +340,7 @@ test("init and update help describe Blueprint kinds and generic policies", async
     const update = runCli(project, ["update", "--help"], process.env.PATH ?? "");
 
     expect(init.status, init.stderr).toBe(0);
-    expect(init.stdout).toMatch(/Blueprints.*Skills, Agents, and Instructions/i);
+    expect(init.stdout).toMatch(/Install spindle Blueprints and initialize project guidance/i);
     expect(init.stdout).toMatch(/--on-conflict[\s\S]*Blueprint/i);
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/Blueprints.*Skills, Agents, and Instructions/i);
@@ -400,7 +399,7 @@ test(
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["typescript"], variables: {} }),
+        JSON.stringify({ stacks: ["typescript"], spindle_package_manager: "pnpm", variables: {} }),
       );
       await writeFile(
         join(project, ".github", "skills", "demo", "SKILL.md"),
@@ -443,7 +442,7 @@ test(
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], variables: {} }),
+        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
       );
       await writeFile(
         join(project, ".github", "agents", "old.agent.md"),
@@ -491,7 +490,7 @@ test(
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], variables: {} }),
+        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
       );
 
       const result = await runCliInteractive(
@@ -550,7 +549,9 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
     const init = runCli(project, ["init", "--stack", "typescript"], process.env.PATH ?? "", env);
 
     expect(init.status, init.stderr).toBe(0);
-    expect(init.stdout).toBe("✔ Installed 1 skill(s) for typescript\n");
+    expect(init.stdout).toBe(
+      "✔ Installed 1 skill(s) for typescript\n✔ Initialized project guidance and tooling documentation.\n",
+    );
     await expect(readdir(join(project, ".github", "agents"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -584,7 +585,7 @@ test("update warns and preserves an Agent with unreadable version frontmatter", 
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     await writeFile(agentPath, installed);
 
@@ -617,14 +618,14 @@ test("update renders a block-templated Agent version before comparing it", async
         "  spindle:",
         "    version: {% if 'python' in stacks %}2.1.0{% else %}1.0.0{% endif %}",
         "---",
-        "shipped for {{ variables.owner }}",
+        "shipped for {{ computed.spindle_package_manager }}",
         "",
       ].join("\n"),
     );
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: { owner: "team" } }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
     await writeFile(
       agentPath,
@@ -640,7 +641,7 @@ test("update renders a block-templated Agent version before comparing it", async
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(agentPath, "utf8")).toBe(
-      "---\nname: demo\nmetadata:\n  spindle:\n    version: 2.1.0\n---\nshipped for team\n",
+      "---\nname: demo\nmetadata:\n  spindle:\n    version: 2.1.0\n---\nshipped for pnpm\n",
     );
     expect(result.stdout).toMatch(/updated 1.*agent\(s\)/);
   }
@@ -653,7 +654,7 @@ test("update compares large numeric SemVer identifiers without losing precision"
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     for (const [name, installed, shipped] of [
       ["core", "9007199254740992.0.0", "9007199254740993.0.0"],
@@ -694,21 +695,16 @@ test("catalog-selected Agent file installs and updates as a single rendered file
   const source = join(blueprints, "agents", "python-only.agent.md");
   const target = join(project, ".github", "agents", "python-only.agent.md");
   const agent = (version: string) =>
-    `---\nname: python-only\nmetadata:\n  spindle:\n    version: ${version}\n---\nOwner {{ variables.owner }} for {{ stacks | join(',') }}\n`;
+    `---\nname: python-only\nmetadata:\n  spindle:\n    version: ${version}\n---\nOwner {{ computed.spindle_package_manager }} for {{ stacks | join(',') }}\n`;
   {
     await mkdir(join(source, ".."), { recursive: true });
     await writeFile(source, agent("1.0.0"));
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-    const init = runCli(
-      project,
-      ["init", "--stack", "python", "--var", "owner=team"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status, init.stderr).toBe(0);
     expect(await readdir(join(project, ".github", "agents"))).toEqual(["python-only.agent.md"]);
     expect(await readFile(target, "utf8")).toBe(
-      "---\nname: python-only\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nOwner team for python\n",
+      "---\nname: python-only\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nOwner pnpm for python\n",
     );
 
     await writeFile(source, agent("2.0.0"));
@@ -721,7 +717,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/updated 1.*agent\(s\)/);
     expect(await readFile(target, "utf8")).toBe(
-      "---\nname: python-only\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nOwner team for python\n",
+      "---\nname: python-only\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nOwner pnpm for python\n",
     );
   }
 });
@@ -738,7 +734,11 @@ test("init and update fail clearly when all registered kinds are empty or missin
     await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
 
     await mkdir(join(project, ".github"), { recursive: true });
-    const config = JSON.stringify({ stacks: ["python"], variables: {} });
+    const config = JSON.stringify({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+      variables: {},
+    });
     await writeFile(join(project, ".github", "spindle.json"), config);
     const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", env);
     expect(update.status).not.toBe(0);
@@ -779,7 +779,11 @@ test(
           if (command === "update") {
             await writeFile(
               join(project, ".github", "spindle.json"),
-              JSON.stringify({ stacks: ["python"], variables: {} }),
+              JSON.stringify({
+                stacks: ["python"],
+                spindle_package_manager: "pnpm",
+                variables: {},
+              }),
             );
           }
           const args =
@@ -859,7 +863,7 @@ test("non-interactive update skips or includes same-named new Blueprints by kind
     await mkdir(join(project, ".github"), { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
     const skip = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", env);
@@ -911,7 +915,7 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], variables: {} }),
+        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
       );
       await writeFile(skillPath, old);
       await writeFile(agentPath, old);
@@ -953,7 +957,7 @@ test(
       await mkdir(join(project, ".github"), { recursive: true });
       await writeFile(
         join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], variables: {} }),
+        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
       );
 
       const result = await runCliInteractive(
@@ -994,7 +998,7 @@ test("update skip policy preserves an outdated Agent", async () => {
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
       join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], variables: {} }),
+      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     await writeFile(agentPath, local);
 
@@ -1020,7 +1024,11 @@ for (const command of ["init", "update"] as const) {
     const configPath = join(project, ".github", "spindle.json");
     const installed =
       "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n";
-    const config = JSON.stringify({ stacks: ["python"], variables: {} });
+    const config = JSON.stringify({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+      variables: {},
+    });
     {
       await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
       await writeFile(
@@ -1060,7 +1068,11 @@ for (const command of ["init", "update"] as const) {
     const project = await makeTempDir("spindle-agent-create-race-project-");
     const agentPath = join(project, ".github", "agents", "demo.agent.md");
     const configPath = join(project, ".github", "spindle.json");
-    const config = JSON.stringify({ stacks: ["python"], variables: {} });
+    const config = JSON.stringify({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+      variables: {},
+    });
     {
       await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
       await writeFile(
@@ -1150,7 +1162,11 @@ for (const command of ["init", "update"] as const) {
     const notesPath = join(project, ".github", "agents", "demo.agent.md", "notes.txt");
     const configPath = join(project, ".github", "spindle.json");
     const oldSkill = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Skill\n";
-    const config = JSON.stringify({ stacks: ["python"], variables: {} });
+    const config = JSON.stringify({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+      variables: {},
+    });
     {
       await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
       await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -1203,11 +1219,11 @@ for (const invalidKind of ["Skill", "Agent"] as const) {
       await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
       await writeFile(
         join(blueprints, "skills", "demo", "SKILL.md"),
-        `---\nmetadata:\n  spindle:\n    version: ${invalidKind === "Skill" ? "{{ variables.owner }}" : "2.0.0"}\n---\nshipped Skill\n`,
+        `---\nmetadata:\n  spindle:\n    version: ${invalidKind === "Skill" ? "{{ computed.spindle_package_manager }}" : "2.0.0"}\n---\nshipped Skill\n`,
       );
       await writeFile(
         join(blueprints, "agents", "demo.agent.md"),
-        `---\nmetadata:\n  spindle:\n    version: ${invalidKind === "Agent" ? "{{ variables.owner }}" : "2.0.0"}\n---\nshipped Agent\n`,
+        `---\nmetadata:\n  spindle:\n    version: ${invalidKind === "Agent" ? "{{ computed.spindle_package_manager }}" : "2.0.0"}\n---\nshipped Agent\n`,
       );
       await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
       await mkdir(join(project, ".github", "agents"), { recursive: true });
@@ -1217,7 +1233,7 @@ for (const invalidKind of ["Skill", "Agent"] as const) {
 
       const result = runCli(
         project,
-        ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
+        ["init", "--stack", "python", "--on-conflict", "overwrite"],
         process.env.PATH ?? "",
         { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
       );
@@ -1253,14 +1269,14 @@ test("init preflights a new invalid Agent before replacing an existing Skill", a
     );
     await writeFile(
       join(blueprints, "agents", "demo.agent.md"),
-      "---\nmetadata:\n  spindle:\n    version: {{ variables.owner }}\n---\nnew Agent\n",
+      "---\nmetadata:\n  spindle:\n    version: {{ computed.spindle_package_manager }}\n---\nnew Agent\n",
     );
     await mkdir(dirname(skillPath), { recursive: true });
     await writeFile(skillPath, oldSkill);
 
     const result = runCli(
       project,
-      ["init", "--stack", "python", "--var", "owner=not-semver", "--on-conflict", "overwrite"],
+      ["init", "--stack", "python", "--on-conflict", "overwrite"],
       process.env.PATH ?? "",
       { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
     );
@@ -1285,19 +1301,16 @@ test("init renders Skill supporting Markdown without validating it as an entry f
     );
     await writeFile(
       join(skill, "guide.md"),
-      "---\nmetadata:\n  spindle:\n    version: [not-valid-yaml\n---\nOwner {{ variables.owner }}\n",
+      "---\nmetadata:\n  spindle:\n    version: [not-valid-yaml\n---\nOwner {{ computed.spindle_package_manager }}\n",
     );
 
-    const result = runCli(
-      project,
-      ["init", "--stack", "python", "--var", "owner=team"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(join(project, ".github", "skills", "demo", "guide.md"), "utf8")).toBe(
-      "---\nmetadata:\n  spindle:\n    version: [not-valid-yaml\n---\nOwner team\n",
+      "---\nmetadata:\n  spindle:\n    version: [not-valid-yaml\n---\nOwner pnpm\n",
     );
   }
 });
@@ -1310,7 +1323,11 @@ test("update preflights Agent rendering before replacing a Skill", async () => {
   const configPath = join(project, ".github", "spindle.json");
   const oldSkill = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Skill\n";
   const oldAgent = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n";
-  const config = JSON.stringify({ stacks: ["python"], variables: {} });
+  const config = JSON.stringify({
+    stacks: ["python"],
+    spindle_package_manager: "pnpm",
+    variables: {},
+  });
   {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -1351,7 +1368,11 @@ test("update keeps a nested Agent version stable when a Skill supporting templat
   const skillInstalled = join(project, ".github", "skills", "demo", "SKILL.md");
   const agentInstalled = join(project, ".github", "agents", "demo.agent.md");
   const configPath = join(project, ".github", "spindle.json");
-  const config = JSON.stringify({ stacks: ["python"], variables: {} });
+  const config = JSON.stringify({
+    stacks: ["python"],
+    spindle_package_manager: "pnpm",
+    variables: {},
+  });
   const agent = [
     "---",
     "metadata:",

@@ -6,7 +6,7 @@ export interface ResolvedInputs {
 export abstract class ComputedVariableProvider {
   public constructor(public readonly inputs: ResolvedInputs) {}
 
-  public abstract render(): string;
+  public abstract render(): string | undefined;
 }
 
 type ComputedVariableProviderClass = new (inputs: ResolvedInputs) => ComputedVariableProvider;

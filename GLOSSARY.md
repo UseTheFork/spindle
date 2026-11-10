@@ -1,6 +1,6 @@
 # Spindle
 
-A CLI that scaffolds and maintains a project's `.github` directory from Blueprints, tailored by the Stacks and Variables the user provides.
+A CLI that scaffolds and maintains a project's `.github` directory from Blueprints, tailored by selected Stacks and workflow-supplied Variables.
 
 ## Language
 
@@ -47,16 +47,17 @@ collected by a workflow command.
 _Avoid_: Setting, parameter
 
 **Computed Variable**:
-A named text value derived from a workflow's supplied inputs for use in Templates.
-Unlike a Variable, its value is not supplied by the user, stored in Config, or directly overridden.
+A named text value derived from context available to a workflow for use in
+Templates. It may be derived from Config values but is not independently
+supplied, stored, or directly overridden.
 
 **Config**:
-The `.github/spindle.json` file holding the user's selected stacks, variables,
-and registered tooling commands.
+The `.github/spindle.json` file holding the user's selected Stacks, preferred
+Spindle package-manager command, and registered tooling commands.
 _Avoid_: Settings file, manifest
 
 **Application Configuration**:
-The settings used by the running Spindle application, distinct from a project's selected Stacks and Variables in Config.
+The settings used by the running Spindle application, distinct from a project's Config.
 
 **Project workspace**:
 The Git working tree whose `.github` directory Spindle maintains. Invocation from

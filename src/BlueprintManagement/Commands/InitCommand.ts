@@ -5,26 +5,33 @@ import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/Blueprin
 import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
 import {
   promptConflict,
+  promptSpindlePackageManager,
   promptStacks,
-  promptVariable,
 } from "@/BlueprintManagement/Commands/Prompts";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import {
-  loadVariableDefinitions,
-  parseVariableFlags,
-} from "@/BlueprintManagement/Rendering/Variables";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import {
+  LoadProjectConfiguration,
+  type ProjectConfigurationData,
+} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
 
 export class InitCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
   private reconciliationService!: BlueprintReconciliationService;
+
+  private static normalizeSpindlePackageManager(command: string): string {
+    const normalized = command.trim();
+    if (normalized.length === 0 || /[\r\n]/.test(normalized)) {
+      throw new Error("--spindle-package-manager must be a non-empty, single-line command.");
+    }
+    return normalized;
+  }
 
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
     program
@@ -37,10 +44,8 @@ export class InitCommand extends Command {
         [],
       )
       .option(
-        "--var <name>=<value>",
-        "Set a variable; repeat for several. Unset variables use their default",
-        (value: string, previous: string[] = []) => [...previous, value],
-        [],
+        "--spindle-package-manager <command>",
+        "Package-manager command prefix used in generated tooling guidance",
       )
       .addOption(
         BlueprintCommandOptions.conflictPolicyOption(
@@ -66,7 +71,7 @@ Run \`spindle --version\` to print the installed version.
       .action(
         async (options: {
           stack: string[];
-          var: string[];
+          spindlePackageManager?: string;
           onConflict?: string;
           interactive: boolean;
         }) => {
@@ -74,26 +79,18 @@ Run \`spindle --version\` to print the installed version.
             options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
           const policy = parseConflictPolicy(options.onConflict);
           Stacks.validate(options.stack);
-          const definitions = loadVariableDefinitions();
-          const supplied = parseVariableFlags(options.var, definitions);
+          const spindlePackageManager =
+            options.spindlePackageManager === undefined
+              ? undefined
+              : InitCommand.normalizeSpindlePackageManager(options.spindlePackageManager);
           if (!interactive && options.stack.length === 0) {
             throw new Error(
               `Provide at least one --stack flag <${Stacks.supported.join("|")}> (or run interactively).`,
             );
           }
-          if (!interactive) {
-            const missing = definitions.find(
-              (definition) => definition.default === undefined && !(definition.name in supplied),
-            );
-            if (missing) {
-              throw new Error(
-                `Variable '${missing.name}' (${missing.description}) has no default; provide --var ${missing.name}=<value>.`,
-              );
-            }
-          }
           await (
             await (await createApp()).make(InitCommand)
-          ).run(options.stack, options.var, interactive, policy);
+          ).run(options.stack, spindlePackageManager, interactive, policy);
         },
       );
   }
@@ -109,7 +106,7 @@ Run \`spindle --version\` to print the installed version.
 
   public async run(
     stackArguments: string[],
-    variableArguments: string[],
+    packageManagerArgument: string | undefined,
     interactive: boolean,
     policy: ConflictPolicy | undefined,
   ): Promise<void> {
@@ -126,9 +123,6 @@ Run \`spindle --version\` to print the installed version.
       );
     }
 
-    const definitions = loadVariableDefinitions();
-    const supplied = parseVariableFlags(variableArguments, definitions);
-
     let stacks = [...new Set(stackArguments)];
     Stacks.validate(stacks);
     if (stacks.length === 0) {
@@ -140,29 +134,28 @@ Run \`spindle --version\` to print the installed version.
       stacks = await promptStacks(Stacks.supported);
     }
 
-    const variables: Record<string, string> = {};
-    for (const definition of definitions) {
-      if (definition.name in supplied) {
-        variables[definition.name] = supplied[definition.name];
-      } else if (interactive) {
-        variables[definition.name] = await promptVariable(definition);
-      } else if (definition.default !== undefined) {
-        variables[definition.name] = definition.default;
-      } else {
-        throw new Error(
-          `Variable '${definition.name}' (${definition.description}) has no default; provide --var ${definition.name}=<value>.`,
-        );
-      }
+    let spindlePackageManager =
+      packageManagerArgument ??
+      (existing.status === "valid" ? existing.data.spindle_package_manager : undefined);
+    if (spindlePackageManager === undefined && interactive) {
+      spindlePackageManager = await promptSpindlePackageManager();
     }
+    if (spindlePackageManager === undefined) {
+      throw new Error(
+        "A package-manager command is required; provide --spindle-package-manager <command> or run interactively.",
+      );
+    }
+    spindlePackageManager = InitCommand.normalizeSpindlePackageManager(spindlePackageManager);
 
-    const config = {
+    const config: ProjectConfigurationData = {
       ...(existing.status === "valid" ? existing.data : {}),
       stacks,
-      variables,
+      spindle_package_manager: spindlePackageManager,
     };
+    delete config.variables;
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
-      context: config,
+      context: { stacks, variables: { spindle_package_manager: spindlePackageManager } },
       config,
       conflictPolicy: policy,
       chooseConflict: interactive ? promptConflict : undefined,

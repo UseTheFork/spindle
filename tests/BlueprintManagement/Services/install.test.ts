@@ -18,7 +18,7 @@ test("source Blueprint roots resolve from the module location, independent of Ap
   const expectedSourceRoot = fileURLToPath(
     new URL("../../../src/Assets/Blueprints/", import.meta.url),
   );
-  const config = { stacks: ["typescript"], variables: {} };
+  const config = { stacks: ["typescript"], spindle_package_manager: "pnpm" };
 
   {
     const app = applicationFixture(workspace, expectedSourceRoot);
@@ -28,7 +28,11 @@ test("source Blueprint roots resolve from the module location, independent of Ap
     expect(isAbsolute(app.appPath("Assets/Blueprints"))).toBeTruthy();
     expect(app.appPath("Assets/Blueprints")).toBe(expectedSourceRoot);
     const service = await app.make(BlueprintReconciliationService);
-    await service.reconcile(blueprintHandlers, { mode: "init", context: config, config });
+    await service.reconcile(blueprintHandlers, {
+      mode: "init",
+      context: { stacks: config.stacks, variables: { spindle_package_manager: "pnpm" } },
+      config,
+    });
     expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
       config,
     );
@@ -94,11 +98,19 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md");
   const firstConfig = {
     stacks: ["python"],
-    variables: { lint_command: "just lint first", owner: "first" },
+    spindle_package_manager: "pnpm",
   };
   const secondConfig = {
     stacks: ["typescript"],
-    variables: { lint_command: "just lint second", owner: "second" },
+    spindle_package_manager: "npm run",
+  };
+  const firstContext = {
+    stacks: firstConfig.stacks,
+    variables: { spindle_package_manager: firstConfig.spindle_package_manager },
+  };
+  const secondContext = {
+    stacks: secondConfig.stacks,
+    variables: { spindle_package_manager: secondConfig.spindle_package_manager },
   };
 
   {
@@ -119,12 +131,12 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     expect(firstService).not.toBe(secondService);
     await firstService.reconcile(blueprintHandlers, {
       mode: "init",
-      context: firstConfig,
+      context: firstContext,
       config: firstConfig,
     });
     await secondService.reconcile(blueprintHandlers, {
       mode: "init",
-      context: secondConfig,
+      context: secondContext,
       config: secondConfig,
     });
 
@@ -144,7 +156,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     await firstService.reconcile(blueprintHandlers, {
       mode: "update",
       config: firstConfig,
-      resolveContext: async () => firstConfig,
+      resolveContext: async () => firstContext,
       conflictPolicy: "overwrite",
     });
 

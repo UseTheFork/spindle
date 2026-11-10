@@ -1,7 +1,5 @@
 import { cancel, isCancel, multiselect, select, text } from "@clack/prompts";
 
-import type { VariableDefinition } from "@/BlueprintManagement/Rendering/Variables";
-
 function ensureAnswer<T>(answer: T | symbol): T {
   // clack signals cancellation with a unique symbol
   if (typeof answer === "symbol" && isCancel(answer)) {
@@ -20,17 +18,26 @@ export async function promptStacks(supported: readonly string[]): Promise<string
   return ensureAnswer<string[]>(answer);
 }
 
-export async function promptVariable(definition: VariableDefinition): Promise<string> {
-  const answer = await text({
-    message: `${definition.name}: ${definition.description}`,
-    defaultValue: definition.default,
-    initialValue: definition.default,
-    validate: (value) =>
-      (value ?? "").length === 0 && definition.default === undefined
-        ? "A value is required."
-        : undefined,
+export async function promptSpindlePackageManager(): Promise<string> {
+  const answer = await select({
+    message: "Which package-manager command should Spindle use in generated guidance?",
+    options: [
+      { value: "npm run", label: "npm run" },
+      { value: "pnpm", label: "pnpm" },
+      { value: "yarn", label: "yarn" },
+      { value: "bun", label: "bun" },
+      { value: "other", label: "Other" },
+    ],
   });
-  return ensureAnswer<string>(answer);
+  const selection = ensureAnswer<string>(answer);
+  if (selection !== "other") return selection;
+
+  const custom = await text({
+    message: "Enter the package-manager command prefix",
+    validate: (value) =>
+      (value ?? "").trim().length === 0 ? "A command prefix is required." : undefined,
+  });
+  return ensureAnswer<string>(custom).trim();
 }
 
 export async function promptConflict(kind: string, name: string): Promise<"overwrite" | "skip"> {

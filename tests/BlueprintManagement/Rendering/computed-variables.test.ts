@@ -11,7 +11,6 @@ import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/B
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import { loadVariableDefinitions } from "@/BlueprintManagement/Rendering/Variables";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import {
   ComputedVariableProvider,
@@ -60,7 +59,7 @@ async function makeBlueprints() {
       "    version: 1.0.0",
       "---",
       "",
-      "Owner={{ variables.owner }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
+      "Manager={{ computed.spindle_package_manager }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
       "",
     ].join("\n"),
   );
@@ -120,7 +119,7 @@ test("init and update render shipped Skills and preserve current installations",
 
     const initialized = runCliWithCatalog(
       project,
-      ["init", "--stack", "python", "--var", "owner=core", "--no-interactive"],
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm", "--no-interactive"],
       process.env.PATH ?? "",
       { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
     );
@@ -162,23 +161,23 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
   {
     const result = runCliWithCatalog(
       project,
-      ["init", "--stack", "python", "--var", "owner=core", "--no-interactive"],
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm", "--no-interactive"],
       process.env.PATH ?? "",
       { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
     );
 
     expect(result.status, result.stderr).toBe(0);
     const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
-    expect(config).toEqual({
+    expect(config).toMatchObject({
       stacks: ["python"],
-      variables: { lint_command: "just lint", owner: "core" },
+      spindle_package_manager: "pnpm",
     });
 
     const skillPath = join(project, ".github/skills/demo/SKILL.md");
     const skill = await readFile(skillPath, "utf8");
     expect(matter(skill).data.description).toBe(description);
     expect(matter(skill).data.metadata.spindle.version).toBe("1.0.0");
-    expect(matter(skill).content).toBe("\nOwner=core; stacks=python;\n");
+    expect(matter(skill).content).toBe("\nManager=pnpm; stacks=python;\n");
     expect(skill).not.toMatch(/{{|}}/);
     expect(await readFile(join(project, ".github/skills/demo/supporting.txt"), "utf8")).toBe(
       `Skill: ${description}\n`,
@@ -206,7 +205,11 @@ test("update reuses computed output and leaves Config and version metadata intac
   const blueprints = await makeTempDir("spindle-computed-update-blueprints-");
   const project = await makeTempDir("spindle-computed-update-project-");
   const configBytes = Buffer.from(
-    JSON.stringify({ stacks: ["typescript"], variables: { owner: "existing" } }, null, 2),
+    JSON.stringify(
+      { stacks: ["typescript"], spindle_package_manager: "pnpm", variables: { owner: "legacy" } },
+      null,
+      2,
+    ),
   );
 
   {
@@ -221,7 +224,7 @@ test("update reuses computed output and leaves Config and version metadata intac
         "    version: 2.0.0",
         "---",
         "",
-        "Owner={{ variables.owner }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
+        "Manager={{ computed.spindle_package_manager }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
         "",
       ].join("\n"),
     );
@@ -256,7 +259,7 @@ test("update reuses computed output and leaves Config and version metadata intac
     const updated = await readFile(join(github, "skills/demo/SKILL.md"), "utf8");
     expect(matter(updated).data.description).toBe(description);
     expect(matter(updated).data.metadata.spindle.version).toBe("2.0.0");
-    expect(matter(updated).content).toBe("\nOwner=existing; stacks=typescript;\n");
+    expect(matter(updated).content).toBe("\nManager=pnpm; stacks=typescript;\n");
     expect(updated).not.toMatch(/{{|}}/);
     expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
       `Update: ${description}\n`,
@@ -276,7 +279,7 @@ test("update identifies a missing computed output and applies no planned changes
     "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nExisting Skill\n",
   );
   const configBytes = Buffer.from(
-    '{\n  "stacks": ["python"],\n  "variables": {"owner": "keep"}\n}\n',
+    '{\n  "stacks": ["python"],\n  "spindle_package_manager": "pnpm",\n  "variables": {"owner": "keep"}\n}\n',
   );
 
   {
@@ -349,29 +352,30 @@ test("repeated Updates through one App render fresh Config with computed outputs
 
   {
     await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
+    await app.boot();
     const source = matter(descriptionSkill);
-    source.content += "\nRun owner={{ variables.owner }}\n";
+    source.content += "\nRun manager={{ computed.spindle_package_manager }}\n";
     await writeFile(sourcePath, matter.stringify(source.content, source.data));
 
-    await (await app.make(InitCommand)).run(["python"], ["owner=first-run"], false, "overwrite");
+    await (await app.make(InitCommand)).run(["python"], "first-run", false, "overwrite");
     const update = await app.make(UpdateCommand);
 
-    const assertRendered = async (owner: string, version: string) => {
+    const assertRendered = async (manager: string, version: string) => {
       const generated = matter(await readFile(installedPath, "utf8"));
       expect(generated.data.description).toBe(description);
       expect(generated.data.metadata.spindle.version).toBe(version);
-      expect(generated.content.includes(`Run owner=${owner}`)).toBeTruthy();
+      expect(generated.content).toContain(`Run manager=${manager}`);
       const config = await readFile(join(github, "spindle.json"), "utf8");
       expect(config).not.toMatch(/computed|internal_skill_description/);
     };
 
-    const updateSource = async (version: string, owner: string) => {
+    const updateSource = async (version: string, manager: string) => {
       const current = matter(await readFile(sourcePath, "utf8"));
       current.data.metadata.spindle.version = version;
       await writeFile(sourcePath, matter.stringify(current.content, current.data));
       const configPath = join(github, "spindle.json");
       const config = JSON.parse(await readFile(configPath, "utf8"));
-      config.variables.owner = owner;
+      config.spindle_package_manager = manager;
       await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
     };
 
@@ -386,15 +390,9 @@ test("repeated Updates through one App render fresh Config with computed outputs
 });
 
 test("providers receive immutable resolved Config once per run and refresh across runs", async () => {
-  const defaultVariables = Object.fromEntries(
-    loadVariableDefinitions().map((definition) => [
-      definition.name,
-      definition.default ?? "supplied by test",
-    ]),
-  );
   const config: ResolvedInputs = {
     stacks: ["python", "typescript"],
-    variables: defaultVariables,
+    variables: { owner: "nobody", lint_command: "just lint" },
   };
   let providerConfig: ResolvedInputs | undefined;
   class ConfigProvider extends ComputedVariableProvider {

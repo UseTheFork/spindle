@@ -4,8 +4,8 @@ import type {
   ConflictPolicy,
   PlannedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
-import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintOutcome {
@@ -31,11 +31,6 @@ interface ReconcileCommon {
   ) => Promise<ConflictPolicy>;
 }
 
-interface PlannedConfigWrite {
-  path: string;
-  content: string;
-}
-
 export type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "init";
@@ -46,7 +41,6 @@ export type ReconcileOptions =
       mode: "update";
       config?: ProjectConfigurationData;
       includeNew?: boolean;
-      prepareConfigWrite?: () => PlannedConfigWrite | undefined;
     });
 
 type WithoutApplicationRoots<T> = T extends unknown
