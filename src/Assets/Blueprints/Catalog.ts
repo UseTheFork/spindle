@@ -97,6 +97,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "to-spec": { path: "to-spec/", status: "active", stacks: [] },
     "to-tickets": { path: "to-tickets/", status: "active", stacks: [] },
     triage: { path: "triage/", status: "removed", stacks: [] },
+    "update-tooling": { path: "update-tooling/", status: "active", stacks: [] },
     wayfinder: { path: "wayfinder/", status: "removed", stacks: [] },
   },
 };
