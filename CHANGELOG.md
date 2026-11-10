@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.0.2
+
+### Patch Changes
+
+- [`f945af6`](https://github.com/UseTheFork/spindle/commit/f945af673b8fadb3a92a1b963c9bf968388d13a8) Thanks [@UseTheFork](https://github.com/UseTheFork)! - bump version so publish works
+
 ## 0.1.0
 
 ### Minor Changes
