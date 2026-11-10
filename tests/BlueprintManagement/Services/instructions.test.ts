@@ -50,7 +50,7 @@ test("init and update install selected Instructions as single versioned files", 
 
     expect(init.status, init.stderr).toBe(0);
     expect(init.stdout).toBe(
-      "✔ Installed 4 instruction(s) for python. Skipped 1 existing instruction(s)\n",
+      "✔ Installed 4 instruction(s) for python. Skipped 1 existing instruction(s)\n✔ Initialized project guidance and tooling documentation.\n",
     );
     expect(await readdir(installed)).toEqual([
       "invalid.instructions.md",
@@ -136,17 +136,27 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
   }
 });
 
-test("production init and update omit the empty Instructions kind", async () => {
+test("production init and update install the shipped code-commenting Instruction", async () => {
   const project = await makeTempDir("spindle-instruction-production-project-");
   {
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(init.status, init.stderr).toBe(0);
-    expect(init.stdout).toMatch(/skill\(s\), [1-9]\d* agent\(s\) for python/);
-    expect(init.stdout).not.toMatch(/instruction/i);
-    await expect(readdir(join(project, ".github", "instructions"))).rejects.toThrow();
+    expect(init.stdout).toMatch(
+      /[1-9]\d* skill\(s\), [1-9]\d* agent\(s\), 1 instruction\(s\) for python/,
+    );
+    expect(init.stdout).toMatch(/1 instruction\(s\) for python/);
+    expect(await readdir(join(project, ".github", "instructions"))).toEqual([
+      "code-commenting.instructions.md",
+    ]);
+    expect(
+      await readFile(
+        join(project, ".github", "instructions", "code-commenting.instructions.md"),
+        "utf8",
+      ),
+    ).toContain("# Code Commenting Rules");
 
     const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "");
     expect(update.status, update.stderr).toBe(0);
-    expect(update.stdout).not.toMatch(/instruction/i);
+    expect(update.stdout).toMatch(/up to date 1 instruction\(s\)/);
   }
 });

@@ -1,7 +1,10 @@
 ---
 name: Code Commenting
 description: "Defines when you should and should NOT write code comments. Apply on any code edit/write/refactor."
-applyTo: "**/*.*"
+applyTo: "**/*"
+metadata:
+  spindle:
+    version: 1.0.0
 ---
 
 # Code Commenting Rules

@@ -49,7 +49,13 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
       stacks: [],
     },
   },
-  instructions: {},
+  instructions: {
+    "code-commenting": {
+      path: "code-commenting.instructions.md",
+      status: "active",
+      stacks: [],
+    },
+  },
   skills: {
     "author-agent": { path: "author-agent/", status: "active", stacks: [] },
     "author-design": { path: "author-design/", status: "active", stacks: [] },

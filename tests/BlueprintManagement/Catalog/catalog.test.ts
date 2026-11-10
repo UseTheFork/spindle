@@ -28,6 +28,13 @@ test("the management catalog validates shipped asset metadata without changing r
     status: "active",
     stacks: [],
   });
+  expect(validated.instructions.find((entry) => entry.key === "code-commenting")).toEqual({
+    key: "code-commenting",
+    path: "code-commenting.instructions.md",
+    directory: false,
+    status: "active",
+    stacks: [],
+  });
 });
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
