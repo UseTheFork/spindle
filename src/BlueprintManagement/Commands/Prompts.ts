@@ -23,7 +23,7 @@ export async function promptSpindlePackageManager(): Promise<string> {
     message: "Which package-manager command should Spindle use in generated guidance?",
     options: [
       { value: "npm run", label: "npm run" },
-      { value: "pnpm", label: "pnpm" },
+      { value: "pnpm exec", label: "pnpm exec" },
       { value: "yarn", label: "yarn" },
       { value: "bun", label: "bun" },
       { value: "other", label: "Other" },
