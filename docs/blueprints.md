@@ -14,7 +14,9 @@ Blueprints before creating project guidance and the tooling registry. The
 `tool` subcommands maintain that registry in `.github/spindle.json` and
 regenerate `docs/agents/tooling.md`. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
 discovered root, copying the shared SDD spec template and optionally a design
-template with `--with-design`. `sdd status` requires an
+template with `--with-design`. Feature and ticket creation require a valid
+project Config with `spindle_package_manager`, initialized by `spindle init`.
+`sdd status` requires an
 explicit `--spec` path within that checkout and reads the stored ledger without
 mutation. The old report-path resolver is not available, and dated feature
 workspaces are not migrated.
@@ -95,21 +97,20 @@ Computed Variable names are explicit public keys in the typed
 inferred from class names. Each provider has its own module under
 `src/TemplateRendering/Computed/Providers/`. To add one, implement a
 `ComputedVariableProvider` subclass and register its class under the desired
-template name. Providers receive the caller's selected Stacks and operation-scoped Variables
-as read-only inputs. Blueprint commands supply the selected Stacks and
-configured Spindle package-manager command; workflow callers supply their own
-inputs without loading project Config or inheriting Blueprint defaults.
-Implement a synchronous `render(): string | undefined` method to return the
-value when the required input is available, and add the provider class to the
-registry under its chosen name.
+template name. Providers receive the Application and choose which application
+state to use; project Config-dependent providers should read the current project
+Config. Ordinary template inputs remain caller-supplied and are independent of
+Computed Variables. Implement a synchronous `render(): string | undefined`
+method to return the value when its required application state is available, and
+add the provider class to the registry under its chosen name.
 
 Each reconciliation run gets a fresh application-managed computed-context
-service. It copies and freezes the supplied Stacks and Variables passed to
-providers. Each registered provider is instantiated and rendered once per
-operation; repeated context requests reuse the resolved values across
-Blueprints and version inspection. SDD feature creation likewise shares one
-render context across its spec and optional design, and ticket creation renders
-with its existing command inputs. A later operation resolves providers again.
+service. Each registered provider is instantiated with the Application and
+rendered once per operation; repeated context requests reuse the resolved values
+across Blueprints and version inspection. SDD feature creation likewise shares
+one render context across its spec and optional design, and ticket creation
+renders with its existing command inputs. A later operation resolves providers
+again.
 Computed values are not independently persisted in Config, prompted for, or
 directly overridable by project Variables or CLI options. Their source inputs
 may be stored in Config. They are developer-shipped providers, not project

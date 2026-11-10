@@ -96,7 +96,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
           : undefined,
       resolveContext: async () => ({
         stacks: config.stacks,
-        variables: { spindle_package_manager: spindlePackageManager },
+        variables: {},
       }),
     });
     await LoadProjectConfiguration.refresh(this.app);

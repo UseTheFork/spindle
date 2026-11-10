@@ -1,14 +1,11 @@
-export interface ResolvedInputs {
-  readonly stacks: readonly string[];
-  readonly variables: Readonly<Record<string, string>>;
-}
+import type { Application } from "@/Foundation/Application";
 
 export abstract class ComputedVariableProvider {
-  public constructor(public readonly inputs: ResolvedInputs) {}
+  public constructor(public readonly app: Application) {}
 
   public abstract render(): string | undefined;
 }
 
-type ComputedVariableProviderClass = new (inputs: ResolvedInputs) => ComputedVariableProvider;
+type ComputedVariableProviderClass = new (app: Application) => ComputedVariableProvider;
 
 export type ComputedVariableRegistry = Readonly<Record<string, ComputedVariableProviderClass>>;

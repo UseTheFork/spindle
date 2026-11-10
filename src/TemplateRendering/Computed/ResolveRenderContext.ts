@@ -1,24 +1,19 @@
-import type {
-  ComputedVariableRegistry,
-  ResolvedInputs,
-} from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import type { Application } from "@/Foundation/Application";
+import type { ComputedVariableRegistry } from "@/TemplateRendering/Computed/ComputedVariableProvider";
 import { computedVariableProviders } from "@/TemplateRendering/Computed/ComputedVariableProviders";
 import type { RenderContext, RenderInputs } from "@/TemplateRendering/Rendering/RenderText";
 
 export function resolveRenderContext(
+  app: Application,
   inputs: RenderInputs,
   registry: ComputedVariableRegistry = computedVariableProviders,
 ): RenderContext {
   const stacks = [...(inputs.stacks ?? [])];
   const variables = { ...inputs.variables };
-  const resolvedInputs: ResolvedInputs = {
-    stacks: Object.freeze([...stacks]),
-    variables: Object.freeze({ ...variables }),
-  };
   const computed: Record<string, string> = {};
   for (const [name, Provider] of Object.entries(registry)) {
     try {
-      const value = new Provider(resolvedInputs).render();
+      const value = new Provider(app).render();
       if (value !== undefined) computed[name] = value;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

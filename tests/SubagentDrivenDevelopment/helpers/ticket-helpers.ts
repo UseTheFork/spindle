@@ -15,7 +15,7 @@ export async function ticketFixture(title: string) {
   await app.boot();
   const service = await workflowServices(app);
   const feature = service.featureCreationService.create({ title, author: "maintainer" });
-  return { repo, git, service, feature };
+  return { repo, git, app, service, feature };
 }
 
 export function createTicket(service: WorkflowServices, spec: string, title: string) {

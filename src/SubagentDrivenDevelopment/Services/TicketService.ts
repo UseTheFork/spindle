@@ -73,7 +73,7 @@ export class TicketService extends Service {
         status: "open" as const,
         blockedBy: [],
       };
-      const context = resolveRenderContext({
+      const context = resolveRenderContext(this.app, {
         variables: {
           title: options.title.trim(),
           reporter: options.reporter.trim(),

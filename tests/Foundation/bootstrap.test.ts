@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import type { Command as CommanderCommand } from "commander";
@@ -15,6 +15,7 @@ import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
+import { RequireProjectConfiguration } from "@/Foundation/Bootstrap/RequireProjectConfiguration";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
@@ -36,6 +37,11 @@ afterEach(() => {
 function workspace() {
   const root = makeTempDirSync("spindle-bootstrap-test-");
   execFileSync("git", ["init", "-q"], { cwd: root });
+  mkdirSync(join(root, ".github"), { recursive: true });
+  writeFileSync(
+    join(root, ".github", "spindle.json"),
+    '{"stacks":["python"],"spindle_package_manager":"pnpm"}\n',
+  );
   const nested = join(root, "packages", "nested");
   mkdirSync(nested, { recursive: true });
   return { root, nested };
@@ -66,6 +72,7 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
     LoadConsoleArgs,
     DiscoverGitRoot,
     LoadProjectConfiguration,
+    RequireProjectConfiguration,
     RegisterProviders,
   ]);
   await app.make(Kernel);
@@ -124,6 +131,25 @@ test("LoadConsoleArgs retains parsed option arrays, false values, positionals, r
   expect(args.boolean("options.interactive")).toBe(false);
   expect(args.boolean("options.includeNew")).toBe(true);
   expect(app.config.has("args")).toBe(false);
+});
+
+test("non-init commands require project Config while init can bootstrap without one", () => {
+  const app = new Application({ basePath: "/project" });
+  const args = new Repository();
+  args.set("commandPath", ["sdd", "create"]);
+  app.instance("console.args", args);
+  app.instance("config.project", { status: "absent" });
+
+  expect(() => new RequireProjectConfiguration().bootstrap(app)).toThrow(
+    /no \.github\/spindle\.json/i,
+  );
+
+  const initApp = new Application({ basePath: "/project" });
+  const initArgs = new Repository();
+  initArgs.set("commandPath", ["init"]);
+  initApp.instance("console.args", initArgs);
+  initApp.instance("config.project", { status: "absent" });
+  expect(() => new RequireProjectConfiguration().bootstrap(initApp)).not.toThrow();
 });
 
 test.each([

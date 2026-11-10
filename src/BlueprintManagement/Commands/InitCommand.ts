@@ -155,7 +155,7 @@ Run \`spindle --version\` to print the installed version.
     delete config.variables;
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
-      context: { stacks, variables: { spindle_package_manager: spindlePackageManager } },
+      context: { stacks, variables: {} },
       config,
       conflictPolicy: policy,
       chooseConflict: interactive ? promptConflict : undefined,

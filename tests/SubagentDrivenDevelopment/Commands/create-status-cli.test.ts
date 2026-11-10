@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -28,9 +28,8 @@ test("sdd create requires named non-empty title and author options", async () =>
   }
 });
 
-test("SDD creation does not require valid project Config", async () => {
+test("SDD creation requires valid project Config", async () => {
   const { repo } = await serviceFixture();
-  mkdirSync(join(repo, ".github"), { recursive: true });
   writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
   const result = runCli(
     repo,
@@ -38,10 +37,9 @@ test("SDD creation does not require valid project Config", async () => {
     process.env.PATH ?? "",
   );
 
-  expect(result.status, result.stderr).toBe(0);
-  expect(
-    readFileSync(join(repo, ".scratch", "0001-config-independent", "spec.md"), "utf8"),
-  ).toContain("# Config Independent");
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/invalid JSON|spindle\.json/i);
+  expect(existsSync(join(repo, ".scratch", "0001-config-independent"))).toBe(false);
 });
 
 test("concurrent sdd create commands allocate distinct consecutive feature IDs", async () => {

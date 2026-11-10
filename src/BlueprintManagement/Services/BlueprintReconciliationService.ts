@@ -41,6 +41,7 @@ import type {
 } from "@/BlueprintManagement/Types/Reconciliation";
 import { readBlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
 import type { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
@@ -597,15 +598,24 @@ export class BlueprintReconciliationService extends Service {
     options: BlueprintReconciliationOptions,
   ): Promise<BlueprintOutcome[]> {
     this.assertApplicationBooted();
-    return performReconciliation(
-      handlers,
-      {
-        ...options,
-        app: this.app,
-        githubDirectory: this.app.workspacePath(".github"),
-        blueprintSourceRoot: this.app.appPath("Assets/Blueprints"),
-      },
-      this.installationService,
-    );
+    const perform = () =>
+      performReconciliation(
+        handlers,
+        {
+          ...options,
+          app: this.app,
+          githubDirectory: this.app.workspacePath(".github"),
+          blueprintSourceRoot: this.app.appPath("Assets/Blueprints"),
+        },
+        this.installationService,
+      );
+    if (options.mode === "init") {
+      return LoadProjectConfiguration.withTemporaryState(
+        this.app,
+        { status: "valid", data: options.config },
+        perform,
+      );
+    }
+    return perform();
   }
 }

@@ -79,6 +79,31 @@ export class LoadProjectConfiguration extends Bootstrapper {
     );
   }
 
+  public static async withTemporaryState<T>(
+    application: Application,
+    state: ProjectConfigurationState,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    this.current(application);
+    const current = application.value("config.project");
+    if (!Records.isRecord(current)) {
+      throw new Error(
+        "Application binding 'config.project' must contain a project configuration state.",
+      );
+    }
+    const previous = { ...current };
+    const replace = (replacement: object) => {
+      for (const key of Object.keys(current)) delete current[key];
+      Object.assign(current, replacement);
+    };
+    replace(state);
+    try {
+      return await operation();
+    } finally {
+      replace(previous);
+    }
+  }
+
   public static require(state: ProjectConfigurationState) {
     if (state.status === "absent") {
       throw new Error(

@@ -11,11 +11,10 @@ import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/B
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
+import type { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
-import {
-  ComputedVariableProvider,
-  type ResolvedInputs,
-} from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
 import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
@@ -269,6 +268,55 @@ test("update reuses computed output and leaves Config and version metadata intac
   }
 });
 
+test("computed package-manager output comes from project Config, not render Variables", async () => {
+  const app = applicationFixture("/project", "/blueprints", {
+    status: "valid",
+    data: { stacks: [], spindle_package_manager: "pnpm" },
+  });
+  const contextService = await app.make(ComputedContextService);
+  const context = await contextService.resolve(async () => ({
+    stacks: [],
+    variables: { spindle_package_manager: "npm run" },
+  }));
+
+  expect(context?.computed?.spindle_package_manager).toBe("pnpm");
+});
+
+test("computed package-manager output fails when project Config is unavailable", async () => {
+  const app = applicationFixture("/project", "/blueprints");
+  const contextService = await app.make(ComputedContextService);
+  const context = contextService.resolve(async () => ({ stacks: [], variables: {} }));
+
+  await expect(context).rejects.toThrow(/project Config|spindle_package_manager/i);
+});
+
+test("init restores the prior project Config state when Blueprint rendering fails", async () => {
+  const blueprints = await makeTempDir("spindle-computed-init-failure-blueprints-");
+  const project = await makeTempDir("spindle-computed-init-failure-project-");
+  writeCatalogFixture(blueprints, {
+    skills: {
+      demo: { path: "demo/", status: "active", stacks: [] },
+    },
+    agents: {},
+    instructions: {},
+  });
+  await put(
+    join(blueprints, "skills/demo/SKILL.md"),
+    "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n{% if %}\n",
+  );
+  const app = applicationFixture(project, blueprints);
+  await new LoadProjectConfiguration().bootstrap(app);
+  await app.boot();
+
+  const init = await app.make(InitCommand);
+  await expect(init.run(["python"], "pnpm", false, "overwrite")).rejects.toThrow();
+
+  expect(LoadProjectConfiguration.current(app)).toEqual({ status: "absent" });
+  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
+
 test("update identifies a missing computed output and applies no planned changes", async () => {
   const blueprints = await makeTempDir("spindle-computed-missing-blueprints-");
   const project = await makeTempDir("spindle-computed-missing-project-");
@@ -389,16 +437,20 @@ test("repeated Updates through one App render fresh Config with computed outputs
   }
 });
 
-test("providers receive immutable resolved Config once per run and refresh across runs", async () => {
-  const config: ResolvedInputs = {
-    stacks: ["python", "typescript"],
-    variables: { owner: "nobody", lint_command: "just lint" },
+test("providers receive Application once per run and refresh across runs", async () => {
+  const projectConfig = {
+    status: "valid" as const,
+    data: {
+      stacks: ["python", "typescript"],
+      spindle_package_manager: "pnpm",
+    },
   };
-  let providerConfig: ResolvedInputs | undefined;
+  let providerApplication: Application | undefined;
   class ConfigProvider extends ComputedVariableProvider {
     render() {
-      providerConfig = this.inputs;
-      return `${this.inputs.stacks.join(",")}:${this.inputs.variables.owner}:${this.inputs.variables.lint_command}`;
+      providerApplication = this.app;
+      const { config } = LoadProjectConfiguration.requireCurrent(this.app);
+      return `${config.stacks.join(",")}:${config.spindle_package_manager}`;
     }
   }
   let evaluations = 0;
@@ -413,22 +465,26 @@ test("providers receive immutable resolved Config once per run and refresh acros
     count: CountingProvider,
   };
 
-  const app = applicationFixture("/project", "/blueprints");
+  const inputs = {
+    stacks: ["python", "typescript"],
+    variables: { owner: "nobody", lint_command: "just lint" },
+  };
+  const app = applicationFixture("/project", "/blueprints", projectConfig);
   const firstRun = await app.make(ComputedContextService);
   let inputResolutions = 0;
   const [firstContext, repeatedContext] = await Promise.all([
     firstRun.resolve(async () => {
       inputResolutions += 1;
       return {
-        stacks: [...config.stacks],
-        variables: { ...config.variables },
+        stacks: [...inputs.stacks],
+        variables: { ...inputs.variables },
       };
     }, registry),
     firstRun.resolve(async () => {
       inputResolutions += 1;
       return {
-        stacks: [...config.stacks],
-        variables: { ...config.variables },
+        stacks: [...inputs.stacks],
+        variables: { ...inputs.variables },
       };
     }, registry),
   ]);
@@ -436,18 +492,9 @@ test("providers receive immutable resolved Config once per run and refresh acros
   if (!firstContext?.computed) throw new Error("Missing resolved computed context.");
   expect(repeatedContext).toBe(firstContext);
   expect(inputResolutions, "a run resolves its base Config once").toBe(1);
-  expect(firstContext.computed.config_summary).toBe("python,typescript:nobody:just lint");
+  expect(firstContext.computed.config_summary).toBe("python,typescript:pnpm");
   expect(firstContext.computed.count).toBe("evaluation-1");
-  expect(providerConfig).toBeTruthy();
-  if (!providerConfig) throw new Error("Missing computed provider configuration.");
-  expect(providerConfig.stacks).not.toBe(config.stacks);
-  expect(providerConfig.variables).not.toBe(config.variables);
-  expect(Object.isFrozen(providerConfig.stacks)).toBeTruthy();
-  expect(Object.isFrozen(providerConfig.variables)).toBeTruthy();
-  expect(() => (providerConfig!.stacks as string[]).push("php-laravel")).toThrow(TypeError);
-  expect(() => ((providerConfig!.variables as Record<string, string>).owner = "changed")).toThrow(
-    TypeError,
-  );
+  expect(providerApplication).toBe(app);
   const renderContext = {
     ...firstContext,
     variables: {
@@ -468,32 +515,37 @@ test("providers receive immutable resolved Config once per run and refresh acros
   expect(renderText("{{ computed.count }}", renderContext)).toBe("evaluation-1");
   expect(evaluations, "reusing resolved values does not render the provider again").toBe(1);
 
+  projectConfig.data.spindle_package_manager = "npm run";
+  projectConfig.data.stacks = ["typescript"];
   const secondRun = await app.make(ComputedContextService);
   const secondContext = await secondRun.resolve(
     async () => ({
-      stacks: ["typescript"],
-      variables: { ...config.variables, owner: "another project" },
+      stacks: ["python"],
+      variables: { arbitrary: "operation input" },
     }),
     registry,
   );
   expect(secondContext).toBeTruthy();
   if (!secondContext?.computed) throw new Error("Missing second computed context.");
-  expect(secondContext.computed.config_summary).toBe("typescript:another project:just lint");
+  expect(secondContext.computed.config_summary).toBe("typescript:npm run");
   expect(secondContext.computed.count).toBe("evaluation-2");
   expect(evaluations, "a separate run renders a fresh value").toBe(2);
 
-  const otherApp = applicationFixture("/other-project", "/blueprints");
+  const otherApp = applicationFixture("/other-project", "/blueprints", {
+    status: "valid",
+    data: { stacks: ["python"], spindle_package_manager: "yarn" },
+  });
   const isolatedRun = await otherApp.make(ComputedContextService);
   const isolatedContext = await isolatedRun.resolve(
     async () => ({
       stacks: ["python"],
-      variables: { ...config.variables, owner: "isolated project" },
+      variables: { arbitrary: "other operation input" },
     }),
     registry,
   );
   expect(isolatedContext).toBeTruthy();
   if (!isolatedContext?.computed) throw new Error("Missing isolated computed context.");
-  expect(isolatedContext.computed.config_summary).toBe("python:isolated project:just lint");
+  expect(isolatedContext.computed.config_summary).toBe("python:yarn");
   expect(isolatedContext.computed.count).toBe("evaluation-3");
   expect(evaluations, "a separate App starts with a distinct fresh run").toBe(3);
 });

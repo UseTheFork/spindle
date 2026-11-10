@@ -73,10 +73,12 @@ absent, valid, or invalid snapshot containing original project data/error.
 Loading does not rewrite Config, inject defaults, deduplicate Stacks, or discard
 unknown fields. Unexpected I/O errors propagate. Config consumers use this
 boot-bound snapshot rather than rereading the file; successful writes refresh it.
-Update requires a valid snapshot. Init accepts a valid Config with no selected
-Stacks and preserves its other fields while installing selected Blueprints.
-Project initialization creates an empty-stack Config when absent and rejects an
-existing invalid Config. SDD does not require valid Config.
+All bootstrapped commands except `init` require a valid Config snapshot. Init
+accepts a valid Config with no selected Stacks and preserves its other fields
+while installing selected Blueprints. Project initialization creates an
+empty-stack Config when absent and rejects an existing invalid Config. SDD
+feature and ticket creation also require the configured Spindle package-manager
+command.
 
 `Config` extends the self-contained `Repository` from `src/Support/Repository.ts`.
 `get(key, default?)` returns `unknown` (or `undefined` when absent without a default);

@@ -30,7 +30,7 @@ test("source Blueprint roots resolve from the module location, independent of Ap
     const service = await app.make(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, {
       mode: "init",
-      context: { stacks: config.stacks, variables: { spindle_package_manager: "pnpm" } },
+      context: { stacks: config.stacks, variables: {} },
       config,
     });
     expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
@@ -106,11 +106,11 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   };
   const firstContext = {
     stacks: firstConfig.stacks,
-    variables: { spindle_package_manager: firstConfig.spindle_package_manager },
+    variables: {},
   };
   const secondContext = {
     stacks: secondConfig.stacks,
-    variables: { spindle_package_manager: secondConfig.spindle_package_manager },
+    variables: {},
   };
 
   {
@@ -139,6 +139,8 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
       context: secondContext,
       config: secondConfig,
     });
+    await LoadProjectConfiguration.refresh(firstApp);
+    await LoadProjectConfiguration.refresh(secondApp);
 
     expect(
       JSON.parse(await readFile(join(firstWorkspace, ".github", "spindle.json"), "utf8")),

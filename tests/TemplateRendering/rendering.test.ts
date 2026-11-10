@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 
+import { Application } from "@/Foundation/Application";
 import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
@@ -53,7 +54,11 @@ test("supplied values are rendered as data rather than recursively parsed as tem
 });
 
 test("shared context accepts caller inputs without Config or Blueprint defaults", () => {
-  const resolved = resolveRenderContext({ variables: { title: "Caller title" } });
+  const resolved = resolveRenderContext(
+    new Application({ basePath: "/project" }),
+    { variables: { title: "Caller title" } },
+    {},
+  );
 
   expect(resolved.stacks).toEqual([]);
   expect(resolved.variables).toEqual({ title: "Caller title" });

@@ -13,6 +13,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test, vi } from "vitest";
 
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
 
 import { runCli } from "../../helpers/Cli.ts";
@@ -145,6 +146,26 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
   expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
   render.mockRestore();
+});
+
+test("ticket creation requires valid project Config", async () => {
+  const { repo, app, service, feature } = await ticketFixture("Invalid Project Config");
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+  writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
+  await LoadProjectConfiguration.refresh(app);
+
+  expect(() =>
+    service.ticketService.ticketCreate({
+      spec: feature.spec,
+      title: "Blocked ticket",
+      reporter: "reporter",
+      category: "bug",
+      author: "maintainer",
+    }),
+  ).toThrow(/not valid JSON/i);
+  expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
 });
 
 test("ticket commands reject legacy I-prefixed identifiers", async () => {

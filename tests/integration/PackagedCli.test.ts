@@ -73,6 +73,15 @@ test("packaged sdd create and status expose feature state outside the checkout",
   const gitWorkspace = tempDirectory("spindle-packaged-git-");
   const { git } = makeGitWorkspace(gitWorkspace);
 
+  const initialized = cli.run(gitWorkspace, [
+    "init",
+    "--stack",
+    "python",
+    "--spindle-package-manager",
+    "pnpm",
+  ]);
+  expect(initialized.status, initialized.stderr).toBe(0);
+
   const created = cli.run(gitWorkspace, [
     "sdd",
     "create",

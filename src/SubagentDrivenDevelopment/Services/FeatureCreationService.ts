@@ -105,7 +105,7 @@ export class FeatureCreationService extends Service {
       try {
         mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));
-        const context = resolveRenderContext({
+        const context = resolveRenderContext(this.app, {
           variables: {
             title: options.title.trim(),
             author: options.author.trim(),

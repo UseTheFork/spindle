@@ -13,7 +13,7 @@ export class ComputedContextService extends Service {
   ): Promise<RenderContext | undefined> {
     this.resolvedContext ??= (async () => {
       const inputs = await resolveBaseContext();
-      return inputs === undefined ? undefined : resolveRenderContext(inputs, registry);
+      return inputs === undefined ? undefined : resolveRenderContext(this.app, inputs, registry);
     })();
     return this.resolvedContext;
   }
