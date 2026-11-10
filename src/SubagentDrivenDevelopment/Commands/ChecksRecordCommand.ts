@@ -47,6 +47,7 @@ export class ChecksRecordCommand extends Command {
   }
 
   public async run(options: ChecksRecordOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(ChecksService)).checksRecord(options);
   }
 }

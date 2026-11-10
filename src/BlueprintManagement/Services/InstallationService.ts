@@ -49,6 +49,7 @@ export class InstallationService extends Service {
     atTarget = false,
     onFileApplied?: (file: PreparedBlueprintFile, destinationPath: string) => void,
   ): Promise<void> {
+    this.assertApplicationBooted();
     for (const file of files) {
       const destinationPath = atTarget
         ? target

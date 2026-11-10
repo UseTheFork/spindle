@@ -76,6 +76,7 @@ export class SubmitCommand extends Command {
     });
   }
   public async run(options: SubmitOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(SubmissionService)).submit(options);
   }
 }

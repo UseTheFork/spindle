@@ -46,6 +46,7 @@ export class FeatureCreationService extends Service {
   }
 
   public create(options: CreateOptions): FeaturePaths {
+    this.assertApplicationBooted();
     validateCreateOptions(options);
     const root = realpathSync(this.app.workspaceRoot);
     if (!statSync(root).isDirectory()) throw new Error("Workspace root must be a directory.");

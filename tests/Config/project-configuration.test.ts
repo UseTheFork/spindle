@@ -5,24 +5,28 @@ import { expect, test } from "vitest";
 
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import {
-  parseProjectConfiguration,
-  loadProjectConfiguration,
-  readConfig,
-  requireProjectConfiguration,
-} from "@/Config/ProjectConfiguration";
 import { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 
 import { serviceFixture } from "../SubagentDrivenDevelopment/helpers/helpers";
 
+test("configuration commands require a booted application", async () => {
+  const app = new Application({ basePath: "/workspace" });
+  await expect(new InitCommand(app).run([], [], false, undefined)).rejects.toThrow(
+    "Application services can only run after the application has booted.",
+  );
+  await expect(new UpdateCommand(app).run(false, undefined)).rejects.toThrow(
+    "Application services can only run after the application has booted.",
+  );
+});
+
 test("configuration parsing preserves duplicate stacks, empty variables, and unknown data without defaults", () => {
   const raw = '{"stacks":["python","python"],"variables":{"owner":""},"custom":{"enabled":true}}';
-  const state = parseProjectConfiguration(raw);
+  const state = LoadProjectConfiguration.parse(raw);
   expect(state.status).toBe("valid");
   if (state.status !== "valid") throw new Error("Expected valid state");
   expect(state.data).toEqual(JSON.parse(raw));
-  const config = requireProjectConfiguration(state);
+  const config = LoadProjectConfiguration.require(state);
   expect(config.config).toBe(state.data);
   expect(config.stacks).toBe(state.data.stacks);
   expect(config.variables).toBe(state.data.variables);
@@ -30,7 +34,7 @@ test("configuration parsing preserves duplicate stacks, empty variables, and unk
 });
 
 test("configuration accepts an empty stack list and an optional tooling registry", () => {
-  const state = parseProjectConfiguration(
+  const state = LoadProjectConfiguration.parse(
     JSON.stringify({
       stacks: [],
       variables: {},
@@ -46,12 +50,12 @@ test("configuration accepts an empty stack list and an optional tooling registry
 });
 
 test("invalid JSON retains its original text and SyntaxError separately from command messaging", () => {
-  const state = parseProjectConfiguration("{");
+  const state = LoadProjectConfiguration.parse("{");
   expect(state.status).toBe("invalid");
   if (state.status !== "invalid") throw new Error("Expected invalid state");
   expect(state.data).toBe("{");
   expect(state.error).toBeInstanceOf(SyntaxError);
-  expect(() => requireProjectConfiguration(state)).toThrow(
+  expect(() => LoadProjectConfiguration.require(state)).toThrow(
     ".github/spindle.json is not valid JSON. Run `spindle init`",
   );
 });
@@ -76,7 +80,7 @@ test.each([
     ],
   },
 ])("schema-invalid configuration remains inspectable without injecting defaults: %j", (data) => {
-  const state = parseProjectConfiguration(JSON.stringify(data));
+  const state = LoadProjectConfiguration.parse(JSON.stringify(data));
   expect(state.status).toBe("invalid");
   if (state.status !== "invalid") throw new Error("Expected invalid state");
   expect(state.data).toEqual(data);
@@ -85,22 +89,27 @@ test.each([
 
 test("unsupported and empty stack IDs retain the existing validation errors", () => {
   for (const stack of ["", "unsupported"]) {
-    const state = parseProjectConfiguration(JSON.stringify({ stacks: [stack], variables: {} }));
-    expect(() => requireProjectConfiguration(state)).toThrow(
+    const state = LoadProjectConfiguration.parse(
+      JSON.stringify({ stacks: [stack], variables: {} }),
+    );
+    expect(() => LoadProjectConfiguration.require(state)).toThrow(
       `Invalid stack '${stack}'. Supported stacks: php-laravel, python, typescript.`,
     );
     if (state.status !== "invalid") throw new Error("Expected invalid state");
-    expect(() => requireProjectConfiguration(state)).toThrow(state.error);
+    expect(() => LoadProjectConfiguration.require(state)).toThrow(state.error);
   }
 });
 
 test("missing configuration is absent while unexpected filesystem errors propagate", async () => {
   const { repo } = await serviceFixture();
   const path = join(repo, "spindle.json");
-  await expect(loadProjectConfiguration(path)).resolves.toEqual({ status: "absent" });
-  await expect(readConfig(path)).rejects.toThrow("This repository has no .github/spindle.json.");
+  const absent = await LoadProjectConfiguration.load(path);
+  expect(absent).toEqual({ status: "absent" });
+  expect(() => LoadProjectConfiguration.require(absent)).toThrow(
+    "This repository has no .github/spindle.json.",
+  );
   mkdirSync(path);
-  await expect(loadProjectConfiguration(path)).rejects.toMatchObject({ code: "EISDIR" });
+  await expect(LoadProjectConfiguration.load(path)).rejects.toMatchObject({ code: "EISDIR" });
 });
 
 test("bootstrap binds invalid project data independently from application configuration without rewriting", async () => {

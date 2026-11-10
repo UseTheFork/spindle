@@ -57,6 +57,7 @@ export class ToolingAddCommand extends Command {
   }
 
   public async run(input: { key: string; section: string; command: string; description?: string }) {
+    this.assertApplicationBooted();
     return (await this.app.make(ToolingService)).addTooling(input);
   }
 }

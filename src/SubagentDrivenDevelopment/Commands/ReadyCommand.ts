@@ -21,6 +21,7 @@ export class ReadyCommand extends Command {
   }
 
   public async run(options: ReadyOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(ReadinessService)).ready(options);
   }
 }

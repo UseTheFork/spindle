@@ -8,21 +8,25 @@ import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandl
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
 import { preparePlannedBlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBlueprintSourceRoot";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 
 import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
 import { makeTempDir } from "../../helpers/TemporaryDirectories.ts";
 
 test("source Blueprint roots resolve from the module location, independent of App roots", async () => {
   const workspace = await makeTempDir("spindle-install-relative-root-");
-  const expectedSourceRoot = ResolveBlueprintSourceRoot.resolveBlueprintSourceRoot();
+  const expectedSourceRoot = fileURLToPath(
+    new URL("../../../src/Assets/Blueprints/", import.meta.url),
+  );
   const config = { stacks: ["typescript"], variables: {} };
 
   {
     const app = applicationFixture(workspace, expectedSourceRoot);
+    await new LoadProjectConfiguration().bootstrap(app);
+    await app.boot();
 
-    expect(isAbsolute(app.blueprintSourceRoot)).toBeTruthy();
-    expect(app.blueprintSourceRoot).toBe(expectedSourceRoot);
+    expect(isAbsolute(app.appPath("Assets/Blueprints"))).toBeTruthy();
+    expect(app.appPath("Assets/Blueprints")).toBe(expectedSourceRoot);
     const service = await app.make(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, { mode: "init", context: config, config });
     expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
@@ -62,7 +66,10 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
     const prepared = await preparePlannedBlueprintFiles(files, context);
-    const installation = await applicationFixture(target, source).make(InstallationService);
+    const app = applicationFixture(target, source);
+    await new LoadProjectConfiguration().bootstrap(app);
+    await app.boot();
+    const installation = await app.make(InstallationService);
     await installation.installPreparedFiles(prepared, target);
 
     expect(await readFile(join(target, "SKILL.md"), "utf8")).toBe("Hello Spindle!");
@@ -99,6 +106,11 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
 
     const firstApp = applicationFixture(firstWorkspace, firstSourceRoot);
     const secondApp = applicationFixture(secondWorkspace, sourceRoot);
+    await Promise.all([
+      new LoadProjectConfiguration().bootstrap(firstApp),
+      new LoadProjectConfiguration().bootstrap(secondApp),
+    ]);
+    await Promise.all([firstApp.boot(), secondApp.boot()]);
     const [firstService, secondService] = await Promise.all([
       firstApp.make(BlueprintReconciliationService),
       secondApp.make(BlueprintReconciliationService),

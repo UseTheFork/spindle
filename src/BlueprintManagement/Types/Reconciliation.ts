@@ -4,7 +4,7 @@ import type {
   ConflictPolicy,
   PlannedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
-import type { ProjectConfigurationData } from "@/Config/ProjectConfiguration";
+import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 

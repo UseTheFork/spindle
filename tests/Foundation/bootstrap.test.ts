@@ -15,7 +15,6 @@ import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBlueprintSourceRoot";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
@@ -67,7 +66,6 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
     LoadConsoleArgs,
     DiscoverGitRoot,
     LoadProjectConfiguration,
-    ResolveBlueprintSourceRoot,
     RegisterProviders,
   ]);
   await app.make(Kernel);
@@ -84,7 +82,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
       super(app);
       expect(app.basePath()).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
-      expect(app.blueprintSourceRoot).toBe(ResolveBlueprintSourceRoot.resolveBlueprintSourceRoot());
+      expect(app.appPath("Assets/Blueprints")).toContain("Assets/Blueprints");
       expect(app.value("console.invocation")).toBe(invocation);
       expect(consoleArgs(app).array("raw")).toBe(invocation.raw);
       events.push("construct");
@@ -161,7 +159,6 @@ test("failed Git bootstrap caches failure before constructing any providers", as
   expect(constructions).toBe(0);
   expect(app.bound("console.args")).toBe(true);
   expect(app.bound("path.workspace")).toBe(false);
-  expect(app.bound("path.blueprints")).toBe(false);
   expect(app.hasBeenBootstrapped).toBe(false);
 });
 
@@ -185,12 +182,12 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
   expect(app.hasBeenBootstrapped).toBe(true);
 });
 
-test("packaged source defaults resolve from the helper location, independent of basePath", async () => {
+test("packaged Blueprint assets derive from the application path, independent of basePath", async () => {
   const { root, nested } = workspace();
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.blueprintSourceRoot).toBe(resolve(repoRoot, "src/Assets/Blueprints") + "/");
+  expect(app.appPath("Assets/Blueprints")).toBe(resolve(repoRoot, "src/Assets/Blueprints"));
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {

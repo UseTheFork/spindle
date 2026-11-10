@@ -63,6 +63,7 @@ export class FindingCreateCommand extends Command {
   }
 
   public async run(options: FindingCreateOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(FindingService)).findingCreate(options);
   }
 }

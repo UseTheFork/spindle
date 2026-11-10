@@ -21,6 +21,7 @@ export class StatusCommand extends Command {
   }
 
   public async run(options: StatusOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(FeatureInspectionService)).status(options);
   }
 }

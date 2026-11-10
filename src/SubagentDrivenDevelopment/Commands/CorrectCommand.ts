@@ -46,6 +46,7 @@ export class CorrectCommand extends Command {
   }
 
   public async run(options: CorrectOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(CorrectionService)).correct(options);
   }
 }

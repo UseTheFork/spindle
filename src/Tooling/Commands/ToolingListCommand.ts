@@ -18,6 +18,7 @@ export class ToolingListCommand extends Command {
   }
 
   public async run() {
+    this.assertApplicationBooted();
     return (await this.app.make(ToolingService)).listTooling();
   }
 }

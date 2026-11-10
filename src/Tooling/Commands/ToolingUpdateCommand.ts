@@ -59,6 +59,7 @@ export class ToolingUpdateCommand extends Command {
     description?: string;
     clearDescription?: boolean;
   }) {
+    this.assertApplicationBooted();
     return (await this.app.make(ToolingService)).updateTooling(input);
   }
 }

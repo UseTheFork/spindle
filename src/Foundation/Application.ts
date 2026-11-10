@@ -7,8 +7,8 @@ import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
 import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { Container } from "@/Foundation/Container";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
-import { GitServiceProvider } from "@/Git/GitServiceProvider";
 import type { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { GitServiceProvider } from "@/Git/GitServiceProvider";
 
 export type { ServiceConstructor } from "@/Foundation/Container";
 
@@ -31,6 +31,7 @@ export class Application extends Container {
   private bootstrapPromise: Promise<void> | undefined;
   private _hasBeenBootstrapped = false;
   private bootPromise: Promise<void> | undefined;
+  private _hasBeenBooted = false;
 
   public constructor({ basePath }: ApplicationOptions) {
     super();
@@ -58,7 +59,7 @@ export class Application extends Container {
     return isAbsolute(path) ? path : join(basePath, path);
   }
 
-  public path(path = ""): string {
+  public workspacePath(path = ""): string {
     return this.joinPaths(this.workspaceRoot, path);
   }
 
@@ -74,12 +75,12 @@ export class Application extends Container {
     return this.stringValue("path.workspace");
   }
 
-  public get blueprintSourceRoot(): string {
-    return this.stringValue("path.blueprints");
-  }
-
   public get hasBeenBootstrapped(): boolean {
     return this._hasBeenBootstrapped;
+  }
+
+  public get hasBeenBooted(): boolean {
+    return this._hasBeenBooted;
   }
 
   public selectBootstrapProviders(providers: readonly ServiceProviderConstructor[]): void {
@@ -120,6 +121,7 @@ export class Application extends Container {
   public async boot(): Promise<void> {
     this.bootPromise ??= Promise.resolve().then(async () => {
       for (const provider of this.bootableProviders) await provider.boot();
+      this._hasBeenBooted = true;
     });
     await this.bootPromise;
   }

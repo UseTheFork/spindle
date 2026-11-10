@@ -377,6 +377,7 @@ export class FeatureInspectionService extends Service {
   }
 
   private resolvePaths(spec: string): FeaturePaths & { state: FeatureLedger } {
+    this.assertApplicationBooted();
     if (!spec.trim()) throw new Error("Spec path must not be empty.");
     if (spec.includes("\\"))
       throw new Error("Spec path must use checkout-relative path separators.");

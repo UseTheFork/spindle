@@ -31,6 +31,7 @@ export class ResumeCommand extends Command {
   }
 
   public async run(options: ResumeOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(AssignmentService)).resume(options);
   }
 }

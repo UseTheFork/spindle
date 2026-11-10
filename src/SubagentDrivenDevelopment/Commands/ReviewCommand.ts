@@ -79,6 +79,7 @@ export class ReviewCommand extends Command {
   }
 
   public async run(options: ReviewOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(ReviewService)).review(options);
   }
 }

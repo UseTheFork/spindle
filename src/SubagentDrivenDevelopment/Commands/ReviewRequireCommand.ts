@@ -11,6 +11,7 @@ export class ReviewRequireCommand extends Command {
     reviewSchema(root);
   }
   public async run(options: ReviewRequireOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(ReviewService)).reviewRequire(options);
   }
 }

@@ -17,6 +17,12 @@ export class Service {
     return bootedServices.has(this);
   }
 
+  protected assertApplicationBooted(): void {
+    if (!this._app.hasBeenBooted) {
+      throw new Error("Application services can only run after the application has booted.");
+    }
+  }
+
   public async boot(): Promise<void> {}
 }
 

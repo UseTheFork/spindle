@@ -37,6 +37,7 @@ export class ChecksRequireCommand extends Command {
   }
 
   public async run(options: ChecksRequireOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(ChecksService)).checksRequire(options);
   }
 }

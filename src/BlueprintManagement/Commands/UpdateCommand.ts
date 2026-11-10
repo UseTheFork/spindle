@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
@@ -16,12 +14,8 @@ import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/B
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
-import {
-  projectConfiguration,
-  readConfig,
-  requireProjectConfiguration,
-} from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Stacks } from "@/Support/Stacks";
 
 async function resolveVariables(
@@ -100,11 +94,9 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     policy: ConflictPolicy | undefined,
     includeNew = false,
   ): Promise<void> {
-    const githubDirectory = join(this.app.workspaceRoot, ".github");
-    const configPath = join(githubDirectory, "spindle.json");
-    const config = this.app.bound("config.project")
-      ? requireProjectConfiguration(projectConfiguration(this.app))
-      : await readConfig(configPath);
+    this.assertApplicationBooted();
+    const configPath = this.app.workspacePath(".github/spindle.json");
+    const config = LoadProjectConfiguration.requireCurrent(this.app);
     if (config.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
@@ -143,6 +135,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
               )}\n`,
             },
     });
+    await LoadProjectConfiguration.refresh(this.app);
     for (const outcome of outcomes) {
       if (outcome.warning) {
         console.error(chalk.yellow(outcome.warning));

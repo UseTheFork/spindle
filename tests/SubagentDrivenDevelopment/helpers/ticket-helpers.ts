@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+
 import { applicationFixture } from "../../helpers/ApplicationFixture.ts";
 import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
 import { fixture } from "./helpers";
@@ -9,6 +11,7 @@ import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 export async function ticketFixture(title: string) {
   const { repo, git } = fixture();
   const app = applicationFixture(repo, resolve(repoRoot, "src/Assets/Blueprints"));
+  await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const service = await workflowServices(app);
   const feature = service.featureCreationService.create({ title, author: "maintainer" });

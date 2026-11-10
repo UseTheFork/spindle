@@ -42,6 +42,7 @@ export class FindingUpdateCommand extends Command {
   }
 
   public async run(options: FindingUpdateOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(FindingService)).findingUpdate(options);
   }
 }

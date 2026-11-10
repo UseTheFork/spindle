@@ -10,9 +10,9 @@ import {
 import { join } from "node:path";
 
 import {
-  loadProjectConfiguration,
+  LoadProjectConfiguration,
   type ProjectConfigurationData,
-} from "@/Config/ProjectConfiguration";
+} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
@@ -57,7 +57,8 @@ export class ToolingService extends Service {
   public async initialize(
     previous: ProjectConfigurationData,
   ): Promise<ToolingInitializationResult> {
-    const workspace = this.app.workspaceRoot;
+    this.assertApplicationBooted();
+    const workspace = this.app.workspacePath();
     const configFile = join(workspace, configPath);
     this.assertRegularFileOrMissing(configFile, configPath);
 
@@ -82,6 +83,7 @@ export class ToolingService extends Service {
       this.renderTooling(tooling),
       readFileSync(configFile),
     );
+    await LoadProjectConfiguration.refresh(this.app);
     return {
       created: documentExisted ? [] : [toolingPath],
       updated: documentExisted ? [configPath, toolingPath] : [configPath],
@@ -89,18 +91,20 @@ export class ToolingService extends Service {
   }
 
   public async listTooling(): Promise<ToolingEntry[]> {
-    return [...(await this.readInitializedConfiguration()).tooling!];
+    this.assertApplicationBooted();
+    return [...this.readInitializedConfiguration().tooling!];
   }
 
   public async addTooling(input: ToolingEntryInput): Promise<ToolingEntry> {
+    this.assertApplicationBooted();
     const entry = this.validateEntry(input);
-    const config = await this.readInitializedConfiguration();
+    const config = this.readInitializedConfiguration();
     const tooling = config.tooling!;
     if (tooling.some(({ key }) => key === entry.key)) {
       throw new Error(`Tooling key '${entry.key}' already exists; use 'spindle tool update'.`);
     }
     const updated = [...tooling, entry];
-    this.saveTooling(config, updated);
+    await this.saveTooling(config, updated);
     return entry;
   }
 
@@ -111,6 +115,7 @@ export class ToolingService extends Service {
     description?: string;
     clearDescription?: boolean;
   }): Promise<ToolingEntry> {
+    this.assertApplicationBooted();
     this.validateKey(input.key);
     if (
       input.section === undefined &&
@@ -124,7 +129,7 @@ export class ToolingService extends Service {
       throw new Error("Use either --description or --clear-description, not both.");
     }
 
-    const config = await this.readInitializedConfiguration();
+    const config = this.readInitializedConfiguration();
     const tooling = config.tooling!;
     const index = tooling.findIndex(({ key }) => key === input.key);
     if (index < 0) throw new Error(`No tooling command has key '${input.key}'.`);
@@ -146,28 +151,27 @@ export class ToolingService extends Service {
 
     const updated = [...tooling];
     updated[index] = updatedEntry;
-    this.saveTooling(config, updated);
+    await this.saveTooling(config, updated);
     return updatedEntry;
   }
 
   public async removeTooling(key: string): Promise<{ key: string; removed: true }> {
+    this.assertApplicationBooted();
     this.validateKey(key);
-    const config = await this.readInitializedConfiguration();
+    const config = this.readInitializedConfiguration();
     const tooling = config.tooling!;
     if (!tooling.some((entry) => entry.key === key)) {
       throw new Error(`No tooling command has key '${key}'.`);
     }
-    this.saveTooling(
+    await this.saveTooling(
       config,
       tooling.filter((entry) => entry.key !== key),
     );
     return { key, removed: true };
   }
 
-  private async readInitializedConfiguration(): Promise<ProjectConfigurationData> {
-    const path = join(this.app.workspaceRoot, configPath);
-    this.assertRegularFileOrMissing(path, configPath);
-    const state = await loadProjectConfiguration(path);
+  private readInitializedConfiguration(): ProjectConfigurationData {
+    const state = LoadProjectConfiguration.current(this.app);
     if (state.status === "absent") {
       throw new Error("Project tooling is not initialized. Run `spindle init` first.");
     }
@@ -179,10 +183,13 @@ export class ToolingService extends Service {
     return state.data;
   }
 
-  private saveTooling(config: ProjectConfigurationData, tooling: ToolingEntry[]): void {
+  private async saveTooling(
+    config: ProjectConfigurationData,
+    tooling: ToolingEntry[],
+  ): Promise<void> {
     const updated = { ...config, tooling };
-    const configFile = join(this.app.workspaceRoot, configPath);
-    const documentFile = join(this.app.workspaceRoot, toolingPath);
+    const configFile = this.app.workspacePath(configPath);
+    const documentFile = this.app.workspacePath(toolingPath);
     this.writeConfigurationAndDocumentation(
       configFile,
       `${JSON.stringify(updated, null, 2)}\n`,
@@ -190,10 +197,11 @@ export class ToolingService extends Service {
       this.renderTooling(tooling),
       readFileSync(configFile),
     );
+    await LoadProjectConfiguration.refresh(this.app);
   }
 
   private assertToolingDocumentAvailable(): void {
-    const workspace = this.app.workspaceRoot;
+    const workspace = this.app.workspacePath();
     const parent = join(workspace, "docs", "agents");
     try {
       if (!lstatSync(parent).isDirectory()) {
@@ -240,7 +248,9 @@ export class ToolingService extends Service {
         command === "spindle init" &&
         description === "Install Spindle Blueprints for selected stacks.",
     );
-    if (initIndex >= 0) migrated[initIndex] = structuredClone(defaultTooling[0]!);
+    if (initIndex >= 0) {
+      migrated[initIndex] = structuredClone(defaultTooling[0]!);
+    }
     return migrated;
   }
 

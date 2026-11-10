@@ -35,18 +35,20 @@ and caller-supplied process options are preserved; SDD content identities,
 reports, inventories, and commit-evidence verification remain in SDD Evidence.
 Git registration does not perform repository discovery.
 
-This decision updates ADR-0004's constructor-provider exception and its absence
-of a project-file bootstrapper. Application registers Foundation and Git
+This decision updates ADR-0004's constructor-provider exception and adds a
+project-file configuration bootstrapper. Application registers Foundation and Git
 providers during construction. The default Kernel order is `LoadConsoleArgs`,
-`DiscoverGitRoot`, `LoadProjectConfiguration`, `ResolveBlueprintSourceRoot`,
-`RegisterProviders`. Git is therefore resolvable before final provider
-registration, and project configuration is available to external providers.
+`DiscoverGitRoot`, `LoadProjectConfiguration`, `RegisterProviders`. Git is
+therefore resolvable before final provider registration, and project configuration
+is available to external providers. Blueprint assets derive from
+`Application.appPath("Assets/Blueprints")`.
 
 `config.project` contains a discriminated absent, valid, or invalid snapshot of
 `.github/spindle.json`, including original data and validation error when invalid.
 It is not the mutable `app.config` repository. Loading never rewrites the file,
 deduplicates stacks, removes unknown fields, or injects defaults. Unexpected I/O
-errors propagate. The shared parser also serves direct update reads.
+errors propagate. Config consumers use the boot-bound snapshot rather than
+rereading the project file, and successful writes refresh that snapshot.
 Update demands valid configuration with existing messages. Init accepts a valid
 configuration with no selected stacks and preserves its other fields while
 installing selected Blueprints. A successful `spindle init` then initializes

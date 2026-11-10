@@ -29,6 +29,7 @@ export class FinishCommand extends Command {
   }
 
   public async run(options: FinishOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(DeliveryService)).finish(options);
   }
 }

@@ -18,6 +18,7 @@ export class ToolingRemoveCommand extends Command {
   }
 
   public async run(key: string) {
+    this.assertApplicationBooted();
     return (await this.app.make(ToolingService)).removeTooling(key);
   }
 }

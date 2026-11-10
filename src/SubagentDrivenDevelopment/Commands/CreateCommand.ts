@@ -26,6 +26,7 @@ export class CreateCommand extends Command {
   }
 
   public async run(options: CreateOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(FeatureCreationService)).create(options);
   }
 }

@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
@@ -19,8 +17,8 @@ import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/B
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
-import { loadProjectConfiguration } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
 
@@ -115,9 +113,8 @@ Run \`spindle --version\` to print the installed version.
     interactive: boolean,
     policy: ConflictPolicy | undefined,
   ): Promise<void> {
-    const githubDirectory = join(this.app.workspaceRoot, ".github");
-    const configPath = join(githubDirectory, "spindle.json");
-    const existing = await loadProjectConfiguration(configPath);
+    this.assertApplicationBooted();
+    const existing = LoadProjectConfiguration.current(this.app);
     if (existing.status === "invalid") {
       throw new Error(existing.reason, { cause: existing.error });
     }
@@ -170,6 +167,7 @@ Run \`spindle --version\` to print the installed version.
       conflictPolicy: policy,
       chooseConflict: interactive ? promptConflict : undefined,
     });
+    await LoadProjectConfiguration.refresh(this.app);
     for (const outcome of outcomes.filter((item) => item.status === "removed")) {
       console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
     }

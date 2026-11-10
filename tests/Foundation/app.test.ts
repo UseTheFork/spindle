@@ -157,10 +157,8 @@ test("base path is normalized immutable and separate from explicitly bound roots
   expect(second.basePath()).toBe("/workspaces/second");
   expect(() => first.workspaceRoot).toThrow(/Unbound/);
   first.instance("path.workspace", "/workspaces");
-  first.instance("path.blueprints", "/blueprints/first");
   expect(first.workspaceRoot).toBe("/workspaces");
-  expect(first.blueprintSourceRoot).toBe("/blueprints/first");
-  for (const key of ["workspaceRoot", "blueprintSourceRoot"]) {
+  for (const key of ["workspaceRoot"]) {
     expect(Reflect.set(first, key, "/changed")).toBe(false);
   }
   expect(first.basePath()).toBe("/workspaces/first");
@@ -183,13 +181,13 @@ test("joinPaths preserves empty bases and replaces bases with absolute suffixes"
 test("path helpers use distinct workspace, installation and invocation roots", () => {
   const app = new Application({ basePath: "/unrelated/invocation/nested/.." });
   const installationRoot = fileURLToPath(new URL("../../src/", import.meta.url));
-  expect(() => app.path()).toThrow(/Unbound/);
-  expect(() => app.path("nested/file")).toThrow(/Unbound/);
-  expect(() => app.path("/absolute/file")).toThrow(/Unbound/);
+  expect(() => app.workspacePath()).toThrow(/Unbound/);
+  expect(() => app.workspacePath("nested/file")).toThrow(/Unbound/);
+  expect(() => app.workspacePath("/absolute/file")).toThrow(/Unbound/);
   app.instance("path.workspace", "/workspace");
 
   for (const [helper, root] of [
-    [app.path.bind(app), "/workspace"],
+    [app.workspacePath.bind(app), "/workspace"],
     [app.appPath.bind(app), installationRoot],
     [app.basePath.bind(app), "/unrelated/invocation"],
   ] as const) {
@@ -205,7 +203,7 @@ test("path helpers use distinct workspace, installation and invocation roots", (
   expect(app.appPath()).not.toBe(app.workspaceRoot);
   const invalidPath = new Application({ basePath: "/invalid" });
   invalidPath.instance("path.workspace", 42);
-  expect(() => invalidPath.path()).toThrow(/must be a string/);
+  expect(() => invalidPath.workspacePath()).toThrow(/must be a string/);
 });
 
 test("appPath remains module-relative when cwd is unrelated", () => {

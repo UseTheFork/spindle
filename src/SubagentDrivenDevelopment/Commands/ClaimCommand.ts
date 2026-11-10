@@ -23,6 +23,7 @@ export class ClaimCommand extends Command {
   }
 
   public async run(options: ClaimOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(AssignmentService)).claim(options);
   }
 }

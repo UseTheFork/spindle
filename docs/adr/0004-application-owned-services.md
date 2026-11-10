@@ -55,12 +55,12 @@ runs. Config, prompt answers, plans, and operational mutable state remain per-ru
 Stateless utilities remain standalone functions, not artificial services.
 
 `Application` requires only `{ basePath }`. This explicit invocation starting path
-is normalized to an absolute path and never changes. Workspace and Blueprint source
-roots are separate instance values bound by bootstrap, not constructor arguments.
-Getter-only `workspaceRoot` and `blueprintSourceRoot` accessors read the
-instance-bound string keys `path.workspace` and `path.blueprints` and validate
-their values as strings. `basePath(path = "")` is a method using the immutable
-constructor base path, also bound under `path.base`. `path(path = "")` joins
+is normalized to an absolute path and never changes. The workspace root is bound
+by bootstrap, not supplied as a constructor argument. The getter-only
+`workspaceRoot` accessor reads `path.workspace` and validates its value as a
+string. Blueprint assets derive from `appPath("Assets/Blueprints")` rather than a
+separately bound root. `basePath(path = "")` is a method using the immutable
+constructor base path, also bound under `path.base`. `workspacePath(path = "")` joins
 the discovered workspace root, throwing before it is bound. `appPath(path = "")`
 joins the module-relative installation directory (`src/` from source, `build/`
 when compiled), not the Git root. All delegate to `joinPaths(basePath, path = "")`,
@@ -70,14 +70,16 @@ Application does not read `process.cwd()`; the executable supplies it.
 Its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
 project's `.github/spindle.json` Config. [ADR-0005](./0005-subagent-development-boundaries.md)
-adds a distinct project-file snapshot bootstrapper without populating `app.config`.
+adds a distinct project-file snapshot bootstrapper without populating `app.config`;
+config consumers use the boot-bound snapshot and successful writes refresh it.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
 then queues its instance for boot. Providers receive getter-only application
-ownership. There are no registration phase gates or completion markers: callers
-control registration-before-boot ordering. `Application.boot()` only awaits queued
-provider hooks sequentially. Concurrent and non-awaited reentrant calls share one
-initialization, retaining either success or failure without retry.
+ownership. Providers are registered before boot; bootstrap may prepare dependencies,
+but commands and domain operations run only after provider boot completes.
+`Application.boot()` awaits queued provider hooks sequentially and marks completion.
+Concurrent and non-awaited reentrant calls share one initialization, retaining
+either success or failure without retry.
 The constructor binds its own instance under `app`, `Application`, and `Container`
 before registering `FoundationServiceProvider` and `GitServiceProvider`, with
 `path.base` and configuration already available. These are the explicit
@@ -94,9 +96,9 @@ application, including across kernels. Success sets getter-only
 flag false. An empty list succeeds without registering additional providers;
 the constructor-registered foundation provider is already queued.
 
-The ordinary, extendable `Kernel` defaults to the explicit ordered list
-`LoadConsoleArgs`, `DiscoverGitRoot`, `LoadProjectConfiguration`, `ResolveBlueprintSourceRoot`,
-`RegisterProviders`. Its protected list can be overridden without normalization.
+The ordinary `Kernel` defaults to the explicit ordered list
+`LoadConsoleArgs`, `DiscoverGitRoot`, `LoadProjectConfiguration`, `RegisterProviders`.
+Its protected list can be overridden without normalization.
 `boot(invocation)` supplies the validated invocation under `console.invocation`
 before bootstrap, then awaits application provider boot. Subsequent calls retain
 the first invocation.

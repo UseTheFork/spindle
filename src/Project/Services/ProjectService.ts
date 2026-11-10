@@ -13,16 +13,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { templateCatalog } from "@/Assets/Templates/Catalog";
-import { loadProjectConfiguration } from "@/Config/ProjectConfiguration";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
-
-const assets = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
-const configPath = ".github/spindle.json";
-const copilotInstructionsPath = ".github/copilot-instructions.md";
 
 export interface ProjectInitializationResult {
   workspace: string;
@@ -32,13 +27,17 @@ export interface ProjectInitializationResult {
 }
 
 export class ProjectService extends Service {
-  public async initialize(): Promise<ProjectInitializationResult> {
-    const workspace = realpathSync(this.app.workspaceRoot);
-    const absolute = (path: string) => join(workspace, path);
-    const configFile = absolute(configPath);
-    this.assertRegularFileOrMissing(configFile, configPath);
+  private static readonly configPath = ".github/spindle.json";
+  private static readonly copilotInstructionsPath = ".github/copilot-instructions.md";
 
-    const state = await loadProjectConfiguration(configFile);
+  public async initialize(): Promise<ProjectInitializationResult> {
+    this.assertApplicationBooted();
+    const workspace = realpathSync(this.app.workspacePath());
+    const absolute = (path: string) => join(workspace, path);
+    const configFile = absolute(ProjectService.configPath);
+    this.assertRegularFileOrMissing(configFile, ProjectService.configPath);
+
+    const state = LoadProjectConfiguration.current(this.app);
     if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
     if (state.status === "absent" || state.data.stacks.length === 0) {
       throw new Error(
@@ -59,8 +58,8 @@ export class ProjectService extends Service {
     for (const { source, destination } of templateCatalog.project) {
       const target = absolute(destination);
       this.assertRegularFileOrMissing(target, destination);
-      if (destination === copilotInstructionsPath) {
-        const status = this.initializeCopilotInstructions(absoluteAsset(source), target);
+      if (destination === ProjectService.copilotInstructionsPath) {
+        const status = this.initializeCopilotInstructions(this.absoluteAsset(source), target);
         if (status === "created") created.push(destination);
         else if (status === "updated") updated.push(destination);
         else preserved.push(destination);
@@ -69,7 +68,7 @@ export class ProjectService extends Service {
       if (existsSync(target)) {
         preserved.push(destination);
       } else {
-        copyFileSync(absoluteAsset(source), target, constants.COPYFILE_EXCL);
+        copyFileSync(this.absoluteAsset(source), target, constants.COPYFILE_EXCL);
         created.push(destination);
       }
     }
@@ -79,6 +78,10 @@ export class ProjectService extends Service {
     updated.push(...tooling.updated);
 
     return { workspace, created, preserved, updated };
+  }
+
+  private absoluteAsset(path: string): string {
+    return join(this.app.appPath("Assets/Templates"), path);
   }
 
   private initializeCopilotInstructions(
@@ -92,7 +95,7 @@ export class ProjectService extends Service {
     }
     if (!existingStat.isFile()) {
       throw new Error(
-        `${copilotInstructionsPath} must be a regular file, not a directory or symlink.`,
+        `${ProjectService.copilotInstructionsPath} must be a regular file, not a directory or symlink.`,
       );
     }
 
@@ -120,7 +123,7 @@ export class ProjectService extends Service {
     try {
       unlinkSync(path);
     } catch (error) {
-      if (!isMissing(error)) throw error;
+      if (!this.isMissing(error)) throw error;
     }
   }
 
@@ -148,12 +151,10 @@ export class ProjectService extends Service {
       throw new Error(`${relativePath} must be a regular file, not a directory or symlink.`);
     }
   }
-}
 
-function absoluteAsset(path: string): string {
-  return join(assets, path);
-}
-
-function isMissing(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+  private isMissing(error: unknown): boolean {
+    return (
+      typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"
+    );
+  }
 }

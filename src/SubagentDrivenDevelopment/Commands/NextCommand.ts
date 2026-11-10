@@ -21,6 +21,7 @@ export class NextCommand extends Command {
   }
 
   public async run(options: NextOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(DeliveryService)).next(options);
   }
 }

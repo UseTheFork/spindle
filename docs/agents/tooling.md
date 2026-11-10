@@ -60,18 +60,20 @@ from `src/Foundation/Application.ts`, `Service` from
 `src/Foundation/Service.ts`, and the abstract `ServiceProvider` from
 `src/Foundation/ServiceProvider.ts`. There are no compatibility exports or old
 `src/app.ts` module.
-Workspace and Blueprint roots and service/provider ownership are getter-only; backing
-references use TypeScript `private readonly` visibility.
+The discovered workspace root and service/provider ownership are getter-only; backing
+references use TypeScript `private readonly` visibility. Blueprint assets are resolved
+from `app.appPath("Assets/Blueprints")`; they are not separately bound during bootstrap.
 
 Each application owns an initially empty `public readonly config`, a `Config`
 from `src/Config/Config.ts`, available before provider construction. Its mutable
 contents are isolated between applications. This is Application Configuration,
 not the project's `.github/spindle.json` Config; there is no settings constructor
-argument or persistence for Application Configuration. After Git discovery,
-`LoadProjectConfiguration` separately binds `config.project` as an absent,
-valid, or invalid snapshot containing original project data/error. Loading does
-not rewrite Config, inject defaults, deduplicate Stacks, or discard unknown fields.
-Unexpected I/O errors propagate. Update requires a valid snapshot. Init accepts a valid Config with no selected
+argument or persistence for Application Configuration. After Git discovery, `LoadProjectConfiguration` binds `config.project` as an
+absent, valid, or invalid snapshot containing original project data/error.
+Loading does not rewrite Config, inject defaults, deduplicate Stacks, or discard
+unknown fields. Unexpected I/O errors propagate. Config consumers use this
+boot-bound snapshot rather than rereading the file; successful writes refresh it.
+Update requires a valid snapshot. Init accepts a valid Config with no selected
 Stacks and preserves its other fields while installing selected Blueprints.
 Project initialization creates an empty-stack Config when absent and rejects an
 existing invalid Config. SDD does not require valid Config.
@@ -97,15 +99,15 @@ non-plain-object intermediate, rather than overwriting it or silently falling
 back. Path validation completes before mutation.
 
 Construct with only `new Application({ basePath })`. The normalized absolute
-starting path is immutable; workspace and Blueprint source roots are separate
-instance values bound during bootstrap. Do not read ambient cwd in services.
+starting path is immutable; the workspace root is bound during bootstrap.
+Do not read ambient cwd in services.
 The executable alone supplies cwd as the base path.
 
 Use `app.basePath(path = "")` (a method, not a property) for the invocation
-starting path, `app.path(path = "")` for the discovered Git workspace root,
+starting path, `app.workspacePath(path = "")` for the discovered Git workspace root,
 and `app.appPath(path = "")` for the module-relative installation directory
 (`src/` when running from source, `build/` in the compiled package, not the Git
-root). `path()` throws until the workspace root is bound.
+root). `workspacePath()` throws until the workspace root is bound.
 All return strings and use `app.joinPaths(basePath, path = "")`: an empty suffix
 preserves the base unchanged, an absolute suffix replaces it, and a relative
 suffix uses Node's path join without resolving a relative base against cwd.
@@ -137,18 +139,19 @@ instances must already be booted. Duplicate bindings of any kind throw, and
 
 `app.value(key)` returns `unknown` and permits synchronous access only to
 instance bindings. The application stores `path.base`, `path.workspace`,
-`path.blueprints`, `console.invocation`, and `console.args` under those string
-keys. Workspace and Blueprint root getters validate that path values are strings, and
-`LoadConsoleArgs` validates invocation shape before copying it into a Repository.
+`console.invocation`, and `console.args` under those string keys. The workspace
+root getter validates that its path value is a string, and `LoadConsoleArgs`
+validates invocation shape before copying it into a Repository.
 There are no `get`/`create` resolver methods or global containers. Singleton
 initialization coalesces and can retry after failure; dependency cycles are
 detected even across concurrent shared initializations.
 
 `app.register(ProviderClass)` constructs and registers each provider once, binds
-its declared commands as singletons, and queues its instance for boot. Command
+its declared commands as singletons, and queues its instance for boot.
 class identities repeated across declarations are bound once; conflicting class
-names still fail container registration. Register before calling `app.boot()`; there are no phase
-gates. Boot hooks run sequentially, sharing and caching success or failure.
+names still fail container registration. Register before calling `app.boot()`. Bootstrap may prepare dependencies, but
+commands and domain operations are only available after provider boot completes.
+Boot hooks run sequentially, sharing and caching success or failure.
 Configuration is available before provider construction.
 The constructor first binds itself under `app`, `Application`, and `Container`,
 preserving `path.base` and configuration availability. `FoundationServiceProvider`
@@ -166,8 +169,8 @@ process-global ordered deduplicated nullish-filtered provider selection, not an
 application container. Builder configuration replaces previous selection; tests
 must reset it with `RegisterProviders.merge([])`.
 
-The extendable Kernel's protected `bootstrappers()` defaults to
-`[LoadConsoleArgs, DiscoverGitRoot, LoadProjectConfiguration, ResolveBlueprintSourceRoot, RegisterProviders]`.
+The Kernel's protected `bootstrappers()` defaults to
+`[LoadConsoleArgs, DiscoverGitRoot, LoadProjectConfiguration, RegisterProviders]`.
 Override the ordered list directly; it is not normalized.
 Bootstrappers are independent of Service and implement asynchronous or synchronous
 hooks. `app.bootstrapWith(list)` captures the first list and sequentially constructs

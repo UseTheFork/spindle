@@ -37,6 +37,7 @@ export class RequirementsDecideCommand extends Command {
   }
 
   public async run(options: RequirementsDecideOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(RequirementsService)).requirementsDecide(options);
   }
 }

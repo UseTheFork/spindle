@@ -23,6 +23,7 @@ export class ImplementCommand extends Command {
   }
 
   public async run(options: ImplementOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(AssignmentService)).implement(options);
   }
 }

@@ -596,13 +596,14 @@ export class BlueprintReconciliationService extends Service {
     handlers: readonly BlueprintHandler[],
     options: BlueprintReconciliationOptions,
   ): Promise<BlueprintOutcome[]> {
+    this.assertApplicationBooted();
     return performReconciliation(
       handlers,
       {
         ...options,
         app: this.app,
-        githubDirectory: join(this.app.workspaceRoot, ".github"),
-        blueprintSourceRoot: this.app.blueprintSourceRoot,
+        githubDirectory: this.app.workspacePath(".github"),
+        blueprintSourceRoot: this.app.appPath("Assets/Blueprints"),
       },
       this.installationService,
     );

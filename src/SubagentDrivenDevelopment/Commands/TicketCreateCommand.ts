@@ -25,6 +25,7 @@ export class TicketCreateCommand extends Command {
   }
 
   public async run(options: TicketCreateOptions) {
+    this.assertApplicationBooted();
     return (await this.app.make(TicketService)).ticketCreate(options);
   }
 }

@@ -4,20 +4,13 @@ import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { ResolveBlueprintSourceRoot } from "@/Foundation/Bootstrap/ResolveBlueprintSourceRoot";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 
 export class Kernel {
   public constructor(public readonly app: Application) {}
 
   protected bootstrappers(): readonly BootstrapperConstructor[] {
-    return [
-      LoadConsoleArgs,
-      DiscoverGitRoot,
-      LoadProjectConfiguration,
-      ResolveBlueprintSourceRoot,
-      RegisterProviders,
-    ];
+    return [LoadConsoleArgs, DiscoverGitRoot, LoadProjectConfiguration, RegisterProviders];
   }
 
   public async bootstrap(): Promise<void> {
