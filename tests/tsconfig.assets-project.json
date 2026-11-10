@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./BlueprintManagement/**/*.ts",
+    "./TemplateRendering/**/*.ts",
+    "./Project/**/*.ts",
+    "./Tooling/**/*.ts",
+    "./Foundation/**/*.ts",
+    "./Support/**/*.ts",
+    "./Config/**/*.ts",
+    "./Git/**/*.ts",
+    "./integration/PackagedCli.test.ts",
+    "./helpers/**/*.ts",
+    "./helpers/ApplicationFixture.ts"
+  ]
+}

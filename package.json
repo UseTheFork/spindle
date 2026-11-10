@@ -1,12 +1,16 @@
 {
-  "name": "byte-pilot",
+  "name": "@usethefork/spindle",
   "version": "0.0.1",
   "description": "",
   "keywords": [],
   "license": "ISC",
-  "author": "",
+  "author": "UseTheFork <23747916+UseTheFork@users.noreply.github.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UseTheFork/spindle.git"
+  },
   "bin": {
-    "byte": "./build/index.js"
+    "spindle": "./build/index.js"
   },
   "files": [
     "build",
@@ -14,35 +18,38 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsc && tsc-alias && chmod 755 build/index.js",
-    "start": "node build/index.js",
-    "init": "tsx src/index.ts init",
-    "validate": "tsx src/index.ts validate",
-    "publish": "tsx src/index.ts publish",
+    "build": "rm -rf build && tsc && tsc-alias && cp -R src/Assets/Blueprints/agents src/Assets/Blueprints/instructions src/Assets/Blueprints/skills build/Assets/Blueprints/ && cp -R src/Assets/Templates build/Assets/ && chmod 755 build/index.js",
+    "spindle": "tsx src/index.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
+    "fmt:check": "oxfmt --check",
+    "test": "vitest run",
+    "changeset": "changeset"
   },
   "dependencies": {
-    "chalk": "^6.0.1"
+    "@clack/prompts": "^1.8.1",
+    "chalk": "^6.0.1",
+    "commander": "^15.0.0",
+    "gray-matter": "^4.0.3",
+    "nunjucks": "^3.2.4"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.3",
     "@types/cors": "^2.8.19",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.6",
+    "@types/nunjucks": "^3.2.6",
     "oxfmt": "^0.72.0",
-    "oxlint": "^1.87.0",
-    "tsc-alias": "^1.8.16",
+    "oxlint": "^1.91.0",
+    "tsc-alias": "^1.9.10",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.11.1",
-      "onFail": "download"
+      "onFail": "warn"
     }
-  },
-  "packageManager": "pnpm@12.11.1"
+  }
 }

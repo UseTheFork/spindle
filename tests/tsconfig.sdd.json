@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./SubagentDrivenDevelopment/**/*.ts",
+    "./TemplateRendering/**/*.ts",
+    "./Git/**/*.ts",
+    "./Config/**/*.ts",
+    "./Foundation/**/*.ts",
+    "./Support/**/*.ts",
+    "./integration/GitRoot.test.ts",
+    "./helpers/**/*.ts",
+    "./helpers/ApplicationFixture.ts"
+  ]
+}

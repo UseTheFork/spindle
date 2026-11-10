@@ -1,0 +1,488 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { expect, test } from "vitest";
+
+import {
+  execute,
+  invokeAsync,
+  prepareImplementationForReview,
+  recordReviewCheck,
+  prepareReviewAssignment,
+  prepareAcceptedTicket,
+  refreshReviewCheck,
+} from "../helpers/helpers";
+test("integrate hands back the frozen accepted files and delivery records without changing Git", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const headBefore = git("rev-parse", "HEAD");
+  const statusBefore = git("status", "--porcelain");
+
+  const prepared = await execute(repo, (service) =>
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
+  );
+
+  expect(prepared.status, prepared.stderr).toBe(0);
+  const output = JSON.parse(prepared.stdout) as {
+    ticket: string;
+    execution: string;
+    acceptedFiles: string[];
+    deliveryRecords: string[];
+  };
+  expect(output.ticket).toBe("T-0001");
+  expect(output.execution).toBe("accepted");
+  expect(output.acceptedFiles).toEqual(["feature.ts"]);
+  expect(output.deliveryRecords.some((path) => path.endsWith("/sdd.json"))).toBeTruthy();
+  expect(git("rev-parse", "HEAD")).toBe(headBefore);
+  expect(git("status", "--porcelain")).toBe(statusBefore);
+});
+
+test("integrate confirms an exact caller-owned commit idempotently and preserves accepted evidence", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const handback = await execute(repo, (service) =>
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(handback.status, handback.stderr).toBe(0);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+  const confirmed = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+
+  expect(confirmed.status, confirmed.stderr).toBe(0);
+  const output = JSON.parse(confirmed.stdout) as {
+    execution: string;
+    commitSha: string;
+    acceptedFiles: string[];
+    deliveryRecords: string[];
+  };
+  expect(output.execution).toBe("integrated");
+  expect(output.commitSha).toBe(commitSha);
+  expect(output.acceptedFiles).toEqual(["feature.ts"]);
+  expect(output.deliveryRecords.some((path) => path.endsWith("/sdd.json"))).toBeTruthy();
+  const ticketPath = join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md");
+  const ticketAfterConfirmation = readFileSync(ticketPath, "utf8");
+  expect(git("rev-parse", "HEAD")).toBe(commitSha);
+
+  const repeated = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
+  expect(readFileSync(ticketPath, "utf8")).toBe(ticketAfterConfirmation);
+  const status = await execute(repo, (service) =>
+    service.featureInspectionService.status({ spec }),
+  );
+  expect(status.status, status.stderr).toBe(0);
+  const statusOutput = JSON.parse(status.stdout);
+  expect(statusOutput.state.tickets[0].execution).toBe("integrated");
+  expect(
+    statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
+  ).not.toMatch(/stale|missing.*check|review assignment/i);
+});
+
+test("integrate rejects changed accepted content and unrelated pending changes without modifying them", async () => {
+  const changedAccepted = await prepareAcceptedTicket();
+  writeFileSync(join(changedAccepted.repo, "feature.ts"), "export const feature = false;\n");
+  const changedStatusBefore = changedAccepted.git("status", "--porcelain");
+  const changed = await execute(changedAccepted.repo, (service) =>
+    service.integrationService.integrate({
+      spec: changedAccepted.spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
+  expect(changed.status).not.toBe(0);
+  expect(changed.stderr).toMatch(/accepted file content changed/i);
+  expect(changedAccepted.git("status", "--porcelain")).toBe(changedStatusBefore);
+  expect(readFileSync(join(changedAccepted.repo, "feature.ts"), "utf8")).toBe(
+    "export const feature = false;\n",
+  );
+
+  const unrelated = await prepareAcceptedTicket();
+  writeFileSync(join(unrelated.repo, "unrelated.txt"), "keep this work\n");
+  const unrelatedStatusBefore = unrelated.git("status", "--porcelain");
+  const rejected = await execute(unrelated.repo, (service) =>
+    service.integrationService.integrate({
+      spec: unrelated.spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/inventory changed after acceptance/i);
+  expect(unrelated.git("status", "--porcelain")).toBe(unrelatedStatusBefore);
+  expect(readFileSync(join(unrelated.repo, "unrelated.txt"), "utf8")).toBe("keep this work\n");
+});
+
+test("integrate rejects arbitrary pending files inside the feature workspace without changing workflow state", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const userFile = join(repo, ".scratch", "0001-claim-flow", "notes.txt");
+  writeFileSync(userFile, "keep this user-authored note\n");
+  const statusBefore = git("status", "--porcelain");
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+
+  const rejected = await execute(repo, (service) =>
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
+  );
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/unsafe unrelated pending changes/i);
+  expect(readFileSync(userFile, "utf8")).toBe("keep this user-authored note\n");
+  expect(git("status", "--porcelain")).toBe(statusBefore);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+  expect(JSON.parse(ledgerBefore).tickets[0].execution).toBe("accepted");
+});
+
+test("integrate rejects divergent staged accepted-file bytes while preserving index and worktree", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const acceptedContent = readFileSync(join(repo, "feature.ts"), "utf8");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'staged divergence';\n");
+  git("add", "feature.ts");
+  writeFileSync(join(repo, "feature.ts"), acceptedContent);
+  const statusBefore = git("status", "--porcelain");
+  const stagedContentBefore = execFileSync("git", ["show", ":feature.ts"], { cwd: repo });
+  const worktreeContentBefore = readFileSync(join(repo, "feature.ts"), "utf8");
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+
+  const rejected = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/staged|index|accepted.*content/i);
+  expect(git("rev-parse", "HEAD")).toBe(commitSha);
+  expect(git("status", "--porcelain")).toBe(statusBefore);
+  expect(execFileSync("git", ["show", ":feature.ts"], { cwd: repo })).toEqual(stagedContentBefore);
+  expect(stagedContentBefore).toEqual(Buffer.from("export const feature = 'staged divergence';\n"));
+  expect(readFileSync(join(repo, "feature.ts"), "utf8")).toBe(worktreeContentBefore);
+  expect(worktreeContentBefore).toBe(acceptedContent);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+  expect(JSON.parse(ledgerBefore).tickets[0].execution).toBe("accepted");
+});
+
+test("integrate rejects a caller commit whose blob differs from accepted content", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver mismatched feature");
+  const commitSha = git("rev-parse", "HEAD");
+  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+  const statusBefore = git("status", "--porcelain");
+
+  const rejected = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(
+    /commit content does not match|accepted file content changed after acceptance/i,
+  );
+  expect(git("rev-parse", "HEAD")).toBe(commitSha);
+  expect(git("status", "--porcelain")).toBe(statusBefore);
+  expect(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .tickets[0].execution,
+  ).toBe("accepted");
+});
+
+test("integrate refuses caller confirmation when accepted required-check evidence is no longer passing", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.tickets[0].checks.records[0].result = "failed";
+  ledger.tickets[0].checks.records[0].details = "The accepted check is no longer passing.";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+  const rejected = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/required check .* is failed/i);
+  expect(git("rev-parse", "HEAD")).toBe(commitSha);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].execution).toBe("accepted");
+});
+
+test("integrate rejects an altered registered review report as stale evidence", async () => {
+  const { repo, git, spec, assignment } = await prepareAcceptedTicket();
+  writeFileSync(assignment.report, "# Review report\n\nChanged after acceptance.\n");
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver accepted feature");
+  const commitSha = git("rev-parse", "HEAD");
+
+  const rejected = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/review report .*not current and submitted/i);
+  expect(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .tickets[0].execution,
+  ).toBe("accepted");
+});
+
+test("dependent claims wait until prerequisites are closed", async () => {
+  const { repo, git, spec } = await prepareAcceptedTicket();
+  const prepared = await execute(repo, (service) =>
+    service.integrationService.integrate({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(prepared.status, prepared.stderr).toBe(0);
+
+  git("add", "feature.ts");
+  git("commit", "-qm", "deliver prerequisite");
+  const commitSha = git("rev-parse", "HEAD");
+  const integrated = await execute(repo, (service) =>
+    service.integrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      commit: commitSha,
+      author: "controller",
+    }),
+  );
+  expect(integrated.status, integrated.stderr).toBe(0);
+
+  const created = await execute(repo, (service) =>
+    service.ticketService.ticketCreate({
+      spec,
+      title: "Use the prerequisite",
+      reporter: "requester",
+      category: "enhancement",
+      author: "maintainer",
+    }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+  const dependency = await execute(repo, (service) =>
+    service.ticketService.ticketUpdate({
+      spec,
+      ticket: "T-0002",
+      blockedBy: ["T-0001"],
+      author: "maintainer",
+    }),
+  );
+  expect(dependency.status, dependency.stderr).toBe(0);
+  const updated = await execute(repo, (service) =>
+    service.ticketService.ticketUpdate({
+      spec,
+      ticket: "T-0002",
+      status: "open",
+      author: "maintainer",
+    }),
+  );
+  expect(updated.status, updated.stderr).toBe(0);
+
+  const prematureClaim = await execute(repo, (service) =>
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
+  );
+  expect(prematureClaim.status).not.toBe(0);
+  expect(prematureClaim.stderr).toMatch(/open dependencies: T-0001/i);
+  expect(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+      .tickets[1].baseSha,
+  ).toBe(undefined);
+
+  git("add", "-A");
+  git("commit", "-qm", "record completed prerequisite delivery");
+  const ready = await execute(repo, (service) => service.readinessService.ready({ spec }));
+  expect(ready.status, ready.stderr).toBe(0);
+  expect(JSON.parse(ready.stdout).ready).toEqual([]);
+  const closed = await execute(repo, (service) =>
+    service.ticketService.ticketUpdate({
+      spec,
+      ticket: "T-0001",
+      status: "closed",
+      author: "controller",
+    }),
+  );
+  expect(closed.status, closed.stderr).toBe(0);
+  git("add", "-A");
+  git("commit", "-qm", "close prerequisite ticket");
+  const readyAfterClose = await execute(repo, (service) =>
+    service.readinessService.ready({ spec }),
+  );
+  expect(JSON.parse(readyAfterClose.stdout).ready).toEqual(["T-0002"]);
+  const claimed = await execute(repo, (service) =>
+    service.assignmentService.claim({ spec, ticket: "T-0002", author: "controller" }),
+  );
+  expect(claimed.status, claimed.stderr).toBe(0);
+  expect(JSON.parse(claimed.stdout).baseSha).toBe(git("rev-parse", "HEAD"));
+});
+
+test("accept rejects missing initial review coverage", async () => {
+  const accept = async (repo: string, spec: string) =>
+    await execute(repo, (service) =>
+      service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+    );
+
+  const unreviewed = await prepareImplementationForReview();
+  const passingCheck = await recordReviewCheck(
+    unreviewed.repo,
+    unreviewed.spec,
+    unreviewed.command,
+    unreviewed.submission.snapshot,
+    "passed",
+  );
+  expect(passingCheck.status, passingCheck.stderr).toBe(0);
+  const missing = await accept(unreviewed.repo, unreviewed.spec);
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toMatch(/review coverage/i);
+});
+
+test("accept rejects pending or failed initial reviews", async () => {
+  const accept = async (repo: string, spec: string) =>
+    await execute(repo, (service) =>
+      service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+    );
+  const reviewed = await prepareReviewAssignment();
+  const pending = await accept(reviewed.repo, reviewed.spec);
+  expect(pending.status).not.toBe(0);
+  expect(pending.stderr).toMatch(/pending/i);
+
+  writeFileSync(reviewed.assignment.report, "# Review report\n\nReview is incomplete.\n");
+  const failed = await execute(reviewed.repo, (service) =>
+    service.submissionService.submit({
+      spec: reviewed.spec,
+      ticket: "T-0001",
+      role: "review",
+      assignment: reviewed.assignment.id,
+      report: reviewed.assignment.report,
+      result: "failed",
+      noFindings: true,
+      details: "The implementation does not meet the acceptance criteria.",
+      author: "controller",
+    }),
+  );
+  expect(failed.status, failed.stderr).toBe(0);
+  const rejected = await accept(reviewed.repo, reviewed.spec);
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/Review assignment .* is failed/);
+});
+
+test("required checks cannot change after review assignment freezes the snapshot", async () => {
+  const reviewed = await prepareReviewAssignment();
+  const additionalCheck = await execute(reviewed.repo, (service) =>
+    service.checksService.checksRequire({
+      spec: reviewed.spec,
+      ticket: "T-0001",
+      command: "just lint::check",
+      author: "controller",
+    }),
+  );
+  expect(additionalCheck.status).not.toBe(0);
+  expect(additionalCheck.stderr).toMatch(/frozen.*review/i);
+});
+
+test("review command requires feature delivery scope instead of a ticket scope", async () => {
+  const { repo, spec } = await prepareImplementationForReview();
+  const reviewArgs = [
+    "review",
+    "--spec",
+    spec,
+    "--ticket",
+    "T-0001",
+    "--inventory",
+    JSON.stringify(["feature.ts"]),
+    "--author",
+    "controller",
+  ];
+  const result = await invokeAsync(repo, reviewArgs);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/unknown option.*--ticket/i);
+});
+
+test("review submission and acceptance reject changed requirements, code, and report content", async () => {
+  const { repo, spec, command, assignment } = await prepareReviewAssignment();
+  writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
+  const originalSpec = readFileSync(spec, "utf8");
+  writeFileSync(spec, `${originalSpec}\nA new acceptance requirement.\n`);
+  const staleRequirements = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      role: "review",
+      assignment: assignment.id,
+      report: assignment.report,
+      result: "passed",
+      noFindings: true,
+      author: "controller",
+    }),
+  );
+  expect(staleRequirements.status).not.toBe(0);
+  expect(staleRequirements.stderr).toMatch(/stale|frozen/i);
+
+  writeFileSync(spec, originalSpec);
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      role: "review",
+      assignment: assignment.id,
+      report: assignment.report,
+      result: "passed",
+      noFindings: true,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
+  const refreshedCodeCheck = await refreshReviewCheck(repo, spec, command);
+  expect(refreshedCodeCheck.status, refreshedCodeCheck.stderr).toBe(0);
+  const staleCodeAcceptance = await execute(repo, (service) =>
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(staleCodeAcceptance.status).not.toBe(0);
+  expect(staleCodeAcceptance.stderr).toMatch(/Review assignment .* stale/);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = true;\n");
+  const originalCodeCheck = await refreshReviewCheck(repo, spec, command);
+  expect(originalCodeCheck.status, originalCodeCheck.stderr).toBe(0);
+  writeFileSync(assignment.report, "# Altered report\n");
+  const alteredReportAcceptance = await execute(repo, (service) =>
+    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(alteredReportAcceptance.status).not.toBe(0);
+  expect(alteredReportAcceptance.stderr).toMatch(/review report .* changed after submission/i);
+});
