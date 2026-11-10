@@ -21,6 +21,7 @@ import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
 import { loadProjectConfiguration } from "@/Config/ProjectConfiguration";
 import type { Application } from "@/Foundation/Application";
+import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
 
 export class InitCommand extends Command {
@@ -30,9 +31,7 @@ export class InitCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
     program
       .command("init")
-      .description(
-        "Install spindle Blueprints (Skills, Agents, and Instructions) into .github and save .github/spindle.json.",
-      )
+      .description("Install spindle Blueprints and initialize project guidance at the Git root.")
       .option(
         "--stack <id>",
         `Stack to install; repeat for several (${Stacks.supported.join(", ")})`,
@@ -58,9 +57,10 @@ export class InitCommand extends Command {
       .addHelpText(
         "after",
         `
-Fails if .github/spindle.json already exists; use \`spindle update\` instead.
+If Blueprint stacks are already configured, project guidance is initialized and
+\`spindle update\` is required to change the installed Blueprints.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), project (see \`spindle project --help\`), sdd (see \`spindle sdd --help\`).
+Other commands: update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
 `,
       )
@@ -122,6 +122,8 @@ Run \`spindle --version\` to print the installed version.
       throw new Error(existing.reason, { cause: existing.error });
     }
     if (existing.status === "valid" && existing.data.stacks.length > 0) {
+      await (await this.app.make(ProjectService)).initialize();
+      console.log(`${chalk.green("✔")} Initialized project guidance and tooling documentation.`);
       throw new Error(
         "This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
       );
@@ -190,5 +192,7 @@ Run \`spindle --version\` to print the installed version.
     console.log(
       `${chalk.green("✔")} Installed ${counts("installed") || "0 Blueprints"} for ${chalk.cyan(stacks.join(", "))}${skipped ? `. Skipped ${skipped}` : ""}`,
     );
+    await (await this.app.make(ProjectService)).initialize();
+    console.log(`${chalk.green("✔")} Initialized project guidance and tooling documentation.`);
   }
 }

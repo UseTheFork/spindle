@@ -45,8 +45,9 @@ the provider boundary. Application binds each distinct command class as a single
 before its provider's register hook; providers explicitly bind dependencies.
 `BlueprintManagementServiceProvider` owns `init` and `update`, and registers
 reconciliation and installation as explicit singletons. `ProjectServiceProvider`
-separately owns `spindle project` and its explicitly bound `ProjectService`
-singleton. `ComputedContextService` is a transient Template Rendering dependency,
+owns the explicitly bound `ProjectService` singleton for project guidance
+initialization; `ToolingServiceProvider` owns `spindle tool` and its explicitly
+bound `ToolingService` singleton. `ComputedContextService` is a transient Template Rendering dependency,
 as established by [ADR-0009](./0009-shared-template-rendering.md).
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between

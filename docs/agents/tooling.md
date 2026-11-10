@@ -21,7 +21,7 @@ optional command arguments.
 
 - `pnpm exec tsc --noEmit` - Type-check production sources without emitting files.
 - `pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json` - Type-check mirrored SDD, Foundation, Git, Config, and Git-root integration tests.
-- `pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json` - Type-check BlueprintManagement, Project, Foundation, and related tests.
+- `pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json` - Type-check BlueprintManagement, Project, Tooling, Foundation, and related tests.
 
 ## Tooling
 
@@ -45,11 +45,10 @@ optional command arguments.
 ## Spindle workflows
 
 - `pnpm run spindle <args>` - Run the CLI from source with arbitrary arguments.
-- `pnpm run spindle init <args>` - Install project Blueprints.
+- `pnpm run spindle init <args>` - Install project Blueprints and initialize project guidance.
 - `pnpm run spindle update <args>` - Update installed project Blueprints.
 - `pnpm run spindle sdd <args>` - Run subagent-driven development workflow commands.
-- `pnpm run spindle project init` - Bootstrap project documentation defaults.
-- `pnpm run spindle project tooling <list|add|update|remove>` - Manage the documented tooling registry.
+- `pnpm run spindle tool <list|add|update|remove>` - Manage the documented tooling registry.
 
 Pass workspace and spec paths as absolute paths. Append `--help` to inspect
 command options, for example `pnpm run spindle sdd create --help`.
@@ -199,13 +198,16 @@ the builder's global provider selection. Conflicting Commander command
 names fail during schema registration. Commands are automatically bound before
 their provider's `register()` hook, which explicitly binds their dependencies.
 `runExecutable` supplies `BlueprintManagementServiceProvider`,
-`ProjectServiceProvider`, and `SubagentDrivenDevelopmentServiceProvider` as
+`ProjectServiceProvider`, `ToolingServiceProvider`, and
+`SubagentDrivenDevelopmentServiceProvider` as
 siblings in one provider list used
 for both CLI schema discovery and application registration. The
-Project provider owns `spindle project init` and tooling command operations,
-and explicitly binds the `ProjectService` singleton. The Blueprint Management
+Project provider explicitly binds the `ProjectService` singleton for project
+guidance initialization; the Tooling provider owns `spindle tool` commands and
+explicitly binds the `ToolingService` singleton. The Blueprint Management
 provider owns `init` and `update`, and registers reconciliation and installation
-singletons. Shared rendering and Computed Variables belong to Template Rendering;
+singletons. `spindle init` initializes project guidance only after Blueprint
+installation succeeds. Shared rendering and Computed Variables belong to Template Rendering;
 computed-context results are scoped to one operation, never a singleton workflow's
 lifetime. The SDD provider owns thin per-operation Commands
 and explicitly injected singleton Services, Persistence, Evidence, and Policies

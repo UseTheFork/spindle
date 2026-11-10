@@ -3,6 +3,7 @@ import { Application } from "@/Foundation/Application";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
+import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 
 export function applicationFixture(
   workspaceRoot: string,
@@ -14,6 +15,7 @@ export function applicationFixture(
   application.register(TemplateRenderingServiceProvider);
   application.register(BlueprintManagementServiceProvider);
   application.register(ProjectServiceProvider);
+  application.register(ToolingServiceProvider);
   application.register(SubagentDrivenDevelopmentServiceProvider);
   return application;
 }

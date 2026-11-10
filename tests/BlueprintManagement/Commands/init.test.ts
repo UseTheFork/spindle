@@ -44,7 +44,9 @@ test("init reports success with a plain message when colors are off", async () =
   const { result } = await runInit(["--stack", "python"]);
 
   expect(result.status, result.stderr).toBe(0);
-  expect(result.stdout).toBe("✔ Installed 1 skill(s) for python\n");
+  expect(result.stdout).toBe(
+    "✔ Installed 1 skill(s) for python\n✔ Initialized project guidance and tooling documentation.\n",
+  );
 });
 
 test("init help uses Commander conventions without starting the workflow", async () => {
@@ -121,7 +123,7 @@ test("init colors success output with chalk when colors are forced", async () =>
   expect(result.status, result.stderr).toBe(0);
   const forced = new Chalk({ level: 1 });
   expect(result.stdout).toBe(
-    `${forced.green("✔")} Installed 1 skill(s) for ${forced.cyan("python")}\n`,
+    `${forced.green("✔")} Installed 1 skill(s) for ${forced.cyan("python")}\n${forced.green("✔")} Initialized project guidance and tooling documentation.\n`,
   );
 });
 
@@ -137,9 +139,14 @@ test("init installs its configured skill and records repeatable stack flags", as
   const { project, result } = await runInit(["--stack", "php-laravel", "--stack", "typescript"]);
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
+  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["php-laravel", "typescript"],
     variables: fixtureVariables,
+    tooling: expect.arrayContaining([
+      expect.objectContaining({ command: "spindle init" }),
+      expect.objectContaining({ command: "spindle update" }),
+      expect.objectContaining({ command: "spindle tool <list|add|update|remove>" }),
+    ]),
   });
   const skill = await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8");
   expect(skill).toMatch(/^---\nname: demo\nmetadata:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
@@ -158,9 +165,10 @@ test("init applies repeated Variable flags in command-line order", async () => {
   ]);
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
+  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
     variables: { lint_command: "just lint", owner: "second" },
+    tooling: expect.any(Array),
   });
 });
 
@@ -226,9 +234,10 @@ test("init renders nested Markdown with shared Variables and selected Stack valu
   );
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual({
+  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
     variables: { lint_command: "just lint", owner: "team" },
+    tooling: expect.any(Array),
   });
   expect(await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8")).toBe(
     '---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\ndescription: "team"\n---\n\nPython guidance\n',
@@ -255,14 +264,15 @@ test("init skip policy leaves existing Skills untouched and still writes Config"
 
   expect(project.status, project.stderr).toBe(0);
   expect(project.stdout).toBe(
-    "✔ Installed 0 skill(s) for typescript. Skipped 1 existing skill(s)\n",
+    "✔ Installed 0 skill(s) for typescript. Skipped 1 existing skill(s)\n✔ Initialized project guidance and tooling documentation.\n",
   );
   expect(await readFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "utf8")).toBe(
     "preserve this",
   );
-  expect(JSON.parse(await readFile(configPath, "utf8"))).toEqual({
+  expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
     stacks: ["typescript"],
     variables: fixtureVariables,
+    tooling: expect.any(Array),
   });
 });
 
@@ -291,6 +301,26 @@ test("init fails clearly and writes nothing when no stack is selected", async ()
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/at least one --stack/i);
   await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+  await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
+});
+
+test("init initializes project guidance for configured stacks before directing updates", async () => {
+  const { project, result: initial } = await runInit(["--stack", "python"]);
+  expect(initial.status, initial.stderr).toBe(0);
+  const originalConfig = await readFile(join(project, ".github/spindle.json"), "utf8");
+  await rm(join(project, "docs"), { recursive: true });
+
+  const repeated = runCli(
+    project,
+    ["init", "--stack", "typescript", "--no-interactive"],
+    process.env.PATH ?? "",
+    { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
+  );
+
+  expect(repeated.status).not.toBe(0);
+  expect(repeated.stderr).toMatch(/already has configured Blueprint stacks.*spindle update/i);
+  expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
+  expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(originalConfig);
 });
 
 test("init rejects unsupported stack ids with a clear error", async () => {
@@ -351,6 +381,7 @@ test(
     );
     expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
     await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
   },
 );
 

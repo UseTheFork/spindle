@@ -7,6 +7,8 @@ import { templateCatalog } from "@/Assets/Templates/Catalog";
 import { Application } from "@/Foundation/Application";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { ToolingService } from "@/Tooling/Services/ToolingService";
+import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 
 import { makeTempDirSync, repoRoot } from "../../helpers/TemporaryDirectories.ts";
 
@@ -31,16 +33,27 @@ Run project commands with pnpm. Before running commands, read [Project tooling](
 
 async function fixture() {
   const workspace = makeTempDirSync("project-service-");
+  mkdirSync(join(workspace, ".github"));
+  writeFileSync(
+    join(workspace, ".github/spindle.json"),
+    JSON.stringify({ stacks: ["typescript"], variables: {} }),
+  );
   const app = new Application({ basePath: workspace });
   app.instance("path.workspace", workspace);
   app.register(ProjectServiceProvider);
-  return { app, workspace, service: await app.make(ProjectService) };
+  app.register(ToolingServiceProvider);
+  return {
+    app,
+    workspace,
+    service: await app.make(ProjectService),
+    tooling: await app.make(ToolingService),
+  };
 }
 
-test("Project provider declares project and tooling commands and binds its service", async () => {
-  const { app, service } = await fixture();
-  expect(ProjectServiceProvider.commands().map((command) => command.name)).toEqual([
-    "ProjectInitCommand",
+test("Project and Tooling providers bind their owned services and commands", async () => {
+  const { app, service, tooling } = await fixture();
+  expect(ProjectServiceProvider.commands()).toEqual([]);
+  expect(ToolingServiceProvider.commands().map((command) => command.name)).toEqual([
     "ToolingListCommand",
     "ToolingAddCommand",
     "ToolingUpdateCommand",
@@ -48,6 +61,8 @@ test("Project provider declares project and tooling commands and binds its servi
   ]);
   expect(service.app).toBe(app);
   expect(await app.make(ProjectService)).toBe(service);
+  expect(tooling.app).toBe(app);
+  expect(await app.make(ToolingService)).toBe(tooling);
 });
 
 test("project initialization creates the baseline, seeds Spindle commands, and renders the guide", async () => {
@@ -61,15 +76,13 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       "docs/adr",
       ".scratch",
       "docs/agents",
-      ".github",
       ".github/copilot-instructions.md",
       "docs/agents/domain.md",
       "docs/agents/ticket-tracker.md",
-      ".github/spindle.json",
       "docs/agents/tooling.md",
     ],
-    preserved: [],
-    updated: [],
+    preserved: [".github"],
+    updated: [".github/spindle.json"],
   });
   for (const { source, destination } of templateCatalog.project) {
     expect(readFileSync(join(workspace, destination))).toEqual(
@@ -83,20 +96,22 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
   expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
     copilotInstructionsTemplate,
   );
-  expect(config).toMatchObject({ stacks: [], variables: {} });
+  expect(config).toMatchObject({ stacks: ["typescript"], variables: {} });
   expect(config.tooling.map(({ key }: { key: string }) => key)).toEqual([
     "spindle-init",
     "spindle-update",
-    "spindle-project-init",
+    "spindle-tool",
   ]);
+  expect(config.tooling[0].description).toBe(
+    "Install Spindle Blueprints and initialize project guidance.",
+  );
   const guide = readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("# Project Tooling\n\n## Spindle");
-  expect(guide).toContain("- `spindle project init`:");
+  expect(guide).toContain("- `spindle tool <list|add|update|remove>`:");
 });
 
 test("project initialization prepends the Copilot template once and preserves existing instructions", async () => {
   const { workspace, service } = await fixture();
-  mkdirSync(join(workspace, ".github"));
   const customInstructions = "# Local instructions\n\nKeep this guidance.\n";
   writeFileSync(join(workspace, ".github/copilot-instructions.md"), customInstructions);
 
@@ -117,7 +132,6 @@ test("project initialization prepends the Copilot template once and preserves ex
 
 test("project initialization does not duplicate Copilot guidance already present", async () => {
   const { workspace, service } = await fixture();
-  mkdirSync(join(workspace, ".github"));
   const existingInstructions = `# Existing prefix\n\n${copilotInstructionsTemplate}\n# Existing suffix\n`;
   writeFileSync(join(workspace, ".github/copilot-instructions.md"), existingInstructions);
 
@@ -131,8 +145,7 @@ test("project initialization does not duplicate Copilot guidance already present
 });
 
 test("initialization seeds a registry in legacy Config and preserves existing entries on rerun", async () => {
-  const { workspace, service } = await fixture();
-  mkdirSync(join(workspace, ".github"));
+  const { workspace, service, tooling } = await fixture();
   writeFileSync(
     join(workspace, ".github/spindle.json"),
     JSON.stringify({ stacks: ["typescript"], variables: { owner: "team" }, custom: true }),
@@ -147,7 +160,7 @@ test("initialization seeds a registry in legacy Config and preserves existing en
   });
   expect(original.tooling).toHaveLength(3);
 
-  await service.addTooling({
+  await tooling.addTooling({
     key: "test-fast",
     section: "Testing",
     command: "pnpm test -- --run",
@@ -172,30 +185,73 @@ test("initialization seeds a registry in legacy Config and preserves existing en
   expect(readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8")).toContain("pnpm test");
 });
 
-test("tooling mutations list, group and regenerate the registry projection", async () => {
+test("initialization replaces the removed default project-init tooling entry", async () => {
   const { workspace, service } = await fixture();
+  writeFileSync(
+    join(workspace, ".github/spindle.json"),
+    JSON.stringify({
+      stacks: ["typescript"],
+      variables: {},
+      tooling: [
+        {
+          key: "spindle-init",
+          section: "Spindle",
+          command: "spindle init",
+          description: "Install Spindle Blueprints for selected stacks.",
+        },
+        {
+          key: "spindle-update",
+          section: "Spindle",
+          command: "spindle update",
+          description: "Update installed Spindle Blueprints.",
+        },
+        {
+          key: "spindle-project-init",
+          section: "Spindle",
+          command: "spindle project init",
+          description: "Initialize project guidance and the tooling command registry.",
+        },
+      ],
+    }),
+  );
+
   await service.initialize();
-  const first = await service.addTooling({
+
+  const config = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
+  expect(config.tooling.map(({ key }: { key: string }) => key)).toEqual([
+    "spindle-init",
+    "spindle-update",
+    "spindle-tool",
+  ]);
+  expect(readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8")).not.toContain(
+    "spindle project init",
+  );
+});
+
+test("tooling mutations list, group and regenerate the registry projection", async () => {
+  const { workspace, service, tooling } = await fixture();
+  await service.initialize();
+  const first = await tooling.addTooling({
     key: "test-unit",
     section: "Testing",
     command: "pnpm test unit",
     description: "Run unit tests.",
   });
-  await service.addTooling({
+  await tooling.addTooling({
     key: "lint-check",
     section: "Linting",
     command: "pnpm lint",
   });
-  await service.addTooling({
+  await tooling.addTooling({
     key: "test-watch",
     section: "Testing",
     command: "pnpm test",
   });
   expect(first.key).toBe("test-unit");
-  expect((await service.listTooling()).map(({ key }) => key)).toEqual([
+  expect((await tooling.listTooling()).map(({ key }) => key)).toEqual([
     "spindle-init",
     "spindle-update",
-    "spindle-project-init",
+    "spindle-tool",
     "test-unit",
     "lint-check",
     "test-watch",
@@ -205,46 +261,45 @@ test("tooling mutations list, group and regenerate the registry projection", asy
   expect(guide.indexOf("pnpm test unit")).toBeLessThan(guide.indexOf("- `pnpm test`"));
   expect(guide.match(/## Testing/g)).toHaveLength(1);
 
-  await service.updateTooling({ key: "test-unit", command: "pnpm vitest run" });
+  await tooling.updateTooling({ key: "test-unit", command: "pnpm vitest run" });
   expect(readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8")).toContain(
     "pnpm vitest run",
   );
-  await service.updateTooling({ key: "test-unit", clearDescription: true });
-  const entry = (await service.listTooling()).find(({ key }) => key === "test-unit");
+  await tooling.updateTooling({ key: "test-unit", clearDescription: true });
+  const entry = (await tooling.listTooling()).find(({ key }) => key === "test-unit");
   expect(entry).not.toHaveProperty("description");
 
-  await service.removeTooling("test-unit");
-  await service.removeTooling("test-watch");
+  await tooling.removeTooling("test-unit");
+  await tooling.removeTooling("test-watch");
   guide = readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8");
   expect(guide).not.toContain("## Testing");
   expect(guide).toContain("## Linting");
 });
 
 test("tooling operations reject missing initialization, duplicate keys, invalid updates, and invalid keys", async () => {
-  const { service } = await fixture();
-  await expect(service.listTooling()).rejects.toThrow("Run `spindle project init` first.");
+  const { service, tooling } = await fixture();
+  await expect(tooling.listTooling()).rejects.toThrow("Run `spindle init` first.");
   await service.initialize();
   await expect(
-    service.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
+    tooling.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
   ).resolves.toMatchObject({ key: "test-unit" });
   await expect(
-    service.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
+    tooling.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
   ).rejects.toThrow("already exists");
-  await expect(service.updateTooling({ key: "test-unit" })).rejects.toThrow(
+  await expect(tooling.updateTooling({ key: "test-unit" })).rejects.toThrow(
     "Provide at least one tooling field",
   );
   await expect(
-    service.updateTooling({ key: "test-unit", description: "", clearDescription: true }),
+    tooling.updateTooling({ key: "test-unit", description: "", clearDescription: true }),
   ).rejects.toThrow("either --description or --clear-description");
-  await expect(service.removeTooling("missing")).rejects.toThrow("No tooling command");
+  await expect(tooling.removeTooling("missing")).rejects.toThrow("No tooling command");
   await expect(
-    service.addTooling({ key: "Bad Key", section: "Testing", command: "pnpm test" }),
+    tooling.addTooling({ key: "Bad Key", section: "Testing", command: "pnpm test" }),
   ).rejects.toThrow("lowercase letters");
 });
 
 test("project initialization rejects invalid Config and symlinked generated files", async () => {
   const invalid = await fixture();
-  mkdirSync(join(invalid.workspace, ".github"));
   writeFileSync(join(invalid.workspace, ".github/spindle.json"), "{");
   await expect(invalid.service.initialize()).rejects.toThrow("not valid JSON");
   expect(readdirSync(invalid.workspace)).toEqual([".github"]);
@@ -258,4 +313,15 @@ test("project initialization rejects invalid Config and symlinked generated file
     "docs/agents/tooling.md must be a regular file",
   );
   expect(readFileSync(outside, "utf8")).toBe("do not overwrite");
+});
+
+test("project initialization requires an installed Blueprint stack", async () => {
+  const { workspace, service } = await fixture();
+  writeFileSync(
+    join(workspace, ".github/spindle.json"),
+    JSON.stringify({ stacks: [], variables: {} }),
+  );
+
+  await expect(service.initialize()).rejects.toThrow(/Install at least one Blueprint stack/);
+  expect(readdirSync(workspace)).toEqual([".github"]);
 });

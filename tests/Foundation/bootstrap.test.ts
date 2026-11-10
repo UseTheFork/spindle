@@ -24,6 +24,7 @@ import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Repository } from "@/Support/Repository";
+import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 
 import { makeTempDirSync, repoRoot } from "../helpers/TemporaryDirectories.ts";
 
@@ -216,6 +217,7 @@ test("Commander alone supplies validated repeated options to the executable comp
       application = Application.configure(nested, [
         BlueprintManagementServiceProvider,
         ProjectServiceProvider,
+        ToolingServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ]).create();
       return application;
@@ -224,6 +226,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     [
       BlueprintManagementServiceProvider,
       ProjectServiceProvider,
+      ToolingServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );
@@ -278,6 +281,7 @@ test("Commander preserves a real positional action and nested command path witho
         application = Application.configure(nested, [
           BlueprintManagementServiceProvider,
           ProjectServiceProvider,
+          ToolingServiceProvider,
           SubagentDrivenDevelopmentServiceProvider,
         ]).create();
         return application;
@@ -286,6 +290,7 @@ test("Commander preserves a real positional action and nested command path witho
       [
         BlueprintManagementServiceProvider,
         ProjectServiceProvider,
+        ToolingServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ],
     ),
@@ -308,7 +313,7 @@ test("semantic invalid input fails before Application construction or Git bootst
         return Application.configure("/missing").create();
       },
       "spindle",
-      [BlueprintManagementServiceProvider, ProjectServiceProvider],
+      [BlueprintManagementServiceProvider, ProjectServiceProvider, ToolingServiceProvider],
     ),
   ).rejects.toThrow(/stack/i);
   expect(constructions).toBe(0);

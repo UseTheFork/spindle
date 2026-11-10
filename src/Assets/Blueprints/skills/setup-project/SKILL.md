@@ -26,19 +26,30 @@ flowchart TD
     H --> I
 ```
 
-### A. Initialize project guidance
+### A. Initialize the project
 
 Run from the target Git working tree:
 
 ```sh
-spindle project init
+spindle init --stack <stack>
 ```
 
-The command infers the Git root and fails if it cannot. It creates missing project documentation directories, copies the bundled `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those files are absent, and prepends the bundled Copilot instructions to the front of `.github/copilot-instructions.md` when their exact text does not occur anywhere in that file. Existing instructions are retained, and template text already present anywhere is not duplicated. It initializes the tooling registry with Spindle commands when the registry is new, and regenerates `docs/agents/tooling.md`. Existing tooling entries are preserved.
+Choose a supported stack after inspecting the project's language and frameworks.
+The command installs its Blueprints before creating project guidance. It creates
+missing project documentation directories, copies the bundled
+`docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those
+files are absent, and prepends the bundled Copilot instructions to the front of
+`.github/copilot-instructions.md` when their exact text does not occur anywhere
+in that file. Existing instructions are retained, and template text already
+present anywhere is not duplicated. It initializes the tooling registry with
+Spindle commands when the registry is new, and regenerates
+`docs/agents/tooling.md`. Existing tooling entries are preserved.
 
-Initialization's default registrations are separate from the approval gate for subsequent tooling changes.
+If Blueprint stacks are already configured, the command initializes missing
+project guidance and directs Blueprint changes to `spindle update`.
 
-**Complete when:** initialization succeeds and the command's output confirms the project root and generated tooling guide, selecting B.
+**Complete when:** initialization succeeds and the command confirms both
+Blueprint installation and project guidance setup, selecting B.
 
 ### B. Explore the project and its conventions
 
@@ -50,7 +61,7 @@ Also inspect the source to determine whether this is an existing project: it con
 
 ### C. Update and verify tooling
 
-Load and follow the `update-tooling` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
+Load and follow the `update-tooling` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, `spindle tool` registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
 
 **Complete when:** the delegated workflow has returned with the registry and guide verified, selecting G. If approval is pending, wait; if it reports failures or discrepancies, report the blocker and stop rather than claiming setup is complete.
 

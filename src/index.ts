@@ -10,6 +10,7 @@ import { Application } from "@/Foundation/Application";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
+import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 
 export async function runExecutable(args: string[], startingDirectory: string): Promise<void> {
   await dispatch(
@@ -20,6 +21,7 @@ export async function runExecutable(args: string[], startingDirectory: string): 
       TemplateRenderingServiceProvider,
       BlueprintManagementServiceProvider,
       ProjectServiceProvider,
+      ToolingServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
   );

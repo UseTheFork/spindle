@@ -49,9 +49,10 @@ deduplicates stacks, removes unknown fields, or injects defaults. Unexpected I/O
 errors propagate. The shared parser also serves direct update reads.
 Update demands valid configuration with existing messages. Init accepts a valid
 configuration with no selected stacks and preserves its other fields while
-installing selected Blueprints. Project initialization validates an existing
-configuration and creates one with an empty stack list when none exists. SDD
-does not demand valid configuration.
+installing selected Blueprints. A successful `spindle init` then initializes
+project guidance and the tooling registry. Project initialization validates the
+resulting configuration and preserves its fields. SDD does not demand valid
+configuration.
 
 Tests mirror the SDD context and use typed direct services for workflows and
 extracted boundaries. CLI subprocesses remain for executable parsing,

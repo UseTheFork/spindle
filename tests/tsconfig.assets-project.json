@@ -4,6 +4,7 @@
     "./BlueprintManagement/**/*.ts",
     "./TemplateRendering/**/*.ts",
     "./Project/**/*.ts",
+    "./Tooling/**/*.ts",
     "./Foundation/**/*.ts",
     "./Support/**/*.ts",
     "./Config/**/*.ts",

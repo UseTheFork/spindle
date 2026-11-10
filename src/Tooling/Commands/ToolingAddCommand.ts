@@ -3,12 +3,12 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
-import { toolingGroup } from "@/Project/Commands/groups";
-import { ProjectService } from "@/Project/Services/ProjectService";
+import { toolGroup } from "@/Tooling/Commands/groups";
+import { ToolingService } from "@/Tooling/Services/ToolingService";
 
 export class ToolingAddCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    toolingGroup(program)
+    toolGroup(program)
       .command("add")
       .description("Register a project tooling command and regenerate docs/agents/tooling.md.")
       .requiredOption(
@@ -57,6 +57,6 @@ export class ToolingAddCommand extends Command {
   }
 
   public async run(input: { key: string; section: string; command: string; description?: string }) {
-    return (await this.app.make(ProjectService)).addTooling(input);
+    return (await this.app.make(ToolingService)).addTooling(input);
   }
 }

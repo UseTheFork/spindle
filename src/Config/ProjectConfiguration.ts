@@ -3,18 +3,12 @@ import { readFile } from "node:fs/promises";
 import type { Application } from "@/Foundation/Application";
 import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
+import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 export interface ProjectConfigurationData extends Record<string, unknown> {
   stacks: string[];
   variables: Record<string, string>;
   tooling?: ToolingEntry[];
-}
-
-export interface ToolingEntry {
-  key: string;
-  section: string;
-  command: string;
-  description?: string;
 }
 
 export type ProjectConfigurationState =

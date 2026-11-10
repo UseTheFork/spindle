@@ -180,31 +180,15 @@ test("packaged sdd create and status expose feature state outside the checkout",
 
   const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);
-  const setup = cli.run(invocationWorkspace, ["project", "init"]);
+  const setup = cli.run(invocationWorkspace, ["init", "--stack", "typescript", "--no-interactive"]);
   expect(setup.status, setup.stderr).toBe(0);
-  expect(JSON.parse(setup.stdout)).toEqual({
-    workspace: invocationWorkspace,
-    created: [
-      "docs",
-      "docs/adr",
-      "docs/agents",
-      ".github",
-      ".github/copilot-instructions.md",
-      "docs/agents/domain.md",
-      "docs/agents/ticket-tracker.md",
-      ".github/spindle.json",
-      "docs/agents/tooling.md",
-    ],
-    preserved: [".scratch"],
-    updated: [],
-  });
+  expect(setup.stdout).toContain("Initialized project guidance and tooling documentation.");
   expect(setup.stderr).toBe("");
   expect(readFileSync(join(invocationWorkspace, ".github/copilot-instructions.md"), "utf8")).toBe(
     readFileSync(join(checkout, "build/Assets/Templates/project/copilot-instructions.md"), "utf8"),
   );
   const add = cli.run(invocationWorkspace, [
-    "project",
-    "tooling",
+    "tool",
     "add",
     "--key",
     "test-unit",
@@ -225,13 +209,6 @@ test("packaged sdd create and status expose feature state outside the checkout",
     section: "Testing",
     command: "pnpm test -- --run",
   });
-  const blueprintInit = cli.run(invocationWorkspace, [
-    "init",
-    "--stack",
-    "typescript",
-    "--no-interactive",
-  ]);
-  expect(blueprintInit.status, blueprintInit.stderr).toBe(0);
   expect(
     JSON.parse(readFileSync(join(invocationWorkspace, ".github/spindle.json"), "utf8")),
   ).toMatchObject({
@@ -246,7 +223,8 @@ test("packaged command discovery and help remain intact", () => {
   const rootHelp = cli.run(projectWorkspace, ["--help"]);
   expect(rootHelp.status, rootHelp.stderr).toBe(0);
   expect(rootHelp.stdout).toMatch(/^\s*sdd\b/m);
-  expect(rootHelp.stdout).toMatch(/^\s*project\b/m);
+  expect(rootHelp.stdout).toMatch(/^\s*tool\b/m);
+  expect(rootHelp.stdout).not.toMatch(/^\s*project\b/m);
   expect(rootHelp.stdout).not.toMatch(/^\s*setup-project\b/m);
   expect(rootHelp.stderr).toBe("");
 
@@ -262,9 +240,9 @@ test("packaged command discovery and help remain intact", () => {
       ["--title <title>", "--author <author>", "--require-retrospective"],
     ],
     [["sdd", "status", "--help"], ["--spec <path>"]],
-    [["project", "init", "--help"], ["Usage: spindle project init"]],
+    [["init", "--help"], ["Usage: spindle init [options]"]],
     [
-      ["project", "tooling", "add", "--help"],
+      ["tool", "add", "--help"],
       ["--key", "--section", "--command"],
     ],
   ] as const) {
@@ -382,7 +360,6 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["sdd", "unknown"],
     ].map((args) => [args, gitWorkspace] as const),
     ...[
-      ["project"],
       ["project", "init", "--unknown"],
       ["project", "init", "nested"],
       ["project", "tooling"],
@@ -390,6 +367,10 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["project", "tooling", "update"],
       ["project", "tooling", "remove"],
       ["project", "tooling", "list", "unexpected"],
+      ["tool", "list", "unexpected"],
+      ["tool", "add"],
+      ["tool", "update"],
+      ["tool", "remove"],
     ].map((args) => [args, gitWorkspace] as const),
   ];
 

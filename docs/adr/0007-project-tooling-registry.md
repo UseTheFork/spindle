@@ -1,3 +1,3 @@
-# Keep project tooling commands in Config
+# Keep the tooling registry in Config
 
-Project tooling commands are documentation for agents, not commands Spindle executes. Store the explicit, keyed registry in `.github/spindle.json` and generate `docs/agents/tooling.md` from it. This keeps command maintenance with the existing project configuration while allowing Project initialization before any Blueprint Stack is selected; Blueprint rendering still requires at least one Stack.
+Tooling commands are documentation for agents, not commands Spindle executes. Store the explicit, keyed registry in `.github/spindle.json` and generate `docs/agents/tooling.md` from it. The Tooling context owns registry operations and guide generation; the Config remains its persistence format. Project initialization is performed by `spindle init` only after selected Blueprints are installed.

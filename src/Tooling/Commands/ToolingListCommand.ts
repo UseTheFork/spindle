@@ -2,12 +2,12 @@ import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import { toolingGroup } from "@/Project/Commands/groups";
-import { ProjectService } from "@/Project/Services/ProjectService";
+import { toolGroup } from "@/Tooling/Commands/groups";
+import { ToolingService } from "@/Tooling/Services/ToolingService";
 
 export class ToolingListCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    toolingGroup(program)
+    toolGroup(program)
       .command("list")
       .description("List registered tooling commands and their keys.")
       .allowExcessArguments(false)
@@ -18,6 +18,6 @@ export class ToolingListCommand extends Command {
   }
 
   public async run() {
-    return (await this.app.make(ProjectService)).listTooling();
+    return (await this.app.make(ToolingService)).listTooling();
   }
 }
