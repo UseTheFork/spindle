@@ -28,6 +28,13 @@ test("the management catalog validates shipped asset metadata without changing r
     status: "active",
     stacks: [],
   });
+  expect(validated.skills.find((entry) => entry.key === "saloon-api-integrations")).toEqual({
+    key: "saloon-api-integrations",
+    path: "saloon-api-integrations",
+    directory: true,
+    status: "active",
+    stacks: ["php-laravel"],
+  });
   expect(validated.instructions.find((entry) => entry.key === "code-commenting")).toEqual({
     key: "code-commenting",
     path: "code-commenting.instructions.md",
@@ -42,6 +49,60 @@ test("the management catalog validates shipped asset metadata without changing r
     status: "active",
     stacks: [],
   });
+});
+
+test.each([
+  { stacks: ["php-laravel"], installed: true },
+  { stacks: ["php-laravel", "typescript"], installed: true },
+  { stacks: ["python"], installed: false },
+  { stacks: ["typescript"], installed: false },
+])("the shipped Saloon skill selection matches $stacks", async ({ stacks, installed }) => {
+  const project = await makeTempDir("spindle-catalog-saloon-project-");
+  const result = runBundledCli(
+    project,
+    ["init", ...stacks.flatMap((stack) => ["--stack", stack]), "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(result.status, result.stderr).toBe(0);
+
+  const destination = join(project, ".github", "skills", "saloon-api-integrations");
+  if (!installed) {
+    await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
+    return;
+  }
+
+  const content = await readFile(join(destination, "SKILL.md"), "utf8");
+  expect(content).toMatch(/name: saloon-api-integrations/);
+  expect(content).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
+  const references = [
+    "connectors.md",
+    "requests.md",
+    "sending-requests.md",
+    "responses.md",
+    "handling-failures.md",
+    "testing.md",
+    "concurrency-and-pools.md",
+    "data-transfer-objects.md",
+  ];
+  expect((await readdir(join(destination, "references"))).sort()).toEqual(references.sort());
+  for (const reference of references) {
+    expect(content).toContain(`references/${reference}`);
+    expect(await readFile(join(destination, "references", reference), "utf8")).toBe(
+      await readFile(
+        join(
+          repoRoot,
+          "src",
+          "Assets",
+          "Blueprints",
+          "skills",
+          "saloon-api-integrations",
+          "references",
+          reference,
+        ),
+        "utf8",
+      ),
+    );
+  }
 });
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
@@ -761,7 +822,16 @@ test("the compiled catalog ignores external catalog files", async () => {
     await expect(readdir(join(project, ".github", "skills", "unlisted"))).rejects.toMatchObject({
       code: "ENOENT",
     });
-    expect((await readdir(join(project, ".github", "skills"))).length).toBe(29);
+    expect((await readdir(join(project, ".github", "skills"))).sort()).toEqual(
+      catalog.skills
+        .filter(
+          (entry) =>
+            entry.status === "active" &&
+            (entry.stacks.length === 0 || entry.stacks.includes("python")),
+        )
+        .map((entry) => entry.path)
+        .sort(),
+    );
 
     await writeFile(join(blueprints, "catalog.yaml"), "agents: [\n");
     await writeFile(join(blueprints, "catalog.fixture.json"), "invalid external JSON");
