@@ -1,16 +1,22 @@
 ---
 name: setup-project
-description: "Use when initializing project guidance, documenting tooling, and establishing domain glossaries for an existing project."
+description: "Use after spindle init to document project tooling and establish domain glossaries."
 disable-model-invocation: false
 user-invocable: true
 metadata:
   spindle:
-    version: 1.4.0
+    version: 1.5.0
 ---
 
 # Setup Project
 
-Initialize the project guidance and curate the commands agents should use. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.github/spindle.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
+Curate the commands agents should use and establish project domain documentation. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.github/spindle.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
+
+## Prerequisite
+
+The user must have completed `spindle init` before running this skill. This skill
+does not initialize the project. If the required project guidance or tooling
+registry is missing, report the prerequisite and stop.
 
 ## Workflow
 
@@ -18,38 +24,12 @@ Announce `Step <node ID> - <node label>` before acting on each node, including r
 
 ```mermaid
 flowchart TD
-    A[Initialize project guidance] --> B[Explore the project and its conventions]
-    B --> C[Update and verify tooling]
+    B[Explore the project and its conventions] --> C[Update and verify tooling]
     C --> G{Existing project?}
     G -- Yes --> H[Populate domain glossaries]
     G -- No --> I[Report setup outcome]
     H --> I
 ```
-
-### A. Initialize the project
-
-Run from the target Git working tree:
-
-```sh
-spindle init --stack <stack>
-```
-
-Choose a supported stack after inspecting the project's language and frameworks.
-The command installs its Blueprints before creating project guidance. It creates
-missing project documentation directories, copies the bundled
-`docs/agents/domain.md` and `docs/agents/ticket-tracker.md` templates when those
-files are absent, and prepends the bundled Copilot instructions to the front of
-`.github/copilot-instructions.md` when their exact text does not occur anywhere
-in that file. Existing instructions are retained, and template text already
-present anywhere is not duplicated. It initializes the tooling registry with
-Spindle commands when the registry is new, and regenerates
-`docs/agents/tooling.md`. Existing tooling entries are preserved.
-
-If Blueprint stacks are already configured, the command initializes missing
-project guidance and directs Blueprint changes to `spindle update`.
-
-**Complete when:** initialization succeeds and the command confirms both
-Blueprint installation and project guidance setup, selecting B.
 
 ### B. Explore the project and its conventions
 
@@ -81,6 +61,6 @@ For a single context, populate or refine the root `GLOSSARY.md`. For multiple co
 
 ### I. Report setup outcome
 
-Summarize initialization, tooling changes applied or declined, guide verification, and domain documentation populated or skipped with the reason. Identify unresolved questions or blockers without claiming they are complete.
+Summarize tooling changes applied or declined, guide verification, and domain documentation populated or skipped with the reason. Identify unresolved questions or blockers without claiming they are complete.
 
 **Complete when:** the user has an accurate setup outcome and any remaining actions.
