@@ -55,6 +55,11 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
       status: "active",
       stacks: [],
     },
+    "source-architecture": {
+      path: "source-architecture.instructions.md",
+      status: "active",
+      stacks: [],
+    },
   },
   skills: {
     "author-agent": { path: "author-agent/", status: "active", stacks: [] },

@@ -136,17 +136,18 @@ test("Instruction conflicts and invalid versions preserve the installed file", a
   }
 });
 
-test("production init and update install the shipped code-commenting Instruction", async () => {
+test("production init and update install the shipped Instructions", async () => {
   const project = await makeTempDir("spindle-instruction-production-project-");
   {
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(init.status, init.stderr).toBe(0);
     expect(init.stdout).toMatch(
-      /[1-9]\d* skill\(s\), [1-9]\d* agent\(s\), 1 instruction\(s\) for python/,
+      /[1-9]\d* skill\(s\), [1-9]\d* agent\(s\), 2 instruction\(s\) for python/,
     );
-    expect(init.stdout).toMatch(/1 instruction\(s\) for python/);
+    expect(init.stdout).toMatch(/2 instruction\(s\) for python/);
     expect(await readdir(join(project, ".github", "instructions"))).toEqual([
       "code-commenting.instructions.md",
+      "source-architecture.instructions.md",
     ]);
     expect(
       await readFile(
@@ -154,9 +155,15 @@ test("production init and update install the shipped code-commenting Instruction
         "utf8",
       ),
     ).toContain("# Code Commenting Rules");
+    expect(
+      await readFile(
+        join(project, ".github", "instructions", "source-architecture.instructions.md"),
+        "utf8",
+      ),
+    ).toContain("# Source Architecture");
 
     const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "");
     expect(update.status, update.stderr).toBe(0);
-    expect(update.stdout).toMatch(/up to date 1 instruction\(s\)/);
+    expect(update.stdout).toMatch(/up to date 2 instruction\(s\)/);
   }
 });
