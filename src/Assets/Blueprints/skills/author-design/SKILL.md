@@ -5,7 +5,7 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # Authoring a Design
@@ -28,7 +28,7 @@ Help the user clarify what they want before turning an idea into a design. A des
 
    **Complete when** a single numbered feature workspace is selected and its `design.md` exists without overwriting user content.
 
-5. **Write the design.** Use the existing `design.md` scaffold, replacing its `[PLACEHOLDER]` fields with the selected intent, success criteria, scope and constraints, considered approaches and trade-offs, chosen direction, and assumptions or open decisions. Preserve unresolved decisions explicitly. **Complete when** the design represents the conversation and distinguishes user decisions from recommendations.
+5. **Write the design.** Use the existing `design.md` scaffold, replacing its `[PLACEHOLDER]` fields with the selected intent, success criteria, scope and constraints, considered approaches and trade-offs, chosen direction, and assumptions or open decisions. Write success criteria as observable outcomes that show the design achieves its intent; include measurable targets where practical without inventing precision. Leave detailed requirements and acceptance scenarios to the subsequent spec. Preserve unresolved decisions explicitly. **Complete when** the design represents the conversation, states observable success outcomes, and distinguishes user decisions from recommendations.
 
 6. **Get approval.** Share the design path and its content for user approval or correction. Do not begin spec drafting until the user approves the design. If the user opts out of brainstorming or asks for a spec without design, respect that choice; do not create a design as a gate. After approval, ask the user to invoke `/to-spec` to create the spec in the same feature workspace; do not invoke it automatically. **Complete when** the design is approved, corrected for another review, or the user has chosen the spec-only path.
 
