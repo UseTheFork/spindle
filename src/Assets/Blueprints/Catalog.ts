@@ -75,7 +75,6 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-code-review": { path: "int-code-review/", status: "active", stacks: [] },
     "int-code-slop-review": { path: "int-code-slop-review/", status: "active", stacks: [] },
     "int-domain-modeling": { path: "int-domain-modeling/", status: "active", stacks: [] },
-    "int-grilling": { path: "int-grilling/", status: "removed", stacks: [] },
     "int-prototype": { path: "int-prototype/", status: "active", stacks: [] },
     "int-retrospective": { path: "int-retrospective/", status: "active", stacks: [] },
     "int-subagent-driven-dev": { path: "int-subagent-driven-dev/", status: "active", stacks: [] },
@@ -102,8 +101,6 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "setup-project": { path: "setup-project/", status: "active", stacks: [] },
     "to-spec": { path: "to-spec/", status: "active", stacks: [] },
     "to-tickets": { path: "to-tickets/", status: "active", stacks: [] },
-    triage: { path: "triage/", status: "removed", stacks: [] },
     "update-tooling": { path: "update-tooling/", status: "active", stacks: [] },
-    wayfinder: { path: "wayfinder/", status: "removed", stacks: [] },
   },
 };
