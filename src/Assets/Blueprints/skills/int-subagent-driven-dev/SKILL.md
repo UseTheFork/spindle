@@ -41,17 +41,17 @@ flowchart TD
 
 ## Ticket workflow
 
-1. Read the feature spec, tickets, applicable instructions, glossary, and ADRs. Inspect `spindle sdd status --spec <path>` and `spindle sdd ready --spec <path>` to understand blockers, dependencies, and available work.
-2. Create a ticket for independently actionable work with `spindle sdd ticket create`. Fill its `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Use `spindle sdd ticket update` for tracker status, explicit blockers, and dependencies; the supported lifecycle is `open`, `in-progress`, and `closed`. Readiness is derived from status, blockers, and dependencies rather than stored as a separate triage state.
-3. Claim a ready ticket with `spindle sdd claim`. Dispatch implementation with `spindle sdd implement`; pass the worker the exact assignment and report destination. Submit its report with `spindle sdd submit --role implementation`.
+1. Read the feature spec, tickets, applicable instructions, glossary, and ADRs. Inspect `{{ computed.spindle_package_manager }} spindle sdd status --spec <path>` and `{{ computed.spindle_package_manager }} spindle sdd ready --spec <path>` to understand blockers, dependencies, and available work.
+2. Create a ticket for independently actionable work with `{{ computed.spindle_package_manager }} spindle sdd ticket create`. Fill its `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Use `{{ computed.spindle_package_manager }} spindle sdd ticket update` for tracker status, explicit blockers, and dependencies; the supported lifecycle is `open`, `in-progress`, and `closed`. Readiness is derived from status, blockers, and dependencies rather than stored as a separate triage state.
+3. Claim a ready ticket with `{{ computed.spindle_package_manager }} spindle sdd claim`. Dispatch implementation with `{{ computed.spindle_package_manager }} spindle sdd implement`; pass the worker the exact assignment and report destination. Submit its report with `{{ computed.spindle_package_manager }} spindle sdd submit --role implementation`.
 4. Run relevant tests and checks and record their actual outcomes against the current snapshot. TDD is not required, but verification is.
-5. Address implementation and verification gaps, then close the ticket with `spindle sdd ticket update --status closed` once its acceptance criteria are met. Do not use per-ticket accept or integrate steps.
+5. Address implementation and verification gaps, then close the ticket with `{{ computed.spindle_package_manager }} spindle sdd ticket update --status closed` once its acceptance criteria are met. Do not use per-ticket accept or integrate steps.
 
-If work is interrupted, inspect `spindle sdd status` and use `spindle sdd resume` to restore the recorded assignment. Preserve existing reports, findings, and evidence. Do not invent missing results or reset progress.
+If work is interrupted, inspect `{{ computed.spindle_package_manager }} spindle sdd status` and use `{{ computed.spindle_package_manager }} spindle sdd resume` to restore the recorded assignment. Preserve existing reports, findings, and evidence. Do not invent missing results or reset progress.
 
 ## Feature review and completion
 
-After every ticket is closed, establish current feature-level checks and request the comprehensive review with `spindle sdd review --scope delivery --inventory <json-array>`. The `sdd-reviewer` is the default reviewer. Add specialists only for justified objectives with `spindle sdd review require --scope delivery --type <agent-name>`; eligible names must be marked `canReview: true` in the Blueprint Catalog, and actual agent access must be confirmed before dispatch.
+After every ticket is closed, establish current feature-level checks and request the comprehensive review with `{{ computed.spindle_package_manager }} spindle sdd review --scope delivery --inventory <json-array>`. The `sdd-reviewer` is the default reviewer. Add specialists only for justified objectives with `{{ computed.spindle_package_manager }} spindle sdd review require --scope delivery --type <agent-name>`; eligible names must be marked `canReview: true` in the Blueprint Catalog, and actual agent access must be confirmed before dispatch.
 
 Submit every assigned review report against its exact assignment. Register findings from their report and snapshot. A blocking finding can name `--related-ticket`; once the complete review batch is submitted, that ticket is reopened so work can resume. Resolve blocking findings through ticket work and repeat any invalidated checks and reviews.
 

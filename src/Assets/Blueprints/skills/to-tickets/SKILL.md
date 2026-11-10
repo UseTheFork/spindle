@@ -20,7 +20,7 @@ An optional argument is one spec path or tracker reference. Read the full spec a
    - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.scratch/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
    - If `design.md` exists in the feature workspace, read it and confirm it was completed and approved before the spec. If the spec is not approved or a present design is unfinished, stop and resolve that before ticket planning.
    - A design is optional. Do not require or create one when the approved spec was intentionally written without a design.
-   - For local SDD tracker work, use the feature's `spec.md` path with `spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
+   - For local SDD tracker work, use the feature's `spec.md` path with `{{ computed.spindle_package_manager }} spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
 
    **Complete when:** one approved spec and its tracker destination are identified; any existing design precedes it and is approved.
 
@@ -41,7 +41,7 @@ An optional argument is one spec path or tracker reference. Read the full spec a
    **Complete when:** the user approves the ticket breakdown and blocker relationships.
 
 5. **Publish the tickets.**
-   - For a local Spindle SDD tracker, create each ticket in dependency order with `spindle sdd ticket create --spec <absolute-spec-path>`. Supply its title, reporter, category (`bug` or `enhancement`), and author. Fill the generated ticket's Requirements and Acceptance Criteria using the tracker guidance. After creation, use `spindle sdd ticket update --spec <absolute-spec-path> --ticket <id> --blocked-by <blocker-ids...> --author <author>` to record each dependency; omit `--blocked-by` when there are no blockers. Keep the approved spec and feature ledger authoritative.
+   - For a local Spindle SDD tracker, create each ticket in dependency order with `{{ computed.spindle_package_manager }} spindle sdd ticket create --spec <absolute-spec-path>`. Supply its title, reporter, category (`bug` or `enhancement`), and author. Fill the generated ticket's Requirements and Acceptance Criteria using the tracker guidance. After creation, use `{{ computed.spindle_package_manager }} spindle sdd ticket update --spec <absolute-spec-path> --ticket <id> --blocked-by <blocker-ids...> --author <author>` to record each dependency; omit `--blocked-by` when there are no blockers. Keep the approved spec and feature ledger authoritative.
    - For an external ticket tracker, create one ticket per approved ticket in dependency order and use native blocking relationships when available; otherwise record blockers in each ticket. If the source was an existing ticket, create sub-tickets as required by the tracker.
    - Apply a status only when the project documents it or the user requests it. Do not close or modify a parent ticket.
    - Publishing ends here. Tell the user that delivery begins through the project's documented implementation workflow; do not start implementation.

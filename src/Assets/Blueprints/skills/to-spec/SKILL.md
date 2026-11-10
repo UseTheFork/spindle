@@ -30,7 +30,7 @@ An optional design file path may be supplied. Read the entire file before drafti
 
 2. **Select or create the SDD feature workspace.**
    - Reuse the existing numbered `.scratch/<feature-id>-<slug>/` workspace when the selected design or spec belongs to one. Use its `spec.md`; do not create a second workspace for the same feature.
-   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
+   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `{{ computed.spindle_package_manager }} spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
    - When the workspace has `design.md`, read it fully and use it as the requirements source. If it still contains `[PLACEHOLDER]` markers or has not been approved, pause and ask the user to finish or approve the design before drafting the spec.
    - The selected SDD workspace's pre-created `spec.md` is the output. Replace its template content with the completed spec; do not create a dated folder or a second spec.
 

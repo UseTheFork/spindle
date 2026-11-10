@@ -34,7 +34,7 @@ flowchart TD
 
 ### A. Inspect tooling and registry
 
-Read project guidance and run `spindle tool list` from the target Git working tree. Inspect package manifests, task runner configuration, and test/build configuration for the supplied target, or the whole project when no target is supplied. Verify command names, argument forms, and working-directory requirements against configuration. Preserve unrelated registry entries; absence from a targeted inspection is not evidence that an entry is obsolete.
+Read project guidance and run `{{ computed.spindle_package_manager }} spindle tool list` from the target Git working tree. Inspect package manifests, task runner configuration, and test/build configuration for the supplied target, or the whole project when no target is supplied. Verify command names, argument forms, and working-directory requirements against configuration. Preserve unrelated registry entries; absence from a targeted inspection is not evidence that an entry is obsolete.
 
 Do not execute project commands merely to document them if execution could install dependencies, mutate data, or have side effects without authorization. If the registry is missing or invalid, report the prerequisite and stop; do not run initialization or silently repair it.
 
@@ -59,14 +59,14 @@ Ask for explicit approval of the complete change set and wait. Approval applies 
 Apply only approved changes through Spindle, not by directly editing the registry or generated Markdown. Add one entry per approved command:
 
 ```sh
-spindle tool add \
+{{ computed.spindle_package_manager }} spindle tool add \
   --key test-unit \
   --section Testing \
   --command "pnpm test -- --run" \
   --description "Run the focused unit tests."
 ```
 
-Use `spindle tool update <key>` with the approved `--section`, `--command`, or `--description` fields; `--clear-description` explicitly removes a description. Use `spindle tool remove <key>` for approved removals. Each successful mutation regenerates the guide, grouped by section with empty sections omitted.
+Use `{{ computed.spindle_package_manager }} spindle tool update <key>` with the approved `--section`, `--command`, or `--description` fields; `--clear-description` explicitly removes a description. Use `{{ computed.spindle_package_manager }} spindle tool remove <key>` for approved removals. Each successful mutation regenerates the guide, grouped by section with empty sections omitted.
 Run project scripts with `{{ computed.spindle_package_manager }} <script>`, such as `{{ computed.spindle_package_manager }} lint`.
 
 If the inspected registry or relevant configuration has changed since approval, stop and return to A, then obtain approval for a refreshed proposal. If a command fails, stop and report the failure and any already-applied changes; do not claim atomicity or completion.
@@ -75,7 +75,7 @@ If the inspected registry or relevant configuration has changed since approval, 
 
 ### E. Verify registry and guide
 
-Run `spindle tool list` again and inspect `docs/agents/tooling.md`. Confirm entries, sections, commands, descriptions, and limitations agree, approved changes are reflected, and unrelated entries remain unchanged. After a decline or no-op, verify the existing state without mutating it. Report mismatches; any corrective changes require a new proposal and approval rather than direct Markdown edits.
+Run `{{ computed.spindle_package_manager }} spindle tool list` again and inspect `docs/agents/tooling.md`. Confirm entries, sections, commands, descriptions, and limitations agree, approved changes are reflected, and unrelated entries remain unchanged. After a decline or no-op, verify the existing state without mutating it. Report mismatches; any corrective changes require a new proposal and approval rather than direct Markdown edits.
 
 **Complete when:** verification results and any discrepancies are known, selecting F.
 
