@@ -5,7 +5,7 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # To Spec
@@ -45,6 +45,7 @@ An optional design file path may be supplied. Read the entire file before drafti
 
 4. **Write and publish the spec.**
    - Fill the sections in the SDD-created `spec.md`: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
+   - Give each important user story a concise, observable acceptance outcome or example scenario focused on user-visible behavior. Leave implementation-slice completion criteria to tickets; no fixed scenario format is required.
    - Use domain glossary terms. Do not include file paths or code snippets unless a prototype captures a decision more clearly than prose.
    - Publish the completed spec according to the configured ticket-tracker guidance. Ask before publishing if the destination or status is unclear.
    - Once the spec is published, ask the user to invoke `/to-tickets` for planning. Do not invoke it automatically or start implementation here.
