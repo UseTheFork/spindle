@@ -5,12 +5,20 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 1.1.1
+    version: 1.1.2
 ---
 
 # Authoring a Design
 
 Help the user clarify what they want before turning an idea into a design. A design is optional; when one is created, it is authored and approved before its spec, and tickets follow the spec. Use this for product and project decisions, not as a gate for a clear, bounded task or a user who wants a spec without a design.
+
+## Required skills
+
+Before drafting or editing, read:
+
+- **REQUIRED:** `asd-ste100`
+
+Apply the clarity rules from the `asd-ste100` skill. Include a before/after table only when the user requests one.
 
 ## Process
 
