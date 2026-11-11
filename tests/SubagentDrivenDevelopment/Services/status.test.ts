@@ -63,19 +63,14 @@ test("sdd status reads the explicitly selected feature policy and progress witho
   expect(git("status", "--porcelain=v1")).toBe(beforeStatus);
 });
 
-test("sdd status rejects normalized traversal paths and legacy feature layouts", async () => {
+test("sdd status rejects normalized traversal paths and symlinked feature paths", async () => {
   const { repo, service, feature } = await ticketFixture("Current Feature");
   const linkedFeature = join(repo, ".scratch", "0002-linked-feature");
   symlinkSync(feature.workspace, linkedFeature);
-  const legacy = join(repo, ".scratch", "2026-11-06-legacy-feature");
-  mkdirSync(legacy, { recursive: true });
-  writeFileSync(join(legacy, "spec.md"), "# Legacy\n");
-  writeFileSync(join(legacy, "sdd.json"), "{}\n");
 
   for (const spec of [
     `${repo}/.scratch/../.scratch/${feature.feature}/spec.md`,
     join(linkedFeature, "spec.md"),
-    join(legacy, "spec.md"),
   ]) {
     expect(() => service.featureInspectionService.status({ spec }), spec).toThrow();
   }

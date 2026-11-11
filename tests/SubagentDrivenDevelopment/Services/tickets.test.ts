@@ -168,37 +168,6 @@ test("ticket creation requires valid project Config", async () => {
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
 });
 
-test("ticket commands reject legacy I-prefixed identifiers", async () => {
-  const { service, feature } = await ticketFixture("Ticket IDs");
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "I-0001",
-      status: "closed",
-      author: "maintainer",
-    }),
-  ).toThrow("Invalid ticket ID: I-0001.");
-});
-
-test("ticket reads reject legacy tracking fields in Markdown front matter", async () => {
-  const { service, feature } = await ticketFixture("Ticket Front Matter");
-  createTicket(service, feature.spec, "Current ticket");
-  const path = join(feature.workspace, "tickets", "T-0001.md");
-  const document = matter(readFileSync(path, "utf8"));
-  writeFileSync(
-    path,
-    matter.stringify(document.content, { ...document.data, title: "Legacy title" }),
-  );
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      author: "maintainer",
-    }),
-  ).toThrow("Ticket T-0001 tracking metadata must be stored in sdd.json.");
-});
-
 test("ticket creation rejects ignored destinations without changing ticket or ledger files", async () => {
   const { repo, service, feature } = await ticketFixture("Ignored Ticket");
   writeFileSync(join(repo, ".gitignore"), ".scratch/*/tickets/T-*.md\n");

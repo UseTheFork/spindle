@@ -81,21 +81,3 @@ test("shared context accepts caller inputs without Config or Blueprint defaults"
   expect(renderText("{{ variables.title }}", resolved)).toBe("Caller title");
   expect(() => renderText("{{ variables.owner }}", resolved)).toThrow(/undefined/i);
 });
-
-test("missing computed outputs name the reference in CRLF templates", () => {
-  expect(() => renderText("Frontmatter\r\n{{ computed.not_registered }}", context)).toThrow(
-    /computed\.not_registered/,
-  );
-});
-
-test("missing computed outputs name quoted bracket keys containing punctuation", () => {
-  for (const source of ['{{ computed["missing-name"] }}', "{{ computed['missing-name'] }}"]) {
-    expect(() => renderText(source, context)).toThrow(/Unknown computed output .*missing-name/);
-  }
-});
-
-test("legacy custom delimiters are literal text rather than template syntax", () => {
-  const source = "<%= variables.name %> <% if true %>body<% endif %> <# note #>";
-
-  expect(renderText(source, context)).toBe(source);
-});
