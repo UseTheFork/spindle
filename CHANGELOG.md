@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.1.0
+
+### Minor Changes
+
+- [#4](https://github.com/UseTheFork/spindle/pull/4) [`fbf4015`](https://github.com/UseTheFork/spindle/commit/fbf40155b4c16b0d3dd809d8223a8d53facc2068) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add authoring-flow support and Laravel/Saloon reference guidance, and update shipped skill names.
+
 ## 0.0.2
 
 ### Patch Changes
