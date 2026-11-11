@@ -49,7 +49,7 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   expect(ledger.retrospectiveRequired).toBe(false);
   expect(ledger.reviewPolicy).toEqual({
     version: 1,
-    ticket: ["sdd-reviewer"],
+    ticket: ["sdd-task-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(ledger.delivery.status).toBe("active");

@@ -116,7 +116,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   const ledger = JSON.parse(ledgerBeforeStatus);
   expect(ledger.reviewPolicy).toEqual({
     version: 1,
-    ticket: ["sdd-reviewer"],
+    ticket: ["sdd-task-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(ledger.delivery).toMatchObject({
