@@ -2,7 +2,7 @@
 name: int-testing-agent-guidance
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
 ---
@@ -32,7 +32,7 @@ Use this workflow for behavior-shaping changes to skills, agents, prompts, instr
 
 ## Expanded testing
 
-Use expanded testing when the user requests it or the skill is invoked with `--test`. This adds independent samples; it does not replace the core baseline and retest.
+Always run expanded testing for authoring tasks. It adds independent samples and does not replace the core baseline and retest.
 
 1. Freeze scenario prompts and observable pass criteria before dispatch. Cover each meaningful branch. For discipline-enforcing guidance, use at least three scenarios, each combining at least three pressures such as deadline, authority, sunk cost, or exhaustion.
 2. Run five independent read-only agents against the baseline. For a new document, provide no proposed guidance; for an edit, provide the current version. Each agent runs every scenario once and reports its concrete choices and rationalizations verbatim.

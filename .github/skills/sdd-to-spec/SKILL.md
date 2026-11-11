@@ -5,7 +5,7 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # To Spec
@@ -30,7 +30,7 @@ An optional design file path may be supplied. Read the entire file before drafti
 
 2. **Select or create the SDD feature workspace.**
    - Reuse the existing numbered `.scratch/<feature-id>-<slug>/` workspace when the selected design or spec belongs to one. Use its `spec.md`; do not create a second workspace for the same feature.
-   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
+   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `pnpm spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
    - When the workspace has `design.md`, read it fully and use it as the requirements source. If it still contains `[PLACEHOLDER]` markers or has not been approved, pause and ask the user to finish or approve the design before drafting the spec.
    - The selected SDD workspace's pre-created `spec.md` is the output. Replace its template content with the completed spec; do not create a dated folder or a second spec.
 
@@ -45,6 +45,7 @@ An optional design file path may be supplied. Read the entire file before drafti
 
 4. **Write and publish the spec.**
    - Fill the sections in the SDD-created `spec.md`: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
+   - Give each important user story a concise, observable acceptance outcome or example scenario focused on user-visible behavior. Leave implementation-slice completion criteria to tickets; no fixed scenario format is required.
    - Use domain glossary terms. Do not include file paths or code snippets unless a prototype captures a decision more clearly than prose.
    - Publish the completed spec according to the configured ticket-tracker guidance. Ask before publishing if the destination or status is unclear.
    - Once the spec is published, ask the user to invoke `/sdd-to-tickets` for planning. Do not invoke it automatically or start implementation here.
