@@ -1,5 +1,5 @@
 ---
-name: to-tickets
+name: sdd-to-tickets
 description: "Break an approved feature spec into tracer-bullet tickets with explicit blockers, then publish them to the configured ticket tracker."
 argument-hint: "[spec path or tracker reference]"
 disable-model-invocation: true

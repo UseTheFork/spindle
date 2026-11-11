@@ -1,5 +1,5 @@
 ---
-name: grill-design
+name: sdd-grill-design
 description: "Challenge and refine an existing design through an interview, updating the design and relevant domain documentation."
 argument-hint: "[design.md path or feature directory]"
 disable-model-invocation: true
