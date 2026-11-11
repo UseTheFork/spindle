@@ -36,7 +36,7 @@ For discipline-enforcing guidance, consult [Persuasion principles](./persuasion-
 
 Rerun the same prompt and criterion with the full revised guidance in a fresh context. Check actual choices, resource loads, and artifacts. Correct remaining failures narrowly, then rerun after each wording change.
 
-Run expanded testing only when explicitly requested or when `--test` is present, using `int-testing-agent-guidance`. It adds coverage rather than replacing the focused baseline and retest.
+Always run expanded testing with `int-testing-agent-guidance`. It adds coverage rather than replacing the focused baseline and retest.
 
 | Testing pitfall                         | Required evidence                                               |
 | --------------------------------------- | --------------------------------------------------------------- |
@@ -45,4 +45,4 @@ Run expanded testing only when explicitly requested or when `--test` is present,
 | "There is no time"                      | Recorded validation or an explicit blocker, not claimed success |
 | "The output is close enough"            | The unchanged observable criterion passes                       |
 
-**Complete when:** the final focused scenario passes without unresolved failures, requested expanded testing is complete, or remaining failures and validation limits are explicitly reported.
+**Complete when:** the final focused scenario passes without unresolved failures, expanded testing is complete, or remaining failures and validation limits are explicitly reported.

@@ -1,30 +1,28 @@
 ---
 name: author-instruction
 description: Create or revise workspace-scoped Copilot instruction files from the user's requirements
-argument-hint: "[--test] <instruction requirements>"
+argument-hint: "<instruction requirements>"
 disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 ---
 
 Create or update a project instruction in `.github/instructions/**/*.instructions.md` based on the user's requirements.
 
-## Required skills
+## Authoring flow
 
-Before drafting or editing, read:
+{{ computed.authoring_flowchart }}
+
+Before grilling, read and consider only the `int-writing-for-agents` and `asd-ste100` skills. Do not follow their workflows or load skills they reference yet.
+
+After the user confirms shared understanding, load and follow:
 
 - **REQUIRED:** `int-writing-instruction`
-- **REQUIRED:** `int-writing-for-agents`
 - **REQUIRED:** `int-testing-agent-guidance`
-- **REQUIRED:** `asd-ste100`
 
-Apply the clarity rules from the `asd-ste100` skill. Include a before/after table only when the user requests one.
-
-These skills define the complete authoring workflow. Every instruction change requires the baseline and focused validation specified by `int-testing-agent-guidance`; `--test` does not disable or replace them.
-
-When `--test` is present, also run the expanded testing workflow in `int-testing-agent-guidance`.
+Apply the clarity rules from the `asd-ste100` skill. Include a before/after table only when the user requests one. Run the core and expanded testing workflows in `int-testing-agent-guidance` for every authoring request.
 
 Verify any `applyTo` glob against concrete in-scope files and near misses; every intended file must match, and out-of-scope files must not.
 
