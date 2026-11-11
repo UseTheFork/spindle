@@ -4,12 +4,10 @@ description: "Implement the result of /sdd-to-spec and /sdd-to-tickets in code."
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.2.0
 ---
 
 # Implement a Spec
-
-The isolated-worktree delivery workflow is incomplete. Post-merge validation, dependent-ticket unblocking, final feature integration, and cleanup are unavailable. Do not bypass these gates or claim completion; report the blocker and preserve existing work.
 
 ## Required Skills
 
@@ -19,7 +17,7 @@ Before acting, read and follow each required skill:
 
 ## Steps
 
-1. **Bind the whole-spec assignment.** Locate the full spec, every ticket and its comments, and tracker guidance. Supply accessible context pointers rather than duplicating their contents. Record the existing checkout, starting revision, existing work and permissions.
+1. **Bind the whole-spec assignment.** Locate the full spec, every ticket and its comments, and tracker guidance. Supply accessible context pointers rather than duplicating their contents. Record the original branch, existing work, permissions, and the allowed feature worktree location; obtain an allowed location for each ticket at dispatch.
 
    **Complete when:** the complete graph and delivery inputs are available to one controller, or missing requirements are reported for triage.
 
@@ -27,7 +25,7 @@ Before acting, read and follow each required skill:
 
    If the tracker calls for a PR, or the user requests one, open an authorized draft during execution after the first authorized commit is available; retain it as draft while delivery is incomplete.
 
-   **Complete when:** its final report reconciles every ticket and requirement, one aggregate review, fresh verification and one retrospective for the spec, or explicitly identifies unfinished work and blockers.
+   **Complete when:** its final report reconciles every ticket and requirement, one aggregate review, fresh verification, and any retrospective required by policy or requested by the user, or explicitly identifies unfinished work and blockers.
 
 3. **Apply authorized publication transitions.** Mark an authorized draft ready only after the full delivery's review and checks pass. Apply closing references and ticket closure only with the user's authorization.
 

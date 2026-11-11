@@ -29,11 +29,9 @@ export type TrackerStatus = (typeof TRACKER_STATUSES)[number];
 
 export const EXECUTION_STATES = [
   "unstarted",
-  "claimed",
   "implementing",
   "reviewing",
   "changes-requested",
-  "accepted",
   "integrated",
   "complete",
   "blocked",
@@ -52,6 +50,7 @@ export interface TicketProgress {
   execution: ExecutionState;
   owner?: string;
   baseSha?: string;
+  baselineHistory?: TicketBaselineChange[];
   worktree?: {
     workspace: string;
     branch: string;
@@ -59,6 +58,7 @@ export interface TicketProgress {
   };
   acceptedEvidence?: AcceptedEvidence;
   integration?: IntegrationRecord;
+  integrationHistory?: IntegrationRecord[];
   assignment?: ImplementationAssignment;
   correctionAttempts?: CorrectionAttempt[];
   adjudication?: CorrectionAdjudication;
@@ -68,6 +68,14 @@ export interface TicketProgress {
   requirementsDecisions?: RequirementsDecision[];
   checks?: TicketChecks;
   findings?: ReviewFinding[];
+}
+
+export interface TicketBaselineChange {
+  from: string;
+  to: string;
+  ticketHead: string;
+  at: string;
+  author: string;
 }
 
 export interface FeatureLedger {

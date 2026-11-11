@@ -392,6 +392,22 @@ export class ReviewService extends Service {
         }
       }
 
+      if (
+        progress.assignment.action !== "correct" &&
+        existing.length > 0 &&
+        existing.every((assignment) => assignment.status === "submitted") &&
+        existing.some(
+          (assignment) =>
+            assignment.snapshot !== identity.snapshot ||
+            assignment.headSha !== identity.headSha ||
+            JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
+        )
+      ) {
+        progress.reviewHistory = [...(progress.reviewHistory ?? []), ...existing];
+        delete progress.reviewAssignments;
+        existing = [];
+      }
+
       if (existing.length > 0) {
         if (
           existing.length !== requiredReviewers.length ||
@@ -546,9 +562,17 @@ export class ReviewService extends Service {
           `Feature review requires every ticket integrated: ${unintegrated.join(", ")}.`,
         );
       }
-      if (ledger.tickets.some((progress) => progress.worktree)) {
+      const unvalidated = ledger.tickets
+        .filter(
+          (progress) =>
+            !progress.integration?.mergeSha ||
+            progress.integration.postMerge?.status !== "passed" ||
+            progress.integration.postMerge.mergeSha !== progress.integration.mergeSha,
+        )
+        .map((progress) => progress.id);
+      if (unvalidated.length > 0) {
         throw new Error(
-          "Feature review requires ticket post-merge validation, which is not yet available.",
+          `Feature review requires passing ticket post-merge validation: ${unvalidated.join(", ")}.`,
         );
       }
       if (tickets.length !== ledger.tickets.length) {

@@ -20,7 +20,11 @@ import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { TicketSelection } from "@/SubagentDrivenDevelopment/Models/Options";
+import type {
+  AcceptedEvidence,
+  ContentIdentity,
+} from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeaturePaths, TicketProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
@@ -33,6 +37,7 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@/Support/Records";
 
 interface MergeJournal {
@@ -59,11 +64,12 @@ export class TicketIntegrationService extends Service {
     private readonly acceptance: AcceptancePolicy,
     private readonly workflow: WorkflowPolicy,
     private readonly inspection: FeatureInspectionService,
+    private readonly workflowRecordsCommitter: WorkflowRecordsCommitter,
   ) {
     super(app);
   }
 
-  public integrate(options: TicketSelection): {
+  public integrate(options: IntegrateOptions): {
     ticket: string;
     ticketCommit: string;
     mergeCommit: string;
@@ -93,11 +99,15 @@ export class TicketIntegrationService extends Service {
         options.ticket,
       );
       const progress = this.workflow.requireProgress(ledger, options.ticket);
-      if (!progress.worktree || !progress.baseSha || !progress.acceptedEvidence) {
-        throw new Error("Ticket integration requires an accepted isolated ticket worktree.");
+      if (!progress.worktree || !progress.baseSha) {
+        throw new Error("Ticket integration requires an isolated ticket worktree.");
       }
-      if (progress.execution !== "accepted" && progress.execution !== "integrated") {
-        throw new Error(`Ticket ${options.ticket} must be accepted before integration.`);
+      if (
+        progress.execution !== "reviewing" &&
+        progress.execution !== "changes-requested" &&
+        progress.execution !== "integrated"
+      ) {
+        throw new Error(`Ticket ${options.ticket} must have current review before integration.`);
       }
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the ticket controller may integrate this ticket.");
@@ -109,17 +119,89 @@ export class TicketIntegrationService extends Service {
         progress.baseSha,
         progress.checks,
       );
-      const accepted = progress.acceptedEvidence;
-      if (
-        identity.snapshot !== accepted.snapshot ||
-        identity.codeSnapshot !== accepted.codeSnapshot ||
-        identity.requirementsSnapshot !== accepted.requirementsSnapshot
-      ) {
-        throw new Error("Accepted ticket evidence is stale; fresh review is required.");
+      const outstandingPostMerge = ledger.tickets.filter((candidate) => {
+        const integration = candidate.integration ?? candidate.integrationHistory?.at(-1);
+        return integration?.postMerge?.status === "pending";
+      });
+      const alreadyIntegrated =
+        progress.execution === "integrated" &&
+        progress.integration?.commitSha === identity.headSha &&
+        !!progress.integration?.mergeSha;
+      const idempotentPendingValidation =
+        alreadyIntegrated && String(progress.integration?.postMerge?.status) === "pending";
+      const previousIntegration = progress.integrationHistory?.at(-1);
+      const correction = progress.correctionAttempts?.at(-1);
+      const failedCommand = correction?.checkFailure;
+      const previousFailure = failedCommand
+        ? previousIntegration?.postMerge?.checks?.records
+            .filter((record) => record.command === failedCommand)
+            .at(-1)
+        : undefined;
+      const failedCorrection =
+        outstandingPostMerge.length === 1 &&
+        outstandingPostMerge[0]?.id === options.ticket &&
+        !progress.integration &&
+        !!previousIntegration?.mergeSha &&
+        previousIntegration.postMerge?.status === "pending" &&
+        previousFailure?.result === "failed" &&
+        previousFailure.headSha === previousIntegration.mergeSha &&
+        progress.assignment?.action === "correct" &&
+        progress.assignment.attempt === correction?.number;
+      if (outstandingPostMerge.length > 0 && !idempotentPendingValidation && !failedCorrection) {
+        throw new Error(
+          `Ticket integration is blocked while post-merge validation is pending or failed for: ${outstandingPostMerge.map((item) => item.id).join(", ")}.`,
+        );
+      }
+      if (failedCorrection && previousIntegration?.mergeSha) {
+        this.assertAncestor(
+          root,
+          previousIntegration.mergeSha,
+          progress.baseSha,
+          "Correction baseline must descend from the failed feature merge.",
+        );
+        this.assertAncestor(
+          root,
+          progress.baseSha,
+          identity.headSha,
+          "Correction must descend from its reviewed feature baseline.",
+        );
+        this.assertAncestor(
+          root,
+          progress.baseSha,
+          "HEAD",
+          "The reviewed correction baseline is no longer on the feature branch.",
+        );
+        const allowed = this.gitEvidence.workflowDeliveryRecordPaths(feature, ledger);
+        const changed = this.buffer(root, [
+          "diff",
+          "--name-only",
+          "-z",
+          "--no-renames",
+          progress.baseSha,
+          "HEAD",
+          "--",
+          ".",
+        ])
+          .toString("utf8")
+          .split("\0")
+          .filter((path) => path && !allowed.has(path));
+        if (changed.length)
+          throw new Error(
+            `Feature code changed since the reviewed correction baseline; rebase and re-review before integration: ${changed.join(", ")}.`,
+          );
       }
       const blockers = this.acceptance.acceptBlockers(feature, ledger, ticket, progress, identity);
       if (blockers.length)
         throw new Error(`Ticket review or checks are not current:\n${blockers.join("\n")}`);
+      const accepted = this.acceptedEvidence(feature, progress, identity);
+      if (
+        alreadyIntegrated &&
+        (identity.snapshot !== accepted.snapshot ||
+          identity.codeSnapshot !== accepted.codeSnapshot ||
+          identity.requirementsSnapshot !== accepted.requirementsSnapshot)
+      ) {
+        throw new Error("Ticket review evidence is stale; fresh review is required.");
+      }
       this.reports.assertAcceptedReportsCurrent(feature, progress);
       const workspace = this.gitEvidence.ticketWorkspace(progress)!;
       this.gitEvidence.assertTicketCodeCommitted(progress);
@@ -128,7 +210,12 @@ export class TicketIntegrationService extends Service {
           JSON.stringify(accepted.files) ||
         this.gitEvidence.worktreeContentDigest(accepted.files, workspace) !== accepted.contentDigest
       ) {
-        throw new Error("Ticket inventory or content changed after acceptance.");
+        throw new Error("Ticket inventory or content differs from its current review.");
+      }
+      if (!alreadyIntegrated) {
+        this.assertNoOperation(root);
+        this.assertNoHooks(root);
+        this.workflowRecordsCommitter.commit(feature, options.confirmRecords === true);
       }
       const common = realpathSync(
         this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
@@ -142,10 +229,13 @@ export class TicketIntegrationService extends Service {
       if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) {
         throw new Error("Integration journal directory must be a real directory.");
       }
-      const journalPath = join(directory, `${feature.feature}-${options.ticket}.json`);
+      const journalPath = join(
+        directory,
+        `${feature.feature}-${options.ticket}-${identity.headSha}.json`,
+      );
       let journal: MergeJournal;
       if (lstatIfPresent(journalPath)) {
-        journal = this.readJournal(journalPath, feature, progress, identity.headSha);
+        journal = this.readJournal(journalPath, feature, progress, identity.headSha, accepted);
       } else {
         if (progress.execution === "integrated") {
           throw new Error(`Integration journal is missing: ${journalPath}.`);
@@ -165,6 +255,7 @@ export class TicketIntegrationService extends Service {
             "Ticket commit is already in feature history; refusing an unverified integration.",
           );
         }
+        this.assertMergePreflight(root, featureHead, identity.headSha, accepted.files, workspace);
         journal = {
           version: 1,
           id: randomUUID(),
@@ -172,14 +263,14 @@ export class TicketIntegrationService extends Service {
           ticket: options.ticket,
           featureHead,
           ticketHead: identity.headSha,
-          snapshot: accepted.snapshot,
+          snapshot: identity.snapshot,
           files: accepted.files,
           contentDigest: accepted.contentDigest,
         };
         this.createJournal(journalPath, journal);
       }
 
-      if (progress.execution === "integrated") {
+      if (alreadyIntegrated) {
         const mergeSha = progress.integration?.mergeSha;
         if (
           !mergeSha ||
@@ -215,6 +306,7 @@ export class TicketIntegrationService extends Service {
           this.assertNoOperation(root);
           this.assertNoHooks(root);
           this.assertClean(root, feature);
+          this.assertNoIgnoredCollisions(root, journal);
           this.run(root, [
             "-c",
             "merge.autostash=false",
@@ -222,6 +314,7 @@ export class TicketIntegrationService extends Service {
             "--no-ff",
             "--no-commit",
             "--no-autostash",
+            "--no-overwrite-ignore",
             journal.ticketHead,
           ]);
           const mergeHead = this.run(root, ["rev-parse", "--verify", "MERGE_HEAD"]);
@@ -258,10 +351,22 @@ export class TicketIntegrationService extends Service {
         this.assertMergeCommit(root, journal, mergeSha);
         this.assertClean(root, feature);
         progress.execution = "integrated";
+        const carriedChecks = failedCorrection ? previousIntegration?.postMerge?.checks : undefined;
         progress.integration = {
           commitSha: journal.ticketHead,
           mergeSha,
-          postMerge: { status: "pending", mergeSha },
+          postMerge: {
+            status: "pending",
+            mergeSha,
+            ...(carriedChecks
+              ? {
+                  checks: {
+                    required: carriedChecks.required.map((requirement) => ({ ...requirement })),
+                    records: [],
+                  },
+                }
+              : {}),
+          },
           integratedAt: new Date().toISOString(),
           integratedBy: options.author.trim(),
           files: accepted.files,
@@ -275,6 +380,7 @@ export class TicketIntegrationService extends Service {
           ),
           this.tickets.metadata(ticket),
         );
+        progress.acceptedEvidence = accepted;
         this.transaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
           ticket: options.ticket,
@@ -313,17 +419,41 @@ export class TicketIntegrationService extends Service {
     }
   }
 
+  private acceptedEvidence(
+    feature: FeaturePaths,
+    progress: TicketProgress,
+    identity: ContentIdentity,
+  ): AcceptedEvidence {
+    if (
+      progress.execution === "integrated" &&
+      progress.integration?.commitSha === identity.headSha &&
+      progress.acceptedEvidence
+    ) {
+      return progress.acceptedEvidence;
+    }
+    const files = this.workflow.acceptedInventory(progress, progress.id);
+    const workspace = this.gitEvidence.ticketWorkspace(progress);
+    this.gitEvidence.assertTicketCodeCommitted(progress);
+    return {
+      snapshot: identity.snapshot,
+      codeSnapshot: identity.codeSnapshot,
+      requirementsSnapshot: identity.requirementsSnapshot,
+      files,
+      contentDigest: this.gitEvidence.worktreeContentDigest(files, workspace),
+    };
+  }
+
   private readJournal(
     path: string,
     feature: FeaturePaths,
     progress: TicketProgress,
     ticketHead: string,
+    accepted: AcceptedEvidence,
   ): MergeJournal {
     const entry = lstatSync(path);
     if (!entry.isFile() || entry.isSymbolicLink())
       throw new Error(`Integration journal is unsafe: ${path}.`);
     const value: unknown = JSON.parse(readFileSync(path, "utf8"));
-    const accepted = progress.acceptedEvidence!;
     if (
       !Records.isRecord(value) ||
       value.version !== 1 ||
@@ -366,6 +496,129 @@ export class TicketIntegrationService extends Service {
       fsyncSync(directory);
     } finally {
       closeSync(directory);
+    }
+  }
+
+  private assertMergePreflight(
+    root: string,
+    featureHead: string,
+    ticketHead: string,
+    files: string[],
+    workspace: string,
+  ): void {
+    const result = this.git.run(
+      ["merge-tree", "--write-tree", "--name-only", featureHead, ticketHead],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      },
+    );
+    if (result.error) throw result.error;
+    if (result.status === 1) {
+      throw new Error(
+        `Merge conflicts require resolution in ticket worktree ${workspace}; rebase it onto the current feature branch, resolve and commit conflicts, adopt the baseline with checks require --rebase-baseline, then obtain fresh checks and review. Feature checkout was preserved.\n${result.stdout.trim()}`,
+      );
+    }
+    if (result.status !== 0)
+      throw new Error(`Merge preflight failed; preserve both worktrees: ${result.stderr.trim()}`);
+    const tree = result.stdout.trim().split(/\s+/)[0];
+    if (!tree || !/^[0-9a-f]{40,64}$/i.test(tree))
+      throw new Error("Merge preflight returned an invalid tree.");
+    const paths = this.buffer(root, [
+      "diff",
+      "--name-only",
+      "--no-renames",
+      "-z",
+      featureHead,
+      tree,
+      "--",
+      ".",
+    ])
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    if (paths.some((path) => !files.includes(path)))
+      throw new Error("Merge would introduce unreviewed paths; re-review in the ticket worktree.");
+    const diff = this.git.run(
+      ["diff", "--quiet", ticketHead, tree, "--", ...files.map((path) => `:(literal)${path}`)],
+      { cwd: root, encoding: "utf8" },
+    );
+    if (diff.error) throw diff.error;
+    if (diff.status !== 0)
+      throw new Error(
+        `Merge differs from the reviewed ticket commit; reconcile in ${workspace} and obtain fresh review.`,
+      );
+  }
+
+  private assertNoIgnoredCollisions(root: string, journal: MergeJournal): void {
+    // Some Git versions still overwrite ignored files during a non-fast-forward merge
+    // despite --no-overwrite-ignore, so check the reviewed incoming paths as well.
+    if (!journal.files.length) return;
+    const literals = journal.files.map((path) => `:(literal)${path}`);
+    const incoming = this.buffer(root, [
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "-z",
+      journal.ticketHead,
+      "--",
+      ...literals,
+    ])
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    if (!incoming.length) return;
+    const candidates = new Set(incoming);
+    for (const path of incoming) {
+      const components = path.split("/");
+      for (let count = 1; count < components.length; count++) {
+        const ancestor = components.slice(0, count).join("/");
+        const entry = lstatIfPresent(join(root, ancestor));
+        if (!entry) break;
+        if (!entry.isDirectory() || entry.isSymbolicLink()) {
+          candidates.add(ancestor);
+          break;
+        }
+      }
+    }
+    const ignored = this.buffer(root, [
+      "ls-files",
+      "--others",
+      "--ignored",
+      "--exclude-standard",
+      "--full-name",
+      "-z",
+      "--",
+      ...[...candidates].map((path) => `:(literal)${path}`),
+    ])
+      .toString("utf8")
+      .split("\0")
+      .filter(
+        (path) =>
+          path &&
+          incoming.some(
+            (target) =>
+              path === target || path.startsWith(`${target}/`) || target.startsWith(`${path}/`),
+          ),
+      );
+    if (!ignored.length) {
+      for (const path of incoming) {
+        if (!lstatIfPresent(join(root, path))?.isDirectory()) continue;
+        const result = this.git.run(["check-ignore", "--quiet", "--", path], {
+          cwd: root,
+          encoding: "utf8",
+        });
+        if (result.error) throw result.error;
+        if (result.status === 0) ignored.push(path);
+        else if (result.status !== 1)
+          throw new Error("Cannot verify ignored directory collision safety.");
+      }
+    }
+    if (ignored.length) {
+      throw new Error(
+        `Ignored files would be overwritten by the reviewed merge; preserve or move them before retrying: ${ignored.join(", ")}.`,
+      );
     }
   }
 

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   accessSync,
   constants,
@@ -21,6 +21,7 @@ import type { StartOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { isPathInside, lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { Records } from "@/Support/Records";
 
 interface StartState {
   version: 1;
@@ -33,6 +34,8 @@ interface StartState {
   featureWorkspace: string;
   phase: "planned" | "committed" | "allocated" | "created";
   featureRevision?: string;
+  records: { paths: string[]; digest: string };
+  targetIdentity?: { device: number; inode: number };
 }
 
 export class FeatureWorktreeService extends Service {
@@ -106,6 +109,7 @@ export class FeatureWorktreeService extends Service {
       this.assertNoHooks(root);
       this.assertNoUnrelatedChanges(root, prefix, lockPath);
       this.assertFeatureRecords(root, prefix, lockPath);
+      this.assertNoDivergentStagedRecords(root);
       const ignored = this.runBuffer(root, [
         "ls-files",
         "--others",
@@ -123,20 +127,6 @@ export class FeatureWorktreeService extends Service {
           `Ignored feature files must be handled before starting: ${ignored.join(", ")}.`,
         );
       }
-      if (lstatIfPresent(target))
-        throw new Error(`Worktree destination already exists: ${target}.`);
-      const existingBranch = this.git.run(
-        ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
-        {
-          cwd: root,
-          encoding: "utf8",
-        },
-      );
-      if (existingBranch.error) throw existingBranch.error;
-      if (existingBranch.status === 0) throw new Error(`Feature branch already exists: ${branch}.`);
-      if (existingBranch.status !== 1)
-        throw new Error(`Cannot check feature branch: ${existingBranch.stderr.trim()}`);
-
       const stateDirectory = join(common, "spindle-feature-start");
       try {
         mkdirSync(stateDirectory, { mode: 0o700 });
@@ -148,97 +138,135 @@ export class FeatureWorktreeService extends Service {
         throw new Error("Feature start state directory must be a real directory.");
       }
       const stateFile = join(stateDirectory, `${feature.feature}.json`);
-      const state: StartState = {
-        version: 1,
-        id: randomUUID(),
-        feature: feature.feature,
-        originalWorkspace: root,
-        originalBranch,
-        originalRevision,
-        featureBranch: branch,
-        featureWorkspace: target,
-        phase: "planned",
-      };
-      try {
-        const fd = openSync(stateFile, "wx", 0o600);
-        try {
-          writeFileSync(fd, `${JSON.stringify(state, null, 2)}\n`);
-          fsyncSync(fd);
-        } finally {
-          closeSync(fd);
+      let state: StartState;
+      const stateEntry = lstatIfPresent(stateFile);
+      if (stateEntry) {
+        if (!stateEntry.isFile() || stateEntry.isSymbolicLink()) {
+          throw new Error(`Feature startup state must be a regular file: ${stateFile}.`);
         }
-        this.syncDirectory(stateDirectory);
-      } catch (error) {
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          error.code === "EEXIST"
-        ) {
+        state = this.readState(stateFile, feature.feature, root, target, branch, originalBranch);
+      } else {
+        if (lstatIfPresent(target))
+          throw new Error(`Worktree destination already exists: ${target}.`);
+        if (this.branchExists(root, branch))
+          throw new Error(`Feature branch already exists: ${branch}.`);
+        const paths = [
+          ...new Set(this.changePaths(root).filter((path) => path !== lockPath)),
+        ].sort();
+        state = {
+          version: 1,
+          id: randomUUID(),
+          feature: feature.feature,
+          originalWorkspace: root,
+          originalBranch,
+          originalRevision,
+          featureBranch: branch,
+          featureWorkspace: target,
+          phase: "planned",
+          records: { paths, digest: this.recordDigest(root, paths) },
+        };
+        try {
+          const fd = openSync(stateFile, "wx", 0o600);
+          try {
+            writeFileSync(fd, `${JSON.stringify(state, null, 2)}\n`);
+            fsyncSync(fd);
+          } finally {
+            closeSync(fd);
+          }
+          this.syncDirectory(stateDirectory);
+        } catch (error) {
           throw new Error(
-            `Feature start state already exists; inspect it before proceeding: ${stateFile}.`,
+            `Unable to persist feature start state; inspect ${stateFile}. ${error instanceof Error ? error.message : String(error)}`,
           );
         }
-        throw new Error(
-          `Unable to persist feature start state; inspect ${stateFile}. ${error instanceof Error ? error.message : String(error)}`,
-        );
       }
       try {
-        const changes = this.changePaths(root).filter((path) => path !== lockPath);
-        if (changes.length > 0) {
-          this.assertOriginal(root, originalBranch, originalRevision);
-          this.run(root, [
-            "add",
-            "-A",
-            "--",
-            `:(literal)${featurePath}`,
-            `:(exclude,literal)${lockPath}`,
-          ]);
-          this.assertNoUnrelatedChanges(root, prefix, lockPath);
-          this.assertFeatureRecords(root, prefix, lockPath);
-          this.assertOriginal(root, originalBranch, originalRevision);
-          this.run(root, [
-            "commit",
-            "--only",
-            "-m",
-            `spindle: prepare ${feature.feature}`,
-            "--",
-            `:(literal)${featurePath}`,
-            `:(exclude,literal)${lockPath}`,
-          ]);
-        }
-        const revision = this.run(root, ["rev-parse", "--verify", "HEAD"]);
-        if (revision !== originalRevision) {
-          const parents = this.run(root, ["rev-list", "--parents", "-n", "1", revision]).split(" ");
-          if (parents.length !== 2 || parents[1] !== originalRevision) {
-            throw new Error("Original branch changed unexpectedly during feature preparation.");
+        if (state.phase === "planned") {
+          let revision = this.run(root, ["rev-parse", "--verify", "HEAD"]);
+          if (revision === state.originalRevision) {
+            const changes = [
+              ...new Set(this.changePaths(root).filter((path) => path !== lockPath)),
+            ].sort();
+            if (
+              JSON.stringify(changes) !== JSON.stringify(state.records.paths) ||
+              this.recordDigest(root, changes) !== state.records.digest
+            ) {
+              throw new Error("Feature records changed during startup recovery.");
+            }
+            if (changes.length > 0) {
+              this.assertOriginal(root, state.originalBranch, state.originalRevision);
+              this.run(root, [
+                "add",
+                "-A",
+                "--",
+                `:(literal)${featurePath}`,
+                `:(exclude,literal)${lockPath}`,
+              ]);
+              this.assertNoUnrelatedChanges(root, prefix, lockPath);
+              this.assertFeatureRecords(root, prefix, lockPath);
+              this.assertNoDivergentStagedRecords(root);
+              if (this.recordDigest(root, changes) !== state.records.digest) {
+                throw new Error("Feature records changed while staging.");
+              }
+              this.assertOriginal(root, state.originalBranch, state.originalRevision);
+              this.run(root, [
+                "commit",
+                "--only",
+                "-m",
+                `spindle: prepare ${feature.feature}`,
+                "--",
+                `:(literal)${featurePath}`,
+                `:(exclude,literal)${lockPath}`,
+              ]);
+              revision = this.run(root, ["rev-parse", "--verify", "HEAD"]);
+            }
           }
-          const committed = this.runBuffer(root, [
-            "diff",
-            "--name-only",
-            "--no-renames",
-            "-z",
-            originalRevision,
-            revision,
-          ])
-            .toString("utf8")
-            .split("\0")
-            .filter(Boolean);
-          if (committed.some((path) => !path.startsWith(prefix))) {
-            throw new Error("The preparation commit contains paths outside the feature.");
+          if (revision !== state.originalRevision) {
+            this.assertPreparationCommit(root, state, revision);
+          } else if (state.records.paths.length > 0) {
+            throw new Error("Feature preparation did not commit its recorded changes.");
           }
+          this.assertOriginal(root, state.originalBranch, revision);
+          this.assertClean(root, lockPath);
+          state.featureRevision = revision;
+          state.phase = "committed";
+          this.writeState(stateFile, state);
         }
-        this.assertOriginal(root, originalBranch, revision);
+        const revision = state.featureRevision;
+        if (!revision) throw new Error("Feature startup has no recorded preparation revision.");
+        this.assertOriginal(root, state.originalBranch, revision);
         this.assertClean(root, lockPath);
-        state.featureRevision = revision;
-        state.phase = "committed";
-        this.writeState(stateFile, state);
-        mkdirSync(target);
-        state.phase = "allocated";
-        this.writeState(stateFile, state);
-        this.assertOriginal(root, originalBranch, revision);
-        this.assertClean(root, lockPath);
-        this.run(root, ["worktree", "add", "-b", branch, target, revision]);
+        if (state.phase === "committed") {
+          if (lstatIfPresent(target) || this.branchExists(root, branch)) {
+            throw new Error("Feature destination or branch exists without a recorded allocation.");
+          }
+          mkdirSync(target);
+          const entry = lstatSync(target);
+          state.targetIdentity = { device: entry.dev, inode: entry.ino };
+          state.phase = "allocated";
+          this.writeState(stateFile, state);
+        }
+        const targetEntry = lstatIfPresent(target);
+        if (
+          !targetEntry?.isDirectory() ||
+          targetEntry.isSymbolicLink() ||
+          !state.targetIdentity ||
+          targetEntry.dev !== state.targetIdentity.device ||
+          targetEntry.ino !== state.targetIdentity.inode ||
+          realpathSync(target) !== target
+        ) {
+          throw new Error("Feature worktree directory ownership cannot be verified.");
+        }
+        const registered = this.runBuffer(root, ["worktree", "list", "--porcelain", "-z"])
+          .toString("utf8")
+          .split("\0")
+          .includes(`worktree ${target}`);
+        if (!registered) {
+          if (state.phase !== "allocated" || this.branchExists(root, branch)) {
+            throw new Error("Feature branch or worktree registration changed during startup.");
+          }
+          this.run(root, ["worktree", "add", "-b", branch, target, revision]);
+        }
         for (const directory of ["tickets", "reports"]) {
           const path = join(target, featurePath, directory);
           if (!lstatIfPresent(path)) mkdirSync(path);
@@ -253,18 +281,21 @@ export class FeatureWorktreeService extends Service {
         }
         if (
           this.run(target, ["symbolic-ref", "--quiet", "--short", "HEAD"]) !== branch ||
-          this.run(target, ["rev-parse", "--verify", "HEAD"]) !== revision ||
+          (state.phase !== "created" &&
+            this.run(target, ["rev-parse", "--verify", "HEAD"]) !== revision) ||
           realpathSync(
             this.run(target, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
           ) !== common
         ) {
           throw new Error("Created worktree does not match the recorded branch and revision.");
         }
-        this.assertClean(target, lockPath);
-        this.assertOriginal(root, originalBranch, revision);
+        if (state.phase !== "created") this.assertClean(target, lockPath);
+        this.assertOriginal(root, state.originalBranch, revision);
         this.assertClean(root, lockPath);
-        state.phase = "created";
-        this.writeState(stateFile, state);
+        if (state.phase !== "created") {
+          state.phase = "created";
+          this.writeState(stateFile, state);
+        }
         return { ...state, stateFile, spec: worktreeSpec };
       } catch (error) {
         throw new Error(
@@ -272,6 +303,143 @@ export class FeatureWorktreeService extends Service {
         );
       }
     });
+  }
+
+  private readState(
+    path: string,
+    feature: string,
+    root: string,
+    target: string,
+    branch: string,
+    originalBranch: string,
+  ): StartState {
+    const value: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (
+      !Records.isRecord(value) ||
+      value.version !== 1 ||
+      typeof value.id !== "string" ||
+      value.feature !== feature ||
+      value.originalWorkspace !== root ||
+      value.originalBranch !== originalBranch ||
+      typeof value.originalRevision !== "string" ||
+      !/^[0-9a-f]{40,64}$/i.test(value.originalRevision) ||
+      value.featureBranch !== branch ||
+      value.featureWorkspace !== target ||
+      (value.phase !== "planned" &&
+        value.phase !== "committed" &&
+        value.phase !== "allocated" &&
+        value.phase !== "created") ||
+      (value.featureRevision !== undefined &&
+        (typeof value.featureRevision !== "string" ||
+          !/^[0-9a-f]{40,64}$/i.test(value.featureRevision))) ||
+      !Records.isRecord(value.records) ||
+      !Array.isArray(value.records.paths) ||
+      typeof value.records.digest !== "string" ||
+      !/^[0-9a-f]{64}$/i.test(value.records.digest)
+    ) {
+      throw new Error(`Feature startup state does not match this checkout: ${path}.`);
+    }
+    const paths = value.records.paths.map((entry: unknown) => {
+      if (
+        typeof entry !== "string" ||
+        !entry.startsWith(`.scratch/${feature}/`) ||
+        !/^(?:spec\.md|design\.md|sdd\.json|tickets\/T-\d{4,}\.md|reports\/[^/]+\.md)$/.test(
+          entry.slice(`.scratch/${feature}/`.length),
+        )
+      ) {
+        throw new Error(`Feature startup state contains an invalid record path: ${path}.`);
+      }
+      return entry;
+    });
+    if (JSON.stringify([...new Set(paths)].sort()) !== JSON.stringify(paths)) {
+      throw new Error(`Feature startup state contains duplicate or unordered paths: ${path}.`);
+    }
+    let targetIdentity: StartState["targetIdentity"];
+    if (value.targetIdentity !== undefined) {
+      if (
+        !Records.isRecord(value.targetIdentity) ||
+        typeof value.targetIdentity.device !== "number" ||
+        typeof value.targetIdentity.inode !== "number"
+      ) {
+        throw new Error(`Feature startup state has invalid directory identity: ${path}.`);
+      }
+      targetIdentity = {
+        device: value.targetIdentity.device,
+        inode: value.targetIdentity.inode,
+      };
+    }
+    return {
+      version: 1,
+      id: value.id,
+      feature,
+      originalWorkspace: root,
+      originalBranch,
+      originalRevision: value.originalRevision,
+      featureBranch: branch,
+      featureWorkspace: target,
+      phase: value.phase,
+      records: { paths, digest: value.records.digest },
+      ...(typeof value.featureRevision === "string"
+        ? { featureRevision: value.featureRevision }
+        : {}),
+      ...(targetIdentity ? { targetIdentity } : {}),
+    };
+  }
+
+  private recordDigest(root: string, paths: string[]): string {
+    const entries = paths.map((path) => {
+      const entry = lstatIfPresent(join(root, path));
+      if (!entry) return [path, "deleted"];
+      if (!entry.isFile() || entry.isSymbolicLink()) {
+        throw new Error(`Feature record is not a regular file: ${path}.`);
+      }
+      return [
+        path,
+        entry.mode & 0o111 ? "100755" : "100644",
+        createHash("sha256")
+          .update(readFileSync(join(root, path)))
+          .digest("hex"),
+      ];
+    });
+    return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+  }
+
+  private assertPreparationCommit(root: string, state: StartState, revision: string): void {
+    const parents = this.run(root, ["rev-list", "--parents", "-n", "1", revision]).split(" ");
+    const committed = this.runBuffer(root, [
+      "diff",
+      "--name-only",
+      "--no-renames",
+      "-z",
+      state.originalRevision,
+      revision,
+    ])
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean)
+      .sort();
+    if (
+      parents.length !== 2 ||
+      parents[1] !== state.originalRevision ||
+      this.run(root, ["show", "-s", "--format=%s", revision]) !==
+        `spindle: prepare ${state.feature}` ||
+      JSON.stringify(committed) !== JSON.stringify(state.records.paths) ||
+      this.recordDigest(root, state.records.paths) !== state.records.digest
+    ) {
+      throw new Error("Feature preparation commit does not match the recorded changes.");
+    }
+  }
+
+  private branchExists(root: string, branch: string): boolean {
+    const result = this.git.run(["show-ref", "--verify", "--quiet", `refs/heads/${branch}`], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0 && result.status !== 1) {
+      throw new Error(`Cannot check feature branch: ${result.stderr.trim()}`);
+    }
+    return result.status === 0;
   }
 
   private assertOriginal(root: string, branch: string, revision: string): void {
@@ -307,8 +475,16 @@ export class FeatureWorktreeService extends Service {
       const path = resolve(root, this.run(root, ["rev-parse", "--git-path", `hooks/${hook}`]));
       try {
         accessSync(path, constants.X_OK);
-      } catch {
-        continue;
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error.code === "ENOENT" || error.code === "EACCES")
+        ) {
+          continue;
+        }
+        throw error;
       }
       throw new Error(`Active Git hook ${path} requires manual handling before feature startup.`);
     }
@@ -331,6 +507,25 @@ export class FeatureWorktreeService extends Service {
       if (lstatIfPresent(path)) {
         throw new Error(`Complete the existing Git operation (${operation}) before starting.`);
       }
+    }
+  }
+
+  private assertNoDivergentStagedRecords(root: string): void {
+    const staged = this.runBuffer(root, ["diff", "--cached", "--name-only", "--no-renames", "-z"])
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    const unstaged = new Set(
+      this.runBuffer(root, ["diff", "--name-only", "--no-renames", "-z"])
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean),
+    );
+    const divergent = staged.filter((path) => unstaged.has(path));
+    if (divergent.length) {
+      throw new Error(
+        `Staged feature records differ from the worktree and were preserved: ${divergent.join(", ")}.`,
+      );
     }
   }
 

@@ -17,6 +17,8 @@
 Cross-context ownership and bootstrap order are documented in
 [ADR-0005](docs/adr/0005-subagent-development-boundaries.md). Shared rendering
 ownership is documented in [ADR-0009](docs/adr/0009-shared-template-rendering.md).
+SDD worktree integration is documented in
+[ADR-0011](docs/adr/0011-isolated-sdd-worktrees.md).
 
 Project initialization depends on Blueprint Management and Tooling. The unified
 `spindle init` command installs Blueprints before initializing project guidance

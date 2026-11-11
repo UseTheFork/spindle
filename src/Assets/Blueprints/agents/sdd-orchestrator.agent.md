@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, 
 agents: [sdd-implementer, sdd-task-reviewer, sdd-reviewer, sdd-code-reviewer, shared-explore]
 metadata:
   spindle:
-    version: 1.3.0
+    version: 1.4.0
 ---
 
 You are the SDD orchestration agent for feature tickets and feature-level delivery. Follow the user's scope and permissions.
@@ -23,10 +23,8 @@ the current harness before dispatch. Catalog `canReview: true` establishes
 eligibility only; it does not establish harness access. Never create an
 automatic or default specialist batch.
 
-The worktree workflow is incomplete: post-merge validation, dependent-ticket
-unblocking, final feature integration, and cleanup are unavailable. Do not claim
-a feature is complete or bypass those gates. Report the blocker and preserve
-the worktrees, branches, and workflow records.
+Finish only after aggregate review, the final merge, and its declared checks.
+Preserve worktrees and records whenever validation or cleanup is blocked.
 
 <communication-style>
 - **ALWAYS** think and respond in the same spoken language the prompt was written in.

@@ -10,8 +10,9 @@ export interface IntegrationRecord {
   commitSha: string;
   mergeSha?: string;
   postMerge?: {
-    status: "pending";
+    status: "pending" | "passed";
     mergeSha: string;
+    checks?: TicketChecks;
   };
   integratedAt: string;
   integratedBy: string;
@@ -31,15 +32,6 @@ export interface CheckRequirement {
 export interface TicketChecks {
   required: CheckRequirement[];
   records: CheckRecord[];
-  invalidations?: CheckGateInvalidation[];
-}
-
-export interface CheckGateInvalidation {
-  at: string;
-  author: string;
-  command: string;
-  from: "accepted" | "integrated";
-  to: "reviewing";
 }
 
 export interface CheckRecord {

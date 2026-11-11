@@ -1,30 +1,27 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
 import {
+  commitTicketWorkspace,
   execute,
   commitAll,
+  invokeAsync,
+  integrateReviewedTicket,
+  beginDeliveryFinalization,
+  completeDeliveryFinalization,
+  declareFinalDeliveryChecks,
+  finalizeDelivery,
+  recordFinalDeliveryCheck,
   recordDeliveryCheck,
   recordReviewCheck,
-  prepareAcceptedTicket,
+  prepareIntegratedTicket,
+  prepareReviewedTicket,
   prepareDeliveryReady,
 } from "../helpers/helpers";
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
-  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
-  git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted ticket");
-  const commitSha = git("rev-parse", "HEAD");
-  const integrated = await execute(repo, (service) =>
-    service.integrationService.integrate({
-      spec,
-      ticket: "T-0001",
-      commit: commitSha,
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
 
   const required = await execute(repo, (service) =>
@@ -88,7 +85,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   expect(output.assignments.every(({ snapshot }) => /^[0-9a-f]{64}$/.test(snapshot))).toBeTruthy();
 
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.reviewAssignments.length).toBe(2);
   expect(
@@ -98,19 +95,49 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   ).toBeTruthy();
 });
 
+test("delivery review requires passing post-merge evidence for each ticket's current merge", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const validLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const validIntegration = JSON.parse(JSON.stringify(validLedger.tickets[0].integration));
+  expect(validIntegration.postMerge.status).toBe("passed");
+  expect(validIntegration.postMerge.mergeSha).toBe(validIntegration.mergeSha);
+  const review = () =>
+    execute(repo, (service) =>
+      service.reviewService.review({
+        spec,
+        scope: "delivery",
+        inventory: JSON.stringify(["feature.ts"]),
+        author: "controller",
+      }),
+    );
+  const saveLedger = (ledger: unknown) =>
+    writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+
+  delete validLedger.tickets[0].integration.postMerge;
+  saveLedger(validLedger);
+  const missingEvidence = await review();
+  expect(missingEvidence.status).not.toBe(0);
+  expect(missingEvidence.stderr).toMatch(/passing ticket post-merge validation: T-0001/i);
+
+  validLedger.tickets[0].integration.postMerge = {
+    ...validIntegration.postMerge,
+    status: "pending",
+  };
+  saveLedger(validLedger);
+  const pendingEvidence = await review();
+  expect(pendingEvidence.status).not.toBe(0);
+  expect(pendingEvidence.stderr).toMatch(/passing ticket post-merge validation: T-0001/i);
+
+  validLedger.tickets[0].integration = validIntegration;
+  saveLedger(validLedger);
+  await recordDeliveryCheck(repo, spec);
+  const acceptedEvidence = await review();
+  expect(acceptedEvidence.status, acceptedEvidence.stderr).toBe(0);
+});
+
 test("blocking delivery findings reopen their related ticket after all required reviews submit", async () => {
-  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
-  git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted ticket");
-  const integrated = await execute(repo, (service) =>
-    service.integrationService.integrate({
-      spec,
-      ticket: "T-0001",
-      commit: git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
 
   const requested = await execute(repo, (service) =>
@@ -225,7 +252,7 @@ test("blocking delivery findings reopen their related ticket after all required 
   expect(confirmed.status, confirmed.stderr).toBe(0);
   expect(JSON.parse(confirmed.stdout).finding.status).toBe("confirmed");
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.findings.map((item: { id: string }) => item.id)).toEqual(["F-0001"]);
   expect(ledger.delivery.findings[0].relatedTicket).toBe("T-0001");
@@ -239,18 +266,7 @@ test("blocking delivery findings reopen their related ticket after all required 
 });
 
 test("delivery checks use their own current snapshot and stale aggregate checks block review", async () => {
-  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
-  git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted ticket");
-  const integrated = await execute(repo, (service) =>
-    service.integrationService.integrate({
-      spec,
-      ticket: "T-0001",
-      commit: git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const { repo, spec } = await prepareIntegratedTicket();
 
   const command = "just test::test tests/whole-feature.test.ts";
   const required = await execute(repo, (service) =>
@@ -309,25 +325,14 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
   expect(staleReview.status).not.toBe(0);
   expect(staleReview.stderr).toMatch(/delivery check .*stale/i);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.checks.records.length).toBe(1);
   expect(ledger.delivery.reviewAssignments).toBe(undefined);
 });
 
 test("delivery correction attempts resume independently with the same assignment and finding history", async () => {
-  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
-  git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted ticket");
-  const integrated = await execute(repo, (service) =>
-    service.integrationService.integrate({
-      spec,
-      ticket: "T-0001",
-      commit: git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
 
   const dispatched = await execute(repo, (service) =>
@@ -510,7 +515,6 @@ test("delivery correction attempts resume independently with the same assignment
       decision: "continue",
       assessment:
         "The revised plan isolates the cross-ticket contract and can demonstrate progress.",
-      assessmentResult: "productive",
       author: "controller",
     }),
   );
@@ -529,7 +533,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(resumedSecond.status, resumedSecond.stderr).toBe(0);
   expect(JSON.parse(resumedSecond.stdout).assignment.id).toBe(secondAttempt.assignment.id);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.correctionAttempts.length).toBe(2);
   expect(ledger.delivery.correctionAttempts[0].progressAssessment.result).toBe("productive");
@@ -538,18 +542,7 @@ test("delivery correction attempts resume independently with the same assignment
 });
 
 test("delivery requirements rulings authorize only a freshly reviewed deferral", async () => {
-  const { repo, git, spec } = await prepareAcceptedTicket({ close: true });
-  git("add", "feature.ts");
-  git("commit", "-qm", "deliver accepted ticket");
-  const integrated = await execute(repo, (service) =>
-    service.integrationService.integrate({
-      spec,
-      ticket: "T-0001",
-      commit: git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const { repo, spec } = await prepareIntegratedTicket();
   const checkCommand = "just test::test tests/whole-feature.test.ts";
   const requiredBeforeReview = await execute(repo, (service) =>
     service.checksService.checksRequire({
@@ -757,115 +750,96 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
 
 test("finish gates integrated delivery on current aggregate evidence and stored retrospective policy", async () => {
   const optional = await prepareDeliveryReady();
-  const optionalFinish = await execute(optional.repo, (service) =>
-    service.deliveryService.finish({ spec: optional.spec, author: "controller" }),
+  const optionalFinalization = await finalizeDelivery(optional);
+  expect(optionalFinalization.completed).toMatchObject({ finished: true, cleanup: "complete" });
+  expect(optionalFinalization.completed).not.toHaveProperty("retrospective");
+  const optionalLedger = JSON.parse(
+    readFileSync(join(optional.originalRepo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
-  expect(optionalFinish.status, optionalFinish.stderr).toBe(0);
-  const optionalResult = JSON.parse(optionalFinish.stdout) as {
-    finished: boolean;
-    idempotent?: boolean;
-    retrospectiveRequired: boolean;
-    retrospective?: { report?: string };
-  };
-  expect(optionalResult.finished).toBe(true);
-  expect(optionalResult.retrospectiveRequired).toBe(false);
-  expect(optionalResult.retrospective).toBe(undefined);
-  const repeatedOptional = await execute(optional.repo, (service) =>
-    service.deliveryService.finish({ spec: optional.spec, author: "controller" }),
-  );
+  expect(optionalLedger.retrospectiveRequired).toBe(false);
+  const repeatedOptional = await invokeAsync(optional.originalRepo, [
+    "finish",
+    "--spec",
+    optionalFinalization.pending.originalSpec,
+    "--author",
+    "controller",
+  ]);
   expect(repeatedOptional.status, repeatedOptional.stderr).toBe(0);
-  expect(JSON.parse(repeatedOptional.stdout).idempotent).toBe(true);
+  expect(JSON.parse(repeatedOptional.stdout)).toMatchObject({
+    finished: true,
+    cleanup: "complete",
+  });
 
   const optionalWithReport = await prepareDeliveryReady();
   const optionalReport = join(
     optionalWithReport.repo,
     ".scratch",
-    "0001-claim-flow",
+    "0001-ticket-flow",
     "reports",
     "optional-retrospective.md",
   );
   writeFileSync(optionalReport, "# Optional retrospective\n\nAttached at finish.\n");
-  const attachedOptional = await execute(optionalWithReport.repo, (service) =>
-    service.deliveryService.finish({
-      spec: optionalWithReport.spec,
-      report: optionalReport,
-      author: "controller",
-    }),
-  );
-  expect(attachedOptional.status, attachedOptional.stderr).toBe(0);
-  expect(JSON.parse(attachedOptional.stdout).retrospectiveRequired).toBe(false);
-  expect(JSON.parse(attachedOptional.stdout).retrospective.report).toBe(optionalReport);
+  const attachedOptional = await finalizeDelivery(optionalWithReport, { report: optionalReport });
+  expect(attachedOptional.completed.retrospective).toMatchObject({
+    report: join(
+      optionalWithReport.originalRepo,
+      ".scratch",
+      "0001-ticket-flow",
+      "reports",
+      "optional-retrospective.md",
+    ),
+  });
 
   const required = await prepareDeliveryReady(true);
   const missingRetrospective = await execute(required.repo, (service) =>
-    service.deliveryService.finish({ spec: required.spec, author: "controller" }),
+    service.deliveryService.finish({
+      spec: required.spec,
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
   expect(missingRetrospective.status).not.toBe(0);
   expect(missingRetrospective.stderr).toMatch(/retrospective report is required/i);
 
-  const outsideReport = join(
-    required.repo,
-    ".scratch",
-    "other-feature",
-    "outside-retrospective.md",
-  );
-  mkdirSync(join(required.repo, ".scratch", "other-feature"), { recursive: true });
-  writeFileSync(outsideReport, "Must not be accepted outside reports/.\n");
+  const outsideReport = join(required.repo, "tracked.txt");
   const unsafeReport = await execute(required.repo, (service) =>
     service.deliveryService.finish({
       spec: required.spec,
       report: outsideReport,
       author: "controller",
+      confirmRecords: true,
     }),
   );
   expect(unsafeReport.status).not.toBe(0);
   expect(unsafeReport.stderr).toMatch(/inside feature reports/i);
 
-  const report = join(required.repo, ".scratch", "0001-claim-flow", "reports", "retrospective.md");
+  const report = join(required.repo, ".scratch", "0001-ticket-flow", "reports", "retrospective.md");
   writeFileSync(report, "# Retrospective\n\nEvidence and outcomes are summarized here.\n");
-  const requiredFinish = await execute(required.repo, (service) =>
-    service.deliveryService.finish({ spec: required.spec, report, author: "controller" }),
-  );
-  expect(requiredFinish.status, requiredFinish.stderr).toBe(0);
-  const requiredResult = JSON.parse(requiredFinish.stdout) as {
-    finished: boolean;
-    retrospectiveRequired: boolean;
-    retrospective: { report: string; reportSha256: string };
-  };
-  expect(requiredResult.finished).toBe(true);
-  expect(requiredResult.retrospectiveRequired).toBe(true);
-  expect(requiredResult.retrospective.report).toBe(report);
-  expect(requiredResult.retrospective.reportSha256).toMatch(/^[0-9a-f]{64}$/);
+  const requiredFinalization = await finalizeDelivery(required, { report });
+  expect(requiredFinalization.completed).toMatchObject({ finished: true, cleanup: "complete" });
+  expect(requiredFinalization.completed.retrospective).toMatchObject({
+    report: join(
+      required.originalRepo,
+      ".scratch",
+      "0001-ticket-flow",
+      "reports",
+      "retrospective.md",
+    ),
+  });
+  expect(
+    (requiredFinalization.completed.retrospective as { reportSha256: string }).reportSha256,
+  ).toMatch(/^[0-9a-f]{64}$/);
 
   const ledger = JSON.parse(
-    readFileSync(join(required.repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"),
+    readFileSync(join(required.originalRepo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.retrospectiveRequired).toBe(true);
-  expect(ledger.delivery.finished.report).toBe(report);
-  expect(ledger.delivery.finished.reportSha256).toBe(requiredResult.retrospective.reportSha256);
-
-  writeFileSync(report, "# Changed after finish\n");
-  const alteredReport = await execute(required.repo, (service) =>
-    service.deliveryService.finish({ spec: required.spec, report, author: "controller" }),
-  );
-  expect(alteredReport.status).not.toBe(0);
-  expect(alteredReport.stderr).toMatch(/already finished with different retrospective evidence/i);
+  expect(ledger.tickets[0].worktree).toBe(undefined);
 });
 
 test("aggregate review covers every closed ticket and stale requirements block finish", async () => {
-  const first = await prepareAcceptedTicket({ ticketCount: 2 });
-  first.git("add", first.file);
-  first.git("commit", "-qm", "deliver first ticket");
-  const firstIntegration = await execute(first.repo, (service) =>
-    service.integrationService.integrate({
-      spec: first.spec,
-      ticket: first.ticketId,
-      commit: first.git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(firstIntegration.status, firstIntegration.stderr).toBe(0);
-  commitAll(first.repo, first.git, "record first ticket integration");
+  const first = await prepareReviewedTicket({ ticketCount: 2 });
+  await integrateReviewedTicket(first, true);
 
   const secondId = "T-0002";
   const secondFile = "feature-two.ts";
@@ -880,22 +854,33 @@ test("aggregate review covers every closed ticket and stale requirements block f
   );
   expect(required.status, required.stderr).toBe(0);
   commitAll(first.repo, first.git, "declare second ticket check");
-  const claimed = await execute(first.repo, (service) =>
-    service.assignmentService.claim({ spec: first.spec, ticket: secondId, author: "controller" }),
+  const dispatched = await execute(first.repo, (service) =>
+    service.assignmentService.implement({
+      spec: first.spec,
+      ticket: secondId,
+      author: "controller",
+      workspace: first.worktreeParent,
+    }),
   );
-  expect(claimed.status, claimed.stderr).toBe(0);
-  writeFileSync(join(first.repo, secondFile), "export const secondFeature = true;\n");
+  expect(dispatched.status, dispatched.stderr).toBe(0);
   const implementation = await execute(first.repo, (service) =>
     service.assignmentService.implement({
       spec: first.spec,
       ticket: secondId,
       author: "controller",
+      workspace: first.worktreeParent,
     }),
   );
   expect(implementation.status, implementation.stderr).toBe(0);
   const implementationAssignment = JSON.parse(implementation.stdout).assignment as {
     report: string;
+    workspace: string;
   };
+  writeFileSync(
+    join(implementationAssignment.workspace, secondFile),
+    "export const secondFeature = true;\n",
+  );
+  commitTicketWorkspace(implementationAssignment.workspace, "implement second ticket");
   writeFileSync(implementationAssignment.report, "# Implementation\n\nSecond ticket complete.\n");
   const submittedImplementation = await execute(first.repo, (service) =>
     service.submissionService.submit({
@@ -944,33 +929,10 @@ test("aggregate review covers every closed ticket and stale requirements block f
     }),
   );
   expect(submittedReview.status, submittedReview.stderr).toBe(0);
-  const accepted = await execute(first.repo, (service) =>
-    service.integrationService.accept({ spec: first.spec, ticket: secondId, author: "controller" }),
+  await integrateReviewedTicket(
+    { ...first, ticketId: secondId, ticketWorkspace: implementationAssignment.workspace },
+    true,
   );
-  expect(accepted.status, accepted.stderr).toBe(0);
-  first.git("add", secondFile);
-  first.git("commit", "-qm", "deliver second ticket");
-  const secondIntegration = await execute(first.repo, (service) =>
-    service.integrationService.integrate({
-      spec: first.spec,
-      ticket: secondId,
-      commit: first.git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(secondIntegration.status, secondIntegration.stderr).toBe(0);
-  commitAll(first.repo, first.git, "record second ticket integration");
-  for (const ticket of ["T-0001", "T-0002"]) {
-    const closed = await execute(first.repo, (service) =>
-      service.ticketService.ticketUpdate({
-        spec: first.spec,
-        ticket,
-        status: "closed",
-        author: "controller",
-      }),
-    );
-    expect(closed.status, closed.stderr).toBe(0);
-  }
 
   const deliveryCommand = "just test::test tests/whole-feature.test.ts";
   const deliveryCheck = await execute(first.repo, (service) =>
@@ -1030,7 +992,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
   const secondTicketPath = join(
     first.repo,
     ".scratch",
-    "0001-claim-flow",
+    "0001-ticket-flow",
     "tickets",
     `${secondId}.md`,
   );
@@ -1043,23 +1005,24 @@ test("aggregate review covers every closed ticket and stale requirements block f
     ),
   );
   const staleFinish = await execute(first.repo, (service) =>
-    service.deliveryService.finish({ spec: first.spec, author: "controller" }),
+    service.deliveryService.finish({
+      spec: first.spec,
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
   expect(staleFinish.status).not.toBe(0);
   expect(staleFinish.stderr).toMatch(
     /final delivery checks are not current and passing|aggregate required reviews are not current and passing/i,
   );
   writeFileSync(secondTicketPath, originalTicket);
-  const finished = await execute(first.repo, (service) =>
-    service.deliveryService.finish({ spec: first.spec, author: "controller" }),
-  );
-  expect(finished.status, finished.stderr).toBe(0);
-  expect(JSON.parse(finished.stdout).finished).toBe(true);
+  const finished = await finalizeDelivery(first);
+  expect(finished.completed).toMatchObject({ finished: true, cleanup: "complete" });
 });
 
 test("status and next expose delivery assignments, blockers, and finish action without mutation", async () => {
   const { repo, git, spec } = await prepareDeliveryReady();
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const gitStatusBefore = git("status", "--porcelain");
   const status = await execute(repo, (service) =>
@@ -1096,177 +1059,157 @@ test("status and next expose delivery assignments, blockers, and finish action w
   expect(git("status", "--porcelain")).toBe(gitStatusBefore);
 });
 
-test("finished delivery rejects failed check recording without changing its state", async () => {
-  const { repo, git, spec, deliveryCheck } = await prepareDeliveryReady();
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  const finish = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, author: "controller" }),
-  );
-  expect(finish.status, finish.stderr).toBe(0);
-  const before = readFileSync(ledgerPath, "utf8");
-  const gitBefore = git("status", "--porcelain");
-  const status = await execute(repo, (service) =>
-    service.featureInspectionService.status({ spec }),
-  );
-  expect(status.status, status.stderr).toBe(0);
-  const snapshot = JSON.parse(status.stdout).delivery.snapshot as string;
+test("failed final-merge checks preserve worktrees until passing evidence is recorded", async () => {
+  const prepared = await prepareDeliveryReady();
+  const pending = await beginDeliveryFinalization(prepared);
+  const command = "fixture final check";
+  await declareFinalDeliveryChecks(pending, [command]);
 
-  const recorded = await execute(repo, (service) =>
-    service.checksService.checksRecord({
-      ticket: "",
-      spec,
-      scope: "delivery",
-      snapshot,
-      command: deliveryCheck,
-      result: "failed",
-      details: "Post-finish failure must not invalidate completion.",
-      author: "controller",
-    }),
+  const failed = await recordFinalDeliveryCheck(
+    pending,
+    command,
+    "failed",
+    "The final-merge fixture check failed.",
   );
-  expect(recorded.status).not.toBe(0);
-  expect(recorded.stderr).toMatch(/delivery is finished/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(before);
-  expect(git("status", "--porcelain")).toBe(gitBefore);
+  expect(failed.status, failed.stderr).toBe(0);
+  const paused = await completeDeliveryFinalization(pending);
+  expect(paused.status, paused.stderr).toBe(0);
+  expect(JSON.parse(paused.stdout)).toMatchObject({
+    finalValidation: "pending",
+    cleanup: "retained",
+    records: [{ command, result: "failed" }],
+  });
+  expect(existsSync(prepared.repo)).toBe(true);
+
+  const passed = await recordFinalDeliveryCheck(pending, command);
+  expect(passed.status, passed.stderr).toBe(0);
+  const completed = await completeDeliveryFinalization(pending);
+  expect(completed.status, completed.stderr).toBe(0);
+  expect(JSON.parse(completed.stdout)).toMatchObject({
+    finished: true,
+    cleanup: "complete",
+  });
+  expect(
+    JSON.parse(readFileSync(pending.journal, "utf8")).records.map(
+      (item: { result: string }) => item.result,
+    ),
+  ).toEqual(["failed", "passed"]);
 });
 
-test("finished delivery rejects new check requirements without changing its state", async () => {
-  const { repo, git, spec } = await prepareDeliveryReady();
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  const finish = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, author: "controller" }),
-  );
-  expect(finish.status, finish.stderr).toBe(0);
-  const before = readFileSync(ledgerPath, "utf8");
-  const gitBefore = git("status", "--porcelain");
+test("final-merge check requirements are frozen after their initial declaration", async () => {
+  const prepared = await prepareDeliveryReady();
+  const pending = await beginDeliveryFinalization(prepared);
+  const command = "fixture final check";
+  await declareFinalDeliveryChecks(pending, [command]);
+  const journalBefore = readFileSync(pending.journal, "utf8");
 
-  const required = await execute(repo, (service) =>
-    service.checksService.checksRequire({
-      ticket: "",
-      spec,
-      scope: "delivery",
-      command: "just test::test tests/post-finish.test.ts",
-      author: "controller",
-    }),
-  );
-  expect(required.status).not.toBe(0);
-  expect(required.stderr).toMatch(/delivery is finished/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(before);
-  expect(git("status", "--porcelain")).toBe(gitBefore);
+  const changedList = await invokeAsync(pending.originalWorkspace, [
+    "checks",
+    "require",
+    "--spec",
+    pending.originalSpec,
+    "--scope",
+    "final",
+    "--command",
+    command,
+    "--command",
+    "late unreviewed check",
+    "--author",
+    "controller",
+  ]);
+  expect(changedList.status).not.toBe(0);
+  expect(changedList.stderr).toMatch(/final declared check list is frozen/i);
+  expect(readFileSync(pending.journal, "utf8")).toBe(journalBefore);
+
+  const recorded = await recordFinalDeliveryCheck(pending, command);
+  expect(recorded.status, recorded.stderr).toBe(0);
+  const completed = await completeDeliveryFinalization(pending);
+  expect(completed.status, completed.stderr).toBe(0);
+  expect(JSON.parse(completed.stdout)).toMatchObject({ finished: true, cleanup: "complete" });
 });
 
-test("delivery finish is idempotent for a different controller after completion", async () => {
-  const { repo, git, spec } = await prepareDeliveryReady();
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  const finish = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, author: "controller" }),
-  );
-  expect(finish.status, finish.stderr).toBe(0);
-  const before = readFileSync(ledgerPath, "utf8");
-  const gitBefore = git("status", "--porcelain");
+test("finalization cleanup remains bound to its recorded controller", async () => {
+  const prepared = await prepareDeliveryReady();
+  const finalization = await finalizeDelivery(prepared);
+  const journalBefore = readFileSync(finalization.pending.journal, "utf8");
 
-  const replacementFinish = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, author: "replacement" }),
-  );
-  expect(replacementFinish.status, replacementFinish.stderr).toBe(0);
-  expect(JSON.parse(replacementFinish.stdout).idempotent).toBe(true);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(before);
-  expect(git("status", "--porcelain")).toBe(gitBefore);
+  const replacementFinish = await invokeAsync(finalization.pending.originalWorkspace, [
+    "finish",
+    "--spec",
+    finalization.pending.originalSpec,
+    "--author",
+    "replacement",
+  ]);
+  expect(replacementFinish.status).not.toBe(0);
+  expect(replacementFinish.stderr).toMatch(/only the recorded controller/i);
+  expect(readFileSync(finalization.pending.journal, "utf8")).toBe(journalBefore);
+
+  const repeated = await completeDeliveryFinalization(finalization.pending);
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout)).toMatchObject({ finished: true, cleanup: "complete" });
 });
 
-test("finished delivery status, next, and resume expose completion and stale evidence", async () => {
-  const { repo, git, spec } = await prepareDeliveryReady();
-  const report = join(repo, ".scratch", "0001-claim-flow", "reports", "retrospective.md");
+test("finalization status and next expose pending checks and completed cleanup", async () => {
+  const prepared = await prepareDeliveryReady();
+  const report = join(prepared.repo, ".scratch", "0001-ticket-flow", "reports", "retrospective.md");
   writeFileSync(report, "# Retrospective\n\nCompletion evidence.\n");
-  const finish = await execute(repo, (service) =>
-    service.deliveryService.finish({ spec, report, author: "controller" }),
+  const pending = await beginDeliveryFinalization(prepared, { report });
+  const statusPending = await invokeAsync(pending.originalWorkspace, [
+    "status",
+    "--spec",
+    pending.originalSpec,
+  ]);
+  const nextPending = await invokeAsync(pending.originalWorkspace, [
+    "next",
+    "--spec",
+    pending.originalSpec,
+  ]);
+  expect(statusPending.status, statusPending.stderr).toBe(0);
+  expect(nextPending.status, nextPending.stderr).toBe(0);
+  expect(JSON.parse(statusPending.stdout)).toMatchObject({
+    finalValidation: "pending",
+    cleanup: "retained",
+  });
+  expect(JSON.parse(nextPending.stdout)).toEqual(JSON.parse(statusPending.stdout));
+
+  const command = "fixture final check";
+  await declareFinalDeliveryChecks(pending, [command]);
+  const recorded = await recordFinalDeliveryCheck(pending, command);
+  expect(recorded.status, recorded.stderr).toBe(0);
+  const completed = await completeDeliveryFinalization(pending);
+  expect(completed.status, completed.stderr).toBe(0);
+  expect(JSON.parse(completed.stdout)).toMatchObject({
+    finished: true,
+    cleanup: "complete",
+  });
+  expect(existsSync(prepared.repo)).toBe(false);
+
+  const statusComplete = await invokeAsync(pending.originalWorkspace, [
+    "status",
+    "--spec",
+    pending.originalSpec,
+  ]);
+  const nextComplete = await invokeAsync(pending.originalWorkspace, [
+    "next",
+    "--spec",
+    pending.originalSpec,
+  ]);
+  expect(statusComplete.status, statusComplete.stderr).toBe(0);
+  expect(nextComplete.status, nextComplete.stderr).toBe(0);
+  expect(JSON.parse(statusComplete.stdout)).toMatchObject({
+    finished: true,
+    cleanup: "complete",
+  });
+  expect(JSON.parse(nextComplete.stdout)).toEqual(JSON.parse(statusComplete.stdout));
+
+  const journalBeforeLateRecord = readFileSync(pending.journal, "utf8");
+  const lateRecord = await recordFinalDeliveryCheck(
+    pending,
+    command,
+    "failed",
+    "A post-completion result is not part of final validation.",
   );
-  expect(finish.status, finish.stderr).toBe(0);
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
-  const reviewPath = JSON.parse(readFileSync(ledgerPath, "utf8")).delivery.reviewAssignments[0]
-    .report as string;
-  const gitBefore = git("status", "--porcelain");
-
-  const assertValidCompletion = async () => {
-    const status = await execute(repo, (service) =>
-      service.featureInspectionService.status({ spec }),
-    );
-    const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
-    const resume = await execute(repo, (service) =>
-      service.assignmentService.resume({
-        ticket: "",
-        spec,
-        scope: "delivery",
-        author: "controller",
-      }),
-    );
-    expect(status.status, status.stderr).toBe(0);
-    expect(next.status, next.stderr).toBe(0);
-    expect(resume.status, resume.stderr).toBe(0);
-    const statusDelivery = JSON.parse(status.stdout).delivery;
-    const nextDelivery = JSON.parse(next.stdout).delivery;
-    const resumed = JSON.parse(resume.stdout);
-    expect(statusDelivery.finished).toBe(true);
-    expect(statusDelivery.action).toBe("finished");
-    expect(statusDelivery.blockers).toEqual([]);
-    expect(nextDelivery).toEqual(statusDelivery);
-    expect(resumed.finished).toBe(true);
-    expect(resumed.nextAction).toBe("finished");
-    expect(resumed.blocker).toBe(undefined);
-  };
-  const assertInvalidatedCompletion = async () => {
-    const status = await execute(repo, (service) =>
-      service.featureInspectionService.status({ spec }),
-    );
-    const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
-    const resume = await execute(repo, (service) =>
-      service.assignmentService.resume({
-        ticket: "",
-        spec,
-        scope: "delivery",
-        author: "controller",
-      }),
-    );
-    expect(status.status, status.stderr).toBe(0);
-    expect(next.status, next.stderr).toBe(0);
-    expect(resume.status, resume.stderr).toBe(0);
-    const statusDelivery = JSON.parse(status.stdout).delivery;
-    const nextDelivery = JSON.parse(next.stdout).delivery;
-    const resumed = JSON.parse(resume.stdout);
-    expect(statusDelivery.finished).toBe(true);
-    expect(statusDelivery.action).toBe("completion-invalidated");
-    expect(statusDelivery.blockers.length > 0).toBeTruthy();
-    expect(nextDelivery).toEqual(statusDelivery);
-    expect(resumed.finished).toBe(true);
-    expect(resumed.nextAction).toBe("completion-invalidated");
-    expect(resumed.blocker).toMatch(/finished|completion|evidence/i);
-  };
-
-  await assertValidCompletion();
-
-  const featurePath = join(repo, "feature.ts");
-  const featureBefore = readFileSync(featurePath, "utf8");
-  writeFileSync(featurePath, `${featureBefore}// external change\n`);
-  await assertInvalidatedCompletion();
-  writeFileSync(featurePath, featureBefore);
-  await assertValidCompletion();
-
-  const specPath = isAbsolute(spec) ? spec : join(repo, spec);
-  const specBefore = readFileSync(specPath, "utf8");
-  writeFileSync(specPath, `${specBefore}\n`);
-  await assertInvalidatedCompletion();
-  writeFileSync(specPath, specBefore);
-  await assertValidCompletion();
-
-  const reviewBefore = readFileSync(reviewPath, "utf8");
-  writeFileSync(reviewPath, `${reviewBefore}\nExternal review edit.\n`);
-  await assertInvalidatedCompletion();
-  writeFileSync(reviewPath, reviewBefore);
-  await assertValidCompletion();
-
-  const retrospectiveBefore = readFileSync(report, "utf8");
-  writeFileSync(report, `${retrospectiveBefore}\nExternal retrospective edit.\n`);
-  await assertInvalidatedCompletion();
-  writeFileSync(report, retrospectiveBefore);
-  await assertValidCompletion();
-  expect(git("status", "--porcelain")).toBe(gitBefore);
+  expect(lateRecord.status).not.toBe(0);
+  expect(lateRecord.stderr).toMatch(/only accepted during final validation/i);
+  expect(readFileSync(pending.journal, "utf8")).toBe(journalBeforeLateRecord);
 });

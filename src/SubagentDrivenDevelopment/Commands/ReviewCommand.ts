@@ -17,18 +17,19 @@ export class ReviewCommand extends Command {
         action: string | undefined,
         options: Partial<ReviewOptions & ReviewRequireOptions>,
       ) => {
+        if (options.scope !== undefined && options.scope !== "delivery") {
+          throw new Error("--scope must be 'delivery'.");
+        }
+        if (Boolean(options.ticket) === (options.scope === "delivery")) {
+          throw new Error("review needs exactly one of --ticket or --scope delivery.");
+        }
         if (action === "require") {
           if (options.type && options.agent && options.type !== options.agent) {
             throw new Error("--type and --agent must identify the same review agent.");
           }
           const reviewType = options.type ?? options.agent;
-          if (options.scope !== "delivery") {
-            throw new Error("Feature review requirements need --scope delivery.");
-          }
           if (!options.spec || !reviewType || !options.details || !options.author) {
-            throw new Error(
-              "review require needs --spec, --scope delivery, --type, --details, and --author.",
-            );
+            throw new Error("review require needs --spec, --type, --details, and --author.");
           }
           if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
           const command = await (await createApp()).make(ReviewRequireCommand);
@@ -51,15 +52,8 @@ export class ReviewCommand extends Command {
         if (options.type || options.agent || options.details) {
           throw new Error("--type, --agent, and --details are only valid with 'review require'.");
         }
-        if (
-          !options.spec ||
-          options.scope !== "delivery" ||
-          !options.inventory ||
-          !options.author
-        ) {
-          throw new Error(
-            "Feature review requires --spec, --scope delivery, --inventory, and --author.",
-          );
+        if (!options.spec || !options.inventory || !options.author) {
+          throw new Error("review requires --spec, --inventory, and --author.");
         }
         const command = await (await createApp()).make(ReviewCommand);
         console.log(

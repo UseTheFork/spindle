@@ -93,26 +93,6 @@ test("ready exposes unmet dependencies and rejects missing references and cycles
       { ticket: "T-0003", blockedBy: ["T-0002"] },
     ],
   });
-  service.ticketService.ticketUpdate({
-    spec: feature.spec,
-    ticket: "T-0001",
-    status: "closed",
-    author: "maintainer",
-  });
-  expect(service.readinessService.ready({ spec: feature.spec })).toEqual({
-    ready: ["T-0002"],
-    unready: [{ ticket: "T-0003", blockedBy: ["T-0002"] }],
-  });
-  service.ticketService.ticketUpdate({
-    spec: feature.spec,
-    ticket: "T-0002",
-    status: "closed",
-    author: "maintainer",
-  });
-  expect(service.readinessService.ready({ spec: feature.spec })).toEqual({
-    ready: ["T-0003"],
-    unready: [],
-  });
   const before = readFileSync(second, "utf8");
   expect(() =>
     service.ticketService.ticketUpdate({

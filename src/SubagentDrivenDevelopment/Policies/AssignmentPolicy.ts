@@ -31,9 +31,6 @@ export class AssignmentPolicy extends Service {
   }
 
   public resumeBlocker(feature: FeaturePaths, progress: TicketProgress): string | undefined {
-    if (progress.execution === "claimed" && (!progress.owner || !progress.baseSha)) {
-      return "Claim has no recorded owner or baseline; implementation is unavailable.";
-    }
     if (progress.execution === "implementing" && !progress.assignment) {
       return "Implementation is marked in progress without a recorded assignment.";
     }

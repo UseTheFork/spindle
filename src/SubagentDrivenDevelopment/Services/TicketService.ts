@@ -138,6 +138,9 @@ export class TicketService extends Service {
     ) {
       throw new Error(`Ticket status must be one of: ${TRACKER_STATUSES.join(", ")}.`);
     }
+    if (options.status === "closed") {
+      throw new Error("Tickets close automatically after passing post-merge checks.");
+    }
     if (options.blocker !== undefined && !options.blocker.trim()) {
       throw new Error("Blocker reason must not be empty.");
     }

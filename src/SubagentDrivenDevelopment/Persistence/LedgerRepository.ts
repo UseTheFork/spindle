@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
+import type { IntegrationRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import {
   FEATURE_DIRECTORY,
   EXECUTION_STATES,
@@ -13,6 +14,7 @@ import {
 import type {
   ExecutionState,
   TicketProgress,
+  TicketBaselineChange,
   FeatureLedger,
   FeaturePaths,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -25,7 +27,6 @@ import {
 import {
   isCheckRequirement,
   isCheckRecord,
-  isCheckGateInvalidation,
 } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import {
   isReviewFinding,
@@ -43,6 +44,55 @@ import {
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
+
+function matchingCorrectionChecks(
+  current: IntegrationRecord,
+  previous: IntegrationRecord,
+): boolean {
+  const expected = previous.postMerge?.checks;
+  const checks = current.postMerge?.checks;
+  return (
+    !!expected &&
+    !!checks &&
+    JSON.stringify(expected.required.map((item) => item.command)) ===
+      JSON.stringify(checks.required.map((item) => item.command))
+  );
+}
+
+function matchingCorrectionHistory(history: IntegrationRecord[]): boolean {
+  const first = history[0];
+  return !!first && history.every((integration) => matchingCorrectionChecks(integration, first));
+}
+
+function validBaselineHistory(value: unknown, baseSha: unknown): value is TicketBaselineChange[] {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    !value.every(
+      (change) =>
+        isRecord(change) &&
+        typeof change.from === "string" &&
+        /^[0-9a-f]{40,64}$/i.test(change.from) &&
+        typeof change.to === "string" &&
+        /^[0-9a-f]{40,64}$/i.test(change.to) &&
+        change.from !== change.to &&
+        typeof change.ticketHead === "string" &&
+        /^[0-9a-f]{40,64}$/i.test(change.ticketHead) &&
+        typeof change.at === "string" &&
+        Number.isFinite(Date.parse(change.at)) &&
+        typeof change.author === "string" &&
+        !!change.author.trim() &&
+        Object.keys(change).every((key) =>
+          ["from", "to", "ticketHead", "at", "author"].includes(key),
+        ),
+    )
+  )
+    return false;
+  return (
+    value.every((change, index) => index === 0 || value[index - 1].to === change.from) &&
+    value.at(-1).to === baseSha
+  );
+}
 
 export class LedgerRepository extends Service {
   public constructor(app: Application) {
@@ -126,6 +176,8 @@ export class LedgerRepository extends Service {
               !!ticket.owner.trim() &&
               typeof ticket.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(ticket.baseSha))) &&
+          (!Object.hasOwn(ticket, "baselineHistory") ||
+            validBaselineHistory(ticket.baselineHistory, ticket.baseSha)) &&
           (!Object.hasOwn(ticket, "worktree") ||
             (isRecord(ticket.worktree) &&
               typeof ticket.worktree.workspace === "string" &&
@@ -143,6 +195,33 @@ export class LedgerRepository extends Service {
               JSON.stringify(ticket.integration.files) ===
                 JSON.stringify(ticket.acceptedEvidence.files) &&
               ticket.integration.contentDigest === ticket.acceptedEvidence.contentDigest)) &&
+          (!Object.hasOwn(ticket, "integrationHistory") ||
+            (Array.isArray(ticket.integrationHistory) &&
+              ticket.integrationHistory.length > 0 &&
+              ticket.integrationHistory.every(isIntegrationRecord) &&
+              ticket.integrationHistory.every((integration) => {
+                const postMerge = integration.postMerge;
+                const records = postMerge?.checks?.records ?? [];
+                return (
+                  postMerge?.status === "pending" &&
+                  records.some(
+                    (record, index) =>
+                      record.result === "failed" &&
+                      !records.slice(index + 1).some((later) => later.command === record.command),
+                  )
+                );
+              }) &&
+              new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).size ===
+                ticket.integrationHistory.length &&
+              (!isIntegrationRecord(ticket.integration) ||
+                (!new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).has(
+                  ticket.integration.mergeSha,
+                ) &&
+                  matchingCorrectionChecks(
+                    ticket.integration,
+                    ticket.integrationHistory[ticket.integrationHistory.length - 1]!,
+                  ))) &&
+              matchingCorrectionHistory(ticket.integrationHistory))) &&
           (!Object.hasOwn(ticket, "reviewRequirements") ||
             (Array.isArray(ticket.reviewRequirements) &&
               ticket.reviewRequirements.every(isSpecialistReviewRequirement) &&
@@ -154,9 +233,7 @@ export class LedgerRepository extends Service {
               ticket.checks.required.every(isCheckRequirement) &&
               Array.isArray(ticket.checks.records) &&
               ticket.checks.records.every(isCheckRecord) &&
-              (!Object.hasOwn(ticket.checks, "invalidations") ||
-                (Array.isArray(ticket.checks.invalidations) &&
-                  ticket.checks.invalidations.every(isCheckGateInvalidation))))) &&
+              !Object.hasOwn(ticket.checks, "invalidations"))) &&
           (!Object.hasOwn(ticket, "assignment") ||
             (isImplementationAssignment(ticket.assignment) &&
               (!ticket.worktree ||
@@ -260,6 +337,7 @@ export class LedgerRepository extends Service {
         "Feature ticket records must contain a ticket ID and a valid execution state.",
       );
     }
+
     if (
       new Set(value.tickets.map((ticket) => (ticket as TicketProgress).id)).size !==
       value.tickets.length

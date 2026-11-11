@@ -26,11 +26,13 @@ pnpm spindle sdd ticket comment --spec <absolute-spec-path> --ticket T-0001 --de
 pnpm spindle sdd ready --spec <absolute-spec-path>
 ```
 
-Use `--clear-blocked-by` to remove dependencies. Use `ticket update --status` to change status. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file: execution transitions are recorded in `sdd.json`.
+Use `--clear-blocked-by` to remove dependencies. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file: execution transitions are recorded in `sdd.json`.
 
 ## Delivery
 
-Use `pnpm spindle sdd status` and `pnpm spindle sdd ready` to inspect work. Claim and dispatch ready tickets with `pnpm spindle sdd claim` and `pnpm spindle sdd implement`, submit the assigned report with `pnpm spindle sdd submit`, and close completed tickets with `pnpm spindle sdd ticket update --status closed`. Follow the `int-subagent-driven-dev` skill for review, correction, and feature completion.
+Use `pnpm spindle sdd status` and `pnpm spindle sdd ready` to inspect work.
+Follow the `int-subagent-driven-dev` skill for dispatch, review, correction,
+integration, and feature completion.
 
 `pnpm spindle sdd start --spec <absolute-spec-path> --workspace <absolute-directory> --confirm-records`
 prepares a feature branch and worktree in an existing external directory. Inspect
@@ -45,10 +47,25 @@ creates a separate ticket worktree in the supplied existing directory and
 returns its assignment. The feature worktree remains the source of canonical
 records and reports.
 
-After a committed ticket passes its checks and reviews, `pnpm spindle sdd accept`
-and `pnpm spindle sdd integrate` can merge it into the feature branch. Integration
-leaves post-merge validation pending.
+After a committed ticket passes its checks and reviews, `pnpm spindle sdd integrate`
+can merge it into the feature branch. Before dispatch or integration commits
+workflow records, inspect them for secrets and pass `--confirm-records`.
+Declare the post-merge check list with
+`pnpm spindle sdd checks require --scope post-merge --ticket <id>`, then record
+each agent-run result with `checks record --scope post-merge --ticket <id>`.
+Passing results close the ticket automatically unless a blocker or dependency
+prevents closure. Resolve it, then repeat `checks require` with the same complete
+list; rerun any stale checks.
 
-Post-merge validation, dependent-ticket unblocking, final feature merging, and
-cleanup are not yet implemented. Workflow records currently require manual
-commits, and interrupted worktree creation may require manual recovery.
+Failed post-merge checks block other merges until a reviewed correction passes.
+Resolve integration conflicts in the ticket worktree, adopt the rebased baseline
+with `checks require --rebase-baseline`, and obtain fresh checks and review.
+After aggregate checks and review pass, inspect records and run
+`pnpm spindle sdd finish --spec <feature-spec-path> --author <name> --confirm-records`
+from the feature worktree. Include `--report <absolute-report-path>` when a
+retrospective is required. In the original checkout, declare the complete list
+with `checks require --scope final`, run the checks, and record each result with
+`checks record --scope final --merge <merge-sha> --snapshot <snapshot>`. Repeat
+`finish` there to preflight and clean up. Final checks cover the merge; a separate
+ledger-only relocation commit follows. Preserve work and inspect the journal if
+recovery or cleanup is blocked.

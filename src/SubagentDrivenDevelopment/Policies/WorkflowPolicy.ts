@@ -13,10 +13,7 @@ export class WorkflowPolicy extends Service {
 
   public nextAction(progress: TicketProgress, blocker?: string): string {
     if (progress.adjudication?.status === "pending") return "adjudicate";
-    if (progress.execution === "unstarted") return "claim";
-    if (progress.execution === "claimed") {
-      return progress.owner && progress.baseSha ? "implement" : "resolve-claim-blocker";
-    }
+    if (progress.execution === "unstarted") return "implement";
     if (progress.execution === "implementing") {
       if (!progress.assignment) return "resolve-assignment-blocker";
       if (progress.assignment.status === "submitted") {
@@ -38,7 +35,7 @@ export class WorkflowPolicy extends Service {
         if (reviews.some((assignment) => assignment.result !== "passed")) {
           return "resolve-review-result";
         }
-        return "accept";
+        return "integrate";
       }
       return blocker ? "restore-implementation-report" : "review";
     }
@@ -51,8 +48,11 @@ export class WorkflowPolicy extends Service {
         ? "correct"
         : "controller-correction-decision";
     }
-    if (progress.execution === "accepted") return blocker ? "resolve-check-blocker" : "integrate";
-    if (progress.execution === "integrated") return blocker ? "resolve-check-blocker" : "complete";
+    if (progress.execution === "integrated") {
+      if (progress.integration?.postMerge?.status !== "passed") return "post-merge-checks";
+      if (progress.status !== "closed") return "verify-ticket-closure";
+      return blocker ? "resolve-check-blocker" : "complete";
+    }
     return "resolve-blocker";
   }
 

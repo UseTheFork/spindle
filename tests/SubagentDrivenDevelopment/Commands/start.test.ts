@@ -97,18 +97,18 @@ test("start uses the existing revision without creating an empty commit", async 
   expect(JSON.parse(result.stdout).featureRevision).toBe(before);
 });
 
-test("competing starts do not overwrite the winning branch, state, or worktree", async () => {
+test("competing starts resume the same branch, state, and worktree", async () => {
   const { repo, git, spec, parent } = await setup();
   const before = git("rev-parse", "HEAD");
   const args = ["start", "--spec", spec, "--workspace", parent, "--confirm-records"];
   const results = await Promise.all([invokeAsync(repo, args), invokeAsync(repo, args)]);
-  expect(results.filter((result) => result.status === 0)).toHaveLength(1);
-  expect(results.filter((result) => result.status !== 0)).toHaveLength(1);
-  const winner = JSON.parse(results.find((result) => result.status === 0)!.stdout) as {
+  expect(results.map((result) => result.status)).toEqual([0, 0]);
+  const winner = JSON.parse(results[0]!.stdout) as {
     featureRevision: string;
     featureWorkspace: string;
     stateFile: string;
   };
+  expect(JSON.parse(results[1]!.stdout)).toMatchObject(winner);
   expect(git("rev-list", "--count", `${before}..HEAD`)).toBe("1");
   expect(git("rev-parse", "features/0001-worktree-feature")).toBe(winner.featureRevision);
   expect(JSON.parse(readFileSync(winner.stateFile, "utf8")).phase).toBe("created");
@@ -136,6 +136,25 @@ test("start refuses unrelated changes before creating a commit, branch, or state
   expect(existsSync(join(repo, ".git/spindle-feature-start/0001-worktree-feature.json"))).toBe(
     false,
   );
+});
+
+test("start preserves staged feature content that differs from the worktree", async () => {
+  const { repo, git, spec, parent } = await setup();
+  git("add", ".scratch/0001-worktree-feature/spec.md");
+  const staged = git("show", ":.scratch/0001-worktree-feature/spec.md");
+  writeFileSync(spec, `${readFileSync(spec, "utf8")}\nUnstaged requirement.\n`);
+  const result = await invokeAsync(repo, [
+    "start",
+    "--spec",
+    spec,
+    "--workspace",
+    parent,
+    "--confirm-records",
+  ]);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/staged feature records differ/i);
+  expect(git("show", ":.scratch/0001-worktree-feature/spec.md")).toBe(staged);
+  expect(readFileSync(spec, "utf8")).toContain("Unstaged requirement.");
 });
 
 test("start requires record confirmation and rejects unexpected or ignored feature files", async () => {
@@ -328,7 +347,7 @@ test("start accepts a parent directory inside another checkout", async () => {
   expect(existsSync(join(parent, "0001-worktree-feature", ".git"))).toBe(true);
 });
 
-test("interrupted startup preserves a journal and allocated directory without retry overwrites", async () => {
+test("interrupted startup resumes the journalled allocated directory", async () => {
   const { repo, git, spec, parent } = await setup();
   const bin = join(dirname(repo), "bin");
   mkdirSync(bin);
@@ -360,7 +379,14 @@ test("interrupted startup preserves a journal and allocated directory without re
     parent,
     "--confirm-records",
   ]);
-  expect(retry.status).not.toBe(0);
-  expect(readFileSync(stateFile, "utf8")).toBe(`${JSON.stringify(state, null, 2)}\n`);
+  expect(retry.status, retry.stderr).toBe(0);
+  const resumed = JSON.parse(readFileSync(stateFile, "utf8"));
+  expect(resumed).toMatchObject({
+    id: state.id,
+    phase: "created",
+    featureRevision: state.featureRevision,
+    targetIdentity: state.targetIdentity,
+  });
+  expect(git("rev-parse", "features/0001-worktree-feature")).toBe(state.featureRevision);
   expect(existsSync(state.featureWorkspace)).toBe(true);
 });

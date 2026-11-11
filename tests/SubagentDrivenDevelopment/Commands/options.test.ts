@@ -16,7 +16,7 @@ test("once rejects repeated flags without sharing state between invocations or o
   expect(other("T-1")).toBe("T-1");
 });
 
-test("all SDD schemas allocate independent single-value parsers on registration", () => {
+test("SDD schemas allocate independent parsers on registration", () => {
   const never = async () => {
     throw new Error("Schema registration must not construct an Application.");
   };
@@ -42,6 +42,12 @@ test("all SDD schemas allocate independent single-value parsers on registration"
         expect(counterpart.flags).toBe(option.flags);
         expect(counterpart.argChoices).toEqual(option.argChoices);
         if (option.argChoices) continue;
+        if (path === "spindle sdd checks require" && option.long === "--command") {
+          expect(option.parseArg("first", [])).toEqual(["first"]);
+          expect(option.parseArg("second", ["first"])).toEqual(["first", "second"]);
+          expect(counterpart.parseArg!("fresh", [])).toEqual(["fresh"]);
+          continue;
+        }
         expect(option.parseArg("first", undefined)).toBe("first");
         expect(() => option.parseArg!("second", undefined)).toThrow(
           `Option '${option.long}' may only be provided once.`,

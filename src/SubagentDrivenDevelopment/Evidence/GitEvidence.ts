@@ -151,18 +151,19 @@ export class GitEvidence extends Service {
     return createHash("sha256").update(JSON.stringify(records)).digest("hex");
   }
 
-  public cleanGitBaseline(feature: FeaturePaths): string {
+  public cleanDispatchBaseline(feature: FeaturePaths, allowPendingRecords = false): string {
     const root = realpathSync(this.app.workspaceRoot);
+    if (allowPendingRecords) return this.pendingDispatchBaseline(feature, root);
     const changes = this.gitChangeSummary(feature);
     if (changes) {
       const deliveryRecords = this.deliveryRecordPaths(feature);
       if (deliveryRecords.length > 0) {
         throw new Error(
-          `Cannot claim while uncommitted delivery records remain; the caller must commit them first:\n${deliveryRecords.join("\n")}`,
+          `Cannot dispatch while uncommitted delivery records remain; inspect and confirm them before committing:\n${deliveryRecords.join("\n")}`,
         );
       }
       throw new Error(
-        `Cannot claim from a dirty checkout; commit or otherwise resolve staged, unstaged, and untracked changes first:\n${changes}`,
+        `Cannot dispatch from a dirty checkout; inspect and resolve staged, unstaged, and unrelated changes first:\n${changes}`,
       );
     }
     const revision = this.git.run(["rev-parse", "--verify", "HEAD"], {
@@ -177,6 +178,91 @@ export class GitEvidence extends Service {
       );
     }
     return revision.stdout.trim();
+  }
+
+  private pendingDispatchBaseline(feature: FeaturePaths, root: string): string {
+    for (const variable of [
+      "GIT_DIR",
+      "GIT_WORK_TREE",
+      "GIT_COMMON_DIR",
+      "GIT_INDEX_FILE",
+      "GIT_OBJECT_DIRECTORY",
+      "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+      "GIT_NAMESPACE",
+    ]) {
+      if (process.env[variable]) throw new Error(`Unset ${variable} before ticket dispatch.`);
+    }
+    const ledger = this.ledgerRepository.readLedger(feature);
+    const pending = ledger.tickets
+      .map((ticket) => ticket.integration ?? ticket.integrationHistory?.at(-1))
+      .filter((integration) => integration?.postMerge?.status === "pending");
+    const head = this.headSha(root);
+    if (!pending.length || pending.some((integration) => integration?.mergeSha !== head)) {
+      throw new Error("Pending post-merge validation does not match the exact feature HEAD.");
+    }
+    const gitPath = (name: string) =>
+      resolve(
+        root,
+        this.gitBuffer(["rev-parse", "--git-path", name], root).toString("utf8").trim(),
+      );
+    for (const operation of [
+      "MERGE_HEAD",
+      "CHERRY_PICK_HEAD",
+      "REVERT_HEAD",
+      "REBASE_HEAD",
+      "rebase-merge",
+      "rebase-apply",
+      "sequencer",
+    ]) {
+      if (lstatIfPresent(gitPath(operation))) {
+        throw new Error(
+          `Existing Git operation ${operation} was preserved; inspect it before dispatch.`,
+        );
+      }
+    }
+    const common = realpathSync(
+      this.gitBuffer(["rev-parse", "--path-format=absolute", "--git-common-dir"], root)
+        .toString("utf8")
+        .trim(),
+    );
+    if (lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))) {
+      throw new Error("Pending workflow-record commit journal must be resolved before dispatch.");
+    }
+    const status = this.gitBuffer(
+      [
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+        "--",
+        ".",
+      ],
+      root,
+    )
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
+    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    for (const entry of status) {
+      const state = entry.slice(0, 2);
+      const path = entry.slice(3);
+      if (state[0] !== " " && state !== "??") {
+        throw new Error(`Staged data was preserved; inspect it before dispatch: ${path}.`);
+      }
+      if (path === lock) continue;
+      if (!allowed.has(path)) {
+        throw new Error(`Unrelated or non-canonical changes were preserved: ${path}.`);
+      }
+      const file = lstatIfPresent(join(root, path));
+      if (!file?.isFile() || file.isSymbolicLink()) {
+        throw new Error(`Canonical workflow record is missing or unsafe: ${path}.`);
+      }
+    }
+    if (this.headSha(root) !== head)
+      throw new Error("Feature HEAD changed during ticket dispatch.");
+    return head;
   }
 
   public contentIdentity(
@@ -582,7 +668,9 @@ export class GitEvidence extends Service {
     );
     if (status.error) throw status.error;
     if (status.status !== 0) {
-      throw new Error(`git status failed while checking claim readiness: ${status.stderr.trim()}`);
+      throw new Error(
+        `git status failed while checking dispatch readiness: ${status.stderr.trim()}`,
+      );
     }
     return status.stdout.trim();
   }

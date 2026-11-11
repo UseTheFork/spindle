@@ -14,11 +14,7 @@ import type {
   CorrectionAdjudication,
   ReviewAssignment,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type {
-  ClaimOptions,
-  ImplementOptions,
-  ResumeOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
+import type { ImplementOptions, ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
@@ -30,10 +26,12 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 export class AssignmentService extends Service {
   public constructor(
@@ -46,79 +44,13 @@ export class AssignmentService extends Service {
     private readonly assignmentPolicy: AssignmentPolicy,
     private readonly checkPolicy: CheckPolicy,
     private readonly reviewPolicy: ReviewPolicy,
+    private readonly readinessPolicy: ReadinessPolicy,
     private readonly workflowPolicy: WorkflowPolicy,
     private readonly featureInspectionService: FeatureInspectionService,
     private readonly ticketWorktreeService: TicketWorktreeService,
+    private readonly workflowRecordsCommitter: WorkflowRecordsCommitter,
   ) {
     super(app);
-  }
-
-  public claim(options: ClaimOptions): {
-    ticket: string;
-    execution: "claimed";
-    owner: string;
-    baseSha: string;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
-    headSha: string;
-  } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
-    const feature = this.featureInspectionService.resolveFeature(options.spec);
-    return this.workspaceTransaction.run(feature.workspace, () => {
-      const ledger = this.ledgerRepository.readLedger(feature);
-      const tickets = this.ticketRepository.readTickets(feature.workspace);
-      this.ticketRepository.validateDependencyGraph(tickets);
-      const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
-      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      if (progress.execution !== "unstarted") {
-        throw new Error(
-          `Ticket ${options.ticket} is already owned or has progressed to ${progress.execution}.`,
-        );
-      }
-      if (ticket.status !== "open" || ticket.blocker) {
-        throw new Error(`Ticket ${options.ticket} is not open and unblocked.`);
-      }
-      const ticketsById = new Map(tickets.map((item) => [item.id, item]));
-      const unmet = ticket.blocked_by.filter((dependency) => {
-        const dependencyTicket = ticketsById.get(dependency);
-        return (
-          !dependencyTicket || dependencyTicket.status !== "closed" || !!dependencyTicket.blocker
-        );
-      });
-      if (unmet.length > 0) {
-        throw new Error(`Ticket ${options.ticket} has open dependencies: ${unmet.join(", ")}.`);
-      }
-      if (ticket.blocked_by.length > 0) {
-        throw new Error(
-          "Dependent ticket worktrees require post-merge prerequisite validation, which is not yet available.",
-        );
-      }
-      const baseSha = this.gitEvidence.cleanGitBaseline(feature);
-      progress.execution = "claimed";
-      progress.status = "in-progress";
-      progress.owner = options.author.trim();
-      progress.baseSha = baseSha;
-      ledger.delivery.baseSha ??= baseSha;
-      const identity = this.gitEvidence.contentIdentity(feature, ticket, baseSha, progress.checks);
-      const afterTicket = matter.stringify(
-        this.ticketRepository.appendAudit(
-          ticket.body,
-          options.author,
-          `Claimed from clean Git baseline ${baseSha}.`,
-        ),
-        this.ticketRepository.metadata(ticket),
-      );
-      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
-      return {
-        ticket: options.ticket,
-        execution: "claimed",
-        owner: options.author.trim(),
-        baseSha,
-        ...identity,
-      };
-    });
   }
 
   public implement(options: ImplementOptions): {
@@ -135,10 +67,9 @@ export class AssignmentService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
-      const ticket = this.ticketRepository.requireTicket(
-        this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
-      );
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      this.ticketRepository.validateDependencyGraph(tickets);
+      const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "implementing" && progress.assignment) {
         if (progress.owner !== options.author.trim()) {
@@ -162,21 +93,26 @@ export class AssignmentService extends Service {
           ...this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, progress.checks),
         };
       }
-      if (progress.execution !== "claimed" || !progress.baseSha || !progress.owner) {
-        throw new Error(`Ticket ${options.ticket} must be claimed before implementation dispatch.`);
-      }
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded controller may dispatch implementation.");
-      }
-      if (progress.worktree) {
+      if (progress.execution !== "unstarted") {
         throw new Error(
-          "Ticket already has a recorded worktree; preserve and inspect it before continuing.",
+          `Ticket ${options.ticket} is already owned or has progressed to ${progress.execution}.`,
         );
       }
-      if (ticket.blocked_by.length > 0) {
+      if (ticket.status !== "open" || ticket.blocker) {
+        throw new Error(`Ticket ${options.ticket} is not open and unblocked.`);
+      }
+      const readiness = this.readinessPolicy.evaluate(tickets, ledger);
+      if (!readiness.ready.includes(options.ticket)) {
+        const unready = readiness.unready.find((item) => item.ticket === options.ticket);
+        const dependencies = unready?.blockedBy ?? ticket.blocked_by;
         throw new Error(
-          "Dependent ticket worktrees require post-merge prerequisite validation, which is not yet available.",
+          dependencies.length > 0
+            ? `Ticket ${options.ticket} has open dependencies: ${dependencies.join(", ")}.`
+            : `Ticket ${options.ticket} is not ready for implementation.`,
         );
+      }
+      if (!options.workspace || !isAbsolute(options.workspace)) {
+        throw new Error("--workspace must be an absolute existing external directory.");
       }
 
       const report = join(feature.workspace, "reports", `${options.ticket}-implementation.md`);
@@ -184,7 +120,34 @@ export class AssignmentService extends Service {
       if (lstatIfPresent(report)) {
         throw new Error(`Assigned report already exists and was preserved: ${report}.`);
       }
-      const worktree = this.ticketWorktreeService.create(feature, progress, options.workspace);
+      const pendingPostMerge = ledger.tickets.some(
+        (candidate) =>
+          (candidate.integration ?? candidate.integrationHistory?.at(-1))?.postMerge?.status ===
+          "pending",
+      );
+      if (!pendingPostMerge) {
+        this.workflowRecordsCommitter.commit(feature, options.confirmRecords === true);
+      }
+      const baseSha = this.gitEvidence.cleanDispatchBaseline(feature, pendingPostMerge);
+      progress.status = "in-progress";
+      progress.owner = options.author.trim();
+      progress.baseSha = baseSha;
+      ledger.delivery.baseSha ??= baseSha;
+      const requiredAncestors = ticket.blocked_by.map((id) => {
+        const dependency = this.workflowPolicy.requireProgress(ledger, id);
+        const mergeSha = dependency.integration?.mergeSha;
+        if (!mergeSha || dependency.integration?.postMerge?.status !== "passed") {
+          throw new Error(`Ticket ${id} is not integrated and post-merge validated.`);
+        }
+        return mergeSha;
+      });
+      const worktree = this.ticketWorktreeService.create(
+        feature,
+        progress,
+        options.workspace,
+        requiredAncestors,
+        pendingPostMerge,
+      );
       const assignment: ImplementationAssignment = {
         id: randomUUID(),
         role: "implementation",

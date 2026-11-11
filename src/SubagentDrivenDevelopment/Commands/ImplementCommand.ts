@@ -20,6 +20,10 @@ export class ImplementCommand extends Command {
         "Existing absolute external directory for the ticket worktree",
         CommandOptions.once("--workspace"),
       )
+      .option(
+        "--confirm-records",
+        "Confirm that current canonical feature records were inspected before batching",
+      )
       .allowExcessArguments(false)
       .action(async (options: ImplementOptions) => {
         const command = await (await createApp()).make(ImplementCommand);

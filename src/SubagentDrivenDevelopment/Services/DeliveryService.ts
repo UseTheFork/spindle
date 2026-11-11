@@ -7,6 +7,7 @@ import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { FinishOptions, NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
@@ -15,6 +16,10 @@ import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolic
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import {
+  FeatureFinalizationService,
+  type FeatureFinishOptions,
+} from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryService extends Service {
@@ -29,25 +34,28 @@ export class DeliveryService extends Service {
     private readonly findingPolicy: FindingPolicy,
     private readonly reviewPolicy: ReviewPolicy,
     private readonly featureInspectionService: FeatureInspectionService,
+    private readonly finalization: FeatureFinalizationService,
   ) {
     super(app);
   }
 
-  public finish(options: FinishOptions): {
-    scope: "delivery";
-    finished: true;
-    idempotent?: boolean;
-    retrospectiveRequired: boolean;
-    retrospective?: { report: string; reportSha256: string };
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
-    headSha: string;
-  } {
+  public finish(options: FeatureFinishOptions): unknown {
     validateAuthor(options.author);
-    const feature = this.featureInspectionService.resolveFeature(options.spec);
+    const feature =
+      this.finalization.recordedFeature(options.spec) ??
+      this.featureInspectionService.resolveFeature(options.spec);
+    return this.finalization.finish(feature, options, (ledger) =>
+      this.assertReady(feature, options, ledger),
+    );
+  }
+
+  private assertReady(
+    feature: FeaturePaths,
+    options: FinishOptions,
+    approvedLedger?: FeatureLedger,
+  ) {
     return this.workspaceTransaction.run(feature.workspace, () => {
-      const ledger = this.ledgerRepository.readLedger(feature);
+      const ledger = approvedLedger ?? this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       if (ledger.tickets.length === 0) {
         throw new Error("Cannot finish; the feature must contain at least one ticket.");
@@ -69,11 +77,47 @@ export class DeliveryService extends Service {
           `Cannot finish; every ticket must be integrated: ${unintegrated.join(", ")}.`,
         );
       }
-      if (ledger.tickets.some((progress) => progress.worktree)) {
-        throw new Error("Cannot finish; ticket post-merge validation is not yet available.");
+      if (
+        ledger.tickets.some(
+          (progress) =>
+            !progress.worktree ||
+            progress.integration?.postMerge?.status !== "passed" ||
+            !progress.integration.postMerge.checks ||
+            progress.integration.postMerge.mergeSha !== progress.integration.mergeSha ||
+            progress.integration.postMerge.checks.required.length === 0 ||
+            progress.integration.postMerge.checks.required.some((requirement) => {
+              const latest = progress
+                .integration!.postMerge!.checks!.records.filter(
+                  (record) => record.command === requirement.command,
+                )
+                .at(-1);
+              return (
+                latest?.result !== "passed" || latest.headSha !== progress.integration!.mergeSha
+              );
+            }),
+        )
+      ) {
+        throw new Error(
+          "Cannot finish; every ticket needs recorded worktree ownership and passing exact post-merge validation.",
+        );
       }
       if (tickets.length !== ledger.tickets.length) {
         throw new Error("Cannot finish; one or more feature ticket documents are missing.");
+      }
+      for (const progress of ledger.tickets) {
+        if (!progress.acceptedEvidence || progress.adjudication?.status === "pending") {
+          throw new Error(
+            `Cannot finish; ticket ${progress.id} has no frozen acceptance evidence or awaits adjudication.`,
+          );
+        }
+        const blockers = this.findingPolicy.findingBlockers(progress, {
+          ...progress.acceptedEvidence,
+          headSha: progress.integration!.commitSha,
+        });
+        if (blockers.length)
+          throw new Error(
+            `Cannot finish; ticket findings remain blocking:\n${blockers.join("\n")}`,
+          );
       }
       if (delivery.adjudication?.status === "pending") {
         throw new Error(
@@ -157,24 +201,6 @@ export class DeliveryService extends Service {
           reportSha256: createHash("sha256").update(content).digest("hex"),
         };
       }
-      if (delivery.finished) {
-        const same =
-          delivery.finished.report === retrospective?.report &&
-          delivery.finished.reportSha256 === retrospective?.reportSha256;
-        if (!same) {
-          throw new Error(
-            "Full-spec delivery is already finished with different retrospective evidence.",
-          );
-        }
-        return {
-          scope: "delivery",
-          finished: true,
-          idempotent: true,
-          retrospectiveRequired: ledger.retrospectiveRequired,
-          ...(retrospective ? { retrospective } : {}),
-          ...identity,
-        };
-      }
       const confirmed = this.gitEvidence.deliveryIdentity(
         feature,
         ledger,
@@ -188,30 +214,13 @@ export class DeliveryService extends Service {
           "Aggregate content or check evidence changed while finishing; resume and revalidate delivery.",
         );
       }
-      delivery.execution = "complete";
-      delivery.finished = {
-        at: new Date().toISOString(),
-        author: options.author.trim(),
-        ...retrospective,
-      };
-      delivery.status = "complete";
-      delivery.history.push({
-        at: delivery.finished.at,
-        author: delivery.finished.author,
-        action: "delivery-finished",
-      });
-      this.workspaceTransaction.writeLedger(feature, ledger);
-      return {
-        scope: "delivery",
-        finished: true,
-        retrospectiveRequired: ledger.retrospectiveRequired,
-        ...(retrospective ? { retrospective } : {}),
-        ...identity,
-      };
+      return { ledger, identity, retrospective };
     });
   }
 
   public next(options: NextOptions) {
+    const recorded = this.finalization.recordedFeature(options.spec);
+    if (recorded) return this.finalization.status(recorded.feature);
     const status = this.featureInspectionService.status(options);
     return {
       feature: status.feature,

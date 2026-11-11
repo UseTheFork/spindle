@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
@@ -128,26 +128,51 @@ export function commitAll(repo: string, git: (...args: string[]) => string, mess
   git("commit", "-qm", message);
 }
 
-export async function prepareClaimableTicket(
+export function commitTicketWorkspace(workspace: string, message: string) {
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: workspace, encoding: "utf8" }).trim();
+  git("add", "-A");
+  if (git("status", "--porcelain=v1", "--untracked-files=all")) {
+    git("commit", "-qm", message);
+  }
+}
+
+export async function prepareReadyTicket(
   options: { requireRetrospective?: boolean; ticketCount?: number } = {},
 ) {
-  const { repo, git } = fixture();
-  const created = await execute(repo, (service) =>
+  const { repo: originalRepo } = fixture();
+  const created = await execute(originalRepo, (service) =>
     service.featureCreationService.create({
-      title: "Claim flow",
+      title: "Ticket flow",
       author: "maintainer",
       ...(options.requireRetrospective ? { requireRetrospective: true } : {}),
     }),
   );
   expect(created.status, created.stderr).toBe(0);
-  const feature = JSON.parse(created.stdout) as { spec: string };
-  commitAll(repo, git, "create feature");
+  const initialFeature = JSON.parse(created.stdout) as { spec: string };
+  const featureParent = join(dirname(originalRepo), "feature-worktrees");
+  mkdirSync(featureParent);
+  const started = await execute(originalRepo, (service) =>
+    service.featureWorktreeService.start({
+      spec: initialFeature.spec,
+      workspace: featureParent,
+      confirmRecords: true,
+    }),
+  );
+  expect(started.status, started.stderr).toBe(0);
+  const start = JSON.parse(started.stdout) as { spec: string; featureWorkspace: string };
+  const repo = start.featureWorkspace;
+  const spec = start.spec;
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  const worktreeParent = join(dirname(originalRepo), "ticket-workspaces");
+  mkdirSync(worktreeParent);
 
   for (let index = 1; index <= (options.ticketCount ?? 1); index++) {
     const ticketId = `T-${String(index).padStart(4, "0")}`;
     const ticket = await execute(repo, (service) =>
       service.ticketService.ticketCreate({
-        spec: feature.spec,
+        spec,
         title: `Implement the flow ${index}`,
         reporter: "requester",
         category: "enhancement",
@@ -157,7 +182,7 @@ export async function prepareClaimableTicket(
     expect(ticket.status, ticket.stderr).toBe(0);
     const updated = await execute(repo, (service) =>
       service.ticketService.ticketUpdate({
-        spec: feature.spec,
+        spec,
         ticket: ticketId,
         status: "open",
         author: "maintainer",
@@ -167,7 +192,7 @@ export async function prepareClaimableTicket(
   }
   commitAll(repo, git, "prepare ticket");
   const baseSha = git("rev-parse", "HEAD");
-  return { repo, git, spec: feature.spec, baseSha };
+  return { repo, git, spec, baseSha, originalRepo, worktreeParent };
 }
 
 export async function prepareImplementationForReview(
@@ -178,7 +203,7 @@ export async function prepareImplementationForReview(
     file?: string;
   } = {},
 ) {
-  const { repo, git, spec } = await prepareClaimableTicket(options);
+  const { repo, git, spec, worktreeParent, originalRepo } = await prepareReadyTicket(options);
   const ticketId = options.ticketId ?? "T-0001";
   const file = options.file ?? "feature.ts";
   const command = "just test::test tests/feature.test.ts";
@@ -188,19 +213,24 @@ export async function prepareImplementationForReview(
   expect(required.status, required.stderr).toBe(0);
   commitAll(repo, git, "declare required check");
 
-  const claimed = await execute(repo, (service) =>
-    service.assignmentService.claim({ spec, ticket: ticketId, author: "controller" }),
-  );
-  expect(claimed.status, claimed.stderr).toBe(0);
-  writeFileSync(join(repo, file), `export const feature = ${JSON.stringify(ticketId)};\n`);
-
   const implemented = await execute(repo, (service) =>
-    service.assignmentService.implement({ spec, ticket: ticketId, author: "controller" }),
+    service.assignmentService.implement({
+      spec,
+      ticket: ticketId,
+      author: "controller",
+      workspace: worktreeParent,
+      confirmRecords: true,
+    }),
   );
   expect(implemented.status, implemented.stderr).toBe(0);
   const implementation = JSON.parse(implemented.stdout) as {
-    assignment: { report: string };
+    assignment: { report: string; workspace: string };
   };
+  writeFileSync(
+    join(implementation.assignment.workspace, file),
+    `export const feature = ${JSON.stringify(ticketId)};\n`,
+  );
+  commitTicketWorkspace(implementation.assignment.workspace, `implement ${ticketId}`);
   writeFileSync(implementation.assignment.report, "# Implementation report\n\nCompleted.\n");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -214,10 +244,13 @@ export async function prepareImplementationForReview(
   expect(submitted.status, submitted.stderr).toBe(0);
   return {
     repo,
+    originalRepo,
     git,
     spec,
+    worktreeParent,
     ticketId,
     file,
+    ticketWorkspace: implementation.assignment.workspace,
     command,
     report: implementation.assignment.report,
     submission: JSON.parse(submitted.stdout) as {
@@ -332,13 +365,12 @@ export async function prepareReviewAssignment(
   };
 }
 
-export async function prepareAcceptedTicket(
+export async function prepareReviewedTicket(
   options: {
     requireRetrospective?: boolean;
     ticketCount?: number;
     ticketId?: string;
     file?: string;
-    close?: boolean;
   } = {},
 ) {
   const prepared = await prepareReviewAssignment(options);
@@ -356,44 +388,75 @@ export async function prepareAcceptedTicket(
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const accepted = await execute(prepared.repo, (service) =>
-    service.integrationService.accept({
+  return prepared;
+}
+
+export async function integrateReviewedTicket(
+  prepared: Awaited<ReturnType<typeof prepareReviewedTicket>>,
+  postMerge = false,
+) {
+  const ticketGit = (...args: string[]) =>
+    execFileSync("git", args, {
+      cwd: prepared.ticketWorkspace,
+      encoding: "utf8",
+    }).trim();
+  ticketGit("add", "-A");
+  const pending = ticketGit("status", "--porcelain=v1", "--untracked-files=all");
+  if (pending) ticketGit("commit", "-qm", `implement ${prepared.ticketId}`);
+  const integrated = await execute(prepared.repo, (service) =>
+    service.ticketIntegrationService.integrate({
       spec: prepared.spec,
       ticket: prepared.ticketId,
       author: "controller",
+      confirmRecords: true,
     }),
   );
-  expect(accepted.status, accepted.stderr).toBe(0);
-  if (options.close) {
-    for (let index = 1; index <= (options.ticketCount ?? 1); index += 1) {
-      const ticket = `T-${String(index).padStart(4, "0")}`;
-      const closed = await execute(prepared.repo, (service) =>
-        service.ticketService.ticketUpdate({
-          spec: prepared.spec,
-          ticket,
-          status: "closed",
-          author: "controller",
-        }),
-      );
-      expect(closed.status, closed.stderr).toBe(0);
-    }
+  expect(integrated.status, integrated.stderr).toBe(0);
+  const result = JSON.parse(integrated.stdout) as { mergeCommit: string };
+
+  if (postMerge) {
+    const command = "fixture post-merge validation";
+    const required = await execute(prepared.repo, (service) =>
+      service.checksService.checksRequire({
+        spec: prepared.spec,
+        ticket: prepared.ticketId,
+        scope: "post-merge",
+        command,
+        author: "controller",
+      }),
+    );
+    expect(required.status, required.stderr).toBe(0);
+    const recorded = await execute(prepared.repo, (service) =>
+      service.checksService.checksRecord({
+        spec: prepared.spec,
+        ticket: prepared.ticketId,
+        scope: "post-merge",
+        snapshot: JSON.parse(required.stdout).snapshot,
+        command,
+        result: "passed",
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
   }
+  return result;
+}
+
+export async function prepareIntegratedTicket(
+  options: {
+    requireRetrospective?: boolean;
+    ticketCount?: number;
+    ticketId?: string;
+    file?: string;
+  } = {},
+) {
+  const prepared = await prepareReviewedTicket(options);
+  await integrateReviewedTicket(prepared, true);
   return prepared;
 }
 
 export async function prepareDeliveryReady(requireRetrospective = false) {
-  const prepared = await prepareAcceptedTicket({ requireRetrospective, close: true });
-  prepared.git("add", "feature.ts");
-  prepared.git("commit", "-qm", "deliver accepted ticket");
-  const integrated = await execute(prepared.repo, (service) =>
-    service.integrationService.integrate({
-      spec: prepared.spec,
-      ticket: "T-0001",
-      commit: prepared.git("rev-parse", "HEAD"),
-      author: "controller",
-    }),
-  );
-  expect(integrated.status, integrated.stderr).toBe(0);
+  const prepared = await prepareIntegratedTicket({ requireRetrospective });
 
   const command = "just test::test tests/whole-feature.test.ts";
   await recordDeliveryCheck(prepared.repo, prepared.spec, command);
@@ -427,6 +490,114 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
   );
   expect(submitted.status, submitted.stderr).toBe(0);
   return { ...prepared, deliveryCheck: command };
+}
+
+type PendingFeatureFinalization = {
+  feature: string;
+  finalValidation: "pending";
+  cleanup: "retained";
+  mergeCommit: string;
+  snapshot: string;
+  originalWorkspace: string;
+  originalSpec: string;
+  journal: string;
+};
+
+export async function beginDeliveryFinalization(
+  prepared: { repo: string; spec: string },
+  options: { report?: string } = {},
+): Promise<PendingFeatureFinalization> {
+  const started = await execute(prepared.repo, (service) =>
+    service.deliveryService.finish({
+      spec: prepared.spec,
+      author: "controller",
+      confirmRecords: true,
+      ...(options.report ? { report: options.report } : {}),
+    }),
+  );
+  expect(started.status, started.stderr).toBe(0);
+  const pending = JSON.parse(started.stdout) as PendingFeatureFinalization;
+  expect(pending).toMatchObject({
+    finalValidation: "pending",
+    cleanup: "retained",
+  });
+  return pending;
+}
+
+export async function declareFinalDeliveryChecks(
+  pending: PendingFeatureFinalization,
+  commands: string[],
+) {
+  const declared = await invokeAsync(pending.originalWorkspace, [
+    "checks",
+    "require",
+    "--spec",
+    pending.originalSpec,
+    "--scope",
+    "final",
+    ...commands.flatMap((command) => ["--command", command]),
+    "--author",
+    "controller",
+  ]);
+  expect(declared.status, declared.stderr).toBe(0);
+  return declared;
+}
+
+export async function recordFinalDeliveryCheck(
+  pending: PendingFeatureFinalization,
+  command: string,
+  result: "passed" | "failed" | "unavailable" = "passed",
+  details?: string,
+) {
+  const recorded = await invokeAsync(pending.originalWorkspace, [
+    "checks",
+    "record",
+    "--spec",
+    pending.originalSpec,
+    "--scope",
+    "final",
+    "--merge",
+    pending.mergeCommit,
+    "--snapshot",
+    pending.snapshot,
+    "--command",
+    command,
+    "--result",
+    result,
+    ...(details ? ["--details", details] : []),
+    "--author",
+    "controller",
+  ]);
+  return recorded;
+}
+
+export async function completeDeliveryFinalization(pending: PendingFeatureFinalization) {
+  return await invokeAsync(pending.originalWorkspace, [
+    "finish",
+    "--spec",
+    pending.originalSpec,
+    "--author",
+    "controller",
+  ]);
+}
+
+export async function finalizeDelivery(
+  prepared: { repo: string; spec: string },
+  options: { report?: string; finalChecks?: string[] } = {},
+) {
+  const pending = await beginDeliveryFinalization(prepared, options);
+  const commands = options.finalChecks ?? ["fixture final delivery validation"];
+  await declareFinalDeliveryChecks(pending, commands);
+  for (const command of commands) {
+    const recorded = await recordFinalDeliveryCheck(pending, command);
+    expect(recorded.status, recorded.stderr).toBe(0);
+  }
+  const completed = await completeDeliveryFinalization(pending);
+  expect(completed.status, completed.stderr).toBe(0);
+  return {
+    pending,
+    completed: JSON.parse(completed.stdout) as Record<string, unknown>,
+  };
 }
 
 export async function refreshReviewCheck(repo: string, spec: string, command: string) {

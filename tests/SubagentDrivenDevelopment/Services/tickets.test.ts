@@ -261,7 +261,7 @@ test("ticket update stores structured fields in the ledger and preserves local m
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[1].blockedBy).toEqual([]);
 });
 
-test("ticket tracker transitions enforce blockers before closure", async () => {
+test("ticket tracker preserves blockers and forbids manual closure", async () => {
   const { service, feature } = await ticketFixture("Ticket Tracker");
   createTicket(service, feature.spec, "Track work");
   service.ticketService.ticketUpdate({
@@ -286,18 +286,27 @@ test("ticket tracker transitions enforce blockers before closure", async () => {
       status: "closed",
       author: "worker",
     }),
-  ).toThrow(/cannot close a blocked ticket/i);
+  ).toThrow(/automatically after passing post-merge checks/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
+  expect(() =>
+    service.ticketService.ticketUpdate({
+      spec: feature.spec,
+      ticket: "T-0001",
+      status: "closed",
+      clearBlocker: true,
+      author: "worker",
+    }),
+  ).toThrow(/automatically after passing post-merge checks/i);
   expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",
-    status: "closed",
     clearBlocker: true,
     author: "worker",
   });
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0]).toMatchObject({
-    status: "closed",
-  });
+  const updated = JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0];
+  expect(updated.status).toBe("open");
+  expect(updated.blocker).toBeUndefined();
 });
 
 test("ticket comment appends explicit UTC attribution without inferring reporter", async () => {

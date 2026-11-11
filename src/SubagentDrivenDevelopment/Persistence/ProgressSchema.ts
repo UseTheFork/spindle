@@ -14,7 +14,6 @@ import {
 import {
   isCheckRequirement,
   isCheckRecord,
-  isCheckGateInvalidation,
   isSafeCoveragePath,
 } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import {
@@ -68,9 +67,7 @@ export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
         value.checks.required.every(isCheckRequirement) &&
         Array.isArray(value.checks.records) &&
         value.checks.records.every(isCheckRecord) &&
-        (!Object.hasOwn(value.checks, "invalidations") ||
-          (Array.isArray(value.checks.invalidations) &&
-            value.checks.invalidations.every(isCheckGateInvalidation))))) &&
+        !Object.hasOwn(value.checks, "invalidations"))) &&
     (!Object.hasOwn(value, "findings") ||
       (Array.isArray(value.findings) && value.findings.every(isReviewFinding))) &&
     (!Object.hasOwn(value, "correctionAttempts") ||
@@ -119,9 +116,15 @@ export function isIntegrationRecord(value: unknown): value is IntegrationRecord 
       (typeof value.mergeSha === "string" && /^[0-9a-f]{40,64}$/i.test(value.mergeSha))) &&
     (!Object.hasOwn(value, "postMerge") ||
       (isRecord(value.postMerge) &&
-        value.postMerge.status === "pending" &&
+        Object.keys(value.postMerge).every((key) =>
+          ["status", "mergeSha", "checks"].includes(key),
+        ) &&
+        (value.postMerge.status === "pending" || value.postMerge.status === "passed") &&
         typeof value.mergeSha === "string" &&
-        value.postMerge.mergeSha === value.mergeSha)) &&
+        value.postMerge.mergeSha === value.mergeSha &&
+        (!Object.hasOwn(value.postMerge, "checks") ||
+          isPostMergeChecks(value.postMerge.checks, value.mergeSha, value.postMerge.status)) &&
+        (value.postMerge.status !== "passed" || Object.hasOwn(value.postMerge, "checks")))) &&
     typeof value.integratedAt === "string" &&
     Number.isFinite(Date.parse(value.integratedAt)) &&
     typeof value.integratedBy === "string" &&
@@ -132,5 +135,68 @@ export function isIntegrationRecord(value: unknown): value is IntegrationRecord 
     new Set(value.files).size === value.files.length &&
     typeof value.contentDigest === "string" &&
     /^[0-9a-f]{64}$/i.test(value.contentDigest)
+  );
+}
+
+function isPostMergeChecks(
+  value: unknown,
+  mergeSha: string,
+  status: "pending" | "passed",
+): boolean {
+  if (
+    !isRecord(value) ||
+    !Object.keys(value).every((key) => ["required", "records"].includes(key)) ||
+    !Array.isArray(value.required) ||
+    value.required.length === 0 ||
+    !value.required.every(isCheckRequirement) ||
+    value.required.some(
+      (item) =>
+        item.command !== item.command.trim() ||
+        !Object.keys(item).every((key) => ["command", "addedAt", "addedBy"].includes(key)),
+    ) ||
+    value.required.some(
+      (item) =>
+        item.removedAt !== undefined ||
+        item.removedBy !== undefined ||
+        item.removalDetails !== undefined,
+    ) ||
+    new Set(value.required.map((item) => item.command)).size !== value.required.length ||
+    !Array.isArray(value.records) ||
+    !value.records.every(isCheckRecord) ||
+    value.records.some(
+      (record) =>
+        record.headSha !== mergeSha ||
+        !Object.keys(record).every((key) =>
+          [
+            "command",
+            "result",
+            "author",
+            "snapshot",
+            "codeSnapshot",
+            "requirementsSnapshot",
+            "headSha",
+            "recordedAt",
+            "details",
+          ].includes(key),
+        ) ||
+        record.coveredPaths !== undefined ||
+        record.coverageSnapshot !== undefined,
+    )
+  )
+    return false;
+  const required = value.required;
+  if (value.records.some((record) => !required.some((item) => item.command === record.command)))
+    return false;
+  if (status === "pending") return true;
+  const records = value.records;
+  const latest = value.required.map((item) =>
+    [...records].reverse().find((record) => record.command === item.command),
+  );
+  return latest.every(
+    (record) =>
+      record?.result === "passed" &&
+      record.snapshot === latest[0]?.snapshot &&
+      record.codeSnapshot === latest[0]?.codeSnapshot &&
+      record.requirementsSnapshot === latest[0]?.requirementsSnapshot,
   );
 }

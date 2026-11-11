@@ -110,7 +110,7 @@ test("sdd status validates ticket and delivery history records without rewriting
   const malformedLedgers = [
     { ...original, tickets: [null] },
     { ...original, tickets: [{ id: "T-0001" }] },
-    { ...original, tickets: [{ id: 1, execution: "claimed" }] },
+    { ...original, tickets: [{ id: 1, execution: "unsupported-state" }] },
     {
       ...original,
       tickets: [
@@ -130,14 +130,14 @@ test("sdd status validates ticket and delivery history records without rewriting
       ...original,
       delivery: {
         ...original.delivery,
-        history: [{ at: "not-a-timestamp", author: "maintainer", action: "claimed" }],
+        history: [{ at: "not-a-timestamp", author: "maintainer", action: "unsupported" }],
       },
     },
     {
       ...original,
       delivery: {
         ...original.delivery,
-        history: [{ at: "2026-11-07T12:00:00Z", action: "claimed" }],
+        history: [{ at: "2026-11-07T12:00:00Z", action: "unsupported" }],
       },
     },
   ];
