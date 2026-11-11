@@ -144,6 +144,9 @@ test("init and SDD status fail without Git discovery", async () => {
 
 test("help and version work outside Git when Git is unavailable", async () => {
   const project = await makeTempDir("spindle-informational-");
+  const packageMetadata = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8")) as {
+    version: string;
+  };
   for (const args of [
     ["--help"],
     ["-h"],
@@ -164,7 +167,7 @@ test("help and version work outside Git when Git is unavailable", async () => {
     expect(result.status, `${args.join(" ")}: ${result.stderr}`).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).not.toBe("");
-    if (args[0] === "--version") expect(result.stdout).toBe("0.0.1\n");
+    if (args[0] === "--version") expect(result.stdout).toBe(`${packageMetadata.version}\n`);
     await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
   }
   expect(await readdir(project)).toEqual([]);

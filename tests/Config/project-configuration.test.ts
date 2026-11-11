@@ -113,7 +113,6 @@ test("missing configuration is absent while unexpected filesystem errors propaga
 
 test("bootstrap binds invalid project data independently from application configuration without rewriting", async () => {
   const { repo } = await serviceFixture();
-  mkdirSync(join(repo, ".github"));
   const path = join(repo, ".github", "spindle.json");
   writeFileSync(path, '{"stacks":["unsupported"]}');
   const app = new Application({ basePath: repo });
@@ -131,7 +130,6 @@ test("bootstrap binds invalid project data independently from application config
 
 test("init still rejects an existing malformed file and update demands valid bootstrapped configuration", async () => {
   const { repo, app } = await serviceFixture();
-  mkdirSync(join(repo, ".github"));
   writeFileSync(join(repo, ".github", "spindle.json"), "{");
   await new LoadProjectConfiguration().bootstrap(app);
   await expect((await app.make(InitCommand)).run([], undefined, false, undefined)).rejects.toThrow(
