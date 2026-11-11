@@ -4,7 +4,7 @@ description: "{{ computed.internal_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.0
+    version: 1.3.1
 ---
 
 # Writing Skills
@@ -118,7 +118,7 @@ Compare observed behavior with the unchanged criterion. An unresolved failure se
 
 ### G. Refactor and deliver
 
-Prune duplication, stale material, and speculative rules. Retest after wording changes. Verify frontmatter, relative links, resource packaging, and any required version bump. Run expanded testing only when requested, including `--test`.
+Prune duplication, stale material, and speculative rules. Retest after wording changes. Verify frontmatter, relative links, resource packaging, and any required version bump. Always run expanded testing with `int-testing-agent-guidance`.
 
 **Complete when:** final validation passes or limitations are explicit, and the change is ready for authorized delivery. Commit, push, or open a PR only when requested.
 

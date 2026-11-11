@@ -2,8 +2,5 @@
   "stacks": [
     "typescript"
   ],
-  "variables": {
-    "lint_command": "oxlint",
-    "owner": "nobody"
-  }
+  "spindle_package_manager": "pnpm"
 }

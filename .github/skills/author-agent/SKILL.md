@@ -1,26 +1,45 @@
 ---
 name: author-agent
-metadata:
-  spindle:
-    version: 1.0.0
 description: Create or revise a workspace custom agent from requirements.
-argument-hint: "[--test] <agent idea or requirements>"
+argument-hint: "<agent idea or requirements>"
 disable-model-invocation: true
 user-invocable: true
+metadata:
+  spindle:
+    version: 1.0.2
 ---
 
 Create or update a project agent in `.github/agents/<agent-name>.agent.md` based on the user's requirements.
 
-## Required skills
+## Authoring flow
 
-Before drafting or editing, read:
+```mermaid
+flowchart TD
+    A["Read and consider only the `int-writing-for-agents` and `asd-ste100` skills"]
+    A --> B["Use the `grill` skill on the user request"]
+    B --> C{"Shared understanding confirmed?"}
+    C -- "No" --> B
+    C -- "Yes" --> D["Load the remaining required skills"]
+    D --> E["Run the core and expanded baselines"]
+    E --> F{"Baseline shows a gap?"}
+    F -- "No" --> J["Report that no change is needed"]
+    F -- "Yes" --> G["Create or update the requested artifact"]
+    G --> H["Run the core and expanded retests"]
+    H --> I{"All criteria pass?"}
+    I -- "No" --> G
+    I -- "Yes" --> K["Report the artifact and validation"]
+```
+
+During the grill exchange, ask one question per turn and wait for the answer.
+Do not load other skills or announce the current flowchart step until the user confirms shared understanding.
+
+Before grilling, read and consider only the `int-writing-for-agents` and `asd-ste100` skills. Do not follow their workflows or load skills they reference yet.
+
+After the user confirms shared understanding, load and follow:
 
 - **REQUIRED:** `int-writing-agents`
-- **REQUIRED:** `int-writing-for-agents`
 - **REQUIRED:** `int-testing-agent-guidance`
 
-These skills define the complete authoring workflow. Every agent change requires the baseline and focused validation specified by `int-testing-agent-guidance`; `--test` does not disable or replace them.
-
-When `--test` is present, also run the expanded testing workflow in `int-testing-agent-guidance`.
+Apply the clarity rules from the `asd-ste100` skill. Include a before/after table only when the user requests one. Run the core and expanded testing workflows in `int-testing-agent-guidance` for every authoring request.
 
 Do not modify unrelated files. Report the skill changed and validation performed, including any blockers or unverified requirements.

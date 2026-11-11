@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 
 import { Application } from "@/Foundation/Application";
+import { computedVariableProviders } from "@/TemplateRendering/Computed/ComputedVariableProviders";
 import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 
@@ -18,6 +19,21 @@ test("standard Nunjucks expressions, blocks, and comments render from text", () 
     "Hello {{ variables.name }}! {% if 'python' in stacks %}Python{% else %}Other{% endif %}{# hidden #}";
 
   expect(renderText(source, context)).toBe("Hello Spindle! Python");
+});
+
+test("the authoring flowchart is available as a computed value", () => {
+  const provider = computedVariableProviders.authoring_flowchart;
+  const flowchart = new provider(new Application({ basePath: "/project" })).render();
+
+  expect(flowchart).toContain("flowchart TD");
+  expect(flowchart).toContain("ask one question per turn");
+  expect(flowchart).toContain("Do not load other skills or announce the current flowchart step");
+  expect(
+    renderText("{{ computed.authoring_flowchart }}", {
+      ...context,
+      computed: { ...context.computed, authoring_flowchart: flowchart },
+    }),
+  ).toBe(flowchart);
 });
 
 test("Nunjucks raw blocks preserve literal Nunjucks-like placeholders", () => {

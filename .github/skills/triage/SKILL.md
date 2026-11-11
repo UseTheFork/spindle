@@ -44,7 +44,7 @@ For a PR, the same states read against the attached code: `ready-for-agent` mean
 
 Every triaged issue should carry exactly one category role and one state role. If category or state roles conflict, flag it and ask the maintainer before doing anything else.
 
-These are canonical role names. The actual label strings used in the issue tracker may differ. The mapping should have been provided to you. If not, tell the user to run `/setup-project`.
+These are canonical role names. The actual label strings used in the issue tracker may differ. The mapping should have been provided to you. If not, tell the user to run `/spindle-project-setup`.
 
 For this repository's local Markdown tracker, record the category in `Category:` as `bug` or `enhancement`, and the state in `Status:` using the configured state value. Keep `Execution:` separate; it is delivery progress, not a category or triage state. Every triage outcome must leave exactly one category and one state recorded.
 

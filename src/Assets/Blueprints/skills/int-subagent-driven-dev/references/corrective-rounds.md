@@ -38,7 +38,7 @@ adjudication rather than another automatic dispatch.
 
 ## C. Record objective and dispatch correction
 
-Use `spindle sdd correct --scope delivery` to record and dispatch the feature-level
+Use `{{ computed.spindle_package_manager }} spindle sdd correct --scope delivery` to record and dispatch the feature-level
 correction. Preserve prior attempts, reports, and report destinations.
 Serialize implementation edits and keep the assignment limited to the
 recorded objective.
