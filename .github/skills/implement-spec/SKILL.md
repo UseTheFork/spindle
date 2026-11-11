@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 # Implement a Spec
 
-Deliver the supplied spec and all associated tickets in the existing checkout. Require configured tracker guidance; if absent, request `/setup-project`.
+Deliver the supplied spec and all associated tickets in the existing checkout. Require configured tracker guidance; if absent, request `/spindle-project-setup`.
 
 ## Required Skills
 

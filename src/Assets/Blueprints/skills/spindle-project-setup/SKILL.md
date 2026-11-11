@@ -1,5 +1,5 @@
 ---
-name: setup-project
+name: spindle-project-setup
 description: "Use after {{ computed.spindle_package_manager }} spindle init to document project tooling and establish domain glossaries."
 disable-model-invocation: false
 user-invocable: true
@@ -41,7 +41,7 @@ Also inspect the source to determine whether this is an existing project: it con
 
 ### C. Update and verify tooling
 
-Load and follow the `update-tooling` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, `{{ computed.spindle_package_manager }} spindle tool` registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
+Load and follow the `spindle-tooling-update` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, `{{ computed.spindle_package_manager }} spindle tool` registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
 
 **Complete when:** the delegated workflow has returned with the registry and guide verified, selecting G. If approval is pending, wait; if it reports failures or discrepancies, report the blocker and stop rather than claiming setup is complete.
 

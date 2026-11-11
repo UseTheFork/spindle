@@ -241,7 +241,7 @@ test("packaged command discovery and help remain intact", () => {
   expect(rootHelp.stdout).toMatch(/^\s*sdd\b/m);
   expect(rootHelp.stdout).toMatch(/^\s*tool\b/m);
   expect(rootHelp.stdout).not.toMatch(/^\s*project\b/m);
-  expect(rootHelp.stdout).not.toMatch(/^\s*setup-project\b/m);
+  expect(rootHelp.stdout).not.toMatch(/^\s*spindle-project-setup\b/m);
   expect(rootHelp.stderr).toBe("");
 
   const sddHelp = cli.run(projectWorkspace, ["sdd", "--help"]);

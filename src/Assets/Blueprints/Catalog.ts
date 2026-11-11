@@ -104,14 +104,14 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-writing-instruction": { path: "int-writing-instruction/", status: "active", stacks: [] },
     "int-writing-skills": { path: "int-writing-skills/", status: "active", stacks: [] },
     retrospective: { path: "retrospective/", status: "active", stacks: [] },
-    "saloon-api-integrations": {
-      path: "saloon-api-integrations/",
+    "ref-php-laravel-saloon-api-integrations": {
+      path: "ref-php-laravel-saloon-api-integrations/",
       status: "active",
       stacks: ["php-laravel"],
     },
-    "setup-project": { path: "setup-project/", status: "active", stacks: [] },
+    "spindle-project-setup": { path: "spindle-project-setup/", status: "active", stacks: [] },
     "to-spec": { path: "to-spec/", status: "active", stacks: [] },
     "to-tickets": { path: "to-tickets/", status: "active", stacks: [] },
-    "update-tooling": { path: "update-tooling/", status: "active", stacks: [] },
+    "spindle-tooling-update": { path: "spindle-tooling-update/", status: "active", stacks: [] },
   },
 };

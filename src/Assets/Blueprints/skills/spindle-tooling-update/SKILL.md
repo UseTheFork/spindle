@@ -1,5 +1,5 @@
 ---
-name: update-tooling
+name: spindle-tooling-update
 description: "Use when tooling commands are added, changed, or removed, or when refreshing the tooling registry and generated guide."
 argument-hint: "[change description or tooling paths]"
 disable-model-invocation: false

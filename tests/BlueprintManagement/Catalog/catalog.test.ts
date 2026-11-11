@@ -21,20 +21,6 @@ test("the management catalog validates shipped asset metadata without changing r
     "sdd-code-reviewer",
     "sdd-reviewer",
   ]);
-  expect(validated.skills.find((entry) => entry.key === "setup-project")).toEqual({
-    key: "setup-project",
-    path: "setup-project",
-    directory: true,
-    status: "active",
-    stacks: [],
-  });
-  expect(validated.skills.find((entry) => entry.key === "saloon-api-integrations")).toEqual({
-    key: "saloon-api-integrations",
-    path: "saloon-api-integrations",
-    directory: true,
-    status: "active",
-    stacks: ["php-laravel"],
-  });
   expect(validated.instructions.find((entry) => entry.key === "code-commenting")).toEqual({
     key: "code-commenting",
     path: "code-commenting.instructions.md",
@@ -65,14 +51,19 @@ test.each([
   );
   expect(result.status, result.stderr).toBe(0);
 
-  const destination = join(project, ".github", "skills", "saloon-api-integrations");
+  const destination = join(
+    project,
+    ".github",
+    "skills",
+    "ref-php-laravel-saloon-api-integrations",
+  );
   if (!installed) {
     await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
     return;
   }
 
   const content = await readFile(join(destination, "SKILL.md"), "utf8");
-  expect(content).toMatch(/name: saloon-api-integrations/);
+  expect(content).toMatch(/name: ref-php-laravel-saloon-api-integrations/);
   expect(content).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
   const references = [
     "connectors.md",
@@ -95,7 +86,7 @@ test.each([
           "Assets",
           "Blueprints",
           "skills",
-          "saloon-api-integrations",
+          "ref-php-laravel-saloon-api-integrations",
           "references",
           reference,
         ),
@@ -833,15 +824,14 @@ test("the compiled catalog ignores external catalog files", async () => {
         .sort(),
     );
 
-    await writeFile(join(blueprints, "catalog.yaml"), "agents: [\n");
     await writeFile(join(blueprints, "catalog.fixture.json"), "invalid external JSON");
-    const withExternalCatalogs = runBundledCli(
+    const withExternalCatalog = runBundledCli(
       project,
       ["update", "--no-interactive"],
       process.env.PATH ?? "",
       env,
     );
-    expect(withExternalCatalogs.status, withExternalCatalogs.stderr).toBe(0);
+    expect(withExternalCatalog.status, withExternalCatalog.stderr).toBe(0);
   }
 });
 

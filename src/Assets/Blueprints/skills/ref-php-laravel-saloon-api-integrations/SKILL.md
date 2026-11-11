@@ -1,5 +1,5 @@
 ---
-name: saloon-api-integrations
+name: ref-php-laravel-saloon-api-integrations
 description: "Use when building or testing Laravel API integrations with Saloon: connectors, requests, responses, failures, mocks, pools, or DTOs."
 metadata:
   spindle:
