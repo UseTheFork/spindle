@@ -1,9 +1,11 @@
 ---
-name: changeset-authoring
+name: author-changeset
 description: "Use when creating a Changesets entry from Git/chat evidence; get approval for bumps and text before `changeset add`."
+disable-model-invocation: true
+user-invocable: true
 ---
 
-# Changeset Authoring
+# Author Changeset
 
 ## Workflow
 
