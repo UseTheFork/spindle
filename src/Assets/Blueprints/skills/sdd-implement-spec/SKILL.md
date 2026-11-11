@@ -4,12 +4,12 @@ description: "Implement the result of /sdd-to-spec and /sdd-to-tickets in code."
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.1.0
 ---
 
 # Implement a Spec
 
-Deliver the supplied spec and all associated tickets in the existing checkout. Require configured tracker guidance; if absent, request `/spindle-project-setup`.
+The isolated-worktree delivery workflow is incomplete. Post-merge validation, dependent-ticket unblocking, final feature integration, and cleanup are unavailable. Do not bypass these gates or claim completion; report the blocker and preserve existing work.
 
 ## Required Skills
 
@@ -23,7 +23,7 @@ Before acting, read and follow each required skill:
 
    **Complete when:** the complete graph and delivery inputs are available to one controller, or missing requirements are reported for triage.
 
-2. **Execute the complete graph.** Follow [int-subagent-driven-dev](../int-subagent-driven-dev/SKILL.md) once with the entire graph and explicit ownership of frontier selection, sequential ticket delivery, aggregate review, and retrospective. Do not call it as a separate standalone delivery for every ticket. Its dependency validation, shared-checkout workflow, resume handling, review budgets, and completion criteria are authoritative. Accepted work does not unblock dependents until integrated and verified in the existing checkout.
+2. **Execute the complete graph.** Follow the `int-subagent-driven-dev` skill once with the entire graph and explicit ownership of frontier selection, ticket delivery, aggregate review, and retrospective. Accepted work does not unblock dependents until integrated and verified in the feature worktree.
 
    If the tracker calls for a PR, or the user requests one, open an authorized draft during execution after the first authorized commit is available; retain it as draft while delivery is incomplete.
 

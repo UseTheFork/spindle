@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import type { Application } from "@/Foundation/Application";
@@ -126,6 +126,14 @@ export class LedgerRepository extends Service {
               !!ticket.owner.trim() &&
               typeof ticket.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(ticket.baseSha))) &&
+          (!Object.hasOwn(ticket, "worktree") ||
+            (isRecord(ticket.worktree) &&
+              typeof ticket.worktree.workspace === "string" &&
+              isAbsolute(ticket.worktree.workspace) &&
+              ticket.worktree.branch === `tickets/${feature}/${ticket.id}` &&
+              typeof ticket.worktree.baseSha === "string" &&
+              ticket.worktree.baseSha === ticket.baseSha &&
+              /^[0-9a-f]{40,64}$/i.test(ticket.worktree.baseSha))) &&
           (!Object.hasOwn(ticket, "acceptedEvidence") ||
             isAcceptedEvidence(ticket.acceptedEvidence)) &&
           (!Object.hasOwn(ticket, "integration") ||
@@ -151,6 +159,10 @@ export class LedgerRepository extends Service {
                   ticket.checks.invalidations.every(isCheckGateInvalidation))))) &&
           (!Object.hasOwn(ticket, "assignment") ||
             (isImplementationAssignment(ticket.assignment) &&
+              (!ticket.worktree ||
+                (isRecord(ticket.worktree) &&
+                  ticket.assignment.workspace === ticket.worktree.workspace &&
+                  ticket.assignment.branch === ticket.worktree.branch)) &&
               ticket.assignment.report ===
                 join(
                   this.app.workspaceRoot,

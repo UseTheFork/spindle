@@ -227,6 +227,8 @@ export class ReviewService extends Service {
       if (implementationBlocker) throw new Error(implementationBlocker);
       if (!progress.baseSha) throw new Error("Review requires the ticket's recorded Git baseline.");
 
+      const ticketWorkspace = this.gitEvidence.ticketWorkspace(progress);
+      this.gitEvidence.assertTicketCodeCommitted(progress);
       const identity = this.gitEvidence.contentIdentity(
         feature,
         ticket,
@@ -240,7 +242,7 @@ export class ReviewService extends Service {
         identity,
       );
       if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
-      const inventory = this.gitEvidence.changedPaths(progress.baseSha);
+      const inventory = this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace);
       const suppliedPaths = new Set(confirmedInventory);
       if (
         suppliedPaths.size !== inventory.length ||
@@ -333,6 +335,9 @@ export class ReviewService extends Service {
               codeSnapshot: identity.codeSnapshot,
               requirementsSnapshot: identity.requirementsSnapshot,
               headSha: identity.headSha,
+              ...(progress.worktree
+                ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
+                : {}),
               inventory,
               report,
               requestedAt: new Date().toISOString(),
@@ -349,9 +354,11 @@ export class ReviewService extends Service {
             progress.baseSha,
             progress.checks,
           );
+          this.gitEvidence.assertTicketCodeCommitted(progress);
           if (
             confirmedIdentity.snapshot !== identity.snapshot ||
-            JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha)) !==
+            (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
+            JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace)) !==
               JSON.stringify(inventory)
           ) {
             delete attempt.reviewAssignments;
@@ -441,6 +448,9 @@ export class ReviewService extends Service {
           codeSnapshot: identity.codeSnapshot,
           requirementsSnapshot: identity.requirementsSnapshot,
           headSha: identity.headSha,
+          ...(progress.worktree
+            ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
+            : {}),
           inventory,
           report,
           requestedAt: new Date().toISOString(),
@@ -458,9 +468,14 @@ export class ReviewService extends Service {
         progress.baseSha,
         progress.checks,
       );
-      const confirmedCurrentInventory = this.gitEvidence.changedPaths(progress.baseSha);
+      this.gitEvidence.assertTicketCodeCommitted(progress);
+      const confirmedCurrentInventory = this.gitEvidence.changedPaths(
+        progress.baseSha,
+        ticketWorkspace,
+      );
       if (
         confirmedIdentity.snapshot !== identity.snapshot ||
+        (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
         JSON.stringify(confirmedCurrentInventory) !== JSON.stringify(inventory)
       ) {
         throw new Error(
@@ -522,6 +537,19 @@ export class ReviewService extends Service {
         .map((progress) => progress.id);
       if (incomplete.length > 0) {
         throw new Error(`Feature review requires every ticket closed: ${incomplete.join(", ")}.`);
+      }
+      const unintegrated = ledger.tickets
+        .filter((progress) => progress.execution !== "integrated" || !progress.integration)
+        .map((progress) => progress.id);
+      if (unintegrated.length > 0) {
+        throw new Error(
+          `Feature review requires every ticket integrated: ${unintegrated.join(", ")}.`,
+        );
+      }
+      if (ledger.tickets.some((progress) => progress.worktree)) {
+        throw new Error(
+          "Feature review requires ticket post-merge validation, which is not yet available.",
+        );
       }
       if (tickets.length !== ledger.tickets.length) {
         throw new Error("Feature review requires every ticket document to be present.");

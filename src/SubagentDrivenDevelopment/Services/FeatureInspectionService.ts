@@ -132,12 +132,21 @@ export class FeatureInspectionService extends Service {
         blockers.push({ ticket: progress.id, reason: "Ticket Markdown is missing." });
         continue;
       }
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      let identity: ContentIdentity;
+      try {
+        identity = this.gitEvidence.contentIdentity(
+          feature,
+          ticket,
+          progress.baseSha,
+          progress.checks,
+        );
+      } catch (error) {
+        blockers.push({
+          ticket: progress.id,
+          reason: `Ticket evidence is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        continue;
+      }
       snapshots.push({ ticket: progress.id, ...identity });
       if (ticket.status === "closed") continue;
       for (const finding of progress.findings ?? []) {
@@ -186,6 +195,14 @@ export class FeatureInspectionService extends Service {
           blockers.push({
             ticket: progress.id,
             reason: `Dependencies are not closed: ${unmet.join(", ")}.`,
+          });
+          continue;
+        }
+        if (ticket.blocked_by.length > 0) {
+          blockers.push({
+            ticket: progress.id,
+            reason:
+              "Dependent tickets require post-merge prerequisite validation, which is not yet available.",
           });
           continue;
         }
@@ -348,8 +365,17 @@ export class FeatureInspectionService extends Service {
             blockers.push({ ticket: progress.id, reason });
           }
         }
-        if (acceptanceBlockers.length === 0)
-          actions.push({ ticket: progress.id, action: "integrate" });
+        if (acceptanceBlockers.length === 0) {
+          if (progress.worktree) {
+            blockers.push({
+              ticket: progress.id,
+              reason:
+                "Ticket worktree integration and post-merge validation are not yet available.",
+            });
+          } else {
+            actions.push({ ticket: progress.id, action: "integrate" });
+          }
+        }
       }
     }
     for (const ticket of tickets) {

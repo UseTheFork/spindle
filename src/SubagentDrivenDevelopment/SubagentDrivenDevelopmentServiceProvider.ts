@@ -1,6 +1,7 @@
 import type { CommandConstructor } from "@/Commands/Command";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
 import { GitService } from "@/Git/Services/GitService";
+import { AcceptCommand } from "@/SubagentDrivenDevelopment/Commands/AcceptCommand";
 import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ChecksRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";
 import { ClaimCommand } from "@/SubagentDrivenDevelopment/Commands/ClaimCommand";
@@ -10,12 +11,14 @@ import { FindingCreateCommand } from "@/SubagentDrivenDevelopment/Commands/Findi
 import { FindingUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingUpdateCommand";
 import { FinishCommand } from "@/SubagentDrivenDevelopment/Commands/FinishCommand";
 import { ImplementCommand } from "@/SubagentDrivenDevelopment/Commands/ImplementCommand";
+import { IntegrateCommand } from "@/SubagentDrivenDevelopment/Commands/IntegrateCommand";
 import { NextCommand } from "@/SubagentDrivenDevelopment/Commands/NextCommand";
 import { ReadyCommand } from "@/SubagentDrivenDevelopment/Commands/ReadyCommand";
 import { RequirementsDecideCommand } from "@/SubagentDrivenDevelopment/Commands/RequirementsDecideCommand";
 import { ResumeCommand } from "@/SubagentDrivenDevelopment/Commands/ResumeCommand";
 import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewCommand";
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { StartCommand } from "@/SubagentDrivenDevelopment/Commands/StartCommand";
 import { StatusCommand } from "@/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@/SubagentDrivenDevelopment/Commands/SubmitCommand";
 import { TicketCommentCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
@@ -45,18 +48,22 @@ import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliverySe
 import { DeliverySubmissionService } from "@/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
 import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/FeatureCreationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
 import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
 import { IntegrationService } from "@/SubagentDrivenDevelopment/Services/IntegrationService";
 import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
 import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 
 export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
   public static override commands(): readonly CommandConstructor[] {
     return [
       CreateCommand,
+      StartCommand,
       TicketCreateCommand,
       TicketUpdateCommand,
       TicketCommentCommand,
@@ -72,6 +79,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       FindingUpdateCommand,
       RequirementsDecideCommand,
       SubmitCommand,
+      AcceptCommand,
+      IntegrateCommand,
       FinishCommand,
       ResumeCommand,
       NextCommand,
@@ -79,6 +88,20 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     ];
   }
   public register(): void {
+    this.app.singleton(
+      TicketWorktreeService,
+      async (app) => new TicketWorktreeService(app, await app.make(GitService)),
+    );
+    this.app.singleton(
+      FeatureWorktreeService,
+      async (app) =>
+        new FeatureWorktreeService(
+          app,
+          await app.make(GitService),
+          await app.make(FeatureInspectionService),
+          await app.make(WorkspaceTransaction),
+        ),
+    );
     this.app.singleton(
       ReadinessReader,
       async (app) =>
@@ -158,6 +181,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(ReviewPolicy),
           await app.make(WorkflowPolicy),
           await app.make(FeatureInspectionService),
+          await app.make(TicketWorktreeService),
         ),
     );
     this.app.singleton(
@@ -302,6 +326,22 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       async (app) =>
         new IntegrationService(
           app,
+          await app.make(GitEvidence),
+          await app.make(ReportEvidence),
+          await app.make(TicketRepository),
+          await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
+          await app.make(AcceptancePolicy),
+          await app.make(WorkflowPolicy),
+          await app.make(FeatureInspectionService),
+        ),
+    );
+    this.app.singleton(
+      TicketIntegrationService,
+      async (app) =>
+        new TicketIntegrationService(
+          app,
+          await app.make(GitService),
           await app.make(GitEvidence),
           await app.make(ReportEvidence),
           await app.make(TicketRepository),

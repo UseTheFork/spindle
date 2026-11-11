@@ -31,6 +31,10 @@ export function isReviewAssignment(value: unknown): value is ReviewAssignment {
     !/^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) ||
     typeof value.headSha !== "string" ||
     !/^[0-9a-f]{40,64}$/i.test(value.headSha) ||
+    (Object.hasOwn(value, "workspace") &&
+      (typeof value.workspace !== "string" || !isAbsolute(value.workspace))) ||
+    (Object.hasOwn(value, "branch") &&
+      (typeof value.branch !== "string" || !value.branch.trim())) ||
     !Array.isArray(value.inventory) ||
     !value.inventory.every((path) => typeof path === "string" && path.length > 0) ||
     new Set(value.inventory).size !== value.inventory.length ||

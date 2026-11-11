@@ -4,14 +4,14 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.4.0
+    version: 1.5.0
 ---
 
 # Subagent-Driven Development
 
 The controller coordinates a feature's tickets, workers, checks, reviews, and completion. The feature workspace and `sdd.json` are the source of truth for structured ticket and delivery state; each ticket Markdown file holds its requirements, acceptance criteria, and discussion.
 
-Use the existing checkout and preserve user changes and report history. TDD is optional; write appropriate tests and record verification evidence. Load and follow `int-verification-before-completion` before claiming work is complete. Serialize implementation and fixes, and keep implementation edits frozen while a review batch is running.
+The worktree workflow is incomplete: post-merge validation, dependent-ticket unblocking, final feature integration, and cleanup are unavailable. Do not use the legacy shared-checkout instructions below to bypass those gates or claim feature completion. Stop and report the blocker while preserving worktrees, branches, and workflow records.
 
 ## Workflow map
 

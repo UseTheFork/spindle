@@ -199,6 +199,7 @@ export class ChecksService extends Service {
         latestForCommand.result === options.result &&
         latestForCommand.author === options.author.trim() &&
         latestForCommand.snapshot === options.snapshot &&
+        (!progress.worktree || latestForCommand.headSha === identity.headSha) &&
         latestForCommand.details === options.details?.trim() &&
         JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
           ? latestForCommand
@@ -251,7 +252,10 @@ export class ChecksService extends Service {
         progress.baseSha,
         checks,
       );
-      if (confirmedIdentity.snapshot !== identity.snapshot) {
+      if (
+        confirmedIdentity.snapshot !== identity.snapshot ||
+        (progress.worktree && confirmedIdentity.headSha !== identity.headSha)
+      ) {
         checks.records.pop();
         correctionCheckHistory?.pop();
         throw new Error("Content changed while recording the check; retry with a fresh snapshot.");

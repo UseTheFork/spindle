@@ -115,6 +115,13 @@ export function isIntegrationRecord(value: unknown): value is IntegrationRecord 
     isRecord(value) &&
     typeof value.commitSha === "string" &&
     /^[0-9a-f]{40,64}$/i.test(value.commitSha) &&
+    (!Object.hasOwn(value, "mergeSha") ||
+      (typeof value.mergeSha === "string" && /^[0-9a-f]{40,64}$/i.test(value.mergeSha))) &&
+    (!Object.hasOwn(value, "postMerge") ||
+      (isRecord(value.postMerge) &&
+        value.postMerge.status === "pending" &&
+        typeof value.mergeSha === "string" &&
+        value.postMerge.mergeSha === value.mergeSha)) &&
     typeof value.integratedAt === "string" &&
     Number.isFinite(Date.parse(value.integratedAt)) &&
     typeof value.integratedBy === "string" &&

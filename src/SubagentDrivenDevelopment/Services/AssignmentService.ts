@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 
 import matter from "gray-matter";
 
@@ -32,6 +33,7 @@ import {
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 
 export class AssignmentService extends Service {
   public constructor(
@@ -46,6 +48,7 @@ export class AssignmentService extends Service {
     private readonly reviewPolicy: ReviewPolicy,
     private readonly workflowPolicy: WorkflowPolicy,
     private readonly featureInspectionService: FeatureInspectionService,
+    private readonly ticketWorktreeService: TicketWorktreeService,
   ) {
     super(app);
   }
@@ -86,6 +89,11 @@ export class AssignmentService extends Service {
       });
       if (unmet.length > 0) {
         throw new Error(`Ticket ${options.ticket} has open dependencies: ${unmet.join(", ")}.`);
+      }
+      if (ticket.blocked_by.length > 0) {
+        throw new Error(
+          "Dependent ticket worktrees require post-merge prerequisite validation, which is not yet available.",
+        );
       }
       const baseSha = this.gitEvidence.cleanGitBaseline(feature);
       progress.execution = "claimed";
@@ -132,21 +140,26 @@ export class AssignmentService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
       if (progress.execution === "implementing" && progress.assignment) {
         if (progress.owner !== options.author.trim()) {
           throw new Error("Controller ownership changed; resume and confirm the handoff first.");
+        }
+        if (
+          !progress.worktree ||
+          !options.workspace ||
+          !isAbsolute(options.workspace) ||
+          join(realpathSync(options.workspace), `${feature.feature}-${options.ticket}`) !==
+            progress.worktree.workspace
+        ) {
+          throw new Error(
+            "Resume implementation using the originally assigned --workspace directory.",
+          );
         }
         return {
           ticket: options.ticket,
           execution: "implementing",
           assignment: progress.assignment,
-          ...identity,
+          ...this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, progress.checks),
         };
       }
       if (progress.execution !== "claimed" || !progress.baseSha || !progress.owner) {
@@ -155,24 +168,43 @@ export class AssignmentService extends Service {
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the recorded controller may dispatch implementation.");
       }
+      if (progress.worktree) {
+        throw new Error(
+          "Ticket already has a recorded worktree; preserve and inspect it before continuing.",
+        );
+      }
+      if (ticket.blocked_by.length > 0) {
+        throw new Error(
+          "Dependent ticket worktrees require post-merge prerequisite validation, which is not yet available.",
+        );
+      }
 
       const report = join(feature.workspace, "reports", `${options.ticket}-implementation.md`);
       this.reportEvidence.assertReportPath(feature, report, false);
       if (lstatIfPresent(report)) {
         throw new Error(`Assigned report already exists and was preserved: ${report}.`);
       }
+      const worktree = this.ticketWorktreeService.create(feature, progress, options.workspace);
       const assignment: ImplementationAssignment = {
         id: randomUUID(),
         role: "implementation",
         action: "implement",
         controller: options.author.trim(),
         report,
+        workspace: worktree.workspace,
+        branch: worktree.branch,
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
       };
       progress.execution = "implementing";
       progress.assignment = assignment;
+      progress.baseSha = worktree.baseSha;
+      progress.worktree = {
+        workspace: worktree.workspace,
+        branch: worktree.branch,
+        baseSha: worktree.baseSha,
+      };
       const afterTicket = matter.stringify(
         this.ticketRepository.appendAudit(
           ticket.body,
@@ -181,8 +213,19 @@ export class AssignmentService extends Service {
         ),
         this.ticketRepository.metadata(ticket),
       );
-      this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
-      return { ticket: options.ticket, execution: "implementing", assignment, ...identity };
+      try {
+        this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+      } catch (error) {
+        throw new Error(
+          `Assignment recording failed; preserve and inspect ${worktree.journal}. ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return {
+        ticket: options.ticket,
+        execution: "implementing",
+        assignment,
+        ...this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, progress.checks),
+      };
     });
   }
 
@@ -219,6 +262,7 @@ export class AssignmentService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
+      this.gitEvidence.ticketWorkspace(progress);
       let handoffRecorded = false;
       if (progress.owner && progress.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {

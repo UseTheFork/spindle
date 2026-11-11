@@ -61,6 +61,17 @@ export class DeliveryService extends Service {
           `Cannot finish; every feature ticket must be closed: ${missing.join(", ")}.`,
         );
       }
+      const unintegrated = ledger.tickets
+        .filter((progress) => progress.execution !== "integrated" || !progress.integration)
+        .map((progress) => progress.id);
+      if (unintegrated.length > 0) {
+        throw new Error(
+          `Cannot finish; every ticket must be integrated: ${unintegrated.join(", ")}.`,
+        );
+      }
+      if (ledger.tickets.some((progress) => progress.worktree)) {
+        throw new Error("Cannot finish; ticket post-merge validation is not yet available.");
+      }
       if (tickets.length !== ledger.tickets.length) {
         throw new Error("Cannot finish; one or more feature ticket documents are missing.");
       }

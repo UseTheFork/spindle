@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test } from "vitest";
@@ -50,7 +50,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
   expect(state.retrospectiveRequired).toBe(true);
   expect(state.reviewPolicy).toEqual({
     version: 1,
-    ticket: ["sdd-reviewer"],
+    ticket: ["sdd-task-reviewer"],
     delivery: ["sdd-reviewer"],
   });
   expect(state.delivery).toMatchObject({

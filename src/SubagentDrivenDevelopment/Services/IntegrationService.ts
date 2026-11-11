@@ -131,19 +131,30 @@ export class IntegrationService extends Service {
         progress,
         confirmedIdentity,
       );
-      if (confirmedIdentity.snapshot !== identity.snapshot || confirmedBlockers.length > 0) {
+      if (
+        confirmedIdentity.snapshot !== identity.snapshot ||
+        (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
+        confirmedBlockers.length > 0
+      ) {
         throw new Error(
           `Ticket content changed while accepting; revalidate current review and check coverage:\n${confirmedBlockers.join("\n")}`,
         );
       }
       const acceptedFiles = this.workflowPolicy.acceptedInventory(progress, options.ticket);
       if (
-        JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha!)) !==
-        JSON.stringify(acceptedFiles)
+        JSON.stringify(
+          this.gitEvidence.changedPaths(
+            progress.baseSha!,
+            this.gitEvidence.ticketWorkspace(progress),
+          ),
+        ) !== JSON.stringify(acceptedFiles)
       ) {
         throw new Error("Accepted Git inventory changed while accepting the ticket.");
       }
-      const contentDigest = this.gitEvidence.worktreeContentDigest(acceptedFiles);
+      const contentDigest = this.gitEvidence.worktreeContentDigest(
+        acceptedFiles,
+        this.gitEvidence.ticketWorkspace(progress),
+      );
       progress.execution = "accepted";
       progress.acceptedEvidence = {
         snapshot: identity.snapshot,
@@ -195,6 +206,11 @@ export class IntegrationService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
+      if (progress.worktree) {
+        throw new Error(
+          "Ticket worktree integration is unavailable until reviewed no-fast-forward merging and post-merge validation are implemented.",
+        );
+      }
       if (progress.execution !== "accepted" && progress.execution !== "integrated") {
         throw new Error(`Ticket ${options.ticket} must be accepted before integration.`);
       }

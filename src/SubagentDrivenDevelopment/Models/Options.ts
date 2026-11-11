@@ -9,6 +9,12 @@ export interface StatusOptions {
   spec: string;
 }
 
+export interface StartOptions {
+  spec: string;
+  workspace: string;
+  confirmRecords: boolean;
+}
+
 export interface TicketCreateOptions {
   spec: string;
   title: string;
@@ -51,7 +57,9 @@ export interface ReadyOptions {
 
 export type ClaimOptions = TicketSelection;
 
-export type ImplementOptions = TicketSelection;
+export interface ImplementOptions extends TicketSelection {
+  workspace?: string;
+}
 
 export interface CorrectOptions extends TicketSelection {
   scope?: string;

@@ -20,6 +20,7 @@ test("the management catalog validates shipped asset metadata without changing r
   expect(validated.agents.filter((entry) => entry.canReview).map((entry) => entry.key)).toEqual([
     "sdd-code-reviewer",
     "sdd-reviewer",
+    "sdd-task-reviewer",
   ]);
   expect(validated.instructions.find((entry) => entry.key === "code-commenting")).toEqual({
     key: "code-commenting",
@@ -197,6 +198,7 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
   });
   expect(blueprintCatalog.agents["sdd-reviewer"]?.canReview).toBe(true);
   expect(blueprintCatalog.agents["sdd-code-reviewer"]?.canReview).toBe(true);
+  expect(blueprintCatalog.agents["sdd-task-reviewer"]?.canReview).toBe(true);
   expect(
     validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: false } }, {}, {}))
       .agents[0]?.canReview,

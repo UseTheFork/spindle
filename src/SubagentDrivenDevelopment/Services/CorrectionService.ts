@@ -299,6 +299,9 @@ export class CorrectionService extends Service {
         ...(checkFailure ? { checkFailure } : {}),
         objective,
         report: join(feature.workspace, "reports", `${options.ticket}-round-${number}-fix.md`),
+        ...(progress.worktree
+          ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
+          : {}),
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],

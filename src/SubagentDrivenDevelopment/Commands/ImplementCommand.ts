@@ -15,6 +15,11 @@ export class ImplementCommand extends Command {
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption(
+        "--workspace <directory>",
+        "Existing absolute external directory for the ticket worktree",
+        CommandOptions.once("--workspace"),
+      )
       .allowExcessArguments(false)
       .action(async (options: ImplementOptions) => {
         const command = await (await createApp()).make(ImplementCommand);

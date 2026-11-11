@@ -23,7 +23,12 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
       stacks: [],
       canReview: true,
     },
-    "sdd-task-reviewer": { path: "sdd-task-reviewer.agent.md", status: "active", stacks: [] },
+    "sdd-task-reviewer": {
+      path: "sdd-task-reviewer.agent.md",
+      status: "active",
+      stacks: [],
+      canReview: true,
+    },
     "shared-explore": { path: "shared-explore.agent.md", status: "active", stacks: [] },
     "shared-r": { path: "shared-r.agent.md", status: "active", stacks: [] },
     "shared-rw": { path: "shared-rw.agent.md", status: "active", stacks: [] },

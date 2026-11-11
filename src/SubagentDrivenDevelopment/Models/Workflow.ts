@@ -52,6 +52,11 @@ export interface TicketProgress {
   execution: ExecutionState;
   owner?: string;
   baseSha?: string;
+  worktree?: {
+    workspace: string;
+    branch: string;
+    baseSha: string;
+  };
   acceptedEvidence?: AcceptedEvidence;
   integration?: IntegrationRecord;
   assignment?: ImplementationAssignment;

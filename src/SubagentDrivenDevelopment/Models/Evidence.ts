@@ -8,6 +8,11 @@ export interface AcceptedEvidence {
 
 export interface IntegrationRecord {
   commitSha: string;
+  mergeSha?: string;
+  postMerge?: {
+    status: "pending";
+    mergeSha: string;
+  };
   integratedAt: string;
   integratedBy: string;
   files: string[];
