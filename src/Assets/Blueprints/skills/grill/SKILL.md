@@ -1,10 +1,10 @@
 ---
 name: grill
 description: "Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases."
-user-invocable: false
+user-invocable: true
 metadata:
   spindle:
-    version: 1.0.3
+    version: 1.0.4
 ---
 
 Stress-test the user's proposal until its decisions are explicit and you share an understanding. Treat dependent decisions as a **design tree**.
