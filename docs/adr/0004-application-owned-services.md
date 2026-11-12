@@ -54,6 +54,13 @@ run, retaining memoization within that run without carrying computed values betw
 runs. Config, prompt answers, plans, and operational mutable state remain per-run.
 Stateless utilities remain standalone functions, not artificial services.
 
+`FoundationServiceProvider` explicitly binds the ordinary, stateful
+`ConsoleOutputService` singleton. CLI dispatch configures its invocation-local
+human or JSON mode after bootstrap. CLI adapters submit human messages and typed
+data; command operations and domain services do not print results.
+The executable uses the same service policy for pre-application failures.
+See [CLI output](../cli-output.md) for the stream and envelope contracts.
+
 `Application` requires only `{ basePath }`. This explicit invocation starting path
 is normalized to an absolute path and never changes. The workspace root is bound
 by bootstrap, not supplied as a constructor argument. The getter-only

@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { toolGroup } from "@/Tooling/Commands/groups";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
@@ -34,20 +35,21 @@ export class ToolingUpdateCommand extends Command {
             clearDescription?: boolean;
           },
         ) => {
-          const command = await (await createApp()).make(ToolingUpdateCommand);
-          console.log(
-            JSON.stringify(
-              await command.run({
-                key,
-                ...(options.section === undefined ? {} : { section: options.section }),
-                ...(options.command === undefined ? {} : { command: options.command }),
-                ...(options.description === undefined ? {} : { description: options.description }),
-                ...(options.clearDescription ? { clearDescription: true } : {}),
-              }),
-              null,
-              2,
-            ),
-          );
+          const app = await createApp();
+          const command = await app.make(ToolingUpdateCommand);
+          const data = await command.run({
+            key,
+            ...(options.section === undefined ? {} : { section: options.section }),
+            ...(options.command === undefined ? {} : { command: options.command }),
+            ...(options.description === undefined ? {} : { description: options.description }),
+            ...(options.clearDescription ? { clearDescription: true } : {}),
+          });
+          const output = await app.make(ConsoleOutputService);
+          output.result({
+            level: "success",
+            human: `Updated tooling command "${key}".`,
+            data,
+          });
         },
       );
   }

@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { RequirementsDecideOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
@@ -31,8 +32,15 @@ export class RequirementsDecideCommand extends Command {
         if (Boolean(options.ticket) === (options.scope === "delivery")) {
           throw new Error("requirements decide needs exactly one of --ticket or --scope delivery.");
         }
-        const command = await (await createApp()).make(RequirementsDecideCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(RequirementsDecideCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `Recorded ${options.decision} requirements decision for finding ${options.finding}.`,
+          data,
+        });
       });
   }
 

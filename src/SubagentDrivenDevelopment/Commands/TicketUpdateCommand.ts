@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { TicketUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
@@ -25,8 +26,15 @@ export class TicketUpdateCommand extends Command {
       .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: TicketUpdateOptions) => {
-        const command = await (await createApp()).make(TicketUpdateCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(TicketUpdateCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `Updated ticket ${options.ticket}.`,
+          data,
+        });
       });
   }
 

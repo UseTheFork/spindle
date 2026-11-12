@@ -18,6 +18,10 @@ Create each approved ticket in dependency order:
 pnpm spindle sdd ticket create --spec <absolute-spec-path> --title "..." --reporter "..." --category enhancement --author maintainer
 ```
 
+For machine-readable results, add `--json` and read the success envelope's
+`data` field. Errors and notices use structured stderr in this mode. See
+[CLI output](../cli-output.md).
+
 The command returns the new ticket ID and path. Complete its template, then set dependencies with `ticket update`:
 
 ```sh

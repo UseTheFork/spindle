@@ -5,11 +5,8 @@ import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
 import { Stacks } from "@/Support/Stacks";
 
 export type CatalogKind = "agents" | "instructions" | "skills";
-export type CatalogStatus = "active" | "removed";
-
 export interface CatalogSourceEntry {
   path: string;
-  status: CatalogStatus;
   stacks: readonly (typeof Stacks.supported)[number][];
 }
 
@@ -23,7 +20,6 @@ export interface CatalogEntry {
   key: string;
   path: string;
   directory: boolean;
-  status: CatalogStatus;
   stacks: string[];
   canReview?: boolean;
 }
@@ -37,7 +33,7 @@ export interface CatalogSelection {
 export interface CatalogDeletion {
   entry: CatalogEntry;
   path: string;
-  reason: "removed" | "stack-inapplicable";
+  reason: "stack-inapplicable";
 }
 
 export interface CatalogDirectorySelection {
@@ -55,8 +51,8 @@ export interface CatalogExpansionPlan {
 export type BlueprintCatalog = Record<CatalogKind, CatalogEntry[]>;
 
 const catalogKinds: CatalogKind[] = ["agents", "instructions", "skills"];
-const allowedEntryFields = new Set(["path", "status", "stacks", "canReview"]);
-const requiredEntryFields = ["path", "status", "stacks"] as const;
+const allowedEntryFields = new Set(["path", "stacks", "canReview"]);
+const requiredEntryFields = ["path", "stacks"] as const;
 const globCharacters = /[*?[\]{}]/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -126,11 +122,6 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
         }
       }
       const { path, directory } = validateCatalogPath(rawEntry.path, kind, key);
-      if (rawEntry.status !== "active" && rawEntry.status !== "removed") {
-        throw new Error(
-          `Invalid status in Blueprint Catalog '${kind}.${key}': expected 'active' or 'removed'.`,
-        );
-      }
       if (
         !Array.isArray(rawEntry.stacks) ||
         !rawEntry.stacks.every((stack) => typeof stack === "string")
@@ -160,7 +151,6 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
         key,
         path,
         directory,
-        status: rawEntry.status,
         stacks: rawEntry.stacks,
         ...(kind === "agents" && Object.hasOwn(rawEntry, "canReview")
           ? { canReview: rawEntry.canReview as boolean }
@@ -231,10 +221,6 @@ export async function planBlueprintCatalog(
   const deletions: CatalogDeletion[] = [];
   const directories: CatalogDirectorySelection[] = [];
   for (const entry of catalog[kind]) {
-    if (entry.status === "removed") {
-      deletions.push({ entry, path: entry.path, reason: "removed" });
-      continue;
-    }
     await assertNoSymlinkPath(sourceRoot, entry.path);
     const sourcePath = join(sourceRoot, ...entry.path.split("/"));
     let stat;
@@ -243,7 +229,7 @@ export async function planBlueprintCatalog(
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         throw new Error(
-          `Active Blueprint Catalog entry '${kind}.${entry.key}' is missing source '${entry.path}'.`,
+          `Blueprint Catalog entry '${kind}.${entry.key}' is missing source '${entry.path}'.`,
           { cause: error },
         );
       }

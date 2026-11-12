@@ -1,0 +1,565 @@
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+import { test, expect, vi } from "vitest";
+
+vi.setConfig({ testTimeout: 30_000 });
+
+import matter from "gray-matter";
+
+import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
+import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
+import type { Application } from "@/Foundation/Application";
+import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
+import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+
+import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
+import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
+import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
+import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+
+const description =
+  "This is an internal skill do not load it unless explicitly required by the user or another skill.";
+async function put(path: string, content: string) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, content);
+}
+
+function fixtureCatalog(): BlueprintCatalogDefinition {
+  return {
+    skills: {
+      demo: { path: "demo/", stacks: [] },
+    },
+    agents: {
+      guide: { path: "guide.agent.md", stacks: [] },
+      guideSupport: { path: "guide-support.txt", stacks: [] },
+    },
+    instructions: {
+      testing: { path: "testing.instructions.md", stacks: [] },
+      testingSupport: { path: "testing-support.txt", stacks: [] },
+    },
+  };
+}
+
+async function makeBlueprints() {
+  const blueprints = await makeTempDir("spindle-computed-blueprints-");
+  await put(
+    join(blueprints, "skills/demo/SKILL.md"),
+    [
+      "---",
+      "name: demo",
+      'description: "{{ computed.internal_skill_description }}"',
+      "metadata:",
+      "  spindle:",
+      "    version: 1.0.0",
+      "---",
+      "",
+      "Manager={{ computed.spindle_package_manager }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
+      "",
+    ].join("\n"),
+  );
+  await put(
+    join(blueprints, "skills/demo/supporting.txt"),
+    "Skill: {{ computed.internal_skill_description }}\n",
+  );
+  await put(
+    join(blueprints, "agents/guide.agent.md"),
+    [
+      "---",
+      "name: guide",
+      'description: "{{ computed.internal_skill_description }}"',
+      "metadata:",
+      "  spindle:",
+      "    version: 1.0.0",
+      "---",
+      "",
+      "Agent body: {{ computed.internal_skill_description }}",
+      "",
+    ].join("\n"),
+  );
+  await put(
+    join(blueprints, "agents/guide-support.txt"),
+    "Agent file: {{ computed.internal_skill_description }}\n",
+  );
+  await put(
+    join(blueprints, "instructions/testing.instructions.md"),
+    [
+      "---",
+      "name: testing",
+      'description: "{{ computed.internal_skill_description }}"',
+      "metadata:",
+      "  spindle:",
+      "    version: 1.0.0",
+      "---",
+      "",
+      "Instruction body: {{ computed.internal_skill_description }}",
+      "",
+    ].join("\n"),
+  );
+  await put(
+    join(blueprints, "instructions/testing-support.txt"),
+    "Instruction file: {{ computed.internal_skill_description }}\n",
+  );
+  writeCatalogFixture(blueprints, fixtureCatalog());
+  return blueprints;
+}
+
+test("init and update render shipped Skills and preserve current installations", async () => {
+  const blueprints = await makeTempDir("spindle-shipped-internal-blueprints-");
+  const project = await makeTempDir("spindle-shipped-internal-project-");
+
+  {
+    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
+    writeCatalogFixture(blueprints, blueprintCatalog);
+
+    const initialized = runCliWithCatalog(
+      project,
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm", "--no-interactive"],
+      process.env.PATH ?? "",
+      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
+    );
+    expect(initialized.status, initialized.stderr).toBe(0);
+
+    const installedPath = (name: string) => join(project, ".github", "skills", name, "SKILL.md");
+    const currentSkill = "int-code-review";
+    const outdatedSkill = "int-test-driven-development";
+    const currentBeforeUpdate = await readFile(installedPath(currentSkill), "utf8");
+    const outdatedBefore = await readFile(installedPath(outdatedSkill), "utf8");
+
+    const updatedSourcePath = join(blueprints, "skills", outdatedSkill, "SKILL.md");
+    const updatedSource = matter(await readFile(updatedSourcePath, "utf8"));
+    updatedSource.data.metadata.spindle.version = "2.0.0";
+    await writeFile(updatedSourcePath, matter.stringify(updatedSource.content, updatedSource.data));
+
+    const updated = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
+    expect(updated.status, updated.stderr).toBe(0);
+
+    const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
+    expect(refreshed, "the outdated Skill is updated").not.toBe(outdatedBefore);
+    expect(matter(refreshed).data.metadata.spindle.version).toBe("2.0.0");
+    expect(
+      await readFile(installedPath(currentSkill), "utf8"),
+      "an otherwise-current matching Skill remains byte-identical",
+    ).toBe(currentBeforeUpdate);
+  }
+});
+
+test("init renders the computed namespace throughout Skills, Agents, and Instructions", async () => {
+  const blueprints = await makeBlueprints();
+  const project = await makeTempDir("spindle-computed-init-");
+
+  {
+    const result = runCliWithCatalog(
+      project,
+      ["init", "--stack", "python", "--spindle-package-manager", "pnpm", "--no-interactive"],
+      process.env.PATH ?? "",
+      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+    expect(config).toMatchObject({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+    });
+
+    const skillPath = join(project, ".github/skills/demo/SKILL.md");
+    const skill = await readFile(skillPath, "utf8");
+    expect(matter(skill).data.description).toBe(description);
+    expect(matter(skill).data.metadata.spindle.version).toBe("1.0.0");
+    expect(matter(skill).content).toBe("\nManager=pnpm; stacks=python;\n");
+    expect(skill).not.toMatch(/{{|}}/);
+    expect(await readFile(join(project, ".github/skills/demo/supporting.txt"), "utf8")).toBe(
+      `Skill: ${description}\n`,
+    );
+
+    for (const [kind, entry, support, body] of [
+      ["agents", "guide.agent.md", "guide-support.txt", "Agent body:"],
+      ["instructions", "testing.instructions.md", "testing-support.txt", "Instruction body:"],
+    ]) {
+      const path = join(project, `.github/${kind}/${entry}`);
+      const content = await readFile(path, "utf8");
+      expect(matter(content).data.description).toBe(description);
+      expect(matter(content).data.metadata.spindle.version).toBe("1.0.0");
+      expect(matter(content).content).toBe(`\n${body} ${description}\n`);
+      expect(content).not.toMatch(/{{|}}/);
+      expect(await readFile(join(project, `.github/${kind}/${support}`), "utf8")).toBe(
+        `${kind === "agents" ? "Agent" : "Instruction"} file: ${description}\n`,
+      );
+    }
+    expect(JSON.stringify(config)).not.toMatch(/computed|internal_skill_description/);
+  }
+});
+
+test("update reuses computed output and leaves Config and version metadata intact", async () => {
+  const blueprints = await makeTempDir("spindle-computed-update-blueprints-");
+  const project = await makeTempDir("spindle-computed-update-project-");
+  const configBytes = Buffer.from(
+    JSON.stringify(
+      {
+        stacks: ["typescript"],
+        spindle_package_manager: "pnpm",
+        variables: { owner: "legacy" },
+        tooling: [],
+      },
+      null,
+      2,
+    ),
+  );
+
+  {
+    await put(
+      join(blueprints, "skills/demo/SKILL.md"),
+      [
+        "---",
+        "name: demo",
+        'description: "{{ computed.internal_skill_description }}"',
+        "metadata:",
+        "  spindle:",
+        "    version: 2.0.0",
+        "---",
+        "",
+        "Manager={{ computed.spindle_package_manager }}; stacks={% for stack in stacks %}{{ stack }};{% endfor %}",
+        "",
+      ].join("\n"),
+    );
+    await put(
+      join(blueprints, "skills/demo/supporting.txt"),
+      "Update: {{ computed.internal_skill_description }}\n",
+    );
+    writeCatalogFixture(blueprints, {
+      skills: {
+        demo: { path: "demo/", stacks: [] },
+      },
+      agents: {},
+      instructions: {},
+    });
+
+    const github = join(project, ".github");
+    await put(join(github, "spindle.json"), configBytes.toString("utf8"));
+    await put(
+      join(github, "skills/demo/SKILL.md"),
+      "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nOld content\n",
+    );
+    await put(join(github, "skills/demo/supporting.txt"), "Old supporting file\n");
+
+    const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    const updated = await readFile(join(github, "skills/demo/SKILL.md"), "utf8");
+    expect(matter(updated).data.description).toBe(description);
+    expect(matter(updated).data.metadata.spindle.version).toBe("2.0.0");
+    expect(matter(updated).content).toBe("\nManager=pnpm; stacks=typescript;\n");
+    expect(updated).not.toMatch(/{{|}}/);
+    expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
+      `Update: ${description}\n`,
+    );
+    expect(await readFile(join(github, "spindle.json"))).toEqual(configBytes);
+    expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
+  }
+});
+
+test("computed package-manager output comes from project Config, not render Variables", async () => {
+  const app = applicationFixture("/project", "/blueprints", {
+    status: "valid",
+    data: { stacks: [], spindle_package_manager: "pnpm" },
+  });
+  const contextService = await app.make(ComputedContextService);
+  const context = await contextService.resolve(async () => ({
+    stacks: [],
+    variables: { spindle_package_manager: "npm run" },
+  }));
+
+  expect(context?.computed?.spindle_package_manager).toBe("pnpm");
+});
+
+test("computed package-manager output fails when project Config is unavailable", async () => {
+  const app = applicationFixture("/project", "/blueprints");
+  const contextService = await app.make(ComputedContextService);
+  const context = contextService.resolve(async () => ({ stacks: [], variables: {} }));
+
+  await expect(context).rejects.toThrow(/project Config|spindle_package_manager/i);
+});
+
+test("init restores the prior project Config state when Blueprint rendering fails", async () => {
+  const blueprints = await makeTempDir("spindle-computed-init-failure-blueprints-");
+  const project = await makeTempDir("spindle-computed-init-failure-project-");
+  writeCatalogFixture(blueprints, {
+    skills: {
+      demo: { path: "demo/", stacks: [] },
+    },
+    agents: {},
+    instructions: {},
+  });
+  await put(
+    join(blueprints, "skills/demo/SKILL.md"),
+    "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n{% if %}\n",
+  );
+  const app = applicationFixture(project, blueprints);
+  await new LoadProjectConfiguration().bootstrap(app);
+  await app.boot();
+
+  const init = await app.make(InitCommand);
+  await expect(init.run(["python"], "pnpm", false, "overwrite")).rejects.toThrow();
+
+  expect(LoadProjectConfiguration.current(app)).toEqual({ status: "absent" });
+  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
+
+test("update identifies a missing computed output and applies no planned changes", async () => {
+  const blueprints = await makeTempDir("spindle-computed-missing-blueprints-");
+  const project = await makeTempDir("spindle-computed-missing-project-");
+  const github = join(project, ".github");
+  const configPath = join(github, "spindle.json");
+  const currentEntry = join(github, "skills/current/SKILL.md");
+  const currentBytes = Buffer.from(
+    "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nExisting Skill\n",
+  );
+  const configBytes = Buffer.from(
+    '{\n  "stacks": ["python"],\n  "spindle_package_manager": "pnpm",\n  "variables": {"owner": "keep"}\n}\n',
+  );
+
+  {
+    writeCatalogFixture(blueprints, {
+      skills: {
+        current: { path: "current/", stacks: [] },
+      },
+      agents: {
+        planned: { path: "planned.agent.md", stacks: [] },
+      },
+      instructions: {},
+    });
+    await put(
+      join(blueprints, "skills/current/SKILL.md"),
+      [
+        "---",
+        "metadata:",
+        "  spindle:",
+        "    version: 2.0.0",
+        "---",
+        "{{ computed.not_registered }}",
+        "",
+      ].join("\n"),
+    );
+    await put(
+      join(blueprints, "agents/planned.agent.md"),
+      "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nNew Agent\n",
+    );
+    await put(configPath, configBytes.toString("utf8"));
+    await put(currentEntry, currentBytes.toString("utf8"));
+    await put(join(github, "skills/current/local.txt"), "keep destination-only file\n");
+    await put(join(github, "skills/retired/local.txt"), "keep retired Skill\n");
+
+    const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
+
+    expect(result.status, result.stdout).not.toBe(0);
+    expect(await readFile(configPath)).toEqual(configBytes);
+    expect(await readFile(currentEntry)).toEqual(currentBytes);
+    expect(await readFile(join(github, "skills/current/local.txt"), "utf8")).toBe(
+      "keep destination-only file\n",
+    );
+    expect(await readFile(join(github, "skills/retired/local.txt"), "utf8")).toBe(
+      "keep retired Skill\n",
+    );
+    await expect(readFile(join(github, "agents/planned.agent.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(result.stderr).toMatch(/not_registered/);
+  }
+});
+
+test("repeated Updates through one App render fresh Config with computed outputs", async () => {
+  const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
+  const project = await makeTempDir("spindle-computed-app-project-");
+  const github = join(project, ".github");
+  const skillName = "int-test-driven-development";
+  const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
+  const installedPath = join(github, "skills", skillName, "SKILL.md");
+  const descriptionSkill = await readFile(
+    join(repoRoot, "src/Assets/Blueprints/skills", skillName, "SKILL.md"),
+    "utf8",
+  );
+  const app = applicationFixture(project, blueprints);
+
+  {
+    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
+    await app.boot();
+    const source = matter(descriptionSkill);
+    source.content += "\nRun manager={{ computed.spindle_package_manager }}\n";
+    await writeFile(sourcePath, matter.stringify(source.content, source.data));
+
+    await (await app.make(InitCommand)).run(["python"], "first-run", false, "overwrite");
+    const update = await app.make(UpdateCommand);
+
+    const assertRendered = async (manager: string, version: string) => {
+      const generated = matter(await readFile(installedPath, "utf8"));
+      expect(generated.data.description).toBe(description);
+      expect(generated.data.metadata.spindle.version).toBe(version);
+      expect(generated.content).toContain(`Run manager=${manager}`);
+      const config = await readFile(join(github, "spindle.json"), "utf8");
+      expect(config).not.toMatch(/computed|internal_skill_description/);
+    };
+
+    const updateSource = async (version: string, manager: string) => {
+      const current = matter(await readFile(sourcePath, "utf8"));
+      current.data.metadata.spindle.version = version;
+      await writeFile(sourcePath, matter.stringify(current.content, current.data));
+      const configPath = join(github, "spindle.json");
+      const config = JSON.parse(await readFile(configPath, "utf8"));
+      config.spindle_package_manager = manager;
+      await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+    };
+
+    await updateSource("900.0.0", "second-run");
+    await update.run();
+    await assertRendered("second-run", "900.0.0");
+
+    await updateSource("901.0.0", "third-run");
+    await update.run();
+    await assertRendered("third-run", "901.0.0");
+  }
+});
+
+test("providers receive Application once per run and refresh across runs", async () => {
+  const projectConfig = {
+    status: "valid" as const,
+    data: {
+      stacks: ["python", "typescript"],
+      spindle_package_manager: "pnpm",
+    },
+  };
+  let providerApplication: Application | undefined;
+  class ConfigProvider extends ComputedVariableProvider {
+    render() {
+      providerApplication = this.app;
+      const { config } = LoadProjectConfiguration.requireCurrent(this.app);
+      return `${config.stacks.join(",")}:${config.spindle_package_manager}`;
+    }
+  }
+  let evaluations = 0;
+  class CountingProvider extends ComputedVariableProvider {
+    render() {
+      evaluations += 1;
+      return `evaluation-${evaluations}`;
+    }
+  }
+  const registry = {
+    config_summary: ConfigProvider,
+    count: CountingProvider,
+  };
+
+  const inputs = {
+    stacks: ["python", "typescript"],
+    variables: { owner: "nobody", lint_command: "just lint" },
+  };
+  const app = applicationFixture("/project", "/blueprints", projectConfig);
+  const firstRun = await app.make(ComputedContextService);
+  let inputResolutions = 0;
+  const [firstContext, repeatedContext] = await Promise.all([
+    firstRun.resolve(async () => {
+      inputResolutions += 1;
+      return {
+        stacks: [...inputs.stacks],
+        variables: { ...inputs.variables },
+      };
+    }, registry),
+    firstRun.resolve(async () => {
+      inputResolutions += 1;
+      return {
+        stacks: [...inputs.stacks],
+        variables: { ...inputs.variables },
+      };
+    }, registry),
+  ]);
+  expect(firstContext).toBeTruthy();
+  if (!firstContext?.computed) throw new Error("Missing resolved computed context.");
+  expect(repeatedContext).toBe(firstContext);
+  expect(inputResolutions, "a run resolves its base Config once").toBe(1);
+  expect(firstContext.computed.config_summary).toBe("python,typescript:pnpm");
+  expect(firstContext.computed.count).toBe("evaluation-1");
+  expect(providerApplication).toBe(app);
+  const renderContext = {
+    ...firstContext,
+    variables: {
+      ...firstContext.variables,
+      internal_skill_description: "user value",
+    },
+    computed: {
+      ...firstContext.computed,
+      internal_skill_description: description,
+    },
+  };
+  expect(
+    renderText(
+      "{{ computed.internal_skill_description }} | {{ variables.internal_skill_description }}",
+      renderContext,
+    ),
+  ).toBe(`${description} | user value`);
+  expect(renderText("{{ computed.count }}", renderContext)).toBe("evaluation-1");
+  expect(evaluations, "reusing resolved values does not render the provider again").toBe(1);
+
+  projectConfig.data.spindle_package_manager = "npm run";
+  projectConfig.data.stacks = ["typescript"];
+  const secondRun = await app.make(ComputedContextService);
+  const secondContext = await secondRun.resolve(
+    async () => ({
+      stacks: ["python"],
+      variables: { arbitrary: "operation input" },
+    }),
+    registry,
+  );
+  expect(secondContext).toBeTruthy();
+  if (!secondContext?.computed) throw new Error("Missing second computed context.");
+  expect(secondContext.computed.config_summary).toBe("typescript:npm run");
+  expect(secondContext.computed.count).toBe("evaluation-2");
+  expect(evaluations, "a separate run renders a fresh value").toBe(2);
+
+  const otherApp = applicationFixture("/other-project", "/blueprints", {
+    status: "valid",
+    data: { stacks: ["python"], spindle_package_manager: "yarn" },
+  });
+  const isolatedRun = await otherApp.make(ComputedContextService);
+  const isolatedContext = await isolatedRun.resolve(
+    async () => ({
+      stacks: ["python"],
+      variables: { arbitrary: "other operation input" },
+    }),
+    registry,
+  );
+  expect(isolatedContext).toBeTruthy();
+  if (!isolatedContext?.computed) throw new Error("Missing isolated computed context.");
+  expect(isolatedContext.computed.config_summary).toBe("python:yarn");
+  expect(isolatedContext.computed.count).toBe("evaluation-3");
+  expect(evaluations, "a separate App starts with a distinct fresh run").toBe(3);
+});
+
+test("provider failures stop context resolution with the public key and original error", async () => {
+  class FailingProvider extends ComputedVariableProvider {
+    render(): string {
+      throw new Error("original provider failure");
+    }
+  }
+
+  const app = applicationFixture("/project", "/blueprints");
+  const contextService = await app.make(ComputedContextService);
+  const resolvedContext = contextService.resolve(async () => ({ stacks: [], variables: {} }), {
+    public_failure_name: FailingProvider,
+  });
+  await expect(resolvedContext).rejects.toMatchObject({
+    message: expect.stringContaining("public_failure_name"),
+    cause: expect.objectContaining({ message: "original provider failure" }),
+  });
+  await expect(resolvedContext).rejects.toThrow(/original provider failure/);
+});

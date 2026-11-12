@@ -1,17 +1,17 @@
 ---
 name: sdd-implementer
-description: "Use when an orchestrator assigns one ticket or corrective round for subagent-driven development in an existing shared checkout."
+description: "Use when an orchestrator assigns one ticket or corrective round in its isolated worktree."
 tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.4.1
+    version: 1.5.0
 ---
 
 # SDD implementer
 
-Implement one orchestrator-assigned ticket in an existing shared checkout. The orchestrator is the controller; it owns dispatch, execution states, acceptance, and the ticket-wide checks. Work sequentially with other editors and return evidence for the assigned ticket.
+Implement one orchestrator-assigned ticket in its isolated worktree. The orchestrator owns dispatch, execution states, acceptance, and the ticket-wide checks. Other tickets may run concurrently in their own worktrees.
 
 ## Required assignment gate
 
@@ -20,14 +20,14 @@ Before entering the flowchart, loading implementation skills, inspecting the che
 | Field                       | Required content                                                                                                                                      |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TICKET_ID`                 | The single assigned ticket identifier.                                                                                                                |
-| `CHECKOUT`                  | Absolute path to the existing shared checkout.                                                                                                        |
+| `CHECKOUT`                  | Absolute path to the assigned ticket worktree.                                                                                                        |
 | `ABSOLUTE_SOURCE_POINTERS`  | Absolute paths to the canonical ticket, comments, and spec/brief. Explicitly identify any source that does not apply.                                 |
 | `CRITERIA_AND_SEAMS`        | Acceptance criteria and confirmed test seams.                                                                                                         |
 | `DEPENDENCIES_AND_SNAPSHOT` | Completed dependencies and starting revision, including existing dirty/untracked changes. Explicitly state when there are no dependencies or changes. |
 | `FILE_SCOPE`                | Allowed code, test, and `.scratch` files.                                                                                                             |
 | `CHECKS_AND_DIRECTORY`      | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker.                                   |
 | `PERMISSIONS`               | Allowed actions, including explicit commit authorization or denial.                                                                                   |
-| `REPORT_PATH`               | Assigned `.scratch` report path within `FILE_SCOPE`, absolute or relative to `CHECKOUT`.                                                              |
+| `REPORT_PATH`               | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`.                                                               |
 | `MODE`                      | `INITIAL` or `CORRECTIVE`.                                                                                                                            |
 
 Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. Legacy `For a fix: NONE` selects initial mode; populated fix context selects corrective mode. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
@@ -74,4 +74,4 @@ Save the report at `REPORT_PATH` with:
 - For corrective mode, include the finding evidence required by `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill.
 - A concise hand-back summary; include commit identifiers only when authorized.
 
-Update only assigned tracker files in `.scratch`, preserving history. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.
+Write only the assigned report in the canonical feature workspace; the controller owns tracker updates. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

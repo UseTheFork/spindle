@@ -14,5 +14,5 @@ export const skillHandler: BlueprintHandler = {
   validateMetadata: (relativePath, renderedText) =>
     validateVersionedMetadata("Skill", "SKILL.md", relativePath, renderedText),
   planUpdate: (input) =>
-    planVersionedUpdate(input, "Skill", "SKILL.md", (target) => join(target, "SKILL.md"), "error"),
+    planVersionedUpdate(input, "Skill", "SKILL.md", (target) => join(target, "SKILL.md")),
 };

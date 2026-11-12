@@ -4,7 +4,7 @@
 ## Assignment
 
 Implement ticket: [TICKET_ID]
-Checkout: [CHECKOUT]
+Ticket worktree: [CHECKOUT]
 Mode: [INITIAL_OR_CORRECTIVE]
 
 ## Requirements and starting state
@@ -20,7 +20,7 @@ Completed dependencies and starting snapshot:
 
 ## Scope and permissions
 
-Allowed code, test, and `.scratch` files:
+Allowed code and test files in the ticket worktree, and the canonical report path:
 [FILE_SCOPE]
 
 Permissions, including commit authorization:

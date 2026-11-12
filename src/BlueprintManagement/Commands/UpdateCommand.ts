@@ -1,17 +1,21 @@
-import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
-import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
-import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
-import { promptNewBlueprints, promptOutdated } from "@/BlueprintManagement/Commands/Prompts";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
+import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
+import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
+
+export interface UpdateResult {
+  stacks: string[];
+  outcomes: BlueprintOutcome[];
+  guidanceInitialized: true;
+}
 
 export class UpdateCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
@@ -22,35 +26,38 @@ export class UpdateCommand extends Command {
       .command("update")
       .description(
         `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
-Reads stacks and the Spindle package-manager command from .github/spindle.json and leaves it unchanged.
-New shipped Blueprints are offered interactively; use
---include-new to install all of them without a prompt.`,
+Reads stacks and the Spindle package-manager command from .github/spindle.json.
+Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes project guidance.`,
       )
-      .addOption(BlueprintCommandOptions.conflictPolicyOption("Policy for outdated Blueprints"))
-      .addOption(
-        BlueprintCommandOptions.noInteractiveOption(
-          "Never prompt; outdated Blueprints without --on-conflict are an error",
-        ),
-      )
-      .option("--include-new", "Install every newly shipped Blueprint without prompting")
       .addHelpText(
         "after",
         `
 Requires .github/spindle.json; run \`spindle init\` first.
-Installed Blueprints with a missing or non-semver version are skipped with a warning.
+Unmanaged Blueprints are preserved.
 `,
       )
       .allowExcessArguments(false)
-      .action(
-        async (options: { onConflict?: string; interactive: boolean; includeNew?: boolean }) => {
-          const interactive =
-            options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
-          const policy = parseConflictPolicy(options.onConflict);
-          await (
-            await (await createApp()).make(UpdateCommand)
-          ).run(interactive, policy, options.includeNew);
-        },
-      );
+      .action(async () => {
+        const app = await createApp();
+        const result = await (await app.make(UpdateCommand)).run();
+        const output = await app.make(ConsoleOutputService);
+        for (const outcome of result.outcomes) {
+          if (outcome.warning) output.notice("warning", outcome.warning);
+        }
+        const human = result.outcomes
+          .filter((outcome) => outcome.status === "removed")
+          .map((outcome) => `Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
+        if (result.outcomes.length === 0) human.push("No Blueprints apply to the selected stacks");
+        for (const kind of new Set(result.outcomes.map((outcome) => outcome.kind))) {
+          const ofKind = result.outcomes.filter((outcome) => outcome.kind === kind);
+          const count = (status: BlueprintOutcome["status"]) =>
+            ofKind.filter((outcome) => outcome.status === status).length;
+          human.push(
+            `Added ${count("installed")}, updated ${count("updated")}, skipped ${count("skipped")}, up to date ${count("up-to-date")} ${kind.toLowerCase()}(s)`,
+          );
+        }
+        output.result({ level: "success", human, data: result });
+      });
   }
 
   public constructor(app: Application) {
@@ -62,11 +69,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(
-    interactive: boolean,
-    policy: ConflictPolicy | undefined,
-    includeNew = false,
-  ): Promise<void> {
+  public async run(): Promise<UpdateResult> {
     this.assertApplicationBooted();
     const config = LoadProjectConfiguration.require(
       await LoadProjectConfiguration.refresh(this.app),
@@ -83,43 +86,31 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
       );
     }
 
+    const project = await this.app.make(ProjectService);
+    const guidance = await project.prepare(config.config, "update");
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: config.config,
-      includeNew,
-      chooseNew: interactive && !includeNew ? promptNewBlueprints : undefined,
-      conflictPolicy: policy,
-      chooseConflict:
-        interactive && policy === undefined
-          ? async (kind, name, installed, available) =>
-              promptOutdated(kind, name, installed!, available!)
-          : undefined,
       resolveContext: async () => ({
         stacks: config.stacks,
         variables: {},
       }),
     });
-    await LoadProjectConfiguration.refresh(this.app);
-    for (const outcome of outcomes) {
-      if (outcome.warning) {
-        console.error(chalk.yellow(outcome.warning));
-      }
-    }
-    for (const outcome of outcomes.filter((item) => item.status === "removed")) {
-      console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
-    }
-    if (outcomes.length === 0) {
-      console.log(`${chalk.green("✔")} No Blueprints apply to the selected stacks`);
-    }
-    for (const kind of new Set(outcomes.map((outcome) => outcome.kind))) {
-      const ofKind = outcomes.filter((outcome) => outcome.kind === kind);
-      const added = ofKind.filter((outcome) => outcome.status === "installed").length;
-      const updated = ofKind.filter((outcome) => outcome.status === "updated").length;
-      const skipped = ofKind.filter((outcome) => outcome.status === "skipped").length;
-      const upToDate = ofKind.filter((outcome) => outcome.status === "up-to-date").length;
-      console.log(
-        `${chalk.green("✔")} Added ${added}, updated ${updated}, skipped ${skipped}, up to date ${upToDate} ${kind.toLowerCase()}(s)`,
+    try {
+      await project.apply(guidance);
+    } catch (error) {
+      const completed = outcomes.filter(
+        (outcome) =>
+          outcome.status === "installed" ||
+          outcome.status === "updated" ||
+          outcome.status === "removed",
+      );
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} Completed Blueprint changes: ${completed.map((outcome) => `${outcome.status} ${outcome.kind} '${outcome.name}'`).join(", ") || "none"}.`,
+        { cause: error },
       );
     }
+    await LoadProjectConfiguration.refresh(this.app);
+    return { stacks: config.stacks, outcomes, guidanceInitialized: true };
   }
 }

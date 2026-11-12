@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { toolGroup } from "@/Tooling/Commands/groups";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
@@ -39,19 +40,20 @@ export class ToolingAddCommand extends Command {
           command: string;
           description?: string;
         }) => {
-          const command = await (await createApp()).make(ToolingAddCommand);
-          console.log(
-            JSON.stringify(
-              await command.run({
-                key: options.key,
-                section: options.section,
-                command: options.command,
-                ...(options.description === undefined ? {} : { description: options.description }),
-              }),
-              null,
-              2,
-            ),
-          );
+          const app = await createApp();
+          const command = await app.make(ToolingAddCommand);
+          const data = await command.run({
+            key: options.key,
+            section: options.section,
+            command: options.command,
+            ...(options.description === undefined ? {} : { description: options.description }),
+          });
+          const output = await app.make(ConsoleOutputService);
+          output.result({
+            level: "success",
+            human: `Registered tooling command "${options.key}".`,
+            data,
+          });
         },
       );
   }

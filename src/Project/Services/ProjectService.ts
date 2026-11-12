@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
   chmodSync,
-  constants,
-  copyFileSync,
-  existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
@@ -15,9 +12,21 @@ import {
 import { join, relative } from "node:path";
 
 import { templateCatalog } from "@/Assets/Templates/Catalog";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import {
+  LoadProjectConfiguration,
+  type ProjectConfigurationData,
+} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
+import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
+
+const configPath = ".github/spindle.json";
+const copilotPath = ".github/copilot-instructions.md";
+const startMarker = "<!-- spindle:start -->";
+const endMarker = "<!-- spindle:end -->";
+const initializationDirectories = ["docs", "docs/adr", ".scratch", "docs/agents", ".github"];
+const updateDirectories = ["docs", "docs/agents", ".github"];
 
 export interface ProjectInitializationResult {
   workspace: string;
@@ -26,104 +35,147 @@ export interface ProjectInitializationResult {
   updated: string[];
 }
 
+export interface PreparedProjectGuidance {
+  workspace: string;
+  configuration: ProjectConfigurationData;
+  directories: readonly string[];
+  files: {
+    destination: string;
+    content: string;
+    original: string | undefined;
+    createOnce: boolean;
+  }[];
+}
+
+function copilotInstructions(template: string, existing: string | undefined): string {
+  const block = `${startMarker}\n${template.trimEnd()}\n${endMarker}`;
+  if (existing === undefined) return `${block}\n`;
+  const start = existing.indexOf(startMarker);
+  const end = existing.indexOf(endMarker);
+  if (
+    start < 0 ||
+    end < start ||
+    existing.indexOf(startMarker, start + startMarker.length) !== -1 ||
+    existing.indexOf(endMarker, end + endMarker.length) !== -1
+  ) {
+    return `${block}\n`;
+  }
+  return existing.slice(0, start) + block + existing.slice(end + endMarker.length);
+}
+
 export class ProjectService extends Service {
-  private static readonly configPath = ".github/spindle.json";
-  private static readonly copilotInstructionsPath = ".github/copilot-instructions.md";
-
-  public async initialize(): Promise<ProjectInitializationResult> {
+  public async prepare(
+    configuration: ProjectConfigurationData,
+    mode: "init" | "update" = "init",
+  ): Promise<PreparedProjectGuidance> {
     this.assertApplicationBooted();
-    const workspace = realpathSync(this.app.workspacePath());
-    const absolute = (path: string) => join(workspace, path);
-    const configFile = absolute(ProjectService.configPath);
-    this.assertRegularFileOrMissing(configFile, ProjectService.configPath);
-
-    const state = LoadProjectConfiguration.current(this.app);
-    if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
-    if (state.status === "absent" || state.data.stacks.length === 0) {
+    const state = LoadProjectConfiguration.parse(JSON.stringify(configuration));
+    if (state.status !== "valid")
+      throw new Error(state.status === "invalid" ? state.reason : "Invalid project configuration.");
+    if (configuration.stacks.length === 0) {
       throw new Error(
         "Install at least one Blueprint stack with `spindle init` before initializing project guidance.",
       );
     }
-    const configuration = state.data;
+    const workspace = realpathSync(this.app.workspacePath());
+    const directories = mode === "init" ? initializationDirectories : updateDirectories;
+    for (const directory of directories) this.validateDirectory(workspace, directory);
+    this.assertRegularFileOrMissing(join(workspace, configPath), configPath);
+    this.assertRegularFileOrMissing(
+      join(workspace, "docs/agents/tooling.md"),
+      "docs/agents/tooling.md",
+    );
+    const context = await LoadProjectConfiguration.withTemporaryState(
+      this.app,
+      { status: "valid", data: configuration },
+      async () => resolveRenderContext(this.app, { stacks: configuration.stacks, variables: {} }),
+    );
+    const files = templateCatalog.project.map(({ source, destination, createOnce }) => {
+      const target = join(workspace, destination);
+      this.assertRegularFileOrMissing(target, destination);
+      const original = lstatSync(target, { throwIfNoEntry: false })
+        ? readFileSync(target, "utf8")
+        : undefined;
+      const rendered = renderText(
+        readFileSync(join(this.app.appPath("Assets/Templates"), source), "utf8"),
+        {
+          stacks: [...context.stacks],
+          variables: { ...context.variables },
+          computed: { ...context.computed },
+        },
+      );
+      return {
+        destination,
+        original,
+        createOnce: createOnce ?? false,
+        content: destination === copilotPath ? copilotInstructions(rendered, original) : rendered,
+      };
+    });
+    return { workspace, configuration, directories, files };
+  }
 
+  public async initialize(): Promise<ProjectInitializationResult> {
+    this.assertApplicationBooted();
+    const { config } = LoadProjectConfiguration.requireCurrent(this.app);
+    return this.apply(await this.prepare(config));
+  }
+
+  public async apply(prepared: PreparedProjectGuidance): Promise<ProjectInitializationResult> {
+    this.assertApplicationBooted();
+    const { workspace, files, configuration, directories } = prepared;
     const created: string[] = [];
     const preserved: string[] = [];
     const updated: string[] = [];
-
-    for (const directory of ["docs", "docs/adr", ".scratch", "docs/agents", ".github"]) {
-      const wasCreated = this.ensureDirectory(workspace, directory);
-      (wasCreated ? created : preserved).push(directory);
-    }
-
-    for (const { source, destination } of templateCatalog.project) {
-      const target = absolute(destination);
-      this.assertRegularFileOrMissing(target, destination);
-      if (destination === ProjectService.copilotInstructionsPath) {
-        const status = this.initializeCopilotInstructions(this.absoluteAsset(source), target);
-        if (status === "created") created.push(destination);
-        else if (status === "updated") updated.push(destination);
-        else preserved.push(destination);
-        continue;
+    try {
+      for (const directory of directories) {
+        (this.ensureDirectory(workspace, directory) ? created : preserved).push(directory);
       }
-      if (existsSync(target)) {
-        preserved.push(destination);
-      } else {
-        copyFileSync(this.absoluteAsset(source), target, constants.COPYFILE_EXCL);
-        created.push(destination);
+      for (const { destination, content, original, createOnce } of files) {
+        const target = join(workspace, destination);
+        this.assertRegularFileOrMissing(target, destination);
+        const stat = lstatSync(target, { throwIfNoEntry: false });
+        const current = stat ? readFileSync(target, "utf8") : undefined;
+        if (current !== original)
+          throw new Error(`'${destination}' changed while preparing project guidance; run again.`);
+        if (createOnce && original !== undefined) {
+          preserved.push(destination);
+          continue;
+        }
+        if (current === content) {
+          preserved.push(destination);
+          continue;
+        }
+        const temporary = `${target}.${randomUUID()}.tmp`;
+        try {
+          writeFileSync(temporary, content, { flag: "wx" });
+          if (stat) chmodSync(temporary, stat.mode & 0o777);
+          renameSync(temporary, target);
+        } finally {
+          this.removeTemporary(temporary);
+        }
+        (stat ? updated : created).push(destination);
       }
+      const tooling = await (await this.app.make(ToolingService)).initialize(configuration);
+      created.push(...tooling.created);
+      updated.push(...tooling.updated);
+    } catch (error) {
+      const completed = [...created, ...updated];
+      throw new Error(
+        `Failed to apply project guidance: ${error instanceof Error ? error.message : String(error)}.${completed.length ? ` Completed changes: ${completed.join(", ")}.` : ""} Application stopped; rollback was not attempted.`,
+        { cause: error },
+      );
     }
-
-    const tooling = await (await this.app.make(ToolingService)).initialize(configuration);
-    created.push(...tooling.created);
-    updated.push(...tooling.updated);
-
     return { workspace, created, preserved, updated };
   }
 
-  private absoluteAsset(path: string): string {
-    return join(this.app.appPath("Assets/Templates"), path);
-  }
-
-  private initializeCopilotInstructions(
-    source: string,
-    destination: string,
-  ): "created" | "updated" | "preserved" {
-    const existingStat = lstatSync(destination, { throwIfNoEntry: false });
-    if (!existingStat) {
-      copyFileSync(source, destination, constants.COPYFILE_EXCL);
-      return "created";
-    }
-    if (!existingStat.isFile()) {
-      throw new Error(
-        `${ProjectService.copilotInstructionsPath} must be a regular file, not a directory or symlink.`,
-      );
-    }
-
-    const existing = readFileSync(destination, "utf8");
-    const template = readFileSync(source, "utf8");
-    if (existing.includes(template)) return "preserved";
-
-    const temporary = this.writeTemporary(destination, `${template}\n${existing}`);
-    try {
-      chmodSync(temporary, existingStat.mode & 0o777);
-      renameSync(temporary, destination);
-    } finally {
-      this.removeTemporary(temporary);
-    }
-    return "updated";
-  }
-
-  private writeTemporary(path: string, content: string): string {
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, content, { flag: "wx" });
-    return temporary;
-  }
-
-  private removeTemporary(path: string): void {
-    try {
-      unlinkSync(path);
-    } catch (error) {
-      if (!this.isMissing(error)) throw error;
+  private validateDirectory(workspace: string, path: string): void {
+    let current = workspace;
+    for (const segment of path.split("/")) {
+      current = join(current, segment);
+      const entry = lstatSync(current, { throwIfNoEntry: false });
+      if (!entry) return;
+      if (!entry.isDirectory())
+        throw new Error(`${relative(workspace, current)} must be a real directory.`);
     }
   }
 
@@ -134,9 +186,8 @@ export class ProjectService extends Service {
       current = join(current, segment);
       const entry = lstatSync(current, { throwIfNoEntry: false });
       if (entry) {
-        if (!entry.isDirectory()) {
+        if (!entry.isDirectory())
           throw new Error(`${relative(workspace, current)} must be a real directory.`);
-        }
       } else {
         mkdirSync(current);
         created = true;
@@ -156,5 +207,13 @@ export class ProjectService extends Service {
     return (
       typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"
     );
+  }
+
+  private removeTemporary(path: string): void {
+    try {
+      unlinkSync(path);
+    } catch (error) {
+      if (!this.isMissing(error)) throw error;
+    }
   }
 }

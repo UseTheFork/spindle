@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import type { FeatureFinishOptions } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
@@ -24,8 +25,15 @@ export class FinishCommand extends Command {
       .option("--confirm-records", "Confirm inspected canonical records may be committed")
       .allowExcessArguments(false)
       .action(async (options: FeatureFinishOptions) => {
-        const command = await (await createApp()).make(FinishCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(FinishCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `Finished feature delivery for ${options.spec}.`,
+          data,
+        });
       });
   }
 

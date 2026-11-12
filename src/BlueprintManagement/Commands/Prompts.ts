@@ -50,29 +50,3 @@ export async function promptConflict(kind: string, name: string): Promise<"overw
   });
   return ensureAnswer<"overwrite" | "skip">(answer);
 }
-
-export async function promptOutdated(
-  kind: string,
-  name: string,
-  installed: string,
-  available: string,
-): Promise<"overwrite" | "skip"> {
-  const answer = await select<"overwrite" | "skip">({
-    message: `${kind} '${name}' is outdated (installed ${installed}, available ${available}). What should happen?`,
-    options: [
-      { value: "overwrite", label: "Overwrite" },
-      { value: "skip", label: "Skip" },
-    ],
-  });
-  return ensureAnswer<"overwrite" | "skip">(answer);
-}
-
-export async function promptNewBlueprints(kind: string, names: string[]): Promise<string[]> {
-  const answer = await multiselect({
-    message: `Which new ${kind}s should be installed?`,
-    options: names.map((value) => ({ value, label: value })),
-    initialValues: names,
-    required: false,
-  });
-  return ensureAnswer<string[]>(answer);
-}

@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { FindingCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
@@ -57,8 +58,15 @@ export class FindingCreateCommand extends Command {
         if (Boolean(options.ticket) === (options.scope === "delivery")) {
           throw new Error("finding create needs exactly one of --ticket or --scope delivery.");
         }
-        const command = await (await createApp()).make(FindingCreateCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(FindingCreateCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `Registered finding: ${options.summary}`,
+          data,
+        });
       });
   }
 

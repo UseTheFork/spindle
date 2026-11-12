@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
@@ -46,7 +47,6 @@ export class SubmitCommand extends Command {
       noFindingsDeclared = true;
     });
     submitCommand.action(async (options: SubmitOptions) => {
-      const command = await (await createApp()).make(SubmitCommand);
       if (options.scope !== undefined && options.scope !== "delivery") {
         throw new Error("--scope must be 'delivery'.");
       }
@@ -56,23 +56,34 @@ export class SubmitCommand extends Command {
       if (findingsDeclared && noFindingsDeclared) {
         throw new Error("--findings and --no-findings cannot be combined.");
       }
+      const app = await createApp();
+      const command = await app.make(SubmitCommand);
       const { findings, ...submission } = options;
-      console.log(
-        JSON.stringify(
-          await command.run({
-            ...submission,
-            ...(options.role === "review"
-              ? findings === false
-                ? { noFindings: true }
-                : Array.isArray(findings)
-                  ? { findingIds: findings }
-                  : {}
-              : {}),
-          }),
-          null,
-          2,
-        ),
-      );
+      const data = await command.run({
+        ...submission,
+        ...(options.role === "review"
+          ? findings === false
+            ? { noFindings: true }
+            : Array.isArray(findings)
+              ? { findingIds: findings }
+              : {}
+          : {}),
+      });
+      const output = await app.make(ConsoleOutputService);
+      const human = [
+        options.unavailable
+          ? `Marked the ${options.role} report unavailable for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`
+          : `Submitted ${options.role} report for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+        `Assignment: ${data.assignment.id} (${data.assignment.role}).`,
+        `Report: ${data.assignment.report}`,
+        ...(data.assignment.workspace ? [`Workspace: ${data.assignment.workspace}`] : []),
+        ...(data.assignment.branch ? [`Branch: ${data.assignment.branch}`] : []),
+      ];
+      output.result({
+        level: "success",
+        human,
+        data,
+      });
     });
   }
   public async run(options: SubmitOptions) {

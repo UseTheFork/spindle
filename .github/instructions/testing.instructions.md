@@ -16,7 +16,7 @@ applyTo: "**/*.test.{ts,js,cjs,mjs}"
 - Do not run tests when the user explicitly requests conversion without execution.
 - Run the smallest set of explicitly selected test files and named cases covering the change. Do not run the full suite by default; expand validation only when the change requires it and respect the user's test restrictions.
 - Import source modules using extensionless `@/` paths, as specified in [TypeScript conventions](./typescript.instructions.md).
-- Name files `<topic>.test.ts` next to the area they cover, or under `tests/` for CLI-level tests.
+- Use PascalCase for test filenames and directories. Group isolated tests under `tests/Unit/` and tests that exercise real filesystem, Git, subprocesses, or collaborating components under `tests/Integration/`. Keep shared fixtures in `tests/Helpers/`.
 
 ```ts
 import { expect, test } from "vitest";

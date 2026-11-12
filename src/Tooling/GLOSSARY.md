@@ -9,7 +9,8 @@ project development.
 A project command selected for agents to perform a defined development task.
 
 **Tooling registry**:
-The authoritative collection of selected tooling commands.
+The authoritative collection of project-specific tooling commands. Spindle
+commands are built-ins and are not stored in the registry.
 
 **Tooling guide**:
-The human- and agent-readable presentation of the tooling registry.
+The human- and agent-readable presentation of built-in commands and the tooling registry.
