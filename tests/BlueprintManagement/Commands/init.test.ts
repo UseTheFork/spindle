@@ -142,11 +142,7 @@ test("init installs its configured skill and records repeatable stack flags", as
   expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
     stacks: ["php-laravel", "typescript"],
     spindle_package_manager: "pnpm",
-    tooling: expect.arrayContaining([
-      expect.objectContaining({ command: "spindle init" }),
-      expect.objectContaining({ command: "spindle update" }),
-      expect.objectContaining({ command: "spindle tool <list|add|update|remove>" }),
-    ]),
+    tooling: [],
   });
   const skill = await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8");
   expect(skill).toMatch(/^---\nname: demo\nmetadata:\n  spindle:\n    version: \d+\.\d+\.\d+\n/m);
@@ -348,7 +344,7 @@ test(
     );
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/\.github.*symbolic link|symbolic link.*\.github/i);
+    expect(result.stderr).toMatch(/\.github must be a real directory/i);
     expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
     await expect(readFile(join(outside, "spindle.json"))).rejects.toThrow();
   },

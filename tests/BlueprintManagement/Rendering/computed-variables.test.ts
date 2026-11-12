@@ -202,7 +202,12 @@ test("update reuses computed output and leaves Config and version metadata intac
   const project = await makeTempDir("spindle-computed-update-project-");
   const configBytes = Buffer.from(
     JSON.stringify(
-      { stacks: ["typescript"], spindle_package_manager: "pnpm", variables: { owner: "legacy" } },
+      {
+        stacks: ["typescript"],
+        spindle_package_manager: "pnpm",
+        variables: { owner: "legacy" },
+        tooling: [],
+      },
       null,
       2,
     ),

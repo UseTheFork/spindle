@@ -14,32 +14,12 @@ import {
   type ProjectConfigurationData,
 } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
+import { builtInTooling, isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 const toolingPath = "docs/agents/tooling.md";
 const configPath = ".github/spindle.json";
 const toolingKeyPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
-
-const defaultTooling: ToolingEntry[] = [
-  {
-    key: "spindle-init",
-    section: "Spindle",
-    command: "spindle init",
-    description: "Install Spindle Blueprints and initialize project guidance.",
-  },
-  {
-    key: "spindle-update",
-    section: "Spindle",
-    command: "spindle update",
-    description: "Update installed Spindle Blueprints.",
-  },
-  {
-    key: "spindle-tool",
-    section: "Spindle",
-    command: "spindle tool <list|add|update|remove>",
-    description: "Manage documented project tooling commands.",
-  },
-];
 
 export interface ToolingEntryInput {
   key: string;
@@ -62,10 +42,7 @@ export class ToolingService extends Service {
     const configFile = join(workspace, configPath);
     this.assertRegularFileOrMissing(configFile, configPath);
 
-    const tooling =
-      previous.tooling === undefined
-        ? structuredClone(defaultTooling)
-        : this.migrateDefaultTooling(previous.tooling);
+    const tooling = previous.tooling ?? [];
     const config: ProjectConfigurationData = {
       ...previous,
       stacks: previous.stacks,
@@ -75,23 +52,40 @@ export class ToolingService extends Service {
     const documentFile = join(workspace, toolingPath);
     this.assertRegularFileOrMissing(documentFile, toolingPath);
     const documentExisted = existsSync(documentFile);
-    this.writeConfigurationAndDocumentation(
-      configFile,
-      `${JSON.stringify(config, null, 2)}\n`,
-      documentFile,
-      this.renderTooling(tooling),
-      readFileSync(configFile),
-    );
-    await LoadProjectConfiguration.refresh(this.app);
+    if (previous.tooling === undefined) {
+      this.writeConfigurationAndDocumentation(
+        configFile,
+        `${JSON.stringify(config, null, 2)}\n`,
+        documentFile,
+        this.renderTooling(tooling),
+        readFileSync(configFile),
+      );
+      await LoadProjectConfiguration.refresh(this.app);
+    } else {
+      const temporary = this.writeTemporary(documentFile, this.renderTooling(tooling));
+      try {
+        renameSync(temporary, documentFile);
+      } finally {
+        this.removeTemporary(temporary);
+      }
+    }
     return {
       created: documentExisted ? [] : [toolingPath],
-      updated: documentExisted ? [configPath, toolingPath] : [configPath],
+      updated: [
+        ...(previous.tooling === undefined ? [configPath] : []),
+        ...(documentExisted ? [toolingPath] : []),
+      ],
     };
   }
 
   public async listTooling(): Promise<ToolingEntry[]> {
     this.assertApplicationBooted();
-    return [...this.readInitializedConfiguration().tooling!];
+    const state = LoadProjectConfiguration.current(this.app);
+    if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
+    if (state.status === "absent") {
+      throw new Error("Project tooling is not initialized. Run `spindle init` first.");
+    }
+    return structuredClone([...builtInTooling, ...(state.data.tooling ?? [])]);
   }
 
   public async addTooling(input: ToolingEntryInput): Promise<ToolingEntry> {
@@ -172,11 +166,15 @@ export class ToolingService extends Service {
   private readInitializedConfiguration(): ProjectConfigurationData {
     const state = LoadProjectConfiguration.current(this.app);
     if (state.status === "absent") {
-      throw new Error("Project tooling is not initialized. Run `spindle init` first.");
+      throw new Error(
+        "Project tooling is not initialized. Run `spindle init` or `spindle update` first.",
+      );
     }
     if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
     if (state.data.tooling === undefined) {
-      throw new Error("Project tooling is not initialized. Run `spindle init` first.");
+      throw new Error(
+        "Project tooling is not initialized. Run `spindle init` or `spindle update` first.",
+      );
     }
     this.assertToolingDocumentAvailable();
     return state.data;
@@ -228,34 +226,12 @@ export class ToolingService extends Service {
     return entry;
   }
 
-  private migrateDefaultTooling(entries: ToolingEntry[]): ToolingEntry[] {
-    const migrated = [...entries];
-    const legacyIndex = entries.findIndex(
-      ({ key, command }) => key === "spindle-project-init" && command === "spindle project init",
-    );
-    if (legacyIndex >= 0) {
-      if (migrated.some(({ key }) => key === "spindle-tool")) {
-        migrated.splice(legacyIndex, 1);
-      } else {
-        migrated[legacyIndex] = structuredClone(defaultTooling[2]!);
-      }
-    }
-
-    const initIndex = migrated.findIndex(
-      ({ key, command, description }) =>
-        key === "spindle-init" &&
-        command === "spindle init" &&
-        description === "Install Spindle Blueprints for selected stacks.",
-    );
-    if (initIndex >= 0) {
-      migrated[initIndex] = structuredClone(defaultTooling[0]!);
-    }
-    return migrated;
-  }
-
   private validateKey(key: string): void {
     if (!toolingKeyPattern.test(key)) {
       throw new Error("Tooling key must use lowercase letters, digits, and interior hyphens.");
+    }
+    if (isBuiltInToolingKey(key)) {
+      throw new Error(`Tooling key '${key}' is reserved for a built-in command.`);
     }
   }
 
@@ -268,14 +244,14 @@ export class ToolingService extends Service {
 
   private renderTooling(entries: ToolingEntry[]): string {
     const sections = new Map<string, ToolingEntry[]>();
-    for (const entry of entries) {
+    for (const entry of [...builtInTooling, ...entries]) {
       const section = sections.get(entry.section) ?? [];
       section.push(entry);
       sections.set(entry.section, section);
     }
     const lines = ["# Project Tooling"];
     for (const [section, commands] of sections) {
-      lines.push("", `## ${section}`);
+      lines.push("", `## ${section}`, "");
       for (const entry of commands) {
         const description = entry.description ? `: ${entry.description}` : "";
         lines.push(`- ${inlineCode(entry.command)}${description}`);

@@ -153,6 +153,8 @@ Run \`spindle --version\` to print the installed version.
       spindle_package_manager: spindlePackageManager,
     };
     delete config.variables;
+    const project = await this.app.make(ProjectService);
+    const guidance = await project.prepare(config);
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
       context: { stacks, variables: {} },
@@ -183,7 +185,17 @@ Run \`spindle --version\` to print the installed version.
     console.log(
       `${chalk.green("✔")} Installed ${counts("installed") || "0 Blueprints"} for ${chalk.cyan(stacks.join(", "))}${skipped ? `. Skipped ${skipped}` : ""}`,
     );
-    await (await this.app.make(ProjectService)).initialize();
+    try {
+      await project.apply(guidance);
+    } catch (error) {
+      const completed = outcomes.filter(
+        (outcome) => outcome.status === "installed" || outcome.status === "removed",
+      );
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} Completed Blueprint changes: ${completed.map((outcome) => `${outcome.status} ${outcome.kind} '${outcome.name}'`).join(", ") || "none"}.`,
+        { cause: error },
+      );
+    }
     console.log(`${chalk.green("✔")} Initialized project guidance and tooling documentation.`);
   }
 }

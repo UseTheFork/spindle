@@ -10,9 +10,20 @@ version output remain available outside Git.
 
 `init` and `update` always manage `.github` at the discovered root, including
 when invoked from a nested directory. A successful `init` installs selected
-Blueprints before creating project guidance and the tooling registry. The
-`tool` subcommands maintain that registry in `.github/spindle.json` and
-regenerate `docs/agents/tooling.md`. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
+Blueprints before applying project guidance and the tooling registry. Both
+`init` and `update` render project guidance before changing the project, then
+replace `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` and
+regenerate `docs/agents/tooling.md`. Copilot instructions between
+`<!-- spindle:start -->` and `<!-- spindle:end -->` are replaced while content
+outside a valid pair is preserved. Unmarked files and files with invalid
+markers are replaced entirely.
+
+The `tool` subcommands maintain project-specific entries in
+`.github/spindle.json` and regenerate `docs/agents/tooling.md`. Spindle's three
+built-in commands are always included in the guide and `tool list`; their keys
+are reserved and are not stored in the registry. A missing `tooling` array is
+initialized to an empty array by `init` or `update`; existing entries are
+preserved. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
 discovered root, copying the shared SDD spec template and optionally a design
 template with `--with-design`. Feature and ticket creation require a valid
 project Config with `spindle_package_manager`, initialized by `spindle init`.
@@ -74,6 +85,8 @@ It resolves the installation service during asynchronous boot and keeps each
 run's Config, prompt answers, plans, and mutable state local to that operation.
 The service creates a fresh computed-context instance for each run, so computed
 values are memoized within a reconciliation but do not become stale across runs.
+Project guidance uses the same computed providers and configured Stacks when
+rendered. Undefined template values stop preparation before files are changed.
 
 ## Computed Variables
 

@@ -85,6 +85,7 @@ const goodConfig = {
   stacks: ["python", "typescript"],
   spindle_package_manager: "pnpm",
   variables: { owner: "legacy" },
+  tooling: [],
 };
 
 test("update copies a Skill's stacks directory as ordinary recursive content", async () => {
@@ -432,6 +433,7 @@ test(
       spindle_package_manager: "pnpm",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
+      tooling: [],
     };
     {
       await withProject(
@@ -496,6 +498,7 @@ test(
       spindle_package_manager: "npm run",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
+      tooling: [],
     };
     const currentSkills = {
       newer: skill("2.0.0"),
@@ -544,6 +547,7 @@ test(
       spindle_package_manager: "npm run",
       variables: { owner: "configured" },
       unrelated: { preserve: true },
+      tooling: [],
     };
     const currentSkills = {
       newer: skill("2.0.0"),
@@ -751,7 +755,7 @@ test(
           SPINDLE_TEST_BLUEPRINTS_DIR: stubs,
         });
         expect(result.status, label).not.toBe(0);
-        expect(result.stderr, label).toMatch(/symbolic link/i);
+        expect(result.stderr, label).toMatch(/symbolic link|must be a real directory/i);
         expect(await readFile(join(outside, "sentinel"), "utf8"), label).toBe("keep");
         if (link === "github") {
           expect(await readFile(join(outside, "skills", "newer", "SKILL.md"), "utf8")).toBe(

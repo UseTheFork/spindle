@@ -4,6 +4,7 @@ import type { Application } from "@/Foundation/Application";
 import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
+import { isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 export interface ProjectConfigurationData extends Record<string, unknown> {
@@ -161,6 +162,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
     return (
       Records.isRecord(value) &&
       typeof value.key === "string" &&
+      !isBuiltInToolingKey(value.key) &&
       /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value.key) &&
       typeof value.section === "string" &&
       this.isSingleLine(value.section) &&

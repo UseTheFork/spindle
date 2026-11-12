@@ -7,6 +7,7 @@ import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
 
 export class UpdateCommand extends Command {
@@ -18,8 +19,8 @@ export class UpdateCommand extends Command {
       .command("update")
       .description(
         `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
-Reads stacks and the Spindle package-manager command from .github/spindle.json and leaves it unchanged.
-Installs missing Blueprints and removes obsolete managed Blueprints automatically.`,
+Reads stacks and the Spindle package-manager command from .github/spindle.json.
+Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes project guidance.`,
       )
       .addHelpText(
         "after",
@@ -58,6 +59,8 @@ Unmanaged Blueprints are preserved.
       );
     }
 
+    const project = await this.app.make(ProjectService);
+    const guidance = await project.prepare(config.config, "update");
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: config.config,
@@ -66,6 +69,20 @@ Unmanaged Blueprints are preserved.
         variables: {},
       }),
     });
+    try {
+      await project.apply(guidance);
+    } catch (error) {
+      const completed = outcomes.filter(
+        (outcome) =>
+          outcome.status === "installed" ||
+          outcome.status === "updated" ||
+          outcome.status === "removed",
+      );
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)} Completed Blueprint changes: ${completed.map((outcome) => `${outcome.status} ${outcome.kind} '${outcome.name}'`).join(", ") || "none"}.`,
+        { cause: error },
+      );
+    }
     await LoadProjectConfiguration.refresh(this.app);
     for (const outcome of outcomes) {
       if (outcome.warning) {

@@ -50,7 +50,10 @@ const existingAlpha = {
 };
 
 test("existing config: init initializes project guidance and points to update", async () => {
-  const files = { ".github/spindle.json": '{"stacks":["python"],"variables":{}}\n' };
+  const files = {
+    ".github/spindle.json":
+      '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
+  };
   await withProject(
     (project) => seed(project, files),
     ["--stack", "python", "--on-conflict", "overwrite"],
@@ -62,10 +65,8 @@ test("existing config: init initializes project guidance and points to update", 
       const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
       expect(config.stacks).toEqual(["python"]);
       expect(config.variables).toEqual({});
-      expect(config).not.toHaveProperty("spindle_package_manager");
-      expect(config.tooling).toEqual(
-        expect.arrayContaining([expect.objectContaining({ key: "spindle-init" })]),
-      );
+      expect(config.spindle_package_manager).toBe("pnpm");
+      expect(config.tooling).toEqual([]);
     },
   );
 });

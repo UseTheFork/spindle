@@ -561,6 +561,7 @@ test("init rejects an empty catalog and update succeeds without changes", async 
       stacks: ["python"],
       spindle_package_manager: "pnpm",
       variables: {},
+      tooling: [],
     });
     await writeFile(join(project, ".github", "spindle.json"), config);
     const update = runCli(project, ["update"], process.env.PATH ?? "", env);
@@ -1094,6 +1095,7 @@ test("update keeps a nested Agent version stable when a Skill supporting templat
     stacks: ["python"],
     spindle_package_manager: "pnpm",
     variables: {},
+    tooling: [],
   });
   const agent = [
     "---",

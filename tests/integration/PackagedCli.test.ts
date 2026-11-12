@@ -200,8 +200,12 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(setup.status, setup.stderr).toBe(0);
   expect(setup.stdout).toContain("Initialized project guidance and tooling documentation.");
   expect(setup.stderr).toBe("");
+  const copilotTemplate = readFileSync(
+    join(checkout, "build/Assets/Templates/project/copilot-instructions.md"),
+    "utf8",
+  );
   expect(readFileSync(join(invocationWorkspace, ".github/copilot-instructions.md"), "utf8")).toBe(
-    readFileSync(join(checkout, "build/Assets/Templates/project/copilot-instructions.md"), "utf8"),
+    `<!-- spindle:start -->\n${copilotTemplate.trimEnd()}\n<!-- spindle:end -->\n`,
   );
   const add = cli.run(invocationWorkspace, [
     "tool",
