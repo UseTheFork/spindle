@@ -50,21 +50,41 @@ preserve existing assignments, attempts, evidence, and adjudication.
 
 ## Finish
 
-Use the normal Git workflow for code changes. SDD does not stage, commit,
-publish, or require a per-ticket integration confirmation. A changed code or
+Review each committed ticket before merging it into the feature worktree, then
+record post-merge checks before unblocking dependents. A changed code or
 requirements snapshot invalidates evidence that no longer covers it.
 
-Legacy feature workspaces without a recorded Git baseline stay blocked until
-the original comparison baseline is identified. Do not silently use the
-current `HEAD` after implementation; that could omit completed feature work
-from review.
+Do not silently substitute the current `HEAD` for the recorded Git baseline;
+that could omit completed feature work from review.
 
-Finish with `{{ computed.spindle_package_manager }} spindle sdd finish --spec <spec> --author <author>`. Completion requires
-at least one ticket, every ticket closed, current passing required feature
-checks and reviews, and no unresolved delivery blockers. The retrospective
-policy is stored at feature creation: when required, attach a Markdown report
-with `--report`; otherwise it is optional. Any report must remain inside that
-feature's `reports/` directory.
+Completion requires at least one ticket, every ticket integrated and validated,
+current passing required feature checks and reviews, and no unresolved delivery
+blockers. The retrospective policy is stored at feature creation: when required,
+attach a Markdown report with `--report`; otherwise it is optional. Any report
+must remain inside that feature's `reports/` directory.
+
+Inspect canonical records for sensitive content, then run
+`{{ computed.spindle_package_manager }} spindle sdd finish --spec <feature-spec> --author <controller> --confirm-records`
+from the feature worktree, adding `--report <absolute-report-path>` when needed.
+This merges into the recorded original branch and returns a pending final
+validation, merge SHA, snapshot, and original spec path; it does not yet complete
+the feature.
+
+In the original checkout, declare the entire non-empty final list with
+`{{ computed.spindle_package_manager }} spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <controller>`,
+repeating `--command` for each check. Run each command there, then record each
+actual result with `{{ computed.spindle_package_manager }} spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --snapshot <snapshot> --command <command> --result <result> --author <controller>`.
+Failed or unavailable results require `--details` and block cleanup until the
+latest result for each command passes. The list is frozen once declared.
+
+Run `{{ computed.spindle_package_manager }} spindle sdd finish --spec <original-spec> --author <controller>`
+again to preflight and clean up the recorded worktrees and branches. The final
+merge is the checked commit; the subsequent ledger-only relocation commit is
+reported separately and is not itself checked. Preserve any dirty or unexpected
+work and follow the reported journal for recovery rather than forcing cleanup.
+Ignored files in worktrees slated for removal also block cleanup; do not discard
+them without authorization. After a crash, remove a reported finalization lock
+only after verifying its recorded owner has stopped.
 
 Use `{{ computed.spindle_package_manager }} spindle sdd status`, `{{ computed.spindle_package_manager }} spindle sdd next`, and
 `{{ computed.spindle_package_manager }} spindle sdd resume --scope delivery` to inspect blockers and

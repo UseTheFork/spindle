@@ -49,6 +49,7 @@ export class CheckPolicy extends Service {
         );
         const current = records.filter((record) => {
           if (
+            (!progress.worktree || record.headSha === identity.headSha) &&
             record.snapshot === identity.snapshot &&
             record.codeSnapshot === identity.codeSnapshot &&
             record.requirementsSnapshot === identity.requirementsSnapshot
@@ -56,6 +57,7 @@ export class CheckPolicy extends Service {
             return true;
           }
           if (
+            !progress.worktree &&
             preservedIntegrationEvidence &&
             record.snapshot === progress.acceptedEvidence?.snapshot &&
             record.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
@@ -64,6 +66,7 @@ export class CheckPolicy extends Service {
             return true;
           }
           if (
+            (progress.worktree && record.headSha !== identity.headSha) ||
             !record.coveredPaths ||
             !record.coverageSnapshot ||
             record.requirementsSnapshot !== identity.requirementsSnapshot

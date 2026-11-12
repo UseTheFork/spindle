@@ -4,6 +4,9 @@ status: accepted
 
 # Separate subagent-driven development, Git, and project configuration
 
+ADR-0011 replaces this decision's caller-owned integration and shared-checkout
+assumptions; the context ownership boundaries remain applicable.
+
 The SDD CLI grammar remains unchanged, including positional `review require`,
 ticket and delivery scope selectors, and caller-owned integration commits.
 `SubagentDrivenDevelopmentServiceProvider` explicitly binds operation commands

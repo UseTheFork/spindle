@@ -5,6 +5,7 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { StatusOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class StatusCommand extends Command {
@@ -22,6 +23,9 @@ export class StatusCommand extends Command {
 
   public async run(options: StatusOptions) {
     this.assertApplicationBooted();
+    const finalization = await this.app.make(FeatureFinalizationService);
+    const recorded = finalization.recordedFeature(options.spec);
+    if (recorded) return finalization.status(recorded.feature);
     return (await this.app.make(FeatureInspectionService)).status(options);
   }
 }

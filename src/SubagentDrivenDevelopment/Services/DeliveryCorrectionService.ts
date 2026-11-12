@@ -74,22 +74,14 @@ export class DeliveryCorrectionService extends Service {
           "--reason is required for a pause and must identify the adjudication category.",
         );
       }
-      if (options.assessment || options.assessmentResult) {
+      if (options.assessment) {
         throw new Error("--assessment is only valid with --decision continue.");
       }
     } else if (options.reason) {
       throw new Error("--reason is only valid with --decision pause.");
     }
-    if (
-      options.decision === "continue" &&
-      (!options.assessment?.trim() || options.assessmentResult !== "productive")
-    ) {
-      throw new Error(
-        "--assessment and --assessment-result productive are required with --decision continue.",
-      );
-    }
-    if (options.assessmentResult && options.decision !== "continue") {
-      throw new Error("--assessment-result is only valid with --decision continue.");
+    if (options.decision === "continue" && !options.assessment?.trim()) {
+      throw new Error("--assessment is required with --decision continue.");
     }
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {

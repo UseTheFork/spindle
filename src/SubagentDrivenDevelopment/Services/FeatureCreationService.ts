@@ -127,7 +127,7 @@ export class FeatureCreationService extends Service {
           retrospectiveRequired: options.requireRetrospective ?? false,
           reviewPolicy: {
             version: 1,
-            ticket: ["sdd-reviewer"],
+            ticket: ["sdd-task-reviewer"],
             delivery: ["sdd-reviewer"],
           },
           tickets: [],

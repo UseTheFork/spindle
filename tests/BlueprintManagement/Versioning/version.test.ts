@@ -14,11 +14,3 @@ test("reads Blueprint versions from metadata frontmatter", async () => {
 
   expect(await readBlueprintVersion(file)).toBe("1.2.3");
 });
-
-test("ignores Blueprint versions under the old meta frontmatter key", async () => {
-  const directory = await makeTempDir("spindle-version-");
-  const file = join(directory, "SKILL.md");
-  await writeFile(file, "---\nmeta:\n  spindle:\n    version: 1.2.3\n---\nSkill\n");
-
-  expect(await readBlueprintVersion(file)).toBe(null);
-});

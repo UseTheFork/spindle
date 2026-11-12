@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { expect, test } from "vitest";
 
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
+import { StartCommand } from "@/SubagentDrivenDevelopment/Commands/StartCommand";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 import { serviceFixture } from "../helpers/helpers";
@@ -16,7 +17,8 @@ test("every executable operation is explicitly bound once as an application sing
   const { app } = await serviceFixture();
   app.register(SubagentDrivenDevelopmentServiceProvider);
   const commands = SubagentDrivenDevelopmentServiceProvider.commands();
-  expect(commands).toHaveLength(20);
+  expect(commands).toHaveLength(21);
+  expect(commands).toContain(StartCommand);
   for (const command of commands) {
     expect(app.bound(command)).toBe(true);
     const instance = await app.make(command);
@@ -36,12 +38,14 @@ test("schema-only registration reuses groups and preserves positional review req
   const sdd = root.commands[0]!;
   expect(sdd.commands.map((command) => command.name())).not.toContain("triage");
   expect(sdd.commands.map((command) => command.name())).not.toContain("accept");
-  expect(sdd.commands.map((command) => command.name())).not.toContain("integrate");
+  expect(sdd.commands.map((command) => command.name())).not.toContain("claim");
+  expect(sdd.commands.map((command) => command.name())).toContain("integrate");
   const review = sdd.commands.find((command) => command.name() === "review")!;
   expect(review.registeredArguments.map((argument) => argument.name())).toEqual(["action"]);
   expect(review.commands).toHaveLength(0);
   expect(review.options.map((option) => option.long)).toEqual([
     "--spec",
+    "--ticket",
     "--scope",
     "--inventory",
     "--author",

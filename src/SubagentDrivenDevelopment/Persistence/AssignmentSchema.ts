@@ -22,6 +22,10 @@ export function isImplementationAssignment(value: unknown): value is Implementat
     !value.controller.trim() ||
     typeof value.report !== "string" ||
     !isAbsolute(value.report) ||
+    (Object.hasOwn(value, "workspace") &&
+      (typeof value.workspace !== "string" || !isAbsolute(value.workspace))) ||
+    (Object.hasOwn(value, "branch") &&
+      (typeof value.branch !== "string" || !value.branch.trim())) ||
     typeof value.requestedAt !== "string" ||
     !Number.isFinite(Date.parse(value.requestedAt)) ||
     !["pending", "submitted", "unavailable"].includes(String(value.status)) ||

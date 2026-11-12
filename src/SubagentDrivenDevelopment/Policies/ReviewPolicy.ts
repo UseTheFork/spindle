@@ -53,8 +53,16 @@ export class ReviewPolicy extends Service {
     assignment: ReviewAssignment,
     identity: ContentIdentity,
   ): string | undefined {
+    if ("id" in progress && progress.worktree) {
+      try {
+        this.gitEvidence.assertTicketCodeCommitted(progress);
+      } catch (error) {
+        return `Ticket review workspace is invalid: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
     const integratedEvidence =
       assignment.scope !== "delivery" &&
+      !("worktree" in progress && progress.worktree) &&
       this.gitEvidence.integrationPreservesEvidence(progress, identity) &&
       assignment.snapshot === progress.acceptedEvidence?.snapshot &&
       assignment.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
@@ -64,14 +72,22 @@ export class ReviewPolicy extends Service {
       !integratedEvidence &&
       (assignment.snapshot !== identity.snapshot ||
         assignment.codeSnapshot !== identity.codeSnapshot ||
-        assignment.requirementsSnapshot !== identity.requirementsSnapshot)
+        assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
+        ("worktree" in progress &&
+          !!progress.worktree &&
+          (assignment.headSha !== identity.headSha ||
+            assignment.workspace !== progress.worktree.workspace ||
+            assignment.branch !== progress.worktree.branch)))
     ) {
       return `Review assignment ${assignment.id} is stale for the current ticket snapshot.`;
     }
     if (!progress.baseSha) return "Review assignment has no recorded Git baseline.";
     let inventory: string[];
     try {
-      inventory = this.gitEvidence.changedPaths(progress.baseSha);
+      inventory = this.gitEvidence.changedPaths(
+        progress.baseSha,
+        "id" in progress ? this.gitEvidence.ticketWorkspace(progress) : undefined,
+      );
     } catch (error) {
       return `Review inventory cannot be revalidated: ${error instanceof Error ? error.message : String(error)}`;
     }

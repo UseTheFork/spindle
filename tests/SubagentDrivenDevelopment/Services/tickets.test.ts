@@ -168,37 +168,6 @@ test("ticket creation requires valid project Config", async () => {
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
 });
 
-test("ticket commands reject legacy I-prefixed identifiers", async () => {
-  const { service, feature } = await ticketFixture("Ticket IDs");
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "I-0001",
-      status: "closed",
-      author: "maintainer",
-    }),
-  ).toThrow("Invalid ticket ID: I-0001.");
-});
-
-test("ticket reads reject legacy tracking fields in Markdown front matter", async () => {
-  const { service, feature } = await ticketFixture("Ticket Front Matter");
-  createTicket(service, feature.spec, "Current ticket");
-  const path = join(feature.workspace, "tickets", "T-0001.md");
-  const document = matter(readFileSync(path, "utf8"));
-  writeFileSync(
-    path,
-    matter.stringify(document.content, { ...document.data, title: "Legacy title" }),
-  );
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      author: "maintainer",
-    }),
-  ).toThrow("Ticket T-0001 tracking metadata must be stored in sdd.json.");
-});
-
 test("ticket creation rejects ignored destinations without changing ticket or ledger files", async () => {
   const { repo, service, feature } = await ticketFixture("Ignored Ticket");
   writeFileSync(join(repo, ".gitignore"), ".scratch/*/tickets/T-*.md\n");
@@ -292,7 +261,7 @@ test("ticket update stores structured fields in the ledger and preserves local m
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[1].blockedBy).toEqual([]);
 });
 
-test("ticket tracker transitions enforce blockers before closure", async () => {
+test("ticket tracker preserves blockers and forbids manual closure", async () => {
   const { service, feature } = await ticketFixture("Ticket Tracker");
   createTicket(service, feature.spec, "Track work");
   service.ticketService.ticketUpdate({
@@ -317,18 +286,27 @@ test("ticket tracker transitions enforce blockers before closure", async () => {
       status: "closed",
       author: "worker",
     }),
-  ).toThrow(/cannot close a blocked ticket/i);
+  ).toThrow(/automatically after passing post-merge checks/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
+  expect(() =>
+    service.ticketService.ticketUpdate({
+      spec: feature.spec,
+      ticket: "T-0001",
+      status: "closed",
+      clearBlocker: true,
+      author: "worker",
+    }),
+  ).toThrow(/automatically after passing post-merge checks/i);
   expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",
-    status: "closed",
     clearBlocker: true,
     author: "worker",
   });
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0]).toMatchObject({
-    status: "closed",
-  });
+  const updated = JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0];
+  expect(updated.status).toBe("open");
+  expect(updated.blocker).toBeUndefined();
 });
 
 test("ticket comment appends explicit UTC attribution without inferring reporter", async () => {

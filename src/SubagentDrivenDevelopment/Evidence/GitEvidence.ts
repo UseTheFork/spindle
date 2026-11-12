@@ -87,9 +87,9 @@ export class GitEvidence extends Service {
     return paths;
   }
 
-  public worktreeContentDigest(paths: string[]): string {
+  public worktreeContentDigest(paths: string[], workspace?: string): string {
     const records = paths.map((path) => {
-      const location = join(this.app.workspaceRoot, path);
+      const location = join(workspace ?? this.app.workspaceRoot, path);
       const entry = lstatIfPresent(location);
       if (!entry) return [path, "deleted", ""];
       if (entry.isSymbolicLink()) {
@@ -151,18 +151,19 @@ export class GitEvidence extends Service {
     return createHash("sha256").update(JSON.stringify(records)).digest("hex");
   }
 
-  public cleanGitBaseline(feature: FeaturePaths): string {
+  public cleanDispatchBaseline(feature: FeaturePaths, allowPendingRecords = false): string {
     const root = realpathSync(this.app.workspaceRoot);
+    if (allowPendingRecords) return this.pendingDispatchBaseline(feature, root);
     const changes = this.gitChangeSummary(feature);
     if (changes) {
       const deliveryRecords = this.deliveryRecordPaths(feature);
       if (deliveryRecords.length > 0) {
         throw new Error(
-          `Cannot claim while uncommitted delivery records remain; the caller must commit them first:\n${deliveryRecords.join("\n")}`,
+          `Cannot dispatch while uncommitted delivery records remain; inspect and confirm them before committing:\n${deliveryRecords.join("\n")}`,
         );
       }
       throw new Error(
-        `Cannot claim from a dirty checkout; commit or otherwise resolve staged, unstaged, and untracked changes first:\n${changes}`,
+        `Cannot dispatch from a dirty checkout; inspect and resolve staged, unstaged, and unrelated changes first:\n${changes}`,
       );
     }
     const revision = this.git.run(["rev-parse", "--verify", "HEAD"], {
@@ -179,16 +180,108 @@ export class GitEvidence extends Service {
     return revision.stdout.trim();
   }
 
+  private pendingDispatchBaseline(feature: FeaturePaths, root: string): string {
+    for (const variable of [
+      "GIT_DIR",
+      "GIT_WORK_TREE",
+      "GIT_COMMON_DIR",
+      "GIT_INDEX_FILE",
+      "GIT_OBJECT_DIRECTORY",
+      "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+      "GIT_NAMESPACE",
+    ]) {
+      if (process.env[variable]) throw new Error(`Unset ${variable} before ticket dispatch.`);
+    }
+    const ledger = this.ledgerRepository.readLedger(feature);
+    const pending = ledger.tickets
+      .map((ticket) => ticket.integration ?? ticket.integrationHistory?.at(-1))
+      .filter((integration) => integration?.postMerge?.status === "pending");
+    const head = this.headSha(root);
+    if (!pending.length || pending.some((integration) => integration?.mergeSha !== head)) {
+      throw new Error("Pending post-merge validation does not match the exact feature HEAD.");
+    }
+    const gitPath = (name: string) =>
+      resolve(
+        root,
+        this.gitBuffer(["rev-parse", "--git-path", name], root).toString("utf8").trim(),
+      );
+    for (const operation of [
+      "MERGE_HEAD",
+      "CHERRY_PICK_HEAD",
+      "REVERT_HEAD",
+      "REBASE_HEAD",
+      "rebase-merge",
+      "rebase-apply",
+      "sequencer",
+    ]) {
+      if (lstatIfPresent(gitPath(operation))) {
+        throw new Error(
+          `Existing Git operation ${operation} was preserved; inspect it before dispatch.`,
+        );
+      }
+    }
+    const common = realpathSync(
+      this.gitBuffer(["rev-parse", "--path-format=absolute", "--git-common-dir"], root)
+        .toString("utf8")
+        .trim(),
+    );
+    if (lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))) {
+      throw new Error("Pending workflow-record commit journal must be resolved before dispatch.");
+    }
+    const status = this.gitBuffer(
+      [
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+        "--",
+        ".",
+      ],
+      root,
+    )
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
+    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    for (const entry of status) {
+      const state = entry.slice(0, 2);
+      const path = entry.slice(3);
+      if (state[0] !== " " && state !== "??") {
+        throw new Error(`Staged data was preserved; inspect it before dispatch: ${path}.`);
+      }
+      if (path === lock) continue;
+      if (!allowed.has(path)) {
+        throw new Error(`Unrelated or non-canonical changes were preserved: ${path}.`);
+      }
+      const file = lstatIfPresent(join(root, path));
+      if (!file?.isFile() || file.isSymbolicLink()) {
+        throw new Error(`Canonical workflow record is missing or unsafe: ${path}.`);
+      }
+    }
+    if (this.headSha(root) !== head)
+      throw new Error("Feature HEAD changed during ticket dispatch.");
+    return head;
+  }
+
   public contentIdentity(
     feature: FeaturePaths,
     ticket: TicketDocument,
-    baseSha = this.headSha(),
+    baseSha?: string,
     checks?: TicketChecks,
     coveredPaths?: string[],
+    workspace?: string,
   ): ContentIdentity {
-    const root = realpathSync(this.app.workspaceRoot);
-    const headSha = this.headSha();
-    const changedPaths = this.changedPaths(baseSha);
+    const progress = this.ledgerRepository
+      .readLedger(feature)
+      .tickets.find((item) => item.id === ticket.id);
+    const root =
+      workspace ??
+      (progress ? this.ticketWorkspace(progress) : undefined) ??
+      realpathSync(this.app.workspaceRoot);
+    const headSha = this.headSha(root);
+    const changedPaths = this.changedPaths(baseSha ?? headSha, root);
     const paths = new Set(coveredPaths ?? changedPaths);
     if (coveredPaths) {
       for (const path of paths) {
@@ -216,7 +309,7 @@ export class GitEvidence extends Service {
       field("path", path);
       field(
         "index-stage",
-        this.gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`]),
+        this.gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`], root),
       );
       const indexed = this.git.run(["show", `:${path}`], {
         cwd: root,
@@ -259,8 +352,20 @@ export class GitEvidence extends Service {
       .update(JSON.stringify(requirementParts))
       .digest("hex");
     const snapshot = createHash("sha256")
-      .update(JSON.stringify([codeSnapshot, requirementsSnapshot]))
+      .update(
+        JSON.stringify(
+          progress?.worktree && root === progress.worktree.workspace
+            ? [codeSnapshot, requirementsSnapshot, headSha]
+            : [codeSnapshot, requirementsSnapshot],
+        ),
+      )
       .digest("hex");
+    if (this.headSha(root) !== headSha) {
+      throw new Error("Git HEAD changed while computing content evidence.");
+    }
+    if (progress?.worktree && root === progress.worktree.workspace) {
+      this.ticketWorkspace(progress);
+    }
     return { snapshot, codeSnapshot, requirementsSnapshot, headSha };
   }
 
@@ -275,7 +380,14 @@ export class GitEvidence extends Service {
     if (!delivery.baseSha) {
       throw new Error("Aggregate evidence requires the first ticket's recorded Git baseline.");
     }
-    const codeIdentity = this.contentIdentity(feature, tickets[0]!, delivery.baseSha);
+    const codeIdentity = this.contentIdentity(
+      feature,
+      tickets[0]!,
+      delivery.baseSha,
+      undefined,
+      undefined,
+      realpathSync(this.app.workspaceRoot),
+    );
     const requirementsSnapshot = createHash("sha256")
       .update(
         JSON.stringify([
@@ -305,25 +417,29 @@ export class GitEvidence extends Service {
     };
   }
 
-  public changedPaths(baseSha: string): string[] {
+  public changedPaths(baseSha: string, workspace?: string): string[] {
     const paths = new Set<string>();
     for (const args of [
-      ["diff", "--name-only", "-z", baseSha, "--", "."],
-      ["diff", "--cached", "--name-only", "-z", baseSha, "--", "."],
+      ["diff", "--name-only", "--no-renames", "-z", baseSha, "--", "."],
+      ["diff", "--cached", "--name-only", "--no-renames", "-z", baseSha, "--", "."],
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]) {
-      const output = this.gitBuffer(args).toString("utf8");
+      const output = this.gitBuffer(args, workspace).toString("utf8");
       for (const path of output.split("\0")) {
         if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
       }
     }
-    this.assertStableSubmodules(baseSha, paths);
+    this.assertStableSubmodules(baseSha, paths, workspace);
     return [...paths].sort();
   }
 
-  public assertStableSubmodules(baseSha: string, changedPaths: Set<string>): void {
+  public assertStableSubmodules(
+    baseSha: string,
+    changedPaths: Set<string>,
+    workspace?: string,
+  ): void {
     const gitlinks = new Map<string, string>();
-    for (const record of this.gitBuffer(["ls-files", "--stage", "-z"])
+    for (const record of this.gitBuffer(["ls-files", "--stage", "-z"], workspace)
       .toString("utf8")
       .split("\0")) {
       const [metadata, path] = record.split("\t", 2);
@@ -333,7 +449,7 @@ export class GitEvidence extends Service {
     }
 
     const knownPaths = new Set(gitlinks.keys());
-    for (const record of this.gitBuffer(["ls-tree", "-r", "-z", baseSha])
+    for (const record of this.gitBuffer(["ls-tree", "-r", "-z", baseSha], workspace)
       .toString("utf8")
       .split("\0")) {
       const [metadata, path] = record.split("\t", 2);
@@ -348,7 +464,7 @@ export class GitEvidence extends Service {
     }
 
     for (const path of knownPaths) {
-      const entry = lstatIfPresent(join(this.app.workspaceRoot, path));
+      const entry = lstatIfPresent(join(workspace ?? this.app.workspaceRoot, path));
       if (!entry) {
         throw new Error(
           `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
@@ -370,7 +486,7 @@ export class GitEvidence extends Service {
 
       let revision: string;
       try {
-        revision = this.gitBuffer(["-C", path, "rev-parse", "--verify", "HEAD"])
+        revision = this.gitBuffer(["-C", path, "rev-parse", "--verify", "HEAD"], workspace)
           .toString("utf8")
           .trim();
       } catch {
@@ -378,14 +494,10 @@ export class GitEvidence extends Service {
           `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
         );
       }
-      const status = this.gitBuffer([
-        "-C",
-        path,
-        "status",
-        "--porcelain",
-        "--untracked-files=all",
-        "--ignore-submodules=none",
-      ]).toString("utf8");
+      const status = this.gitBuffer(
+        ["-C", path, "status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none"],
+        workspace,
+      ).toString("utf8");
       if (revision !== gitlinks.get(path) || status.length > 0) {
         throw new Error(
           `Cannot compute code identity for changed submodule '${path}'; submodule changes are unsupported.`,
@@ -423,9 +535,93 @@ export class GitEvidence extends Service {
     );
   }
 
-  public headSha(): string {
+  public ticketWorkspace(progress: TicketProgress): string | undefined {
+    if (!progress.worktree) return undefined;
+    const recorded = progress.worktree;
+    const entry = lstatIfPresent(recorded.workspace);
+    if (
+      !entry?.isDirectory() ||
+      entry.isSymbolicLink() ||
+      realpathSync(recorded.workspace) !== recorded.workspace
+    ) {
+      throw new Error(
+        `Ticket ${progress.id} worktree is missing or unsafe: ${recorded.workspace}.`,
+      );
+    }
+    const canonical = realpathSync(this.app.workspaceRoot);
+    const common = this.gitBuffer(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+      .toString("utf8")
+      .trim();
+    const ticketCommon = this.gitBuffer(
+      ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+      recorded.workspace,
+    )
+      .toString("utf8")
+      .trim();
+    const branch = this.gitBuffer(
+      ["symbolic-ref", "--quiet", "--short", "HEAD"],
+      recorded.workspace,
+    )
+      .toString("utf8")
+      .trim();
+    const top = this.gitBuffer(["rev-parse", "--show-toplevel"], recorded.workspace)
+      .toString("utf8")
+      .trim();
+    const registrations = this.gitBuffer(["worktree", "list", "--porcelain", "-z"])
+      .toString("utf8")
+      .split("\0");
+    if (
+      isPathInside(canonical, recorded.workspace) ||
+      realpathSync(common) !== realpathSync(ticketCommon) ||
+      realpathSync(top) !== recorded.workspace ||
+      !registrations.includes(`worktree ${recorded.workspace}`) ||
+      branch !== recorded.branch
+    ) {
+      throw new Error(
+        `Ticket ${progress.id} worktree no longer matches its recorded repository and branch.`,
+      );
+    }
+    const ancestor = this.git.run(["merge-base", "--is-ancestor", recorded.baseSha, "HEAD"], {
+      cwd: recorded.workspace,
+      encoding: "utf8",
+    });
+    if (ancestor.error) throw ancestor.error;
+    if (ancestor.status !== 0)
+      throw new Error(`Ticket ${progress.id} no longer descends from its recorded baseline.`);
+    return recorded.workspace;
+  }
+
+  public assertTicketCodeCommitted(progress: TicketProgress): void {
+    const workspace = this.ticketWorkspace(progress);
+    if (!workspace) return;
+    const scratchDiff = this.gitBuffer(
+      ["diff", "--name-only", "--no-renames", "-z", progress.baseSha!, "HEAD", "--", ".scratch"],
+      workspace,
+    );
+    const scratchStatus = this.gitBuffer(
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".scratch"],
+      workspace,
+    );
+    if (scratchDiff.length || scratchStatus.length) {
+      throw new Error("Ticket worktree must not modify .scratch; use canonical feature records.");
+    }
+    const changed = new Set<string>();
+    for (const args of [
+      ["diff", "--name-only", "--no-renames", "-z", "HEAD", "--", "."],
+      ["diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD", "--", "."],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]) {
+      for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
+        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+      }
+    }
+    if (changed.size > 0)
+      throw new Error(`Commit ticket code before review: ${[...changed].sort().join(", ")}.`);
+  }
+
+  public headSha(workspace?: string): string {
     const revision = this.git.run(["rev-parse", "--verify", "HEAD"], {
-      cwd: realpathSync(this.app.workspaceRoot),
+      cwd: workspace ?? realpathSync(this.app.workspaceRoot),
       encoding: "utf8",
       env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
     });
@@ -436,9 +632,9 @@ export class GitEvidence extends Service {
     return revision.stdout.trim();
   }
 
-  public gitBuffer(args: string[]): Buffer {
+  public gitBuffer(args: string[], workspace?: string): Buffer {
     const result = this.git.run(args, {
-      cwd: realpathSync(this.app.workspaceRoot),
+      cwd: workspace ?? realpathSync(this.app.workspaceRoot),
       encoding: "buffer",
       env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
     });
@@ -472,7 +668,9 @@ export class GitEvidence extends Service {
     );
     if (status.error) throw status.error;
     if (status.status !== 0) {
-      throw new Error(`git status failed while checking claim readiness: ${status.stderr.trim()}`);
+      throw new Error(
+        `git status failed while checking dispatch readiness: ${status.stderr.trim()}`,
+      );
     }
     return status.stdout.trim();
   }
@@ -493,11 +691,13 @@ export class GitEvidence extends Service {
       return false;
     }
     try {
+      const workspace = this.ticketWorkspace(progress);
       return (
         progress.integration.contentDigest === accepted.contentDigest &&
         JSON.stringify(progress.integration.files) === JSON.stringify(accepted.files) &&
-        JSON.stringify(this.changedPaths(progress.baseSha!)) === JSON.stringify(accepted.files) &&
-        this.worktreeContentDigest(accepted.files) === accepted.contentDigest
+        JSON.stringify(this.changedPaths(progress.baseSha!, workspace)) ===
+          JSON.stringify(accepted.files) &&
+        this.worktreeContentDigest(accepted.files, workspace) === accepted.contentDigest
       );
     } catch {
       return false;

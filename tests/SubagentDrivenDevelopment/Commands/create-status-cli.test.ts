@@ -104,14 +104,23 @@ test("sdd review require accepts a catalog reviewer through --type", async () =>
   expect(JSON.parse(required.stdout).requirement.agent).toBe("sdd-code-reviewer");
 });
 
-test("sdd help advertises guarded workflow commands instead of the legacy workspace resolver", async () => {
+test("sdd help advertises guarded workflow commands", async () => {
   const { repo } = await serviceFixture();
   const searchPath = process.env.PATH ?? "";
   const help = runCli(repo, ["sdd", "--help"], searchPath);
   expect(help.status, help.stderr).toBe(0);
-  for (const command of ["create", "claim", "implement", "submit", "resume", "next", "status"]) {
+  for (const command of [
+    "create",
+    "implement",
+    "integrate",
+    "submit",
+    "resume",
+    "next",
+    "status",
+  ]) {
     expect(help.stdout).toMatch(new RegExp(`\\b${command}\\b`));
   }
+  expect(help.stdout).not.toMatch(/\b(claim|accept)\b/);
   expect(help.stdout).not.toMatch(/^\s+workspace\s+\[options\]/m);
   expect(help.stderr).toBe("");
 
@@ -131,10 +140,6 @@ test("sdd help advertises guarded workflow commands instead of the legacy worksp
   const statusHelp = runCli(repo, ["sdd", "status", "--help"], searchPath);
   expect(statusHelp.status, statusHelp.stderr).toBe(0);
   expect(statusHelp.stdout).toMatch(/--spec <path>/);
-  const legacy = runCli(repo, ["sdd", "workspace"], searchPath);
-  expect(legacy.status).not.toBe(0);
-  expect(legacy.stdout).toBe("");
-  expect(legacy.stderr).toMatch(/unknown command 'workspace'/);
 });
 
 test("sdd create and status expose JSON results and report path errors through the CLI", async () => {

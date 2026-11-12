@@ -6,6 +6,8 @@ export interface ImplementationAssignment {
   action: "implement" | "correct";
   controller: string;
   report: string;
+  workspace?: string;
+  branch?: string;
   requestedAt: string;
   status: "pending" | "submitted" | "unavailable";
   attempt?: number;
@@ -73,6 +75,8 @@ export interface ReviewAssignment {
   codeSnapshot: string;
   requirementsSnapshot: string;
   headSha: string;
+  workspace?: string;
+  branch?: string;
   inventory: string[];
   report: string;
   requestedAt: string;

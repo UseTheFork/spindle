@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import {
+  commitTicketWorkspace,
   execute,
   prepareImplementationForReview,
   recordReviewCheck,
   prepareReviewAssignment,
-  refreshReviewCheck,
 } from "../helpers/helpers";
 import type { WorkflowServices } from "../helpers/WorkflowServices";
 test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
@@ -87,7 +87,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
 });
 
 test("corrective implementation reports submit through the implementation evidence contract", async () => {
-  const { repo, spec, assignment } = await prepareReviewAssignment();
+  const { repo, spec, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
   const finding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -142,7 +142,8 @@ test("corrective implementation reports submit through the implementation eviden
     action: string;
     report: string;
   };
-  writeFileSync(join(repo, "feature.ts"), "export const feature = 'corrected';\n");
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'corrected';\n");
+  commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(fix.report, "# Correction report\n\nCorrected the finding.\n");
 
   const submitted = await execute(repo, (service) =>
@@ -191,7 +192,8 @@ test("a current non-mechanical failed check can select a correction before initi
 });
 
 test("explicit progress assessments permit productive continuation beyond five attempts", async () => {
-  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const { repo, spec, command, submission, ticketWorkspace } =
+    await prepareImplementationForReview();
   const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
   expect(failed.status, failed.stderr).toBe(0);
   let correction = await execute(repo, (service) =>
@@ -212,7 +214,8 @@ test("explicit progress assessments permit productive continuation beyond five a
       attempt: number;
     };
     expect(assigned.attempt).toBe(nextAttempt);
-    writeFileSync(join(repo, "feature.ts"), `export const feature = ${nextAttempt};\n`);
+    writeFileSync(join(ticketWorkspace, "feature.ts"), `export const feature = ${nextAttempt};\n`);
+    commitTicketWorkspace(ticketWorkspace, `correction attempt ${nextAttempt}`);
     writeFileSync(assigned.report, `# Correction ${nextAttempt}\n\nProgress recorded.\n`);
     const submitted = await execute(repo, (service) =>
       service.submissionService.submit({
@@ -241,12 +244,11 @@ test("explicit progress assessments permit productive continuation beyond five a
           checkFailure: command,
           details: `Address the newly observed behavior after correction ${nextAttempt}.`,
           decision: "continue",
-          assessment: `Correction ${nextAttempt} changed the reviewed behavior; continue with the newly assessed failure.`,
           author: "controller",
         }),
       );
       expect(unassessed.status).not.toBe(0);
-      expect(unassessed.stderr).toMatch(/assessment-result/i);
+      expect(unassessed.stderr).toMatch(/assessment/i);
       correction = await execute(repo, (service) =>
         service.correctionService.correct({
           spec,
@@ -255,7 +257,6 @@ test("explicit progress assessments permit productive continuation beyond five a
           details: `Address the newly observed behavior after correction ${nextAttempt}.`,
           decision: "continue",
           assessment: `Correction ${nextAttempt} changed the reviewed behavior; continue with the newly assessed failure.`,
-          assessmentResult: "productive",
           author: "controller",
         }),
       );
@@ -325,7 +326,7 @@ test("a progress pause records adjudication and resume preserves it without disp
 });
 
 test("corrective review findings retain assignment provenance for the next progress decision", async () => {
-  const { repo, spec, command, assignment } = await prepareReviewAssignment();
+  const { repo, spec, command, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
   const finding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -377,7 +378,8 @@ test("corrective review findings retain assignment provenance for the next progr
   );
   expect(corrected.status, corrected.stderr).toBe(0);
   const fix = JSON.parse(corrected.stdout).assignment as { report: string };
-  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
+  commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -449,7 +451,7 @@ test("corrective review findings retain assignment provenance for the next progr
 });
 
 test("resume returns pending corrective reviews after initial review coverage is submitted", async () => {
-  const { repo, spec, command, assignment } = await prepareReviewAssignment();
+  const { repo, spec, command, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
   const finding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -501,7 +503,8 @@ test("resume returns pending corrective reviews after initial review coverage is
   );
   expect(correction.status, correction.stderr).toBe(0);
   const implementation = JSON.parse(correction.stdout).assignment as { report: string };
-  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
+  commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(implementation.report, "# Correction report\n\nCorrected F-0001.\n");
   const submittedCorrection = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -552,8 +555,8 @@ test("resume returns pending corrective reviews after initial review coverage is
   );
 });
 
-test("a verified corrective review can complete acceptance while retaining initial coverage", async () => {
-  const { repo, spec, command, assignment } = await prepareReviewAssignment();
+test("a verified corrective review permits ticket integration while retaining initial coverage", async () => {
+  const { repo, spec, command, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
   const finding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -605,7 +608,8 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(correction.status, correction.stderr).toBe(0);
   const fix = JSON.parse(correction.stdout).assignment as { report: string };
-  writeFileSync(join(repo, "feature.ts"), "export const feature = 'fixed';\n");
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
+  commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
   const implementation = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -662,11 +666,23 @@ test("a verified corrective review can complete acceptance while retaining initi
   );
   expect(reviewed.status, reviewed.stderr).toBe(0);
 
-  const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  const integrated = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
-  expect(accepted.status, accepted.stderr).toBe(0);
-  expect(JSON.parse(accepted.stdout).execution).toBe("accepted");
+  expect(integrated.status, integrated.stderr).toBe(0);
+  expect(JSON.parse(integrated.stdout)).toMatchObject({
+    ticket: "T-0001",
+    postMerge: "pending",
+  });
+  expect(
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
+      .tickets[0].execution,
+  ).toBe("integrated");
 });
 
 test("requirements decisions require fresh review before deferring a blocking finding", async () => {
@@ -700,7 +716,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
   );
   expect(initialReview.status, initialReview.stderr).toBe(0);
 
-  const ticketPath = join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md");
+  const ticketPath = join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md");
   const initialTicket = readFileSync(ticketPath, "utf8");
   writeFileSync(
     ticketPath,
@@ -749,7 +765,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
   expect(decision.id).toBe("R-0001");
   expect(decision.status).toBe("approved");
 
-  const ledgerPath = join(repo, ".scratch", "0001-claim-flow", "sdd.json");
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
   const persistedDecision = JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0];
   expect(persistedDecision.reviewAssignments).toBe(undefined);
   expect(persistedDecision.reviewHistory.length).toBe(1);
@@ -826,11 +842,16 @@ test("requirements decisions require fresh review before deferring a blocking fi
   const finding = JSON.parse(finalDisposition.stdout).finding;
   expect(finding.status).toBe("deferred");
   expect(finding.requirementsDecision).toBe(decision.id);
-  const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  const integrated = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
-  expect(accepted.status, accepted.stderr).toBe(0);
-  expect(JSON.parse(accepted.stdout).execution).toBe("accepted");
+  expect(integrated.status, integrated.stderr).toBe(0);
+  expect(JSON.parse(integrated.stdout).postMerge).toBe("pending");
 });
 
 test("review submission requires exact provenance, result, and explicit no-findings and is idempotent", async () => {
@@ -910,7 +931,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const ticketText = readFileSync(
-    join(repo, ".scratch", "0001-claim-flow", "tickets", "T-0001.md"),
+    join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md"),
     "utf8",
   );
   expect(ticketText.match(/Review report submitted for assignment/g)?.length).toBe(1);
@@ -926,7 +947,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(altered.stderr).toMatch(/changed after submission/);
 });
 
-test("failed review without a no-findings attestation requires details and blocks acceptance", async () => {
+test("failed review without a no-findings attestation requires details and blocks integration", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking defect was found.\n");
   const submit = async (details?: string, declareFindings = true) =>
@@ -957,18 +978,23 @@ test("failed review without a no-findings attestation requires details and block
   expect(submitted.noFindings).toBe(true);
   expect(submitted.details).toBe("A blocking defect was found in the implementation.");
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
       .tickets[0].reviewAssignments[0].details,
   ).toBe("A blocking defect was found in the implementation.");
 
-  const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  const integrated = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
-  expect(accepted.status).not.toBe(0);
-  expect(accepted.stderr).toMatch(/failed/);
+  expect(integrated.status).not.toBe(0);
+  expect(integrated.stderr).toMatch(/failed/);
 });
 
-test("unavailable review without a no-findings attestation requires details and blocks acceptance", async () => {
+test("unavailable review without a no-findings attestation requires details and blocks integration", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nReview could not be completed.\n");
   const submit = async (details?: string) =>
@@ -996,18 +1022,23 @@ test("unavailable review without a no-findings attestation requires details and 
   expect(submitted.noFindings).toBe(true);
   expect(submitted.details).toBe("The reviewer could not assess whether findings exist.");
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
       .tickets[0].reviewAssignments[0].details,
   ).toBe("The reviewer could not assess whether findings exist.");
 
-  const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  const integrated = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
-  expect(accepted.status).not.toBe(0);
-  expect(accepted.stderr).toMatch(/unavailable/);
+  expect(integrated.status).not.toBe(0);
+  expect(integrated.stderr).toMatch(/unavailable/);
 });
 
-test("accept requires current checks and a complete passing finding-free initial review", async () => {
+test("integration requires current checks and complete passing finding-free reviews", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
   const submitted = await execute(repo, (service) =>
@@ -1024,54 +1055,37 @@ test("accept requires current checks and a complete passing finding-free initial
   );
   expect(submitted.status, submitted.stderr).toBe(0);
 
-  const accepted = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+  const integrated = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
-  expect(accepted.status, accepted.stderr).toBe(0);
-  const result = JSON.parse(accepted.stdout) as {
+  expect(integrated.status, integrated.stderr).toBe(0);
+  const result = JSON.parse(integrated.stdout) as {
     ticket: string;
-    execution: string;
-    reviews: { agent: string; assignment: string; result: string; noFindings: boolean }[];
-    snapshot: string;
+    ticketCommit: string;
+    mergeCommit: string;
+    postMerge: string;
   };
   expect(result.ticket).toBe("T-0001");
-  expect(result.execution).toBe("accepted");
-  expect(result.reviews).toEqual([
-    {
-      agent: "sdd-reviewer",
-      assignment: assignment.id,
-      result: "passed",
-      noFindings: true,
-    },
-  ]);
-  expect(result.snapshot).toBe(assignment.snapshot);
+  expect(result.ticketCommit).toMatch(/^[0-9a-f]{40,64}$/);
+  expect(result.mergeCommit).toMatch(/^[0-9a-f]{40,64}$/);
+  expect(result.postMerge).toBe("pending");
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-claim-flow", "sdd.json"), "utf8"))
+    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
       .tickets[0].execution,
-  ).toBe("accepted");
+  ).toBe("integrated");
   const repeated = await execute(repo, (service) =>
-    service.integrationService.accept({ spec, ticket: "T-0001", author: "controller" }),
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
   );
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
-
-  writeFileSync(join(repo, "feature.ts"), "export const feature = false;\n");
-  const refreshedCheck = await refreshReviewCheck(
-    repo,
-    spec,
-    "just test::test tests/feature.test.ts",
-  );
-  expect(refreshedCheck.status, refreshedCheck.stderr).toBe(0);
-  const staleStatus = await execute(repo, (service) =>
-    service.featureInspectionService.status({ spec }),
-  );
-  expect(staleStatus.status, staleStatus.stderr).toBe(0);
-  const statusOutput = JSON.parse(staleStatus.stdout);
-  expect(statusOutput.state.tickets[0].execution).toBe("accepted");
-  expect(
-    statusOutput.actions.some((action: { action: string }) => action.action === "integrate"),
-  ).toBe(false);
-  expect(
-    statusOutput.blockers.map((blocker: { reason: string }) => blocker.reason).join("\n"),
-  ).toMatch(/Review assignment .* stale/);
 });

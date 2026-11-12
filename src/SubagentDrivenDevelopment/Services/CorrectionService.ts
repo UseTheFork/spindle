@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import matter from "gray-matter";
 
@@ -12,6 +12,7 @@ import type {
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
+import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -23,6 +24,7 @@ import {
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -37,6 +39,7 @@ export class CorrectionService extends Service {
     private readonly workflowPolicy: WorkflowPolicy,
     private readonly deliveryCorrectionService: DeliveryCorrectionService,
     private readonly featureInspectionService: FeatureInspectionService,
+    private readonly checksService: ChecksService,
   ) {
     super(app);
   }
@@ -91,21 +94,13 @@ export class CorrectionService extends Service {
           "--reason is required for a pause and must identify the adjudication category.",
         );
       }
-      if (options.assessment || options.assessmentResult)
+      if (options.assessment)
         throw new Error("--assessment is only valid with --decision continue.");
     } else if (options.reason) {
       throw new Error("--reason is only valid with --decision pause.");
     }
-    if (
-      options.decision === "continue" &&
-      (!options.assessment?.trim() || options.assessmentResult !== "productive")
-    ) {
-      throw new Error(
-        "--assessment and --assessment-result productive are required with --decision continue.",
-      );
-    }
-    if (options.assessmentResult && options.decision !== "continue") {
-      throw new Error("--assessment-result is only valid with --decision continue.");
+    if (options.decision === "continue" && !options.assessment?.trim()) {
+      throw new Error("--assessment is required with --decision continue.");
     }
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
@@ -219,10 +214,93 @@ export class CorrectionService extends Service {
         );
       }
       const checkDriven = !!options.checkFailure?.trim();
+      const failedIntegration =
+        progress.execution === "integrated" ? progress.integration : undefined;
+      const postMergeChecks = failedIntegration?.postMerge?.checks;
+      let failedPostMergeRecord: CheckRecord | undefined;
+      if (failedIntegration && options.checkFailure?.trim()) {
+        if (failedIntegration.postMerge?.status !== "pending" || !postMergeChecks) {
+          throw new Error("Post-merge correction requires a pending failed validation.");
+        }
+        const latest = [...postMergeChecks.records]
+          .reverse()
+          .find((record) => record.command === options.checkFailure?.trim());
+        if (!latest || latest.result !== "failed") {
+          throw new Error(
+            "Post-merge correction requires the latest result for that command to be failed.",
+          );
+        }
+        const current = this.checksService.postMergeIdentity(
+          feature,
+          ledger,
+          progress,
+          postMergeChecks,
+          true,
+        );
+        if (latest.snapshot !== current.snapshot || latest.headSha !== current.headSha) {
+          throw new Error(
+            "Post-merge failure is stale; record current failure evidence before correction.",
+          );
+        }
+        const workspace = this.gitEvidence.ticketWorkspace(progress);
+        const mergeSha = failedIntegration.mergeSha;
+        if (!workspace || !mergeSha || this.gitEvidence.headSha(workspace) !== mergeSha) {
+          throw new Error(
+            "Fast-forward the clean ticket worktree to the failed feature merge before dispatching correction.",
+          );
+        }
+        const status = this.gitEvidence
+          .gitBuffer(
+            ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"],
+            workspace,
+          )
+          .toString("utf8");
+        if (status)
+          throw new Error(
+            "Ticket worktree must be clean before post-merge correction; changes were preserved.",
+          );
+        for (const operation of [
+          "MERGE_HEAD",
+          "CHERRY_PICK_HEAD",
+          "REVERT_HEAD",
+          "rebase-merge",
+          "rebase-apply",
+          "sequencer",
+        ]) {
+          const path = this.gitEvidence
+            .gitBuffer(["rev-parse", "--git-path", operation], workspace)
+            .toString("utf8")
+            .trim();
+          if (lstatIfPresent(resolve(workspace, path)))
+            throw new Error(
+              `Ticket Git operation ${operation} must be resolved before correction.`,
+            );
+        }
+        if (!progress.worktree)
+          throw new Error("Post-merge correction requires an isolated ticket worktree.");
+        if (!progress.baseSha) throw new Error("Ticket baseline is missing.");
+        this.gitEvidence.gitBuffer(["merge-base", "--is-ancestor", progress.baseSha, mergeSha]);
+        this.checksService.assertPrerequisiteBaseline(ledger, progress, mergeSha);
+        (progress.baselineHistory ??= []).push({
+          from: progress.baseSha,
+          to: mergeSha,
+          ticketHead: mergeSha,
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+        });
+        progress.baseSha = mergeSha;
+        progress.worktree.baseSha = mergeSha;
+        this.gitEvidence.assertTicketCodeCommitted(progress);
+        failedPostMergeRecord = latest;
+      }
       if (!checkDriven && progress.execution !== "changes-requested") {
         throw new Error(`Ticket ${options.ticket} must have a failed review before correction.`);
       }
-      if (checkDriven && !["reviewing", "changes-requested"].includes(progress.execution)) {
+      if (
+        checkDriven &&
+        !["reviewing", "changes-requested"].includes(progress.execution) &&
+        !failedPostMergeRecord
+      ) {
         throw new Error(
           `Ticket ${options.ticket} must have a submitted implementation before correction.`,
         );
@@ -271,7 +349,7 @@ export class CorrectionService extends Service {
         }
       }
       const checkFailure = options.checkFailure?.trim();
-      if (checkFailure) {
+      if (checkFailure && !failedPostMergeRecord) {
         const record = progress.checks?.records
           .filter(
             (candidate) =>
@@ -299,6 +377,9 @@ export class CorrectionService extends Service {
         ...(checkFailure ? { checkFailure } : {}),
         objective,
         report: join(feature.workspace, "reports", `${options.ticket}-round-${number}-fix.md`),
+        ...(progress.worktree
+          ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
+          : {}),
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
@@ -319,12 +400,14 @@ export class CorrectionService extends Service {
         ...(progress.assignment ? { priorAssignment: progress.assignment } : {}),
         ...(checkFailure
           ? {
-              checks: (progress.checks?.records ?? []).filter(
-                (record) =>
-                  record.snapshot === identity.snapshot &&
-                  record.codeSnapshot === identity.codeSnapshot &&
-                  record.requirementsSnapshot === identity.requirementsSnapshot,
-              ),
+              checks: failedPostMergeRecord
+                ? [failedPostMergeRecord]
+                : (progress.checks?.records ?? []).filter(
+                    (record) =>
+                      record.snapshot === identity.snapshot &&
+                      record.codeSnapshot === identity.codeSnapshot &&
+                      record.requirementsSnapshot === identity.requirementsSnapshot,
+                  ),
             }
           : {}),
       };
@@ -338,6 +421,10 @@ export class CorrectionService extends Service {
         };
       }
       attempts.push(attempt);
+      if (failedPostMergeRecord && failedIntegration) {
+        (progress.integrationHistory ??= []).push(failedIntegration);
+        delete progress.integration;
+      }
       progress.execution = "implementing";
       progress.assignment = assignment;
       if (pendingAdjudication && progress.adjudication) {

@@ -29,10 +29,11 @@ export function reviewSchema(root: Command): Command {
   if (existing) return existing;
   return program
     .command("review")
-    .description("Require a specialist or freeze the feature inventory for review.")
+    .description("Require a specialist or freeze a ticket or feature inventory for review.")
     .argument("[action]", "Use 'require' to pin a justified specialist reviewer")
     .option("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
-    .option("--scope <scope>", "Workflow scope: delivery")
+    .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
+    .option("--scope <scope>", "Workflow scope: delivery", CommandOptions.once("--scope"))
     .option(
       "--inventory <json>",
       "Controller-confirmed Git-derived inventory as a JSON string array",

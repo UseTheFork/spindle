@@ -1,10 +1,6 @@
 import { isAbsolute } from "node:path";
 
-import type {
-  CheckRequirement,
-  CheckGateInvalidation,
-  CheckRecord,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CheckRequirement, CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
@@ -23,7 +19,7 @@ export function isCheckRequirement(value: unknown): value is CheckRequirement {
   }
   const removed = Object.hasOwn(value, "removedAt");
   return (
-    !removed ||
+    (!removed && !Object.hasOwn(value, "removedBy") && !Object.hasOwn(value, "removalDetails")) ||
     (typeof value.removedAt === "string" &&
       Number.isFinite(Date.parse(value.removedAt)) &&
       typeof value.removedBy === "string" &&
@@ -38,7 +34,7 @@ export function isCheckRecord(value: unknown): value is CheckRecord {
     isRecord(value) &&
     typeof value.command === "string" &&
     !!value.command.trim() &&
-    ["passed", "failed", "unavailable"].includes(String(value.result)) &&
+    (value.result === "passed" || value.result === "failed" || value.result === "unavailable") &&
     typeof value.author === "string" &&
     !!value.author.trim() &&
     typeof value.snapshot === "string" &&
@@ -51,6 +47,8 @@ export function isCheckRecord(value: unknown): value is CheckRecord {
     /^[0-9a-f]{40,64}$/i.test(value.headSha) &&
     typeof value.recordedAt === "string" &&
     Number.isFinite(Date.parse(value.recordedAt)) &&
+    (!Object.hasOwn(value, "details") ||
+      (typeof value.details === "string" && !!value.details.trim())) &&
     (value.result === "passed" || (typeof value.details === "string" && !!value.details.trim()))
   ) {
     const hasScope =
@@ -66,20 +64,6 @@ export function isCheckRecord(value: unknown): value is CheckRecord {
     );
   }
   return false;
-}
-
-export function isCheckGateInvalidation(value: unknown): value is CheckGateInvalidation {
-  return (
-    isRecord(value) &&
-    typeof value.at === "string" &&
-    Number.isFinite(Date.parse(value.at)) &&
-    typeof value.author === "string" &&
-    !!value.author.trim() &&
-    typeof value.command === "string" &&
-    !!value.command.trim() &&
-    ["accepted", "integrated"].includes(String(value.from)) &&
-    value.to === "reviewing"
-  );
 }
 
 export function isSafeCoveragePath(value: unknown): value is string {

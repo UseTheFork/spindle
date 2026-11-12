@@ -9,6 +9,12 @@ export interface StatusOptions {
   spec: string;
 }
 
+export interface StartOptions {
+  spec: string;
+  workspace: string;
+  confirmRecords: boolean;
+}
+
 export interface TicketCreateOptions {
   spec: string;
   title: string;
@@ -49,9 +55,10 @@ export interface ReadyOptions {
   spec: string;
 }
 
-export type ClaimOptions = TicketSelection;
-
-export type ImplementOptions = TicketSelection;
+export interface ImplementOptions extends TicketSelection {
+  workspace: string;
+  confirmRecords?: boolean;
+}
 
 export interface CorrectOptions extends TicketSelection {
   scope?: string;
@@ -59,7 +66,6 @@ export interface CorrectOptions extends TicketSelection {
   checkFailure?: string;
   details: string;
   assessment?: string;
-  assessmentResult?: string;
   decision?: string;
   reason?: string;
 }
@@ -116,15 +122,13 @@ export interface ReviewRequireOptions extends ScopedSelection {
   details: string;
 }
 
-export type AcceptOptions = TicketSelection;
-
-export interface IntegrateOptions extends TicketSelection {
-  commit?: string;
-}
-
 export interface ResumeOptions extends TicketSelection {
   scope?: string;
   confirmHandoff?: boolean;
+}
+
+export interface IntegrateOptions extends TicketSelection {
+  confirmRecords?: boolean;
 }
 
 export interface FinishOptions {
@@ -136,6 +140,7 @@ export interface FinishOptions {
 export interface ChecksRequireOptions extends TicketSelection {
   scope?: string;
   command: string;
+  rebaseBaseline?: boolean;
   remove?: boolean;
   details?: string;
 }

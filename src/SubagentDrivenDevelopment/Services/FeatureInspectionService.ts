@@ -35,7 +35,6 @@ import type {
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
 import { isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
@@ -49,7 +48,6 @@ export class FeatureInspectionService extends Service {
     private readonly reportEvidence: ReportEvidence,
     private readonly featureWorkspace: FeatureWorkspace,
     private readonly ticketRepository: TicketRepository,
-    private readonly acceptancePolicy: AcceptancePolicy,
     private readonly assignmentPolicy: AssignmentPolicy,
     private readonly checkPolicy: CheckPolicy,
     private readonly findingPolicy: FindingPolicy,
@@ -103,12 +101,6 @@ export class FeatureInspectionService extends Service {
     this.ticketRepository.validateDependencyGraph(tickets);
     const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]));
     const progressById = new Map(feature.state.tickets.map((item) => [item.id, item]));
-    let checkoutChanges: string | undefined;
-    try {
-      checkoutChanges = this.gitEvidence.gitChangeSummary(feature);
-    } catch {
-      checkoutChanges = undefined;
-    }
     const actions: { ticket: string; action: string }[] = [];
     const snapshots: ({ ticket: string } & ContentIdentity)[] = [];
     const findings: { ticket: string; finding: ReviewFinding }[] = [];
@@ -132,14 +124,35 @@ export class FeatureInspectionService extends Service {
         blockers.push({ ticket: progress.id, reason: "Ticket Markdown is missing." });
         continue;
       }
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      let identity: ContentIdentity;
+      try {
+        identity = this.gitEvidence.contentIdentity(
+          feature,
+          ticket,
+          progress.baseSha,
+          progress.checks,
+        );
+      } catch (error) {
+        blockers.push({
+          ticket: progress.id,
+          reason: `Ticket evidence is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        continue;
+      }
       snapshots.push({ ticket: progress.id, ...identity });
-      if (ticket.status === "closed") continue;
+      if (ticket.status === "closed") {
+        if (
+          progress.execution === "integrated" &&
+          progress.integration?.postMerge?.status === "passed"
+        ) {
+          continue;
+        }
+        blockers.push({
+          ticket: progress.id,
+          reason: "Ticket closure requires integrated changes and passing post-merge checks.",
+        });
+        continue;
+      }
       for (const finding of progress.findings ?? []) {
         findings.push({ ticket: progress.id, finding });
       }
@@ -178,41 +191,24 @@ export class FeatureInspectionService extends Service {
         }
         const unmet = ticket.blocked_by.filter((dependency) => {
           const dependencyTicket = byId.get(dependency);
+          const dependencyProgress = progressById.get(dependency);
           return (
-            !dependencyTicket || dependencyTicket.status !== "closed" || !!dependencyTicket.blocker
+            !dependencyTicket ||
+            dependencyTicket.status !== "closed" ||
+            !!dependencyTicket.blocker ||
+            dependencyProgress?.status !== "closed" ||
+            dependencyProgress.execution !== "integrated" ||
+            dependencyProgress.integration?.postMerge?.status !== "passed"
           );
         });
         if (unmet.length > 0) {
           blockers.push({
             ticket: progress.id,
-            reason: `Dependencies are not closed: ${unmet.join(", ")}.`,
+            reason: `Dependencies must be closed, integrated, and post-merge validated: ${unmet.join(", ")}.`,
           });
           continue;
         }
-        if (checkoutChanges === undefined) {
-          blockers.push({
-            ticket: progress.id,
-            reason: "Checkout cleanliness could not be verified; claim is unavailable.",
-          });
-          continue;
-        }
-        if (checkoutChanges) {
-          blockers.push({
-            ticket: progress.id,
-            reason: `Checkout is dirty; claim requires no staged, unstaged, or untracked changes: ${checkoutChanges}`,
-          });
-          continue;
-        }
-        actions.push({ ticket: progress.id, action: "claim" });
-      } else if (progress.execution === "claimed") {
-        if (progress.owner && progress.baseSha) {
-          actions.push({ ticket: progress.id, action: "implement" });
-        } else {
-          blockers.push({
-            ticket: progress.id,
-            reason: "Claim has no recorded owner or baseline; implementation is unavailable.",
-          });
-        }
+        actions.push({ ticket: progress.id, action: "implement" });
       } else if (progress.execution === "implementing") {
         if (progress.assignment) {
           pendingAssignments.push({
@@ -307,7 +303,7 @@ export class FeatureInspectionService extends Service {
               action:
                 this.findingPolicy.findingBlockers(progress, identity).length > 0
                   ? "resolve-findings"
-                  : "accept",
+                  : "integrate",
             });
           }
         } else if (
@@ -333,23 +329,15 @@ export class FeatureInspectionService extends Service {
         });
       } else if (progress.execution === "blocked") {
         blockers.push({ ticket: progress.id, reason: "Ticket execution is blocked." });
-      } else if (progress.execution === "accepted") {
-        const acceptanceBlockers = this.acceptancePolicy.acceptBlockers(
-          feature,
-          feature.state,
-          ticket,
-          progress,
-          identity,
-        );
-        for (const reason of acceptanceBlockers) {
-          if (
-            !blockers.some((blocker) => blocker.ticket === progress.id && blocker.reason === reason)
-          ) {
-            blockers.push({ ticket: progress.id, reason });
-          }
+      } else if (progress.execution === "integrated") {
+        if (progress.integration?.postMerge?.status !== "passed") {
+          actions.push({ ticket: progress.id, action: "post-merge-checks" });
+        } else {
+          blockers.push({
+            ticket: progress.id,
+            reason: "Post-merge checks passed but the ticket is not recorded closed.",
+          });
         }
-        if (acceptanceBlockers.length === 0)
-          actions.push({ ticket: progress.id, action: "integrate" });
       }
     }
     for (const ticket of tickets) {

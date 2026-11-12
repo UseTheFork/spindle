@@ -26,7 +26,6 @@ export class CorrectCommand extends Command {
       )
       .option("--decision <decision>", "Continuation decision: continue or pause")
       .option("--assessment <assessment>", "Recorded progress assessment for the prior attempt")
-      .option("--assessment-result <result>", "Progress result: productive")
       .option(
         "--reason <reason>",
         "Pause reason: no-progress, repeated-failure, recurring-blocker, requirements-disagreement, worker-blocked",

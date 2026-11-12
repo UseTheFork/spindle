@@ -300,6 +300,7 @@ export class SubmissionService extends Service {
         throw new Error(`Ticket ${options.ticket} is awaiting a controller correction decision.`);
       }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
+      this.gitEvidence.assertTicketCodeCommitted(progress);
       const identity = this.gitEvidence.contentIdentity(
         feature,
         ticket,
@@ -380,10 +381,15 @@ export class SubmissionService extends Service {
         progress.baseSha,
         progress.checks,
       );
-      const confirmedInventory = this.gitEvidence.changedPaths(progress.baseSha);
+      this.gitEvidence.assertTicketCodeCommitted(progress);
+      const confirmedInventory = this.gitEvidence.changedPaths(
+        progress.baseSha,
+        this.gitEvidence.ticketWorkspace(progress),
+      );
       const confirmedReportDigest = this.reportEvidence.readReportDigest(feature, reportPath);
       if (
         confirmedIdentity.snapshot !== identity.snapshot ||
+        (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
         JSON.stringify(confirmedInventory) !== JSON.stringify(assignment.inventory) ||
         confirmedReportDigest !== reportSha256
       ) {
