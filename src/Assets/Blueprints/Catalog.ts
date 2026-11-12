@@ -67,7 +67,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
   },
   skills: {
-    "asd-ste100": { path: "asd-ste100/", status: "active", stacks: [] },
+    "ref-asd-ste100": { path: "ref-asd-ste100/", status: "active", stacks: [] },
     "author-agent": { path: "author-agent/", status: "active", stacks: [] },
     "sdd-author-design": { path: "sdd-author-design/", status: "active", stacks: [] },
     "author-instruction": { path: "author-instruction/", status: "active", stacks: [] },

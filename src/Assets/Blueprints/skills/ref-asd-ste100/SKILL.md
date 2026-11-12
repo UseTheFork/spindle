@@ -1,5 +1,5 @@
 ---
-name: asd-ste100
+name: ref-asd-ste100
 description:  "Rewrites ambiguous English into ASD-STE100 style — one meaning per word, active voice, simple tense, short sentences. Use when agent output is hard to parse; triggers: simplify this, STE100 rewrite."
 user-invocable: false
 metadata:
