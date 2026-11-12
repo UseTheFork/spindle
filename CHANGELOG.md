@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.3.0
+
+### Minor Changes
+
+- [#8](https://github.com/UseTheFork/spindle/pull/8) [`5fc6a9a`](https://github.com/UseTheFork/spindle/commit/5fc6a9a88b9d83c5b421e1afe3d306eb3a068176) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Switch to human-readable CLI output by default, add structured `--json` results, and expand built-in tooling and project guidance.
+
 ## 0.2.0
 
 ### Minor Changes
