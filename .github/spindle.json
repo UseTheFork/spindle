@@ -2,5 +2,79 @@
   "stacks": [
     "typescript"
   ],
-  "spindle_package_manager": "pnpm"
+  "spindle_package_manager": "pnpm",
+  "tooling": [
+    {
+      "key": "spindle-init",
+      "section": "Spindle",
+      "command": "spindle init",
+      "description": "Install Spindle Blueprints and initialize project guidance."
+    },
+    {
+      "key": "spindle-update",
+      "section": "Spindle",
+      "command": "spindle update",
+      "description": "Update installed Spindle Blueprints."
+    },
+    {
+      "key": "spindle-tool",
+      "section": "Spindle",
+      "command": "spindle tool <list|add|update|remove>",
+      "description": "Manage documented project tooling commands."
+    },
+    {
+      "key": "build",
+      "section": "Build",
+      "command": "pnpm run build",
+      "description": "Rebuild the Blueprint bundle and compile the CLI."
+    },
+    {
+      "key": "lint",
+      "section": "Linting",
+      "command": "pnpm run lint -- <args>",
+      "description": "Check selected files without modifying them."
+    },
+    {
+      "key": "lint-fix",
+      "section": "Linting",
+      "command": "pnpm run lint:fix -- <args>",
+      "description": "Apply lint fixes to selected files."
+    },
+    {
+      "key": "fmt",
+      "section": "Formatting",
+      "command": "pnpm run fmt -- <args>",
+      "description": "Format selected files."
+    },
+    {
+      "key": "typecheck",
+      "section": "Type checking",
+      "command": "pnpm exec tsc --noEmit",
+      "description": "Type-check production sources without emitting files."
+    },
+    {
+      "key": "typecheck-sdd-tests",
+      "section": "Type checking",
+      "command": "pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json",
+      "description": "Type-check the SDD and related tests."
+    },
+    {
+      "key": "typecheck-assets-project",
+      "section": "Type checking",
+      "command": "pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json",
+      "description": "Type-check BlueprintManagement, Project, Tooling, Foundation, and related tests."
+    },
+    {
+      "key": "test-selected",
+      "section": "Testing",
+      "command": "pnpm exec vitest run <explicit-files>",
+      "description": "Run selected Vitest tests once."
+    },
+    {
+      "key": "test-packaged-cli",
+      "section": "Testing",
+      "command": "pnpm exec vitest run tests/integration/PackagedCli.test.ts",
+      "description": "Run packaged CLI smoke tests after pnpm run build."
+    }
+  ]
 }
