@@ -13,6 +13,7 @@ import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
@@ -262,7 +263,11 @@ test("update reuses computed output and leaves Config and version metadata intac
     expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
       `Update: ${description}\n`,
     );
-    expect(await readFile(join(github, "spindle.json"))).toEqual(configBytes);
+    expect(JSON.parse(await readFile(join(github, "spindle.json"), "utf8"))).toMatchObject({
+      ...JSON.parse(configBytes.toString("utf8")),
+      commit: { title_max_length: 72 },
+      $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+    });
     expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
   }
 });
@@ -270,7 +275,7 @@ test("update reuses computed output and leaves Config and version metadata intac
 test("computed package-manager output comes from project Config, not render Variables", async () => {
   const app = applicationFixture("/project", "/blueprints", {
     status: "valid",
-    data: { stacks: [], spindle_package_manager: "pnpm" },
+    data: projectSettingsSchema.parse({ stacks: [], spindle_package_manager: "pnpm" }),
   });
   const contextService = await app.make(ComputedContextService);
   const context = await contextService.resolve(async () => ({
@@ -435,10 +440,10 @@ test("repeated Updates through one App render fresh Config with computed outputs
 test("providers receive Application once per run and refresh across runs", async () => {
   const projectConfig = {
     status: "valid" as const,
-    data: {
+    data: projectSettingsSchema.parse({
       stacks: ["python", "typescript"],
       spindle_package_manager: "pnpm",
-    },
+    }),
   };
   let providerApplication: Application | undefined;
   class ConfigProvider extends ComputedVariableProvider {
@@ -528,7 +533,7 @@ test("providers receive Application once per run and refresh across runs", async
 
   const otherApp = applicationFixture("/other-project", "/blueprints", {
     status: "valid",
-    data: { stacks: ["python"], spindle_package_manager: "yarn" },
+    data: projectSettingsSchema.parse({ stacks: ["python"], spindle_package_manager: "yarn" }),
   });
   const isolatedRun = await otherApp.make(ComputedContextService);
   const isolatedContext = await isolatedRun.resolve(

@@ -245,7 +245,13 @@ test("all selected versions are overwritten with stored stacks and package manag
       expect(await read(project, "bad")).toContain("fresh bad");
       await expect(readFile(join(project, ".github/skills/newer/extra.txt"))).rejects.toThrow();
       expect(await read(project, "absent")).toContain("fresh absent");
-      expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(configText);
+      expect(
+        JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+      ).toMatchObject({
+        ...goodConfig,
+        commit: { title_max_length: 72 },
+        $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+      });
       expect(result.stderr).toBe("");
       expect(result.stdout).toMatch(/Added 1, updated 5, skipped 0, up to date 0 skill\(s\)/);
     },
@@ -375,7 +381,7 @@ test("update overwrites malformed installed Skill YAML at selected paths", async
         ).rejects.toMatchObject({ code: "ENOENT" });
         expect(
           JSON.parse(await readFile(join(project, ".github", "spindle.json"), "utf8")),
-        ).toEqual({
+        ).toMatchObject({
           ...JSON.parse(config),
           tooling: [],
         });
@@ -479,9 +485,9 @@ test(
           expect(result.stdout).toMatch(/Added 1, updated 5, skipped 0, up to date 0 skill\(s\)/);
           expect(await read(project, "newer")).toMatch(/fresh newer manager=pnpm stacks=python;/);
           expect(await read(project, "absent")).toMatch(/fresh absent manager=pnpm stacks=python;/);
-          expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
-            projectConfig,
-          );
+          expect(
+            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+          ).toMatchObject(projectConfig);
         },
         variableStubs,
         (project, args, searchPath, env) =>
@@ -565,7 +571,7 @@ test(
 );
 
 test(
-  "update leaves legacy Variables untouched and does not attempt a Config write",
+  "update reports Config write failures and preserves the original Config",
   { skip: process.platform !== "linux" },
   async () => {
     const originalConfig = {
@@ -587,9 +593,8 @@ test(
       { config: originalConfig, skills: currentSkills },
       [],
       async (project, result) => {
-        expect(result.status, result.stdout).toBe(0);
-        expect(result.stdout).not.toMatch(/forced Config write failure/);
-        expect(await read(project, "absent")).toMatch(/fresh absent owner=npm run/);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout + result.stderr).toMatch(/forced Config write failure/);
         expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
           originalConfig,
         );
@@ -652,7 +657,7 @@ test("invalid stack ids in the config are rejected", async () => {
   );
 });
 
-test("missing or malformed config points to init", async () => {
+test("missing or malformed config reports how to recover", async () => {
   for (const config of [
     undefined,
     "{not json",
@@ -668,7 +673,9 @@ test("missing or malformed config points to init", async () => {
       [],
       async (project, result) => {
         expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/spindle init|Missing "spindle_package_manager"/);
+        expect(result.stderr).toMatch(
+          /spindle init|Fix \.github\/spindle\.json|Missing "spindle_package_manager"/,
+        );
         expect(await read(project, "newer")).toBe(skill("1.0.0"));
       },
     );

@@ -68,6 +68,14 @@ function makeGitWorkspace(directory: string) {
   return { git };
 }
 
+test("packaged schema describes project settings and supported stacks", () => {
+  const cli = packagedCli();
+  const schema = JSON.parse(readFileSync(join(cli.root, "build/spindle.schema.json"), "utf8"));
+  expect(schema.properties.stacks.items.enum).toEqual(["php-laravel", "python", "typescript"]);
+  expect(schema.properties.commit.properties.title_max_length.minimum).toBe(11);
+  expect(schema.required).toContain("stacks");
+});
+
 test("packaged sdd create and status expose feature state outside the checkout", () => {
   const cli = packagedCli();
   const gitWorkspace = tempDirectory("spindle-packaged-git-");

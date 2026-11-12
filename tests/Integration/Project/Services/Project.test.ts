@@ -60,6 +60,21 @@ test("project operations require a booted application", async () => {
   );
 });
 
+test("tooling changes refuse configuration made invalid after bootstrap", async () => {
+  const { workspace, service, tooling } = await fixture();
+  await service.initialize();
+  const path = join(workspace, ".github/spindle.json");
+  const config = JSON.parse(readFileSync(path, "utf8"));
+  config.commit.title_max_length = 1;
+  const invalid = JSON.stringify(config);
+  writeFileSync(path, invalid);
+
+  await expect(
+    tooling.addTooling({ key: "check", section: "Testing", command: "pnpm test" }),
+  ).rejects.toThrow("commit.title_max_length");
+  expect(readFileSync(path, "utf8")).toBe(invalid);
+});
+
 test("project initialization creates the baseline, seeds Spindle commands, and renders the guide", async () => {
   const { app, workspace, service } = await fixture();
   const result = await service.initialize();

@@ -12,6 +12,7 @@ import {
 } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { Stacks } from "@/Support/Stacks";
 
 export interface UpdateResult {
@@ -81,7 +82,14 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
       replacement === undefined
         ? { status: "valid" as const, data: current.config }
         : LoadProjectConfiguration.parse(JSON.stringify(replacement));
-    const config = LoadProjectConfiguration.require(state);
+    const resolved = LoadProjectConfiguration.require(state);
+    const config = {
+      ...resolved,
+      config: projectSettingsSchema.parse({
+        ...resolved.config,
+        $schema: ProjectSettingsSchema.releaseUrl(),
+      }),
+    };
     if (config.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
@@ -99,7 +107,7 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: config.config,
-      persistConfig: replacement !== undefined,
+      persistConfig: true,
       resolveContext: async () => ({
         stacks: config.stacks,
         variables: {},

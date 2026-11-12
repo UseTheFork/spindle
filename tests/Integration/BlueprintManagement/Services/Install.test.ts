@@ -9,6 +9,7 @@ import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/B
 import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
 import { preparePlannedBlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 
 import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
 import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
@@ -18,7 +19,10 @@ test("source Blueprint roots resolve from the module location, independent of Ap
   const expectedSourceRoot = fileURLToPath(
     new URL("../../../../src/Assets/Blueprints/", import.meta.url),
   );
-  const config = { stacks: ["typescript"], spindle_package_manager: "pnpm" };
+  const config = projectSettingsSchema.parse({
+    stacks: ["typescript"],
+    spindle_package_manager: "pnpm",
+  });
 
   {
     const app = applicationFixture(workspace, expectedSourceRoot);
@@ -96,14 +100,14 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const skillSource = join(firstSourceRoot, "skills", "int-test-driven-development", "SKILL.md");
   const skillTarget = (workspace: string) =>
     join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md");
-  const firstConfig = {
+  const firstConfig = projectSettingsSchema.parse({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
-  };
-  const secondConfig = {
+  });
+  const secondConfig = projectSettingsSchema.parse({
     stacks: ["typescript"],
     spindle_package_manager: "npm run",
-  };
+  });
   const firstContext = {
     stacks: firstConfig.stacks,
     variables: {},

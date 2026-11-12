@@ -1,41 +1,60 @@
-import { Records } from "@/Support/Records";
+import { z } from "zod";
 
-export interface CommitSettings {
-  allow_body: boolean;
-  title_max_length: number;
-  scopes_enabled: boolean;
-  allowed_scopes: string[];
-  allow_breaking_changes: boolean;
-}
-
-export const defaultCommitSettings: CommitSettings = {
-  allow_body: false,
-  title_max_length: 72,
-  scopes_enabled: false,
-  allowed_scopes: [],
-  allow_breaking_changes: false,
-};
-
-export function isCommitSettings(value: unknown): value is CommitSettings {
-  return (
-    Records.isRecord(value) &&
-    typeof value.allow_body === "boolean" &&
-    Number.isSafeInteger(value.title_max_length) &&
-    typeof value.title_max_length === "number" &&
-    value.title_max_length >= (value.allow_breaking_changes === true ? 12 : 11) &&
-    typeof value.scopes_enabled === "boolean" &&
-    Array.isArray(value.allowed_scopes) &&
-    value.allowed_scopes.every(
-      (scope) => typeof scope === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scope),
-    ) &&
-    new Set(value.allowed_scopes).size === value.allowed_scopes.length &&
-    (!value.scopes_enabled || value.allowed_scopes.length > 0) &&
-    (!value.scopes_enabled ||
-      value.allowed_scopes.every(
+export const commitSettingsSchema = z
+  .looseObject({
+    allow_body: z.boolean().default(false).describe("Allow commit message bodies."),
+    title_max_length: z
+      .number()
+      .int()
+      .min(11)
+      .default(72)
+      .describe("Maximum length of the complete commit title."),
+    scopes_enabled: z
+      .boolean()
+      .default(false)
+      .describe("Require an allowed scope in commit titles."),
+    allowed_scopes: z
+      .array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/))
+      .default([])
+      .describe("Allowed lowercase kebab-case commit scopes."),
+    allow_breaking_changes: z.boolean().default(false).describe("Allow breaking-change notation."),
+  })
+  .superRefine((settings, context) => {
+    if (settings.allow_breaking_changes && settings.title_max_length < 12) {
+      context.addIssue({
+        code: "custom",
+        path: ["title_max_length"],
+        message: "Must be at least 12 when breaking changes are enabled.",
+      });
+    }
+    if (new Set(settings.allowed_scopes).size !== settings.allowed_scopes.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["allowed_scopes"],
+        message: "Scopes must be unique.",
+      });
+    }
+    if (settings.scopes_enabled && settings.allowed_scopes.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["allowed_scopes"],
+        message: "At least one scope is required.",
+      });
+    }
+    if (
+      settings.scopes_enabled &&
+      settings.allowed_scopes.some(
         (scope) =>
-          scope.length + 13 + (value.allow_breaking_changes === true ? 1 : 0) <=
-          Number(value.title_max_length),
-      )) &&
-    typeof value.allow_breaking_changes === "boolean"
-  );
-}
+          scope.length + 13 + Number(settings.allow_breaking_changes) > settings.title_max_length,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["allowed_scopes"],
+        message: "Scopes must fit within the title limit.",
+      });
+    }
+  });
+
+export type CommitSettings = z.output<typeof commitSettingsSchema>;
+export const defaultCommitSettings = commitSettingsSchema.parse({});

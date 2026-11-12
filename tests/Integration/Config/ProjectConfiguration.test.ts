@@ -20,12 +20,22 @@ test("configuration commands require a booted application", async () => {
   );
 });
 
-test("configuration parsing ignores legacy variables and preserves unknown data without defaults", () => {
+test("configuration parsing preserves unknown data and resolves defaults", () => {
   const raw = '{"stacks":["python","python"],"variables":{"owner":""},"custom":{"enabled":true}}';
   const state = LoadProjectConfiguration.parse(raw);
   expect(state.status).toBe("valid");
   if (state.status !== "valid") throw new Error("Expected valid state");
-  expect(state.data).toEqual(JSON.parse(raw));
+  expect(state.data).toMatchObject({
+    ...JSON.parse(raw),
+    tooling: [],
+    commit: {
+      allow_body: false,
+      title_max_length: 72,
+      scopes_enabled: false,
+      allowed_scopes: [],
+      allow_breaking_changes: false,
+    },
+  });
   const config = LoadProjectConfiguration.require(state);
   expect(config.config).toBe(state.data);
   expect(config.stacks).toBe(state.data.stacks);
@@ -49,6 +59,22 @@ test("configuration accepts an empty stack list and an optional tooling registry
   ]);
 });
 
+test("partial commit settings resolve defaults and preserve unknown nested fields", () => {
+  const state = LoadProjectConfiguration.parse(
+    JSON.stringify({ stacks: [], commit: { allow_body: true, extension: "kept" } }),
+  );
+  expect(state.status).toBe("valid");
+  if (state.status !== "valid") throw new Error("Expected valid state");
+  expect(state.data.commit).toMatchObject({
+    allow_body: true,
+    title_max_length: 72,
+    scopes_enabled: false,
+    allowed_scopes: [],
+    allow_breaking_changes: false,
+    extension: "kept",
+  });
+});
+
 test("invalid JSON retains its original text and SyntaxError separately from command messaging", () => {
   const state = LoadProjectConfiguration.parse("{");
   expect(state.status).toBe("invalid");
@@ -56,7 +82,7 @@ test("invalid JSON retains its original text and SyntaxError separately from com
   expect(state.data).toBe("{");
   expect(state.error).toBeInstanceOf(SyntaxError);
   expect(() => LoadProjectConfiguration.require(state)).toThrow(
-    ".github/spindle.json is not valid JSON. Run `spindle init`",
+    ".github/spindle.json is not valid JSON. Fix .github/spindle.json",
   );
 });
 
@@ -83,7 +109,7 @@ test.each([
   expect(state.status).toBe("invalid");
   if (state.status !== "invalid") throw new Error("Expected invalid state");
   expect(state.data).toEqual(data);
-  expect(state.error.message).toContain("malformed");
+  expect(state.reason).toContain("malformed");
 });
 
 test("unsupported and empty stack IDs retain the existing validation errors", () => {

@@ -6,10 +6,7 @@ export class CommitGuidanceProvider extends ComputedVariableProvider {
   public render(): string {
     const state = LoadProjectConfiguration.current(this.app);
     if (state.status === "invalid") throw state.error;
-    const settings =
-      state.status === "valid"
-        ? (state.data.commit ?? defaultCommitSettings)
-        : defaultCommitSettings;
+    const settings = state.status === "valid" ? state.data.commit : defaultCommitSettings;
     const scope = settings.scopes_enabled ? `(${settings.allowed_scopes[0]})` : "";
     const example = (type: string, description: string) => {
       const title = `${type}${scope}: ${description}`;

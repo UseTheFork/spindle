@@ -3,7 +3,7 @@ import { cancel, confirm, isCancel, multiselect, select, text } from "@clack/pro
 import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import {
   defaultCommitSettings,
-  isCommitSettings,
+  commitSettingsSchema,
   type CommitSettings,
 } from "@/Settings/Models/CommitSettings";
 import { Stacks } from "@/Support/Stacks";
@@ -37,8 +37,12 @@ export async function promptCommitSettings(
       initialValue: String(initial.title_max_length),
       validate: (value) =>
         /^[1-9]\d*$/.test(value ?? "") &&
-        Number.isSafeInteger(Number(value)) &&
-        Number(value) >= minimumLength
+        commitSettingsSchema.safeParse({
+          ...initial,
+          allow_breaking_changes,
+          title_max_length: Number(value),
+          scopes_enabled: false,
+        }).success
           ? undefined
           : `Enter an integer of at least ${minimumLength}.`,
     }),
@@ -54,13 +58,13 @@ export async function promptCommitSettings(
         initialValue: initial.allowed_scopes.join(", "),
         validate: (value) => {
           const proposed = (value ?? "").split(",").map((scope) => scope.trim());
-          return isCommitSettings({
+          return commitSettingsSchema.safeParse({
             ...initial,
             allow_breaking_changes,
             title_max_length: Number(title),
             scopes_enabled: true,
             allowed_scopes: proposed,
-          })
+          }).success
             ? undefined
             : "Enter distinct lowercase kebab-case scopes that fit within the title limit.";
         },
@@ -175,7 +179,7 @@ export async function promptSettings(
     "Spindle package-manager command",
     config.spindle_package_manager ?? "",
   );
-  const tooling = await promptTooling(config.tooling ?? []);
-  const commit = await promptCommitSettings(config.commit ?? defaultCommitSettings);
+  const tooling = await promptTooling(config.tooling);
+  const commit = await promptCommitSettings(config.commit);
   return { ...config, stacks, spindle_package_manager, tooling, commit };
 }

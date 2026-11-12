@@ -18,7 +18,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "rm -rf build && tsc && tsc-alias && cp -R src/Assets/Blueprints/agents src/Assets/Blueprints/instructions src/Assets/Blueprints/skills build/Assets/Blueprints/ && cp -R src/Assets/Templates build/Assets/ && chmod 755 build/index.js",
+    "build": "rm -rf build && tsc && tsc-alias && node build/Settings/Models/GenerateProjectSchema.js && cp -R src/Assets/Blueprints/agents src/Assets/Blueprints/instructions src/Assets/Blueprints/skills build/Assets/Blueprints/ && cp -R src/Assets/Templates build/Assets/ && chmod 755 build/index.js",
     "spindle": "tsx src/index.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
@@ -32,7 +32,8 @@
     "chalk": "^6.0.1",
     "commander": "^15.0.0",
     "gray-matter": "^4.0.3",
-    "nunjucks": "^3.2.4"
+    "nunjucks": "^3.2.4",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.1",

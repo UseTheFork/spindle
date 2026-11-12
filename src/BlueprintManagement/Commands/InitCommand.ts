@@ -22,6 +22,7 @@ import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { promptCommitSettings } from "@/Settings/Commands/Prompts";
 import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { Stacks } from "@/Support/Stacks";
 
 export interface InitResult {
@@ -196,13 +197,13 @@ Run \`spindle --version\` to print the installed version.
       ? await promptCommitSettings(existing.status === "valid" ? existing.data.commit : undefined)
       : ((existing.status === "valid" ? existing.data.commit : undefined) ?? defaultCommitSettings);
 
-    const config: ProjectConfigurationData = {
+    const config: ProjectConfigurationData = projectSettingsSchema.parse({
       ...(existing.status === "valid" ? existing.data : {}),
+      $schema: ProjectSettingsSchema.releaseUrl(),
       stacks,
       spindle_package_manager: spindlePackageManager,
       commit,
-    };
-    delete config.variables;
+    });
     const project = await this.app.make(ProjectService);
     const guidance = await project.prepare(config);
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {

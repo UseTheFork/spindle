@@ -16,6 +16,12 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   const configPath = join(project, ".github/spindle.json");
   const skillPath = join(project, ".github/skills/int-commit-format/SKILL.md");
   const config = JSON.parse(await readFile(configPath, "utf8"));
+  const { version } = JSON.parse(
+    await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
+  );
+  expect(config.$schema).toBe(
+    `https://github.com/UseTheFork/spindle/releases/download/v${version}/spindle.schema.json`,
+  );
   expect(config.commit).toEqual({
     allow_body: false,
     title_max_length: 72,
@@ -25,6 +31,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   });
   expect(await readFile(skillPath, "utf8")).toContain("Use the title only");
   delete config.commit;
+  delete config.tooling;
   config.extra = { preserved: true };
   await writeFile(configPath, JSON.stringify(config));
   const legacy = run(["--json", "settings", "get", "commit.allow_body"]);
@@ -45,7 +52,9 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   expect(skill).toContain("A body is optional");
   expect(skill).toContain("Mark every breaking change with !");
   expect(skill).toContain("feat(api): add login");
-  expect(JSON.parse(await readFile(configPath, "utf8")).extra).toEqual({ preserved: true });
+  const saved = JSON.parse(await readFile(configPath, "utf8"));
+  expect(saved.extra).toEqual({ preserved: true });
+  expect(saved.tooling).toEqual([]);
   const result = run(["--json", "settings", "get", "commit.scopes_enabled"]);
   expect(JSON.parse(result.stdout)).toEqual({ ok: true, data: true });
 
@@ -63,6 +72,37 @@ test("init persists defaults and settings changes regenerate commit guidance", a
     .filter((line) => line.startsWith("- "));
   expect(examples).toHaveLength(2);
   expect(examples.every((line) => line.slice(2).length <= 23)).toBe(true);
+});
+
+test("invalid existing settings report fields and cannot be overwritten", async () => {
+  const project = await makeTempDir("spindle-settings-invalid-");
+  const run = (args: string[]) => runCli(project, args, process.env.PATH ?? "");
+  const init = run(["init", "--stack", "python", "--spindle-package-manager", "pnpm"]);
+  expect(init.status, init.stderr).toBe(0);
+  const path = join(project, ".github/spindle.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.commit.title_max_length = 1;
+  const invalid = JSON.stringify(config);
+  await writeFile(path, invalid);
+
+  const result = run(["settings", "set", "commit.title_max_length", "72"]);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("commit.title_max_length");
+  expect(await readFile(path, "utf8")).toBe(invalid);
+});
+
+test("init preserves unrecognized settings in an existing uninitialized configuration", async () => {
+  const project = await makeTempDir("spindle-settings-legacy-");
+  const configPath = join(project, ".github/spindle.json");
+  await mkdir(join(project, ".github"), { recursive: true });
+  await writeFile(configPath, JSON.stringify({ stacks: [], variables: { owner: "kept" } }));
+  const result = runCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(await readFile(configPath, "utf8")).variables).toEqual({ owner: "kept" });
 });
 
 test("settings and update overwrite catalog collisions while preserving unrelated assets", async () => {

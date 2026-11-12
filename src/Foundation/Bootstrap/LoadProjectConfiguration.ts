@@ -2,26 +2,16 @@ import { readFile } from "node:fs/promises";
 
 import type { Application } from "@/Foundation/Application";
 import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
-import { isCommitSettings, type CommitSettings } from "@/Settings/Models/CommitSettings";
+import { projectSettingsSchema, type ProjectSettings } from "@/Settings/Models/ProjectSettings";
 import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
-import { isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
-import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
-export interface ProjectConfigurationData extends Record<string, unknown> {
-  stacks: string[];
-  spindle_package_manager?: string;
-  tooling?: ToolingEntry[];
-  commit?: CommitSettings;
-}
+export type ProjectConfigurationData = ProjectSettings;
 
 export type ProjectConfigurationState =
   | { status: "absent" }
   | { status: "valid"; data: ProjectConfigurationData }
   | { status: "invalid"; data: unknown; error: Error; reason: string };
-
-const malformed =
-  ".github/spindle.json is malformed; check stacks, spindle_package_manager, tooling, and commit settings. Fix the file or run `spindle init`.";
 
 export class LoadProjectConfiguration extends Bootstrapper {
   public static parse(raw: string): ProjectConfigurationState {
@@ -37,10 +27,11 @@ export class LoadProjectConfiguration extends Bootstrapper {
         reason: ".github/spindle.json is not valid JSON.",
       };
     }
-    if (!this.isConfiguration(data)) {
-      return { status: "invalid", data, error: new Error(malformed), reason: malformed };
-    }
-    if (data.stacks.length > 0) {
+    if (
+      Records.isRecord(data) &&
+      Array.isArray(data.stacks) &&
+      data.stacks.every((stack) => typeof stack === "string")
+    ) {
       try {
         Stacks.validate(data.stacks);
       } catch (error) {
@@ -48,7 +39,15 @@ export class LoadProjectConfiguration extends Bootstrapper {
         return { status: "invalid", data, error, reason: error.message };
       }
     }
-    return { status: "valid", data };
+    const result = projectSettingsSchema.safeParse(data);
+    if (!result.success) {
+      const details = result.error.issues
+        .map((issue) => `${issue.path.join(".") || "configuration"}: ${issue.message}`)
+        .join("; ");
+      const reason = `.github/spindle.json is malformed: ${details}.`;
+      return { status: "invalid", data, error: result.error, reason };
+    }
+    return { status: "valid", data: result.data };
   }
 
   public static async load(path: string): Promise<ProjectConfigurationState> {
@@ -66,8 +65,9 @@ export class LoadProjectConfiguration extends Bootstrapper {
     const state = application.value("config.project");
     if (Records.isRecord(state)) {
       if (state.status === "absent") return { status: "absent" };
-      if (state.status === "valid" && this.isConfiguration(state.data)) {
-        return { status: "valid", data: state.data };
+      if (state.status === "valid") {
+        const result = projectSettingsSchema.safeParse(state.data);
+        if (result.success) return { status: "valid", data: result.data };
       }
       if (
         state.status === "invalid" &&
@@ -115,7 +115,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
     }
     if (state.status === "invalid") {
       if (state.reason.startsWith("Invalid stack '")) throw state.error;
-      throw new Error(`${state.reason} Run \`spindle init\` to create .github/spindle.json.`);
+      throw new Error(`${state.reason} Fix .github/spindle.json before continuing.`);
     }
     return { config: state.data, stacks: state.data.stacks };
   }
@@ -143,40 +143,5 @@ export class LoadProjectConfiguration extends Bootstrapper {
 
   public async bootstrap(application: Application): Promise<void> {
     await LoadProjectConfiguration.refresh(application);
-  }
-
-  private static isConfiguration(value: unknown): value is ProjectConfigurationData {
-    return (
-      Records.isRecord(value) &&
-      Array.isArray(value.stacks) &&
-      value.stacks.every((stack) => typeof stack === "string") &&
-      (value.spindle_package_manager === undefined ||
-        (typeof value.spindle_package_manager === "string" &&
-          this.isSingleLine(value.spindle_package_manager))) &&
-      (value.commit === undefined || isCommitSettings(value.commit)) &&
-      (value.tooling === undefined ||
-        (Array.isArray(value.tooling) &&
-          value.tooling.every((entry) => this.isToolingEntry(entry)) &&
-          new Set(value.tooling.map((entry) => entry.key)).size === value.tooling.length))
-    );
-  }
-
-  private static isToolingEntry(value: unknown): value is ToolingEntry {
-    return (
-      Records.isRecord(value) &&
-      typeof value.key === "string" &&
-      !isBuiltInToolingKey(value.key) &&
-      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value.key) &&
-      typeof value.section === "string" &&
-      this.isSingleLine(value.section) &&
-      typeof value.command === "string" &&
-      this.isSingleLine(value.command) &&
-      (value.description === undefined ||
-        (typeof value.description === "string" && this.isSingleLine(value.description)))
-    );
-  }
-
-  private static isSingleLine(text: string): boolean {
-    return text.trim().length > 0 && !/[\r\n]/.test(text);
   }
 }

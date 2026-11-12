@@ -79,6 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+      schema-artifact-id: ${{ steps.schema.outputs.artifact-id }}
     permissions:
       contents: read # to check out repo (actions/checkout)
     steps:
@@ -102,6 +103,14 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Preserve release schema
+        id: schema
+        uses: actions/upload-artifact@v4
+        with:
+          name: spindle-release-schema
+          path: build/spindle.schema.json
+          if-no-files-found: error
+
       - name: Pack packages
         id: pack
         uses: changesets/action/pack@v2
@@ -112,7 +121,7 @@ jobs:
     needs: pack
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to check out repo (actions/checkout) and to create releases (changesets/action/publish)
+      contents: write # to create release tags, releases, and assets
       id-token: write # for trusted publishing (changesets/action/publish)
     steps:
       - name: Check out repo
@@ -132,7 +141,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore release schema
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.pack.outputs.schema-artifact-id }}
+          path: build
+          merge-multiple: true
+
+      - name: Validate release inputs
+        run: node .github/scripts/publish-schema.mjs --validate
+
       - name: Publish packages
+        id: publish
         uses: changesets/action/publish@v2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
+          create-github-releases: false
+
+      - name: Publish schema release asset
+        if: steps.publish.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED_PACKAGES: ${{ steps.publish.outputs.published-packages }}
+        run: node .github/scripts/publish-schema.mjs

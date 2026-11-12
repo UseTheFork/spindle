@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import {
   LoadProjectConfiguration,
@@ -42,7 +43,7 @@ export class ToolingService extends Service {
     const configFile = join(workspace, configPath);
     this.assertRegularFileOrMissing(configFile, configPath);
 
-    const tooling = previous.tooling ?? [];
+    const tooling = previous.tooling;
     const config: ProjectConfigurationData = {
       ...previous,
       stacks: previous.stacks,
@@ -52,13 +53,24 @@ export class ToolingService extends Service {
     const documentFile = join(workspace, toolingPath);
     this.assertRegularFileOrMissing(documentFile, toolingPath);
     const documentExisted = existsSync(documentFile);
-    if (previous.tooling === undefined) {
+    const original = readFileSync(configFile);
+    const current = LoadProjectConfiguration.parse(original.toString("utf8"));
+    if (current.status !== "valid") {
+      throw new Error(
+        current.status === "invalid" ? current.reason : "Project configuration is absent.",
+      );
+    }
+    if (!isDeepStrictEqual(current.data, config)) {
+      throw new Error("Project configuration changed while preparing guidance; run again.");
+    }
+    const needsConfigWrite = !isDeepStrictEqual(JSON.parse(original.toString("utf8")), config);
+    if (needsConfigWrite) {
       this.writeConfigurationAndDocumentation(
         configFile,
         `${JSON.stringify(config, null, 2)}\n`,
         documentFile,
         this.renderTooling(tooling),
-        readFileSync(configFile),
+        original,
       );
       await LoadProjectConfiguration.refresh(this.app);
     } else {
@@ -72,7 +84,7 @@ export class ToolingService extends Service {
     return {
       created: documentExisted ? [] : [toolingPath],
       updated: [
-        ...(previous.tooling === undefined ? [configPath] : []),
+        ...(needsConfigWrite ? [configPath] : []),
         ...(documentExisted ? [toolingPath] : []),
       ],
     };
@@ -85,14 +97,15 @@ export class ToolingService extends Service {
     if (state.status === "absent") {
       throw new Error("Project tooling is not initialized. Run `spindle init` first.");
     }
-    return structuredClone([...builtInTooling, ...(state.data.tooling ?? [])]);
+    return structuredClone([...builtInTooling, ...state.data.tooling]);
   }
 
   public async addTooling(input: ToolingEntryInput): Promise<ToolingEntry> {
     this.assertApplicationBooted();
     const entry = this.validateEntry(input);
+    await LoadProjectConfiguration.refresh(this.app);
     const config = this.readInitializedConfiguration();
-    const tooling = config.tooling!;
+    const tooling = config.tooling;
     if (tooling.some(({ key }) => key === entry.key)) {
       throw new Error(`Tooling key '${entry.key}' already exists; use 'spindle tool update'.`);
     }
@@ -122,8 +135,9 @@ export class ToolingService extends Service {
       throw new Error("Use either --description or --clear-description, not both.");
     }
 
+    await LoadProjectConfiguration.refresh(this.app);
     const config = this.readInitializedConfiguration();
-    const tooling = config.tooling!;
+    const tooling = config.tooling;
     const index = tooling.findIndex(({ key }) => key === input.key);
     if (index < 0) throw new Error(`No tooling command has key '${input.key}'.`);
 
@@ -143,7 +157,7 @@ export class ToolingService extends Service {
     }
 
     const updated = [...tooling];
-    updated[index] = updatedEntry;
+    updated[index] = { ...updatedEntry };
     await this.saveTooling(config, updated);
     return updatedEntry;
   }
@@ -151,8 +165,9 @@ export class ToolingService extends Service {
   public async removeTooling(key: string): Promise<{ key: string; removed: true }> {
     this.assertApplicationBooted();
     this.validateKey(key);
+    await LoadProjectConfiguration.refresh(this.app);
     const config = this.readInitializedConfiguration();
-    const tooling = config.tooling!;
+    const tooling = config.tooling;
     if (!tooling.some((entry) => entry.key === key)) {
       throw new Error(`No tooling command has key '${key}'.`);
     }
@@ -171,11 +186,6 @@ export class ToolingService extends Service {
       );
     }
     if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
-    if (state.data.tooling === undefined) {
-      throw new Error(
-        "Project tooling is not initialized. Run `spindle init` or `spindle update` first.",
-      );
-    }
     this.assertToolingDocumentAvailable();
     return state.data;
   }

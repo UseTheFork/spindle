@@ -4,19 +4,13 @@ import {
   type ProjectConfigurationData,
 } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
-import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
+import { commitSettingsSchema } from "@/Settings/Models/CommitSettings";
+import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { Records } from "@/Support/Records";
 
 const keys = new Set([
-  "stacks",
-  "spindle_package_manager",
-  "tooling",
-  "commit",
-  "commit.allow_body",
-  "commit.title_max_length",
-  "commit.scopes_enabled",
-  "commit.allowed_scopes",
-  "commit.allow_breaking_changes",
+  ...Object.keys(projectSettingsSchema.shape).filter((key) => key !== "$schema"),
+  ...Object.keys(commitSettingsSchema.shape).map((field) => `commit.${field}`),
 ]);
 
 export class SettingsService extends Service {
@@ -25,15 +19,10 @@ export class SettingsService extends Service {
     const { config } = LoadProjectConfiguration.require(
       await LoadProjectConfiguration.refresh(this.app),
     );
-    const effective: ProjectConfigurationData = {
-      ...config,
-      tooling: config.tooling ?? [],
-      commit: config.commit ?? defaultCommitSettings,
-    };
-    if (key === undefined) return effective;
+    if (key === undefined) return config;
     if (!keys.has(key)) throw new Error(`Unknown setting '${key}'.`);
     const [group, field] = key.split(".");
-    const value = effective[group!];
+    const value = config[group!];
     if (field === undefined) {
       if (value === undefined) throw new Error(`Setting '${key}' is not configured.`);
       return value;
@@ -51,12 +40,13 @@ export class SettingsService extends Service {
     const updated =
       field === undefined
         ? { ...config, [group!]: value }
-        : { ...config, commit: { ...(config.commit ?? defaultCommitSettings), [field]: value } };
+        : { ...config, commit: { ...config.commit, [field]: value } };
     return this.save(updated);
   }
 
   public async save(value: unknown): Promise<ProjectConfigurationData> {
     this.assertApplicationBooted();
+    LoadProjectConfiguration.require(await LoadProjectConfiguration.refresh(this.app));
     const state = LoadProjectConfiguration.parse(JSON.stringify(value));
     if (state.status !== "valid")
       throw new Error(state.status === "invalid" ? state.reason : "Invalid settings.");
