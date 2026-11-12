@@ -37,7 +37,7 @@ export function writeFixtureCatalog(blueprints: string) {
     return files.sort();
   };
   const entries = (paths: string[]): Record<string, CatalogSourceEntry> =>
-    Object.fromEntries(paths.map((path) => [path, { path, status: "active", stacks: [] }]));
+    Object.fromEntries(paths.map((path) => [path, { path, stacks: [] }]));
   const skillPaths = existsSync(join(blueprints, "skills"))
     ? readdirSync(join(blueprints, "skills"), { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
@@ -51,10 +51,7 @@ export function writeFixtureCatalog(blueprints: string) {
       filesUnder(join(blueprints, "instructions"), (path) => path.endsWith(".instructions.md")),
     ),
     skills: Object.fromEntries(
-      skillPaths.map((path) => [
-        path,
-        { path: `${path.replace(/\/$/, "")}/`, status: "active", stacks: [] },
-      ]),
+      skillPaths.map((path) => [path, { path: `${path.replace(/\/$/, "")}/`, stacks: [] }]),
     ),
   };
   writeCatalogFixture(blueprints, catalog);

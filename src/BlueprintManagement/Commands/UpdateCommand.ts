@@ -1,13 +1,9 @@
 import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
-import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
-import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
-import { promptNewBlueprints, promptOutdated } from "@/BlueprintManagement/Commands/Prompts";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
@@ -23,34 +19,17 @@ export class UpdateCommand extends Command {
       .description(
         `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
 Reads stacks and the Spindle package-manager command from .github/spindle.json and leaves it unchanged.
-New shipped Blueprints are offered interactively; use
---include-new to install all of them without a prompt.`,
+Installs missing Blueprints and removes obsolete managed Blueprints automatically.`,
       )
-      .addOption(BlueprintCommandOptions.conflictPolicyOption("Policy for outdated Blueprints"))
-      .addOption(
-        BlueprintCommandOptions.noInteractiveOption(
-          "Never prompt; outdated Blueprints without --on-conflict are an error",
-        ),
-      )
-      .option("--include-new", "Install every newly shipped Blueprint without prompting")
       .addHelpText(
         "after",
         `
 Requires .github/spindle.json; run \`spindle init\` first.
-Installed Blueprints with a missing or non-semver version are skipped with a warning.
+Unmanaged Blueprints are preserved.
 `,
       )
       .allowExcessArguments(false)
-      .action(
-        async (options: { onConflict?: string; interactive: boolean; includeNew?: boolean }) => {
-          const interactive =
-            options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
-          const policy = parseConflictPolicy(options.onConflict);
-          await (
-            await (await createApp()).make(UpdateCommand)
-          ).run(interactive, policy, options.includeNew);
-        },
-      );
+      .action(async () => (await (await createApp()).make(UpdateCommand)).run());
   }
 
   public constructor(app: Application) {
@@ -62,11 +41,7 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(
-    interactive: boolean,
-    policy: ConflictPolicy | undefined,
-    includeNew = false,
-  ): Promise<void> {
+  public async run(): Promise<void> {
     this.assertApplicationBooted();
     const config = LoadProjectConfiguration.require(
       await LoadProjectConfiguration.refresh(this.app),
@@ -86,14 +61,6 @@ Installed Blueprints with a missing or non-semver version are skipped with a war
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: config.config,
-      includeNew,
-      chooseNew: interactive && !includeNew ? promptNewBlueprints : undefined,
-      conflictPolicy: policy,
-      chooseConflict:
-        interactive && policy === undefined
-          ? async (kind, name, installed, available) =>
-              promptOutdated(kind, name, installed!, available!)
-          : undefined,
       resolveContext: async () => ({
         stacks: config.stacks,
         variables: {},

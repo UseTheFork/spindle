@@ -52,7 +52,6 @@ export async function readBlueprintVersion(
   entryFile: string,
   context?: RenderContext,
   options: {
-    rejectMalformed?: boolean;
     onRendered?: (sourceText: string, renderedText: string) => void;
   } = {},
 ): Promise<string | null> {
@@ -73,8 +72,7 @@ export async function readBlueprintVersion(
   try {
     const version = matter(rendered, {}).data.metadata?.spindle?.version;
     return typeof version === "string" || typeof version === "number" ? String(version) : null;
-  } catch (error) {
-    if (options.rejectMalformed) throw error;
+  } catch {
     return null;
   }
 }

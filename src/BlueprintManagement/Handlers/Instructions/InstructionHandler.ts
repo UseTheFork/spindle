@@ -21,7 +21,7 @@ export const instructionHandler: BlueprintHandler = {
   planUpdate: (input) => {
     const entry = input.sourceFiles[0].outputPath;
     return entry.toLowerCase().endsWith(".md")
-      ? planVersionedUpdate(input, "Instruction", entry, (target) => target, "warning")
+      ? planVersionedUpdate(input, "Instruction", entry, (target) => target)
       : Promise.resolve({ status: input.installed ? "conflict" : "new" });
   },
 };

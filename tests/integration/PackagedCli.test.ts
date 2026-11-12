@@ -354,7 +354,7 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
     writeFileSync(join(skillDirectory, name), "legacy location\n");
   }
 
-  const updated = cli.run(project, ["update", "--no-interactive", "--on-conflict", "overwrite"]);
+  const updated = cli.run(project, ["update"]);
   expect(updated.status, updated.stderr).toBe(0);
   for (const name of ["tests.md", "mocking.md"]) {
     expect(existsSync(join(skillDirectory, name))).toBe(false);

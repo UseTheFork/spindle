@@ -26,14 +26,12 @@ test("the management catalog validates shipped asset metadata without changing r
     key: "code-commenting",
     path: "code-commenting.instructions.md",
     directory: false,
-    status: "active",
     stacks: [],
   });
   expect(validated.instructions.find((entry) => entry.key === "source-architecture")).toEqual({
     key: "source-architecture",
     path: "source-architecture.instructions.md",
     directory: false,
-    status: "active",
     stacks: [],
   });
 });
@@ -52,12 +50,7 @@ test.each([
   );
   expect(result.status, result.stderr).toBe(0);
 
-  const destination = join(
-    project,
-    ".github",
-    "skills",
-    "ref-php-laravel-saloon-api-integrations",
-  );
+  const destination = join(project, ".github", "skills", "ref-php-laravel-saloon-api-integrations");
   if (!installed) {
     await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
     return;
@@ -98,7 +91,7 @@ test.each([
 });
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
-  const entry = { path: "selected.agent.md", status: "active", stacks: [] };
+  const entry = { path: "selected.agent.md", stacks: [] };
   const definition = (value: unknown) => ({
     agents: { selected: value },
     instructions: {},
@@ -112,10 +105,10 @@ test("catalog validation preserves schema and path diagnostics for static defini
     { data: definition(null), diagnostic: /must be an entry mapping/ },
     { data: definition({ ...entry, extra: true }), diagnostic: /Unknown field 'extra'/ },
     {
-      data: definition({ path: entry.path, status: "active" }),
+      data: definition({ path: entry.path }),
       diagnostic: /missing required 'stacks'/,
     },
-    { data: definition({ ...entry, status: "retired" }), diagnostic: /Invalid status/ },
+    { data: definition({ ...entry, status: "removed" }), diagnostic: /Unknown field 'status'/ },
     {
       data: definition({ ...entry, stacks: "python" }),
       diagnostic: /must be a list of Stack names/,
@@ -153,13 +146,12 @@ test("static catalog normalization preserves logical keys, directories, and Stac
       agents: {
         reviewer: {
           path: "group/reviewer.agent.md",
-          status: "active",
           stacks: ["python", "typescript"],
           canReview: true,
         },
       },
       instructions: {},
-      skills: { retired: { path: "retired/", status: "removed", stacks: [] } },
+      skills: { selected: { path: "selected/", stacks: [] } },
     }),
   ).toEqual({
     agents: [
@@ -167,18 +159,17 @@ test("static catalog normalization preserves logical keys, directories, and Stac
         key: "reviewer",
         path: "group/reviewer.agent.md",
         directory: false,
-        status: "active",
         stacks: ["python", "typescript"],
         canReview: true,
       },
     ],
     instructions: [],
-    skills: [{ key: "retired", path: "retired", directory: true, status: "removed", stacks: [] }],
+    skills: [{ key: "selected", path: "selected", directory: true, stacks: [] }],
   });
 });
 
 test("catalog review eligibility is agent-only and must be boolean", () => {
-  const entry = { path: "reviewer.agent.md", status: "active", stacks: [] };
+  const entry = { path: "reviewer.agent.md", stacks: [] };
   const catalog = (agents: unknown, instructions: unknown, skills: unknown) => ({
     agents,
     instructions,
@@ -192,7 +183,6 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
     key: "reviewer",
     path: "reviewer.agent.md",
     directory: false,
-    status: "active",
     stacks: [],
     canReview: true,
   });
@@ -211,11 +201,7 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
   ).toThrow(/canReview.*agents/);
   expect(() =>
     validateBlueprintCatalog(
-      catalog(
-        {},
-        {},
-        { reviewer: { path: "reviewer/", status: "active", stacks: [], canReview: true } },
-      ),
+      catalog({}, {}, { reviewer: { path: "reviewer/", stacks: [], canReview: true } }),
     ),
   ).toThrow(/canReview.*agents/);
 });
@@ -251,26 +237,18 @@ test("init selects supported catalog entries and preserves their source paths", 
       agents: {
         shared: {
           path: "grouped/reviewer.agent.md",
-          status: "active",
           stacks: ["python"],
-        },
-        retired: {
-          path: "retired.agent.md",
-          status: "removed",
-          stacks: [],
         },
       },
       instructions: {
         shared: {
           path: "grouped/",
-          status: "active",
           stacks: [],
         },
       },
       skills: {
         shared: {
           path: "authoring/",
-          status: "active",
           stacks: [],
         },
       },
@@ -358,12 +336,10 @@ test("init selects a catalog entry scoped to the php-laravel Stack", async () =>
       agents: {
         laravel: {
           path: "laravel.agent.md",
-          status: "active",
           stacks: ["php-laravel"],
         },
         python: {
           path: "python.agent.md",
-          status: "active",
           stacks: ["python"],
         },
       },
@@ -396,7 +372,6 @@ test("init validates symlinks in active nonmatching catalog directories before p
       skills: {
         collection: {
           path: "collection/",
-          status: "active",
           stacks: ["typescript"],
         },
       },
@@ -436,14 +411,12 @@ test("update applies version decisions independently to grouped Agents and Instr
       agents: {
         "review-group": {
           path: "group/",
-          status: "active",
           stacks: [],
         },
       },
       instructions: {
         "instruction-group": {
           path: "group/",
-          status: "active",
           stacks: [],
         },
       },
@@ -488,12 +461,7 @@ test("update applies version decisions independently to grouped Agents and Instr
       versioned("new instruction", "1.0.0", "new Instruction"),
     );
 
-    const update = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite", "--include-new"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
 
     expect(update.status, update.stderr).toBe(0);
     expect(
@@ -536,7 +504,6 @@ test("init rejects a nested destination symlink before writing outside the GitHu
       agents: {
         nested: {
           path: "group/agent.agent.md",
-          status: "active",
           stacks: [],
         },
       },
@@ -574,7 +541,6 @@ test("a current Skill receives new supporting content only after its version inc
       skills: {
         "authoring-key": {
           path: "authoring/",
-          status: "active",
           stacks: [],
         },
       },
@@ -587,24 +553,14 @@ test("a current Skill receives new supporting content only after its version inc
     expect(init.status, init.stderr).toBe(0);
 
     await writeFile(join(blueprints, "skills", "authoring", "new.txt"), "new after bump\n");
-    const current = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const current = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(current.status, current.stderr).toBe(0);
     await expect(
       readFile(join(project, ".github", "skills", "authoring", "new.txt")),
     ).rejects.toThrow();
 
     await writeFile(join(blueprints, "skills", "authoring", "SKILL.md"), skill("2.0.0"));
-    const bumped = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const bumped = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(bumped.status, bumped.stderr).toBe(0);
     expect(await readFile(join(project, ".github", "skills", "authoring", "new.txt"), "utf8")).toBe(
       "new after bump\n",
@@ -632,9 +588,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     writeCatalogFixture(blueprints, {
       agents: {},
       instructions: {},
-      skills: Object.fromEntries(
-        names.map((name) => [name, { path: `${name}/`, status: "active", stacks: [] }]),
-      ),
+      skills: Object.fromEntries(names.map((name) => [name, { path: `${name}/`, stacks: [] }])),
     } satisfies BlueprintCatalogDefinition);
     for (const name of names) {
       await cp(
@@ -661,12 +615,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     await mkdir(dirname(disclosedMechanics), { recursive: true });
     await writeFile(disclosedMechanics, "Previously disclosed invocation guidance\n");
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(result.status, result.stderr).toBe(0);
     await expect(readFile(oldMechanics)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(disclosedMechanics)).rejects.toMatchObject({ code: "ENOENT" });
@@ -714,7 +663,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         agents: {
           selected: {
             path: "../selected.agent.md",
-            status: "active",
             stacks: [],
           },
         },
@@ -729,7 +677,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         agents: {
           selected: {
             path: "*.agent.md",
-            status: "active",
             stacks: [],
           },
         },
@@ -744,12 +691,10 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         agents: {
           group: {
             path: "group/",
-            status: "active",
             stacks: [],
           },
           nested: {
             path: "group/nested.agent.md",
-            status: "active",
             stacks: [],
           },
         },
@@ -764,7 +709,6 @@ test("invalid catalogs fail with actionable diagnostics before creating the proj
         agents: {
           selected: {
             path: "missing.agent.md",
-            status: "active",
             stacks: ["typescript"],
           },
         },
@@ -797,7 +741,6 @@ test("the compiled catalog ignores external catalog files", async () => {
     const catalog = validateBlueprintCatalog(blueprintCatalog);
     for (const kind of ["agents", "instructions", "skills"] as const) {
       for (const entry of catalog[kind]) {
-        if (entry.status !== "active") continue;
         const destination = join(blueprints, kind, entry.path);
         await mkdir(dirname(destination), { recursive: true });
         await cp(resolve(repoRoot, "src/Assets/Blueprints", kind, entry.path), destination, {
@@ -817,22 +760,13 @@ test("the compiled catalog ignores external catalog files", async () => {
     });
     expect((await readdir(join(project, ".github", "skills"))).sort()).toEqual(
       catalog.skills
-        .filter(
-          (entry) =>
-            entry.status === "active" &&
-            (entry.stacks.length === 0 || entry.stacks.includes("python")),
-        )
+        .filter((entry) => entry.stacks.length === 0 || entry.stacks.includes("python"))
         .map((entry) => entry.path)
         .sort(),
     );
 
     await writeFile(join(blueprints, "catalog.fixture.json"), "invalid external JSON");
-    const withExternalCatalog = runBundledCli(
-      project,
-      ["update", "--no-interactive"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const withExternalCatalog = runBundledCli(project, ["update"], process.env.PATH ?? "", env);
     expect(withExternalCatalog.status, withExternalCatalog.stderr).toBe(0);
   }
 });

@@ -1,4 +1,3 @@
-import { symlinkSync, writeFileSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
@@ -57,7 +56,7 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
   }
 });
 
-test("update replaces only older versioned Agents and warns about unknown versions", async () => {
+test("update replaces older and invalid managed Agents and preserves unmanaged Agents", async () => {
   const blueprints = await makeTempDir("spindle-agent-version-blueprints-");
   const project = await makeTempDir("spindle-agent-version-project-");
   const installedAgents = join(project, ".github", "agents");
@@ -90,12 +89,9 @@ test("update replaces only older versioned Agents and warns about unknown versio
       }
     }
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(join(installedAgents, "equal.agent.md"), "utf8")).toBe(
@@ -108,15 +104,14 @@ test("update replaces only older versioned Agents and warns about unknown versio
       contents("unversioned", null, "preserve local content"),
     );
     expect(await readFile(join(installedAgents, "invalid.agent.md"), "utf8")).toBe(
-      contents("invalid", "v1", "preserve local content"),
+      contents("invalid", "1.0.0", "shipped pnpm"),
     );
     expect(await readFile(join(installedAgents, "outdated.agent.md"), "utf8")).toBe(
       contents("outdated", "2.0.0", "shipped pnpm"),
     );
-    await expect(readFile(join(installedAgents, "new.agent.md"))).rejects.toThrow();
-    expect(result.stderr).toMatch(/Agent 'unversioned\.agent\.md'.*no version/);
-    expect(result.stderr).toMatch(/Agent 'invalid\.agent\.md'.*non-semver version 'v1'/);
-    expect(result.stdout).toBe("✔ Added 0, updated 1, skipped 3, up to date 2 agent(s)\n");
+    expect(await readFile(join(installedAgents, "new.agent.md"), "utf8")).toContain("shipped pnpm");
+    expect(result.stderr).toMatch(/Agent 'unversioned\.agent\.md'.*not managed/);
+    expect(result.stdout).toBe("✔ Added 1, updated 2, skipped 1, up to date 2 agent(s)\n");
   }
 });
 
@@ -225,60 +220,6 @@ test(
   },
 );
 
-test(
-  "interactive update identifies new and outdated Agents by kind",
-  { skip: process.platform !== "linux" },
-  async () => {
-    const blueprints = await makeTempDir("spindle-agent-update-prompt-blueprints-");
-    const project = await makeTempDir("spindle-agent-update-prompt-project-");
-    {
-      for (const [name, version] of [
-        ["demo", "2.0.0"],
-        ["newcomer", "1.0.0"],
-      ]) {
-        await mkdir(join(blueprints, "agents", name), { recursive: true });
-        await writeFile(
-          join(blueprints, "agents", `${name}.agent.md`),
-          `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\nshipped ${name}\n`,
-        );
-      }
-      await mkdir(join(project, ".github", "agents"), { recursive: true });
-      await writeFile(
-        join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
-      );
-      await writeFile(
-        join(project, ".github", "agents", "demo.agent.md"),
-        "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nold demo\n",
-      );
-
-      const result = await runCliInteractive(
-        project,
-        ["update"],
-        process.env.PATH ?? "",
-        [
-          { trigger: "Enter: confirm", input: "\r" },
-          { trigger: "What should happen?", input: "\r" },
-        ],
-        { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-      );
-
-      expect(result.status, result.stdout).toBe(0);
-      expect(result.stdout).toMatch(/Which new Agents should be installed\?/);
-      expect(result.stdout).toMatch(
-        /Agent 'demo\.agent\.md' is outdated \(installed 1\.0\.0, available 2\.0\.0\)/,
-      );
-      expect(result.stdout).toMatch(/Added 1, updated 1, skipped 0, up to date 0 agent\(s\)/);
-      expect(await readFile(join(project, ".github", "agents", "demo.agent.md"), "utf8")).toMatch(
-        /shipped demo/,
-      );
-      expect(
-        await readFile(join(project, ".github", "agents", "newcomer.agent.md"), "utf8"),
-      ).toMatch(/shipped newcomer/);
-    }
-  },
-);
-
 test("init preserves an existing Agent when rendered version metadata is invalid", async () => {
   const blueprints = await makeTempDir("spindle-agent-metadata-blueprints-");
   const project = await makeTempDir("spindle-agent-metadata-project-");
@@ -344,8 +285,8 @@ test("init and update help describe Blueprint kinds and generic policies", async
     expect(init.stdout).toMatch(/--on-conflict[\s\S]*Blueprint/i);
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/Blueprints.*Skills, Agents, and Instructions/i);
-    expect(update.stdout).toMatch(/--on-conflict[\s\S]*Blueprint/i);
-    expect(update.stdout).toMatch(/--include-new\s+Install.*Blueprint/i);
+    expect(update.stdout).toMatch(/Installs missing Blueprints/);
+    expect(update.stdout).not.toMatch(/--on-conflict|--include-new/);
   }
 });
 
@@ -382,7 +323,6 @@ test(
         agents: {
           optional: {
             path: "optional.agent.md",
-            status: "active",
             stacks: ["python"],
           },
         },
@@ -390,7 +330,6 @@ test(
         skills: {
           demo: {
             path: "demo/",
-            status: "active",
             stacks: [],
           },
         },
@@ -408,7 +347,7 @@ test(
       await writeFile(outside, "outside remains untouched\n");
       await symlink(outside, join(project, ".github", "agents", "optional.agent.md"));
 
-      const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
+      const result = runCli(project, ["update"], process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
       });
 
@@ -416,100 +355,6 @@ test(
       expect(result.stderr).toMatch(/symbolic link/i);
       expect(await readFile(outside, "utf8")).toBe("outside remains untouched\n");
       expect((await lstat(target)).isSymbolicLink()).toBe(true);
-    }
-  },
-);
-
-test(
-  "update refuses an Agent destination changed to a symlink while prompting",
-  { skip: process.platform !== "linux" },
-  async () => {
-    const blueprints = await makeTempDir("spindle-agent-race-blueprints-");
-    const project = await makeTempDir("spindle-agent-race-project-");
-    const outside = join(project, "outside.md");
-    const newTarget = join(project, ".github", "agents", "newcomer.agent.md");
-    {
-      for (const [name, version] of [
-        ["newcomer", "1.0.0"],
-        ["old", "2.0.0"],
-      ]) {
-        await mkdir(join(blueprints, "agents", name), { recursive: true });
-        await writeFile(
-          join(blueprints, "agents", `${name}.agent.md`),
-          `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\nshipped ${name}\n`,
-        );
-      }
-      await mkdir(join(project, ".github", "agents"), { recursive: true });
-      await writeFile(
-        join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
-      );
-      await writeFile(
-        join(project, ".github", "agents", "old.agent.md"),
-        "---\nname: old\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nold Agent\n",
-      );
-      await writeFile(outside, "outside remains untouched\n");
-
-      const result = await runCliInteractive(
-        project,
-        ["update"],
-        process.env.PATH ?? "",
-        [
-          {
-            trigger: "Enter: confirm",
-            input: "\r",
-            beforeInput: () => symlinkSync(outside, newTarget),
-          },
-          { trigger: "is outdated", input: "\r" },
-        ],
-        { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-      );
-
-      expect(result.status, result.stdout).not.toBe(0);
-      expect(result.stdout + result.stderr).toMatch(
-        /newcomer\.agent\.md.*symbolic link|symbolic link.*newcomer\.agent\.md/i,
-      );
-      expect(await readFile(outside, "utf8")).toBe("outside remains untouched\n");
-    }
-  },
-);
-
-test(
-  "update preserves an Agent file created while its new-install prompt is open",
-  { skip: process.platform !== "linux" },
-  async () => {
-    const blueprints = await makeTempDir("spindle-agent-new-conflict-blueprints-");
-    const project = await makeTempDir("spindle-agent-new-conflict-project-");
-    const newTarget = join(project, ".github", "agents", "newcomer.agent.md");
-    {
-      await mkdir(join(blueprints, "agents", "newcomer"), { recursive: true });
-      await writeFile(
-        join(blueprints, "agents", "newcomer.agent.md"),
-        "---\nname: newcomer\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nshipped Agent\n",
-      );
-      await mkdir(join(project, ".github", "agents"), { recursive: true });
-      await writeFile(
-        join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
-      );
-
-      const result = await runCliInteractive(
-        project,
-        ["update"],
-        process.env.PATH ?? "",
-        [
-          {
-            trigger: "Enter: confirm",
-            input: "\r",
-            beforeInput: () => writeFileSync(newTarget, "created during prompt\n"),
-          },
-        ],
-        { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-      );
-
-      expect(result.status, result.stdout).not.toBe(0);
-      expect(result.stdout + result.stderr).toMatch(/Agent 'newcomer\.agent\.md'.*already exists/);
-      expect(await readFile(newTarget, "utf8")).toBe("created during prompt\n");
     }
   },
 );
@@ -527,7 +372,6 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
       agents: {
         "python-only": {
           path: "python-only.agent.md",
-          status: "active",
           stacks: ["python"],
         },
       },
@@ -535,7 +379,6 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
       skills: {
         baseline: {
           path: "baseline/",
-          status: "active",
           stacks: [],
         },
       },
@@ -556,12 +399,7 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
       code: "ENOENT",
     });
 
-    const update = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/up to date 1 skill\(s\)/);
     await expect(readdir(join(project, ".github", "agents"))).rejects.toMatchObject({
@@ -570,7 +408,7 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
   }
 });
 
-test("update warns and preserves an Agent with unreadable version frontmatter", async () => {
+test("update rejects an Agent with unreadable version frontmatter", async () => {
   const blueprints = await makeTempDir("spindle-agent-bad-frontmatter-blueprints-");
   const project = await makeTempDir("spindle-agent-bad-frontmatter-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
@@ -589,16 +427,12 @@ test("update warns and preserves an Agent with unreadable version frontmatter", 
     );
     await writeFile(agentPath, installed);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stderr).toMatch(/Agent 'demo\.agent\.md'.*no version/);
-    expect(result.stdout).toMatch(/skipped 1.*agent\(s\)/);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/Cannot read Blueprint metadata/);
     expect(await readFile(agentPath, "utf8")).toBe(installed);
   }
 });
@@ -632,12 +466,9 @@ test("update renders a block-templated Agent version before comparing it", async
       "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n",
     );
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(agentPath, "utf8")).toBe(
@@ -671,12 +502,9 @@ test("update compares large numeric SemVer identifiers without losing precision"
       );
     }
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/updated 2.*agent\(s\)/);
@@ -708,12 +536,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
     );
 
     await writeFile(source, agent("2.0.0"));
-    const update = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/updated 1.*agent\(s\)/);
     expect(await readFile(target, "utf8")).toBe(
@@ -722,7 +545,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
   }
 });
 
-test("init and update fail clearly when all registered kinds are empty or missing", async () => {
+test("init rejects an empty catalog and update succeeds without changes", async () => {
   const blueprints = await makeTempDir("spindle-empty-kinds-blueprints-");
   const project = await makeTempDir("spindle-empty-kinds-project-");
   {
@@ -740,9 +563,9 @@ test("init and update fail clearly when all registered kinds are empty or missin
       variables: {},
     });
     await writeFile(join(project, ".github", "spindle.json"), config);
-    const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", env);
-    expect(update.status).not.toBe(0);
-    expect(update.stderr).toMatch(/No Blueprints are available/i);
+    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
+    expect(update.status, update.stderr).toBe(0);
+    expect(update.stdout).toMatch(/No Blueprints apply/);
     expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(config);
   }
 });
@@ -789,7 +612,7 @@ test(
           const args =
             command === "init"
               ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
-              : ["update", "--no-interactive", "--on-conflict", "overwrite"];
+              : ["update"];
           const result = runCli(project, args, process.env.PATH ?? "", {
             SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
           });
@@ -846,7 +669,7 @@ test("init applies skip and overwrite policies to the Agent file only", async ()
   }
 });
 
-test("non-interactive update skips or includes same-named new Blueprints by kind", async () => {
+test("update installs same-named new Blueprints by kind", async () => {
   const blueprints = await makeTempDir("spindle-agent-new-kinds-blueprints-");
   const project = await makeTempDir("spindle-agent-new-kinds-project-");
   {
@@ -866,21 +689,7 @@ test("non-interactive update skips or includes same-named new Blueprints by kind
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-    const skip = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", env);
-    expect(skip.status, skip.stderr).toBe(0);
-    expect(skip.stdout).toMatch(/skipped 1, up to date 0 skill\(s\)/);
-    expect(skip.stdout).toMatch(/skipped 1, up to date 0 agent\(s\)/);
-    await expect(
-      readFile(join(project, ".github", "skills", "demo", "SKILL.md")),
-    ).rejects.toThrow();
-    await expect(readFile(join(project, ".github", "agents", "demo.agent.md"))).rejects.toThrow();
-
-    const include = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const include = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(include.status, include.stderr).toBe(0);
     expect(include.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 skill\(s\)/);
     expect(include.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 agent\(s\)/);
@@ -920,12 +729,9 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
       await writeFile(skillPath, old);
       await writeFile(agentPath, old);
 
-      const result = runCli(
-        project,
-        ["update", "--no-interactive", "--on-conflict", "overwrite"],
-        process.env.PATH ?? "",
-        { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-      );
+      const result = runCli(project, ["update"], process.env.PATH ?? "", {
+        SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+      });
 
       expect(result.status).not.toBe(0);
       expect(result.stderr).toMatch(
@@ -934,84 +740,6 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
       expect(await readFile(skillPath, "utf8")).toBe(old);
       expect(await readFile(agentPath, "utf8")).toBe(old);
     }
-  }
-});
-
-test(
-  "interactive selection distinguishes same-named new Skills and Agents",
-  { skip: process.platform !== "linux" },
-  async () => {
-    const blueprints = await makeTempDir("spindle-agent-same-name-blueprints-");
-    const project = await makeTempDir("spindle-agent-same-name-project-");
-    {
-      await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
-      await writeFile(
-        join(blueprints, "skills", "demo", "SKILL.md"),
-        "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nSkill\n",
-      );
-      await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
-      await writeFile(
-        join(blueprints, "agents", "demo.agent.md"),
-        "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nAgent\n",
-      );
-      await mkdir(join(project, ".github"), { recursive: true });
-      await writeFile(
-        join(project, ".github", "spindle.json"),
-        JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
-      );
-
-      const result = await runCliInteractive(
-        project,
-        ["update"],
-        process.env.PATH ?? "",
-        [
-          { trigger: "Which new Skills should be installed?", input: "\r" },
-          { trigger: "Which new Agents should be installed?", input: " \r" },
-        ],
-        { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-      );
-
-      expect(result.status, result.stdout).toBe(0);
-      expect(result.stdout).toMatch(/Which new Skills should be installed\?/);
-      expect(result.stdout).toMatch(/Which new Agents should be installed\?/);
-      expect(result.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 skill\(s\)/);
-      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 1, up to date 0 agent\(s\)/);
-      expect(
-        await readFile(join(project, ".github", "skills", "demo", "SKILL.md"), "utf8"),
-      ).toMatch(/Skill/);
-      await expect(readFile(join(project, ".github", "agents", "demo.agent.md"))).rejects.toThrow();
-    }
-  },
-);
-
-test("update skip policy preserves an outdated Agent", async () => {
-  const blueprints = await makeTempDir("spindle-agent-update-skip-blueprints-");
-  const project = await makeTempDir("spindle-agent-update-skip-project-");
-  const agentPath = join(project, ".github", "agents", "demo.agent.md");
-  const local = "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n";
-  {
-    await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
-    await writeFile(
-      join(blueprints, "agents", "demo.agent.md"),
-      "---\nname: demo\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nshipped Agent\n",
-    );
-    await mkdir(join(project, ".github", "agents"), { recursive: true });
-    await writeFile(
-      join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
-    );
-    await writeFile(agentPath, local);
-
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "skip"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
-
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/updated 0, skipped 1, up to date 0 agent\(s\)/);
-    expect(await readFile(agentPath, "utf8")).toBe(local);
   }
 });
 
@@ -1042,7 +770,7 @@ for (const command of ["init", "update"] as const) {
       const args =
         command === "init"
           ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
-          : ["update", "--no-interactive", "--on-conflict", "overwrite"];
+          : ["update"];
       const result = runCli(project, args, process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_FAIL_WRITE_DIR: agents,
@@ -1082,10 +810,7 @@ for (const command of ["init", "update"] as const) {
       await mkdir(dirname(agentPath), { recursive: true });
       if (command === "update") await writeFile(configPath, config);
 
-      const args =
-        command === "init"
-          ? ["init", "--stack", "python"]
-          : ["update", "--no-interactive", "--include-new"];
+      const args = command === "init" ? ["init", "--stack", "python"] : ["update"];
       const result = runCli(project, args, process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
         SPINDLE_TEST_RACE_AGENT_PATH: agentPath,
@@ -1187,7 +912,7 @@ for (const command of ["init", "update"] as const) {
       const args =
         command === "init"
           ? ["init", "--stack", "python", "--on-conflict", "overwrite"]
-          : ["update", "--no-interactive", "--on-conflict", "overwrite"];
+          : ["update"];
       const result = runCli(project, args, process.env.PATH ?? "", {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
       });
@@ -1345,12 +1070,9 @@ test("update preflights Agent rendering before replacing a Skill", async () => {
     await writeFile(agentPath, oldAgent);
     await writeFile(configPath, config);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/undefined|not_supplied/i);
@@ -1403,12 +1125,9 @@ test("update keeps a nested Agent version stable when a Skill supporting templat
     );
     await writeFile(configPath, config);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(skillInstalled, "utf8")).toMatch(/version: 2\.0\.0/);

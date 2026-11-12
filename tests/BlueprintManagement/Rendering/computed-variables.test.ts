@@ -32,15 +32,15 @@ async function put(path: string, content: string) {
 function fixtureCatalog(): BlueprintCatalogDefinition {
   return {
     skills: {
-      demo: { path: "demo/", status: "active", stacks: [] },
+      demo: { path: "demo/", stacks: [] },
     },
     agents: {
-      guide: { path: "guide.agent.md", status: "active", stacks: [] },
-      guideSupport: { path: "guide-support.txt", status: "active", stacks: [] },
+      guide: { path: "guide.agent.md", stacks: [] },
+      guideSupport: { path: "guide-support.txt", stacks: [] },
     },
     instructions: {
-      testing: { path: "testing.instructions.md", status: "active", stacks: [] },
-      testingSupport: { path: "testing-support.txt", status: "active", stacks: [] },
+      testing: { path: "testing.instructions.md", stacks: [] },
+      testingSupport: { path: "testing-support.txt", stacks: [] },
     },
   };
 }
@@ -135,12 +135,9 @@ test("init and update render shipped Skills and preserve current installations",
     updatedSource.data.metadata.spindle.version = "2.0.0";
     await writeFile(updatedSourcePath, matter.stringify(updatedSource.content, updatedSource.data));
 
-    const updated = runCliWithCatalog(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const updated = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
     expect(updated.status, updated.stderr).toBe(0);
 
     const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
@@ -233,7 +230,7 @@ test("update reuses computed output and leaves Config and version metadata intac
     );
     writeCatalogFixture(blueprints, {
       skills: {
-        demo: { path: "demo/", status: "active", stacks: [] },
+        demo: { path: "demo/", stacks: [] },
       },
       agents: {},
       instructions: {},
@@ -247,12 +244,9 @@ test("update reuses computed output and leaves Config and version metadata intac
     );
     await put(join(github, "skills/demo/supporting.txt"), "Old supporting file\n");
 
-    const result = runCliWithCatalog(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     const updated = await readFile(join(github, "skills/demo/SKILL.md"), "utf8");
@@ -295,7 +289,7 @@ test("init restores the prior project Config state when Blueprint rendering fail
   const project = await makeTempDir("spindle-computed-init-failure-project-");
   writeCatalogFixture(blueprints, {
     skills: {
-      demo: { path: "demo/", status: "active", stacks: [] },
+      demo: { path: "demo/", stacks: [] },
     },
     agents: {},
     instructions: {},
@@ -333,11 +327,10 @@ test("update identifies a missing computed output and applies no planned changes
   {
     writeCatalogFixture(blueprints, {
       skills: {
-        current: { path: "current/", status: "active", stacks: [] },
-        retired: { path: "retired/", status: "removed", stacks: [] },
+        current: { path: "current/", stacks: [] },
       },
       agents: {
-        planned: { path: "planned.agent.md", status: "active", stacks: [] },
+        planned: { path: "planned.agent.md", stacks: [] },
       },
       instructions: {},
     });
@@ -362,12 +355,9 @@ test("update identifies a missing computed output and applies no planned changes
     await put(join(github, "skills/current/local.txt"), "keep destination-only file\n");
     await put(join(github, "skills/retired/local.txt"), "keep retired Skill\n");
 
-    const result = runCliWithCatalog(
-      project,
-      ["update", "--no-interactive", "--include-new", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(await readFile(configPath)).toEqual(configBytes);
@@ -428,11 +418,11 @@ test("repeated Updates through one App render fresh Config with computed outputs
     };
 
     await updateSource("900.0.0", "second-run");
-    await update.run(false, "overwrite");
+    await update.run();
     await assertRendered("second-run", "900.0.0");
 
     await updateSource("901.0.0", "third-run");
-    await update.run(false, "overwrite");
+    await update.run();
     await assertRendered("third-run", "901.0.0");
   }
 });

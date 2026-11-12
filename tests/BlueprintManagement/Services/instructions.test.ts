@@ -71,12 +71,7 @@ test("init and update install selected Instructions as single versioned files", 
     const invalidInstalled = join(installed, "invalid.instructions.md");
     const invalidLocal = instruction("invalid", "v1", "local");
     await writeFile(invalidInstalled, invalidLocal);
-    const update = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      env,
-    );
+    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
 
     expect(update.status, update.stderr).toBe(0);
     expect(await readFile(join(installed, "style.instructions.md"), "utf8")).toBe(
@@ -85,12 +80,11 @@ test("init and update install selected Instructions as single versioned files", 
     expect(await readFile(join(installed, "local.instructions.md"), "utf8")).toBe(
       instruction("local", null, "mine"),
     );
-    expect(await readFile(invalidInstalled, "utf8")).toBe(invalidLocal);
-    expect(update.stderr).toMatch(/Instruction 'local\.instructions\.md'.*no version/);
-    expect(update.stderr).toMatch(
-      /Instruction 'invalid\.instructions\.md'.*non-semver version 'v1'/,
+    expect(await readFile(invalidInstalled, "utf8")).toBe(
+      instruction("invalid", "1.0.0", "shipped"),
     );
-    expect(update.stdout).toBe("✔ Added 0, updated 1, skipped 2, up to date 2 instruction(s)\n");
+    expect(update.stderr).toMatch(/Instruction 'local\.instructions\.md'.*not managed/);
+    expect(update.stdout).toBe("✔ Added 0, updated 2, skipped 1, up to date 2 instruction(s)\n");
   }
 });
 
@@ -162,7 +156,7 @@ test("production init and update install the shipped Instructions", async () => 
       ),
     ).toContain("# Source Architecture");
 
-    const update = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "");
+    const update = runCli(project, ["update"], process.env.PATH ?? "");
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/up to date 2 instruction\(s\)/);
   }

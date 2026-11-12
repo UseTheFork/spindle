@@ -1,7 +1,6 @@
 import { lstat, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { CatalogDeletion } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import { assertSafeInstallPaths } from "@/BlueprintManagement/Support/BlueprintFiles";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { PlannedBlueprintDeletion } from "@/BlueprintManagement/Types/Reconciliation";
@@ -9,7 +8,6 @@ import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliatio
 
 export interface PlannedDeletionOperation {
   handler: BlueprintHandler;
-  deletion: CatalogDeletion;
   plan: PlannedBlueprintDeletion;
 }
 
@@ -57,13 +55,13 @@ export async function validateRemovalTarget(
 }
 
 export function catalogRemovalOperation(operation: PlannedDeletionOperation): RemovalOperation {
-  const { handler, deletion, plan } = operation;
-  const name = `${handler.kind} '${deletion.path}'`;
+  const { handler, plan } = operation;
+  const name = `${handler.kind} '${plan.path}'`;
   return {
     handler,
     plan,
-    expectedTarget: deletion.entry.directory ? "directory" : "file",
-    recursive: deletion.entry.directory,
+    expectedTarget: plan.directory ? "directory" : "file",
+    recursive: plan.directory,
     validationDescription: `removal of ${name}`,
     removalDescription: name,
     completedName: name,

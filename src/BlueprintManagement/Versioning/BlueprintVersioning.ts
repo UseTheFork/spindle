@@ -1,5 +1,3 @@
-import { basename } from "node:path";
-
 import matter from "gray-matter";
 
 import type {
@@ -11,6 +9,7 @@ import {
   parseSemver,
   readBlueprintVersion,
 } from "@/BlueprintManagement/Versioning/BlueprintVersion";
+import { readInstalledBlueprintMetadata } from "@/BlueprintManagement/Versioning/InstalledBlueprintMetadata";
 
 export function validateVersionedMetadata(
   kind: string,
@@ -32,7 +31,6 @@ export async function planVersionedUpdate(
   kind: string,
   entryFile: string,
   installedFile: (target: string) => string,
-  malformedInstalledMetadata: "error" | "warning",
 ): Promise<BlueprintUpdatePlan> {
   const { name, sourceFiles, target, installed, resolveContext } = input;
   const source = sourceFiles.find((file) => file.outputPath === entryFile)?.sourcePath;
@@ -60,16 +58,19 @@ export async function planVersionedUpdate(
   if (!installed) return { status: "new", renderedEntry };
 
   const installedPath = installedFile(target);
-  const installedText = await readBlueprintVersion(installedPath, undefined, {
-    rejectMalformed: malformedInstalledMetadata === "error",
-  });
-  const installedVersion = installedText === null ? null : parseSemver(installedText);
-  if (installedText === null || installedVersion === null) {
-    const description =
-      installedText === null ? "no version" : `non-semver version '${installedText}'`;
+  const { managed, version: installedText } = await readInstalledBlueprintMetadata(installedPath);
+  if (!managed) {
     return {
       status: "warning",
-      warning: `Skipping ${kind} '${name}': installed ${basename(installedPath)} has ${description}.`,
+      warning: `Skipping ${kind} '${name}': installed item is not managed by Spindle.`,
+    };
+  }
+  const installedVersion = installedText === null ? null : parseSemver(installedText);
+  if (installedText === null || installedVersion === null) {
+    return {
+      status: "update",
+      availableVersion: shipped,
+      renderedEntry,
     };
   }
   if (compareSemver(shippedVersion, installedVersion) > 0) {

@@ -159,7 +159,6 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
       mode: "update",
       config: firstConfig,
       resolveContext: async () => firstContext,
-      conflictPolicy: "overwrite",
     });
 
     const firstInstalledSkill = await readFile(skillTarget(firstWorkspace), "utf8");

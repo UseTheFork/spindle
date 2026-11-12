@@ -16,31 +16,26 @@ const catalog = {
   agents: {
     grouped: {
       path: "grouped/",
-      status: "active",
       stacks: [],
     },
   },
   instructions: {
     grouped: {
       path: "grouped/",
-      status: "active",
       stacks: [],
     },
   },
   skills: {
     current: {
       path: "current/",
-      status: "active",
       stacks: [],
     },
     skipped: {
       path: "skipped/",
-      status: "active",
       stacks: [],
     },
     accepted: {
       path: "accepted/",
-      status: "active",
       stacks: [],
     },
   },
@@ -143,25 +138,28 @@ test("update cleans selected directory membership without changing version decis
     await put(join(skills, "accepted/local.txt"), "old local content\n");
     await put(join(skills, "neighbor/SKILL.md"), "unrelated skill\n");
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "skip"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stderr).toBe(0);
     for (const directory of [agentDir, instructionDir]) {
-      await absent(join(directory, "vanished/nested.txt"));
-      await absent(join(directory, "local/nested.txt"));
-      await absent(join(directory, "fresh.agent.md"));
-      await absent(join(directory, "fresh.instructions.md"));
+      expect(await readFile(join(directory, "vanished/nested.txt"), "utf8")).toBe(
+        "stale upstream file\n",
+      );
+      expect(await readFile(join(directory, "local/nested.txt"), "utf8")).toBe("local addition\n");
     }
+    expect(await readFile(join(agentDir, "fresh.agent.md"), "utf8")).toBe(
+      versioned("1.0.0", "new"),
+    );
+    expect(await readFile(join(instructionDir, "fresh.instructions.md"), "utf8")).toBe(
+      versioned("1.0.0", "new"),
+    );
     expect(await readFile(join(agentDir, "outdated.agent.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed outdated"),
+      versioned("2.0.0", "source"),
     );
     expect(await readFile(join(instructionDir, "outdated.instructions.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed outdated"),
+      versioned("2.0.0", "source"),
     );
     expect(await readFile(join(agentDir, "unknown.agent.md"), "utf8")).toBe(
       "installed without version metadata\n",
@@ -169,101 +167,22 @@ test("update cleans selected directory membership without changing version decis
     expect(await readFile(join(instructionDir, "unknown.instructions.md"), "utf8")).toBe(
       "installed without version metadata\n",
     );
-    expect(await readFile(join(agentDir, "current.agent.md"), "utf8")).toBe(
+    expect(await readFile(join(skills, "current/SKILL.md"), "utf8")).toBe(
       versioned("1.0.0", "installed current"),
     );
-    expect(await readFile(join(instructionDir, "current.instructions.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed current"),
+    expect(await readFile(join(skills, "current/retained.txt"), "utf8")).toBe(
+      "user-modified surviving asset\n",
     );
-    expect(await readFile(join(agentDir, "stacks/example.txt"), "utf8")).toBe(
-      "installed stack asset\n",
-    );
-    expect(await readFile(join(github, "agents/neighbor.agent.md"), "utf8")).toBe(
-      "outside selected directory\n",
-    );
-    expect(await readFile(join(github, "instructions/neighbor.instructions.md"), "utf8")).toBe(
-      "outside selected directory\n",
-    );
-
-    for (const name of ["current", "skipped"]) {
-      await absent(join(skills, name, "vanished/nested.txt"));
-      await absent(join(skills, name, "local/nested.txt"));
-      expect(await readFile(join(skills, name, "SKILL.md"), "utf8")).toBe(
-        versioned(
-          name === "current" ? "1.0.0" : "1.0.0",
-          name === "current" ? "installed current" : "installed old version",
-        ),
-      );
-      expect(await readFile(join(skills, name, "retained.txt"), "utf8")).toBe(
-        "user-modified surviving asset\n",
-      );
-    }
+    await absent(join(skills, "current/local/nested.txt"));
     await absent(join(skills, "current/new-support.txt"));
-    expect(await readFile(join(skills, "accepted/SKILL.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed old version"),
-    );
-    await absent(join(skills, "accepted/local.txt"));
+    for (const name of ["skipped", "accepted"]) {
+      expect(await readFile(join(skills, name, "SKILL.md"), "utf8")).toBe(
+        versioned("2.0.0", "updated"),
+      );
+      await absent(join(skills, name, name === "skipped" ? "local/nested.txt" : "local.txt"));
+    }
     expect(await readFile(join(skills, "neighbor/SKILL.md"), "utf8")).toBe("unrelated skill\n");
-    expect(result.stdout).toMatch(/Removed agent 'grouped\/vanished\/nested\.txt'/);
-    expect(result.stdout).toMatch(/Removed skill 'current\/local\/nested\.txt'/);
-    expect(result.stdout).toMatch(/up to date 1 skill\(s\)/);
-    expect(result.stdout).toMatch(/skipped 2, up to date 1 skill\(s\)/);
-    expect(result.stderr).toMatch(/Skipping Agent 'grouped\/unknown\.agent\.md'.*no version/);
-    expect(result.stderr).toMatch(
-      /Skipping Instruction 'grouped\/unknown\.instructions\.md'.*no version/,
-    );
-
-    await put(join(skills, "accepted/local.txt"), "old local content\n");
-    const acceptedUpdate = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
-    expect(acceptedUpdate.status, acceptedUpdate.stderr).toBe(0);
-    expect(await readFile(join(skills, "accepted/SKILL.md"), "utf8")).toBe(
-      versioned("2.0.0", "updated"),
-    );
-    expect(await readFile(join(skills, "accepted/new-support.txt"), "utf8")).toBe(
-      "accepted new asset\n",
-    );
-    await expect(readFile(join(skills, "accepted/local.txt"), "utf8")).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-    expect(
-      (acceptedUpdate.stdout.match(/Removed skill 'accepted\/local\.txt'/g) ?? []).length,
-    ).toBe(1);
-    expect(await readFile(join(agentDir, "outdated.agent.md"), "utf8")).toBe(
-      versioned("2.0.0", "source"),
-    );
-    expect(await readFile(join(instructionDir, "outdated.instructions.md"), "utf8")).toBe(
-      versioned("2.0.0", "source"),
-    );
-    expect(await readFile(join(agentDir, "current.agent.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed current"),
-    );
-    expect(await readFile(join(instructionDir, "current.instructions.md"), "utf8")).toBe(
-      versioned("1.0.0", "installed current"),
-    );
-    await absent(join(agentDir, "fresh.agent.md"));
-    await absent(join(instructionDir, "fresh.instructions.md"));
-    expect(acceptedUpdate.stdout).not.toMatch(/Removed agent 'grouped\/vanished/);
-
-    const includeNew = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new", "--on-conflict", "skip"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
-    expect(includeNew.status, includeNew.stderr).toBe(0);
-    expect(includeNew.stdout).not.toMatch(/Removed skill 'accepted\/local\.txt'/);
-    expect(await readFile(join(agentDir, "fresh.agent.md"), "utf8")).toBe(
-      versioned("1.0.0", "new"),
-    );
-    expect(await readFile(join(instructionDir, "fresh.instructions.md"), "utf8")).toBe(
-      versioned("1.0.0", "new"),
-    );
-    expect(includeNew.stdout).not.toMatch(/Removed agent 'grouped\/vanished/);
+    expect(result.stderr).toMatch(/not managed/);
   }
 });
 
@@ -276,7 +195,6 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
       agents: {
         selected: {
           path: "selected.agent.md",
-          status: "active",
           stacks: [],
         },
       },
@@ -293,7 +211,7 @@ test("a selected file does not authorize cleanup of neighboring files", async ()
     );
     await put(join(github, "agents/neighbor.agent.md"), "user-owned neighbor\n");
 
-    const result = runCli(project, ["update", "--no-interactive"], process.env.PATH ?? "", {
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
       SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
     });
 
@@ -367,12 +285,9 @@ test("update rejects unsafe nested symlinks before membership cleanup", async ()
     await put(join(blueprints, "skills/skipped/SKILL.md"), versioned("1.0.0", "current"));
     await put(join(blueprints, "skills/accepted/SKILL.md"), versioned("1.0.0", "current"));
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "skip"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toMatch(/symbolic link/i);

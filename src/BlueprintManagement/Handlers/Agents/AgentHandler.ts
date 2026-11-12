@@ -21,7 +21,7 @@ export const agentHandler: BlueprintHandler = {
   planUpdate: (input) => {
     const entry = input.sourceFiles[0].outputPath;
     return entry.toLowerCase().endsWith(".md")
-      ? planVersionedUpdate(input, "Agent", entry, (target) => target, "warning")
+      ? planVersionedUpdate(input, "Agent", entry, (target) => target)
       : Promise.resolve({ status: input.installed ? "conflict" : "new" });
   },
 };

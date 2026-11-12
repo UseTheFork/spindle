@@ -15,7 +15,7 @@ test("configuration commands require a booted application", async () => {
   await expect(new InitCommand(app).run([], undefined, false, undefined)).rejects.toThrow(
     "Application services can only run after the application has booted.",
   );
-  await expect(new UpdateCommand(app).run(false, undefined)).rejects.toThrow(
+  await expect(new UpdateCommand(app).run()).rejects.toThrow(
     "Application services can only run after the application has booted.",
   );
 });
@@ -135,7 +135,7 @@ test("init still rejects an existing malformed file and update demands valid boo
   await expect((await app.make(InitCommand)).run([], undefined, false, undefined)).rejects.toThrow(
     "not valid JSON",
   );
-  await expect((await app.make(UpdateCommand)).run(false, undefined)).rejects.toThrow(
+  await expect((await app.make(UpdateCommand)).run()).rejects.toThrow(
     ".github/spindle.json is not valid JSON.",
   );
 });

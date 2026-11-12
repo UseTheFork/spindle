@@ -42,31 +42,22 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
       agents: {
         new: {
           path: "new.agent.md",
-          status: "active",
           stacks: [],
         },
       },
       instructions: {
         owned: {
           path: "owned/",
-          status: "active",
           stacks: [],
         },
       },
       skills: {
         current: {
           path: "current/",
-          status: "active",
           stacks: [],
         },
         skipped: {
           path: "skipped/",
-          status: "active",
-          stacks: [],
-        },
-        retired: {
-          path: "retired/",
-          status: "removed",
           stacks: [],
         },
       },
@@ -90,12 +81,9 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
     await put(staleInstruction, instructionBytes);
     await put(outsideSentinel, outsideBytes);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new", "--on-conflict", "skip"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toMatch(/no valid semver version/i);
@@ -131,18 +119,11 @@ test("init preparation failure leaves planned Config and target deletion untouch
       agents: {
         new: {
           path: "new.agent.md",
-          status: "active",
           stacks: [],
         },
       },
       instructions: {},
-      skills: {
-        retired: {
-          path: "retired/",
-          status: "removed",
-          stacks: [],
-        },
-      },
+      skills: {},
     } satisfies BlueprintCatalogDefinition);
     await put(join(blueprints, "agents", "new.agent.md"), Buffer.from([0x66, 0x80, 0x67, 0x0a]));
     await put(retiredSkill, retiredBytes);
@@ -179,7 +160,6 @@ test("application Config failure reports completed Blueprint installs", async ()
       agents: {
         new: {
           path: "new.agent.md",
-          status: "active",
           stacks: [],
         },
       },
@@ -228,7 +208,6 @@ test("application write failure reports earlier cross-kind changes without claim
       agents: {
         write: {
           path: "write.agent.md",
-          status: "active",
           stacks: [],
         },
       },
@@ -236,7 +215,6 @@ test("application write failure reports earlier cross-kind changes without claim
       skills: {
         demo: {
           path: "demo/",
-          status: "active",
           stacks: [],
         },
       },
@@ -250,16 +228,11 @@ test("application write failure reports earlier cross-kind changes without claim
     await put(skillPath, versioned("1.0.0", "installed Skill"));
     await put(configPath, configBytes);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      {
-        SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        SPINDLE_TEST_FAIL_WRITE_DIR: agents,
-        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-agent-write.ts"),
-      },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+      SPINDLE_TEST_FAIL_WRITE_DIR: agents,
+      SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-agent-write.ts"),
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toMatch(/Failed to apply Agent 'write\.agent\.md'/);
@@ -296,7 +269,6 @@ test("partial Skill application reports each applied file and the exact later fa
       skills: {
         demo: {
           path: "demo/",
-          status: "active",
           stacks: [],
         },
       },
@@ -309,16 +281,11 @@ test("partial Skill application reports each applied file and the exact later fa
     await put(join(skill, "local.txt"), "old local Skill content\n");
     await put(outsideSentinel, outsideBytes);
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--on-conflict", "overwrite"],
-      process.env.PATH ?? "",
-      {
-        SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        SPINDLE_TEST_FAIL_WRITE_FILE: failingFile,
-        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-skill-file-write.ts"),
-      },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+      SPINDLE_TEST_FAIL_WRITE_FILE: failingFile,
+      SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-skill-file-write.ts"),
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(
@@ -337,7 +304,7 @@ test("partial Skill application reports each applied file and the exact later fa
   }
 });
 
-test("application deletion failure reports all earlier cross-kind changes", async () => {
+test("application deletion failure stops before cross-kind installations", async () => {
   const blueprints = await makeTempDir("spindle-delete-progress-blueprints-");
   const project = await makeTempDir("spindle-delete-progress-project-");
   const github = join(project, ".github");
@@ -350,17 +317,6 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
       agents: {
         new: {
           path: "new.agent.md",
-          status: "active",
-          stacks: [],
-        },
-        first: {
-          path: "first.agent.md",
-          status: "removed",
-          stacks: [],
-        },
-        second: {
-          path: "second.agent.md",
-          status: "removed",
           stacks: [],
         },
       },
@@ -375,30 +331,25 @@ test("application deletion failure reports all earlier cross-kind changes", asyn
       join(github, "spindle.json"),
       '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
     );
-    await put(firstRemoval, "first installed Agent\n");
-    await put(secondRemoval, "second installed Agent\n");
+    await put(firstRemoval, versioned("1.0.0", "first installed Agent"));
+    await put(secondRemoval, versioned("1.0.0", "second installed Agent"));
 
-    const result = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new"],
-      process.env.PATH ?? "",
-      {
-        SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        SPINDLE_TEST_FAIL_REMOVE_TARGET: secondRemoval,
-        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-removal.ts"),
-      },
-    );
+    const result = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+      SPINDLE_TEST_FAIL_REMOVE_TARGET: secondRemoval,
+      SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/helpers/preloads/fail-removal.ts"),
+    });
 
     expect(result.status, result.stdout).not.toBe(0);
     expect(result.stderr).toMatch(/Failed to remove Agent 'second\.agent\.md'/);
     expect(result.stderr).toMatch(/forced removal failure/);
-    expect(result.stderr).toMatch(
-      /Completed changes: installed Agent 'new\.agent\.md', removed Agent 'first\.agent\.md'/,
-    );
+    expect(result.stderr).toMatch(/Completed changes: removed Agent 'first\.agent\.md'/);
     expect(result.stderr).toMatch(/Application stopped; rollback was not attempted/);
-    expect(await readFile(newAgent, "utf8")).toMatch(/new Agent/);
+    await expect(readFile(newAgent)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(firstRemoval)).rejects.toMatchObject({ code: "ENOENT" });
-    expect(await readFile(secondRemoval, "utf8")).toBe("second installed Agent\n");
+    expect(await readFile(secondRemoval, "utf8")).toBe(
+      versioned("1.0.0", "second installed Agent"),
+    );
   }
 });
 
@@ -421,26 +372,18 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
       agents: {
         new: {
           path: "new.agent.md",
-          status: "active",
           stacks: [],
         },
       },
       instructions: {
         testing: {
           path: "testing/",
-          status: "active",
           stacks: [],
         },
       },
       skills: {
         current: {
           path: "current/",
-          status: "active",
-          stacks: [],
-        },
-        retired: {
-          path: "retired/",
-          status: "removed",
           stacks: [],
         },
       },
@@ -464,14 +407,12 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     await put(join(currentSkill, "asset.txt"), preservedAsset);
     await put(join(currentSkill, "local.txt"), "destination-only content\n");
     await put(join(retiredSkill, "nested", "local.txt"), "retired content\n");
+    await put(join(retiredSkill, "SKILL.md"), versioned("1.0.0", "retired"));
     await put(outsideSentinel, outsideBytes);
 
-    const first = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const first = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(first.status, first.stderr).toBe(0);
     expect(first.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 agent\(s\)/);
@@ -493,12 +434,9 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     });
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
 
-    const second = runCli(
-      project,
-      ["update", "--no-interactive", "--include-new"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
+    const second = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+    });
 
     expect(second.status, second.stderr).toBe(0);
     expect(second.stdout.includes("Removed ")).toBe(false);

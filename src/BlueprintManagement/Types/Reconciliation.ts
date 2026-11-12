@@ -21,14 +21,6 @@ interface ReconcileCommon {
   blueprintSourceRoot: string;
   context?: RenderContext;
   resolveContext?: () => Promise<RenderContext>;
-  conflictPolicy?: ConflictPolicy;
-  chooseNew?: (kind: string, names: string[]) => Promise<string[]>;
-  chooseConflict?: (
-    kind: string,
-    name: string,
-    installedVersion?: string,
-    availableVersion?: string,
-  ) => Promise<ConflictPolicy>;
 }
 
 export type ReconcileOptions =
@@ -36,11 +28,12 @@ export type ReconcileOptions =
       mode: "init";
       context: RenderContext;
       config: ProjectConfigurationData;
+      conflictPolicy?: ConflictPolicy;
+      chooseConflict?: (kind: string, name: string) => Promise<ConflictPolicy>;
     })
   | (ReconcileCommon & {
       mode: "update";
       config?: ProjectConfigurationData;
-      includeNew?: boolean;
     });
 
 type WithoutApplicationRoots<T> = T extends unknown
@@ -78,5 +71,5 @@ export interface PlannedBlueprintDeletion {
   path: string;
   target: string;
   directory: boolean;
-  reason: CatalogDeletion["reason"] | "directory-membership";
+  reason: CatalogDeletion["reason"] | "directory-membership" | "obsolete";
 }

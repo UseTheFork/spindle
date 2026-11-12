@@ -118,6 +118,7 @@ async function planReconciliation(
   blueprintNames: string[],
   sourceFilesByName: Map<string, PlannedBlueprintFile[]>,
   resolveContext: () => Promise<RenderContext | undefined>,
+  managed: Set<string>,
 ): Promise<ReconciliationPlan> {
   const { mode, githubDirectory } = options;
   const destinationDirectory = handler.destinationDirectory(githubDirectory);
@@ -131,6 +132,14 @@ async function planReconciliation(
 
     if (mode === "init") {
       plan.push({ name, status: installed ? "conflict" : "install" });
+      continue;
+    }
+    if (installed && !managed.has(name)) {
+      plan.push({
+        name,
+        status: "warning",
+        warning: `Skipping ${handler.kind} '${name}': installed item is not managed by Spindle.`,
+      });
       continue;
     }
 
@@ -149,38 +158,20 @@ async function planReconciliation(
   }
 
   const newBlueprints = plan.filter((blueprint) => blueprint.status === "new").map((b) => b.name);
-  const selectedNewBlueprints = new Set(
-    options.mode === "update"
-      ? options.includeNew
-        ? newBlueprints
-        : options.chooseNew && newBlueprints.length > 0
-          ? await options.chooseNew(handler.kind, newBlueprints)
-          : []
-      : [],
-  );
+  const selectedNewBlueprints = new Set(options.mode === "update" ? newBlueprints : []);
 
   const decisions = new Map<string, ConflictPolicy>();
   for (const blueprint of plan) {
     if (blueprint.status !== "conflict" && blueprint.status !== "update") continue;
-    if (options.conflictPolicy !== undefined) {
+    if (mode === "update") {
+      decisions.set(blueprint.name, "overwrite");
+    } else if (options.conflictPolicy !== undefined) {
       decisions.set(blueprint.name, options.conflictPolicy);
     } else if (options.chooseConflict) {
-      decisions.set(
-        blueprint.name,
-        await options.chooseConflict(
-          handler.kind,
-          blueprint.name,
-          blueprint.installedVersion,
-          blueprint.availableVersion,
-        ),
-      );
-    } else if (blueprint.status === "conflict") {
-      throw new Error(
-        `${handler.kind} '${blueprint.name}' already exists; pass --on-conflict <overwrite|skip> to choose what to do in non-interactive runs.`,
-      );
+      decisions.set(blueprint.name, await options.chooseConflict(handler.kind, blueprint.name));
     } else {
       throw new Error(
-        `${handler.kind} '${blueprint.name}' is outdated (${blueprint.installedVersion} -> ${blueprint.availableVersion}); pass --on-conflict <overwrite|skip> to choose what to do in non-interactive runs.`,
+        `${handler.kind} '${blueprint.name}' already exists; pass --on-conflict <overwrite|skip> to choose what to do in non-interactive runs.`,
       );
     }
   }
@@ -339,6 +330,7 @@ async function performReconciliation(
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
     deletions: PlannedBlueprintDeletion[];
+    managed: Set<string>;
   }[] = [];
   const initializers: {
     handler: BlueprintHandler;
@@ -353,6 +345,7 @@ async function performReconciliation(
     options.githubDirectory,
     options.blueprintSourceRoot,
     stacks,
+    options.mode,
   );
   for (const handlerPlan of handlerPlans) {
     const { handler, selections, catalogDeletions } = handlerPlan;
@@ -361,9 +354,7 @@ async function performReconciliation(
     membershipCleanupOperations.push(
       ...handlerPlan.membershipCleanup.map((plan) => ({ handler, plan })),
     );
-    catalogDeletions.forEach((deletion, index) => {
-      deletionOperations.push({ handler, deletion, plan: deletions[index] });
-    });
+    deletionOperations.push(...deletions.map((plan) => ({ handler, plan })));
     if (deletions.length > 0 || handlerPlan.membershipCleanup.length > 0) hasBlueprints = true;
     if (handler.prepareInitialize !== undefined) {
       if (selections.length > 0 || catalogDeletions.length > 0) {
@@ -385,7 +376,7 @@ async function performReconciliation(
     if (handler.entryFile !== undefined || handler.fileTarget) {
       for (const name of names) await assertSingleFileDestination(targetPath(name));
     }
-    collections.push({ handler, names, files, deletions });
+    collections.push({ handler, names, files, deletions, managed: handlerPlan.managed });
   }
   const plannedRemovals = [
     ...deletionOperations.map(catalogRemovalOperation),
@@ -394,7 +385,10 @@ async function performReconciliation(
   for (const operation of plannedRemovals) {
     await validateRemovalTarget(options.githubDirectory, operation);
   }
-  if (!hasBlueprints) throw new Error("No Blueprints are available to install.");
+  if (!hasBlueprints) {
+    if (options.mode === "update") return outcomes;
+    throw new Error("No Blueprints are available to install.");
+  }
   let contextService: Promise<ComputedContextService> | undefined;
   const resolveContext = async () => {
     contextService ??= options.app.make(ComputedContextService);
@@ -403,8 +397,8 @@ async function performReconciliation(
     );
   };
   const plans: ReconciliationPlan[] = [];
-  for (const { handler, names, files } of collections) {
-    plans.push(await planReconciliation(handler, options, names, files, resolveContext));
+  for (const { handler, names, files, managed } of collections) {
+    plans.push(await planReconciliation(handler, options, names, files, resolveContext, managed));
   }
   const installing = plans.find((plan) => plan.willInstall);
   const needsContext =
@@ -517,6 +511,15 @@ async function performReconciliation(
   const completedChanges: string[] = [];
   const recordAppliedChange = (description: string) => completedChanges.push(description);
   try {
+    if (options.mode === "update") {
+      outcomes.push(
+        ...(await applyRemovalOperations(
+          options.githubDirectory,
+          deletionOperations.map(catalogRemovalOperation),
+          recordAppliedChange,
+        )),
+      );
+    }
     for (const plan of plans) {
       outcomes.push(
         ...(await applyReconciliation(
@@ -537,15 +540,17 @@ async function performReconciliation(
         outcomes.push({ kind: handler.kind, name, status: "removed" });
       }
     }
-    outcomes.push(
-      ...(await applyRemovalOperations(
-        options.githubDirectory,
-        deletionOperations
-          .filter((operation) => operation.handler.prepareInitialize === undefined)
-          .map(catalogRemovalOperation),
-        recordAppliedChange,
-      )),
-    );
+    if (options.mode === "init") {
+      outcomes.push(
+        ...(await applyRemovalOperations(
+          options.githubDirectory,
+          deletionOperations
+            .filter((operation) => operation.handler.prepareInitialize === undefined)
+            .map(catalogRemovalOperation),
+          recordAppliedChange,
+        )),
+      );
+    }
     outcomes.push(
       ...(await applyRemovalOperations(
         options.githubDirectory,

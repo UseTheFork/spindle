@@ -76,14 +76,9 @@ test("update from a nested directory reads Config and reconciles at the Git work
     "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nInstalled\n",
   );
 
-  const result = runCli(
-    nested,
-    ["update", "--no-interactive", "--on-conflict", "overwrite"],
-    process.env.PATH ?? "",
-    {
-      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-    },
-  );
+  const result = runCli(nested, ["update"], process.env.PATH ?? "", {
+    SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
+  });
 
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout).toMatch(/updated 1/);
