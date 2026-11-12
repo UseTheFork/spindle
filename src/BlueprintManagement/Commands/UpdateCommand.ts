@@ -1,14 +1,21 @@
-import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
+import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
+
+export interface UpdateResult {
+  stacks: string[];
+  outcomes: BlueprintOutcome[];
+  guidanceInitialized: true;
+}
 
 export class UpdateCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
@@ -30,7 +37,27 @@ Unmanaged Blueprints are preserved.
 `,
       )
       .allowExcessArguments(false)
-      .action(async () => (await (await createApp()).make(UpdateCommand)).run());
+      .action(async () => {
+        const app = await createApp();
+        const result = await (await app.make(UpdateCommand)).run();
+        const output = await app.make(ConsoleOutputService);
+        for (const outcome of result.outcomes) {
+          if (outcome.warning) output.notice("warning", outcome.warning);
+        }
+        const human = result.outcomes
+          .filter((outcome) => outcome.status === "removed")
+          .map((outcome) => `Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
+        if (result.outcomes.length === 0) human.push("No Blueprints apply to the selected stacks");
+        for (const kind of new Set(result.outcomes.map((outcome) => outcome.kind))) {
+          const ofKind = result.outcomes.filter((outcome) => outcome.kind === kind);
+          const count = (status: BlueprintOutcome["status"]) =>
+            ofKind.filter((outcome) => outcome.status === status).length;
+          human.push(
+            `Added ${count("installed")}, updated ${count("updated")}, skipped ${count("skipped")}, up to date ${count("up-to-date")} ${kind.toLowerCase()}(s)`,
+          );
+        }
+        output.result({ level: "success", human, data: result });
+      });
   }
 
   public constructor(app: Application) {
@@ -42,7 +69,7 @@ Unmanaged Blueprints are preserved.
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(): Promise<void> {
+  public async run(): Promise<UpdateResult> {
     this.assertApplicationBooted();
     const config = LoadProjectConfiguration.require(
       await LoadProjectConfiguration.refresh(this.app),
@@ -84,26 +111,6 @@ Unmanaged Blueprints are preserved.
       );
     }
     await LoadProjectConfiguration.refresh(this.app);
-    for (const outcome of outcomes) {
-      if (outcome.warning) {
-        console.error(chalk.yellow(outcome.warning));
-      }
-    }
-    for (const outcome of outcomes.filter((item) => item.status === "removed")) {
-      console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
-    }
-    if (outcomes.length === 0) {
-      console.log(`${chalk.green("✔")} No Blueprints apply to the selected stacks`);
-    }
-    for (const kind of new Set(outcomes.map((outcome) => outcome.kind))) {
-      const ofKind = outcomes.filter((outcome) => outcome.kind === kind);
-      const added = ofKind.filter((outcome) => outcome.status === "installed").length;
-      const updated = ofKind.filter((outcome) => outcome.status === "updated").length;
-      const skipped = ofKind.filter((outcome) => outcome.status === "skipped").length;
-      const upToDate = ofKind.filter((outcome) => outcome.status === "up-to-date").length;
-      console.log(
-        `${chalk.green("✔")} Added ${added}, updated ${updated}, skipped ${skipped}, up to date ${upToDate} ${kind.toLowerCase()}(s)`,
-      );
-    }
+    return { stacks: config.stacks, outcomes, guidanceInitialized: true };
   }
 }

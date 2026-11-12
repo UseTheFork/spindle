@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ChecksRequireOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
@@ -52,20 +53,21 @@ export class ChecksRequireCommand extends Command {
           options.command.length !== 1
         )
           throw new Error("Exactly one --command is required outside scopes post-merge and final.");
-        const command = await (await createApp()).make(ChecksRequireCommand);
-        console.log(
-          JSON.stringify(
-            await command.run({
-              ...options,
-              command:
-                options.scope === "post-merge" || options.scope === "final"
-                  ? options.command
-                  : options.command[0]!,
-            }),
-            null,
-            2,
-          ),
-        );
+        const app = await createApp();
+        const command = await app.make(ChecksRequireCommand);
+        const data = await command.run({
+          ...options,
+          command:
+            options.scope === "post-merge" || options.scope === "final"
+              ? options.command
+              : options.command[0]!,
+        });
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `${options.remove ? "Removed" : "Updated"} required checks for ${options.ticket ? `ticket ${options.ticket}` : `${options.scope ?? "delivery"} scope`}.`,
+          data,
+        });
       });
   }
 

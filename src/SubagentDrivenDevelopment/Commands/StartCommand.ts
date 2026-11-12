@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { StartOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
@@ -24,8 +25,15 @@ export class StartCommand extends Command {
       )
       .allowExcessArguments(false)
       .action(async (options: StartOptions) => {
-        const command = await (await createApp()).make(StartCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(StartCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: "success",
+          human: `Started feature worktree for ${options.spec}.`,
+          data,
+        });
       });
   }
 

@@ -123,7 +123,7 @@ test("init colors success output with chalk when colors are forced", async () =>
   expect(result.status, result.stderr).toBe(0);
   const forced = new Chalk({ level: 1 });
   expect(result.stdout).toBe(
-    `${forced.green("✔")} Installed 1 skill(s) for ${forced.cyan("python")}\n${forced.green("✔")} Initialized project guidance and tooling documentation.\n`,
+    `${forced.green("✔")} Installed 1 skill(s) for python\n${forced.green("✔")} Initialized project guidance and tooling documentation.\n`,
   );
 });
 
@@ -165,6 +165,60 @@ test("init accepts an explicit Spindle package-manager command", async () => {
     tooling: expect.any(Array),
   });
 });
+
+test("init JSON mode returns typed outcomes without human output or terminal colors", async () => {
+  const { result } = await runInit(["--stack", "python", "--json"], { FORCE_COLOR: "1" });
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stderr).toBe("");
+  expect(JSON.parse(result.stdout)).toEqual({
+    ok: true,
+    data: {
+      stacks: ["python"],
+      guidanceInitialized: true,
+      outcomes: [{ kind: "Skill", name: "demo", status: "installed" }],
+    },
+  });
+  expect(result.stdout.trim().split("\n")).toHaveLength(1);
+});
+
+test("JSON mode reports parser and pre-bootstrap errors as structured stderr", async () => {
+  const project = await makeTempDir("spindle-json-errors-");
+  for (const args of [
+    ["--json"],
+    ["sdd", "--json"],
+    ["--json", "init", "--unknown"],
+    ["init", "--json", "--stack"],
+    ["init", "--stack", "cobol", "--json"],
+    ["init", "--json", "--no-interactive"],
+    ["init", "--json", "--stack", "python", "--spindle-package-manager", "pnpm"],
+  ]) {
+    const result = runCliRaw(project, args, process.env.PATH ?? "", { FORCE_COLOR: "1" });
+    expect(result.status, args.join(" ")).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      ok: false,
+      error: { message: expect.any(String) },
+    });
+  }
+});
+
+test(
+  "JSON init never prompts even when stdin and stdout are terminals",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const project = await makeTempDir();
+    const result = await runCliInteractive(
+      project,
+      ["init", "--json", "--spindle-package-manager", "pnpm"],
+      process.env.PATH ?? "",
+      [],
+      { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.stdout).not.toContain("Which stacks");
+    expect(result.stdout).toContain('"ok":false');
+  },
+);
 
 test(
   "interactive init prompts before overwriting an existing Blueprint",

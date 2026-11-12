@@ -81,8 +81,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "pnpm",
   ]);
   expect(initialized.status, initialized.stderr).toBe(0);
+  expect(initialized.stdout).not.toMatch(/^\{"ok":/);
 
   const created = cli.run(gitWorkspace, [
+    "--json",
     "sdd",
     "create",
     "--title",
@@ -100,8 +102,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
     spec: join(featureDirectory, "spec.md"),
     ledger: join(featureDirectory, "sdd.json"),
   };
-  expect(created.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`);
-  expect(JSON.parse(created.stdout)).toEqual(expected);
+  expect(created.stdout).toBe(`${JSON.stringify({ ok: true, data: expected })}\n`);
+  const createdEnvelope = JSON.parse(created.stdout);
+  expect(createdEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(createdEnvelope.data).toEqual(expected);
   expect(readFileSync(expected.spec, "utf8")).toContain("# Packaged Feature");
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
@@ -127,7 +131,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   });
   expect(ledger.tickets).toEqual([]);
   const statusBefore = git("status", "--porcelain=v1");
-  const inspected = cli.run(gitWorkspace, ["sdd", "status", "--spec", expected.spec]);
+  const inspected = cli.run(gitWorkspace, ["--json", "sdd", "status", "--spec", expected.spec]);
   expect(inspected.status, inspected.stderr).toBe(0);
   expect(inspected.stderr).toBe("");
   const expectedStatus = {
@@ -159,12 +163,15 @@ test("packaged sdd create and status expose feature state outside the checkout",
       blockers: ["Tickets are not closed: feature has no tickets."],
     },
   };
-  expect(inspected.stdout).toBe(`${JSON.stringify(expectedStatus, null, 2)}\n`);
-  expect(JSON.parse(inspected.stdout)).toEqual(expectedStatus);
+  expect(inspected.stdout).toBe(`${JSON.stringify({ ok: true, data: expectedStatus })}\n`);
+  const statusEnvelope = JSON.parse(inspected.stdout);
+  expect(statusEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(statusEnvelope.data).toEqual(expectedStatus);
   expect(readFileSync(expected.ledger, "utf8")).toBe(ledgerBeforeStatus);
   expect(git("status", "--porcelain=v1")).toBe(statusBefore);
 
   const createdTicket = cli.run(gitWorkspace, [
+    "--json",
     "sdd",
     "ticket",
     "create",
@@ -180,7 +187,9 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "controller",
   ]);
   expect(createdTicket.status, createdTicket.stderr).toBe(0);
-  expect(JSON.parse(createdTicket.stdout).ticket).toBe("T-0001");
+  const ticketEnvelope = JSON.parse(createdTicket.stdout);
+  expect(ticketEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(ticketEnvelope.data.ticket).toBe("T-0001");
   const ticket = readFileSync(join(featureDirectory, "tickets", "T-0001.md"), "utf8");
   expect(ticket).toContain("# Packaged ticket");
   expect(ticket).toContain("**Reporter:** maintainer");
@@ -235,6 +244,11 @@ test("packaged sdd create and status expose feature state outside the checkout",
     stacks: ["typescript"],
     tooling: registry.tooling,
   });
+  const listed = cli.run(invocationWorkspace, ["tool", "list"]);
+  expect(listed.status, listed.stderr).toBe(0);
+  expect(listed.stdout).toMatch(/^Tooling commands \(\d+\):/);
+  expect(listed.stdout).toContain("- test-unit [Testing]: pnpm test -- --run");
+  expect(listed.stderr).toBe("");
 });
 test("packaged command discovery and help remain intact", () => {
   const cli = packagedCli();

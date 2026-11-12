@@ -19,7 +19,7 @@ import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/W
 
 import { applicationFixture } from "../../helpers/ApplicationFixture";
 import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
-import { execute, fixture, invokeAsync, recordReviewCheck } from "../helpers/helpers";
+import { cliOutput, execute, fixture, invokeAsync, recordReviewCheck } from "../helpers/helpers";
 
 function gitAt(directory: string, ...args: string[]): string {
   return execFileSync("git", args, {
@@ -75,7 +75,7 @@ async function setup() {
     "--confirm-records",
   ]);
   expect(started.status, started.stderr).toBe(0);
-  const output = JSON.parse(started.stdout) as { featureWorkspace: string; spec: string };
+  const output = cliOutput(started) as { featureWorkspace: string; spec: string };
   const root = output.featureWorkspace;
   const spec = output.spec;
   for (const title of ["First", "Second"]) {
@@ -249,7 +249,7 @@ test("implement reserves a ready ticket and creates its worktree and assignment 
   ]);
 
   expect(result.status, result.stderr).toBe(0);
-  const output = JSON.parse(result.stdout) as {
+  const output = cliOutput(result) as {
     execution: string;
     assignment: { workspace: string; branch: string };
   };
@@ -317,7 +317,7 @@ test("dispatch requires explicit inspection confirmation before committing canon
     .filter(Boolean);
   expect(committedPaths).toEqual([".scratch/0001-ticket-isolation/reports/T-0001-review.md"]);
   expect(gitAt(root, "rev-parse", "HEAD")).not.toBe(before);
-  expect(JSON.parse(confirmed.stdout).assignment.workspace).toBe(
+  expect(cliOutput(confirmed).assignment.workspace).toBe(
     join(parent, "0001-ticket-isolation-T-0001"),
   );
 });
@@ -507,7 +507,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     "--confirm-records",
   ]);
   expect(integrated.status, integrated.stderr).toBe(0);
-  const output = JSON.parse(integrated.stdout) as {
+  const output = cliOutput(integrated) as {
     mergeCommit: string;
     ticketCommit: string;
     postMerge: string;
@@ -538,7 +538,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     "controller",
   ]);
   expect(repeated.status, repeated.stderr).toBe(0);
-  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
+  expect(cliOutput(repeated).idempotent).toBe(true);
   const dependency = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
       spec,
@@ -738,7 +738,7 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
     "controller",
   ]);
   expect(require.status, require.stderr).toBe(0);
-  const snapshot = JSON.parse(require.stdout).snapshot as string;
+  const snapshot = cliOutput(require).snapshot as string;
   const failed = await invokeAsync(root, [
     "checks",
     "record",
@@ -796,7 +796,7 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
   const { root, spec, parent } = await acceptedTicket();
   const integrated = await integrate(root, spec);
   expect(integrated.status, integrated.stderr).toBe(0);
-  const mergeSha = JSON.parse(integrated.stdout).mergeCommit as string;
+  const mergeSha = cliOutput(integrated).mergeCommit as string;
   const dispatchOptions = {
     spec,
     ticket: "T-0002",
@@ -888,7 +888,7 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   const { root, spec } = await acceptedTicket();
   const integrated = await integrate(root, spec);
   expect(integrated.status, integrated.stderr).toBe(0);
-  const mergeSha = JSON.parse(integrated.stdout).mergeCommit as string;
+  const mergeSha = cliOutput(integrated).mergeCommit as string;
   const third = await execute(root, (services) =>
     services.ticketService.ticketCreate({
       spec,
@@ -962,7 +962,7 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
   const readyBefore = await invokeAsync(root, ["ready", "--spec", spec]);
   expect(readyBefore.status, readyBefore.stderr).toBe(0);
-  expect(JSON.parse(readyBefore.stdout).ready).not.toContain("T-0002");
+  expect(cliOutput(readyBefore).ready).not.toContain("T-0002");
   const cleared = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
       spec,
@@ -1001,14 +1001,14 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
   const readyAfter = await invokeAsync(root, ["ready", "--spec", spec]);
   expect(readyAfter.status, readyAfter.stderr).toBe(0);
-  expect(JSON.parse(readyAfter.stdout).ready).toContain("T-0002");
+  expect(cliOutput(readyAfter).ready).toContain("T-0002");
 });
 
 test("pending-gate ticket startup resumes after worktree allocation without advancing HEAD", async () => {
   const { root, spec, parent } = await acceptedTicket();
   const integrated = await integrate(root, spec);
   expect(integrated.status, integrated.stderr).toBe(0);
-  const mergeSha = JSON.parse(integrated.stdout).mergeCommit as string;
+  const mergeSha = cliOutput(integrated).mergeCommit as string;
   const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
@@ -1038,7 +1038,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   const { root, spec, workspace, parent } = await acceptedTicket();
   const initial = await integrate(root, spec);
   expect(initial.status, initial.stderr).toBe(0);
-  const oldMerge = JSON.parse(initial.stdout).mergeCommit as string;
+  const oldMerge = cliOutput(initial).mergeCommit as string;
   const declared = await execute(root, (services) =>
     services.checksService.checksRequire({
       spec,
@@ -1202,7 +1202,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   expect(approved.status, approved.stderr).toBe(0);
   const merged = await integrate(root, spec);
   expect(merged.status, merged.stderr).toBe(0);
-  const newMerge = JSON.parse(merged.stdout).mergeCommit as string;
+  const newMerge = cliOutput(merged).mergeCommit as string;
   expect(newMerge).not.toBe(oldMerge);
   ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].status).toBe("in-progress");
@@ -1302,7 +1302,7 @@ test("integration recovers its journalled staged records but rejects unrelated s
   expect(gitAt(root, "diff", "--cached", "--name-only")).not.toBe("");
   const resumed = await integrate(root, spec);
   expect(resumed.status, resumed.stderr).toBe(0);
-  expect(JSON.parse(resumed.stdout).postMerge).toBe("pending");
+  expect(cliOutput(resumed).postMerge).toBe("pending");
 
   const second = await acceptedTicket();
   writeFileSync(join(second.root, "private.txt"), "preserve staged user data\n");
@@ -1477,7 +1477,7 @@ test("integration resumes after interrupted canonical merge record persistence",
   const merge = gitAt(root, "rev-parse", "HEAD");
   const resumed = await invokeAsync(root, args);
   expect(resumed.status, resumed.stderr).toBe(0);
-  expect(JSON.parse(resumed.stdout).mergeCommit).toBe(merge);
+  expect(cliOutput(resumed).mergeCommit).toBe(merge);
   expect(
     JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0].integration
       .postMerge.status,
@@ -1507,7 +1507,7 @@ test("integration recovers a journaled merge after interruption before record wr
   ).toBe("reviewing");
   const resumed = await invokeAsync(root, args);
   expect(resumed.status, resumed.stderr).toBe(0);
-  expect(JSON.parse(resumed.stdout).mergeCommit).toBe(merge);
+  expect(cliOutput(resumed).mergeCommit).toBe(merge);
   expect(
     JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0].execution,
   ).toBe("integrated");
@@ -1569,7 +1569,7 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
   ];
   const first = await invokeAsync(root, args);
   expect(first.status, first.stderr).toBe(0);
-  const assignment = JSON.parse(first.stdout).assignment as {
+  const assignment = cliOutput(first).assignment as {
     id: string;
     workspace: string;
     branch: string;
@@ -1577,7 +1577,7 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
   expect(gitAt(assignment.workspace, "rev-parse", "HEAD")).toBe(baseSha);
   const repeated = await invokeAsync(root, args);
   expect(repeated.status, repeated.stderr).toBe(0);
-  expect(JSON.parse(repeated.stdout).assignment).toEqual(assignment);
+  expect(cliOutput(repeated).assignment).toEqual(assignment);
   const resumed = await invokeAsync(root, [
     "resume",
     "--spec",
@@ -1588,7 +1588,7 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
     "controller",
   ]);
   expect(resumed.status, resumed.stderr).toBe(0);
-  expect(JSON.parse(resumed.stdout).assignment).toEqual(assignment);
+  expect(cliOutput(resumed).assignment).toEqual(assignment);
 });
 
 test("competing dispatches reuse one ticket assignment and worktree", async () => {
@@ -1609,7 +1609,7 @@ test("competing dispatches reuse one ticket assignment and worktree", async () =
     results.map((result) => result.status),
     results.map((result) => result.stderr).join("\n"),
   ).toEqual([0, 0]);
-  const assignments = results.map((result) => JSON.parse(result.stdout).assignment);
+  const assignments = results.map((result) => cliOutput(result).assignment);
   expect(assignments[0]).toEqual(assignments[1]);
   expect(gitAt(assignments[0].workspace, "branch", "--show-current")).toBe(assignments[0].branch);
 });
@@ -1748,7 +1748,7 @@ test("resume recovers a dispatch interrupted while persisting its assignment", a
     "controller",
   ]);
   expect(resumed.status, resumed.stderr).toBe(0);
-  const assignment = JSON.parse(resumed.stdout).assignment as { workspace: string; branch: string };
+  const assignment = cliOutput(resumed).assignment as { workspace: string; branch: string };
   expect(assignment.workspace).toBe(join(parent, "0001-ticket-isolation-T-0001"));
   expect(gitAt(assignment.workspace, "branch", "--show-current")).toBe(assignment.branch);
   expect(existsSync(join(dirname(spec), ".sdd-write-recovery.json"))).toBe(false);

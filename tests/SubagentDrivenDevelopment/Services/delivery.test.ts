@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import {
+  cliOutput,
   commitTicketWorkspace,
   execute,
   commitAll,
@@ -765,7 +766,7 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
     "controller",
   ]);
   expect(repeatedOptional.status, repeatedOptional.stderr).toBe(0);
-  expect(JSON.parse(repeatedOptional.stdout)).toMatchObject({
+  expect(cliOutput(repeatedOptional)).toMatchObject({
     finished: true,
     cleanup: "complete",
   });
@@ -1074,7 +1075,7 @@ test("failed final-merge checks preserve worktrees until passing evidence is rec
   expect(failed.status, failed.stderr).toBe(0);
   const paused = await completeDeliveryFinalization(pending);
   expect(paused.status, paused.stderr).toBe(0);
-  expect(JSON.parse(paused.stdout)).toMatchObject({
+  expect(cliOutput(paused)).toMatchObject({
     finalValidation: "pending",
     cleanup: "retained",
     records: [{ command, result: "failed" }],
@@ -1085,7 +1086,7 @@ test("failed final-merge checks preserve worktrees until passing evidence is rec
   expect(passed.status, passed.stderr).toBe(0);
   const completed = await completeDeliveryFinalization(pending);
   expect(completed.status, completed.stderr).toBe(0);
-  expect(JSON.parse(completed.stdout)).toMatchObject({
+  expect(cliOutput(completed)).toMatchObject({
     finished: true,
     cleanup: "complete",
   });
@@ -1125,7 +1126,7 @@ test("final-merge check requirements are frozen after their initial declaration"
   expect(recorded.status, recorded.stderr).toBe(0);
   const completed = await completeDeliveryFinalization(pending);
   expect(completed.status, completed.stderr).toBe(0);
-  expect(JSON.parse(completed.stdout)).toMatchObject({ finished: true, cleanup: "complete" });
+  expect(cliOutput(completed)).toMatchObject({ finished: true, cleanup: "complete" });
 });
 
 test("finalization cleanup remains bound to its recorded controller", async () => {
@@ -1146,7 +1147,7 @@ test("finalization cleanup remains bound to its recorded controller", async () =
 
   const repeated = await completeDeliveryFinalization(finalization.pending);
   expect(repeated.status, repeated.stderr).toBe(0);
-  expect(JSON.parse(repeated.stdout)).toMatchObject({ finished: true, cleanup: "complete" });
+  expect(cliOutput(repeated)).toMatchObject({ finished: true, cleanup: "complete" });
 });
 
 test("finalization status and next expose pending checks and completed cleanup", async () => {
@@ -1166,11 +1167,11 @@ test("finalization status and next expose pending checks and completed cleanup",
   ]);
   expect(statusPending.status, statusPending.stderr).toBe(0);
   expect(nextPending.status, nextPending.stderr).toBe(0);
-  expect(JSON.parse(statusPending.stdout)).toMatchObject({
+  expect(cliOutput(statusPending)).toMatchObject({
     finalValidation: "pending",
     cleanup: "retained",
   });
-  expect(JSON.parse(nextPending.stdout)).toEqual(JSON.parse(statusPending.stdout));
+  expect(cliOutput(nextPending)).toEqual(cliOutput(statusPending));
 
   const command = "fixture final check";
   await declareFinalDeliveryChecks(pending, [command]);
@@ -1178,7 +1179,7 @@ test("finalization status and next expose pending checks and completed cleanup",
   expect(recorded.status, recorded.stderr).toBe(0);
   const completed = await completeDeliveryFinalization(pending);
   expect(completed.status, completed.stderr).toBe(0);
-  expect(JSON.parse(completed.stdout)).toMatchObject({
+  expect(cliOutput(completed)).toMatchObject({
     finished: true,
     cleanup: "complete",
   });
@@ -1196,11 +1197,11 @@ test("finalization status and next expose pending checks and completed cleanup",
   ]);
   expect(statusComplete.status, statusComplete.stderr).toBe(0);
   expect(nextComplete.status, nextComplete.stderr).toBe(0);
-  expect(JSON.parse(statusComplete.stdout)).toMatchObject({
+  expect(cliOutput(statusComplete)).toMatchObject({
     finished: true,
     cleanup: "complete",
   });
-  expect(JSON.parse(nextComplete.stdout)).toEqual(JSON.parse(statusComplete.stdout));
+  expect(cliOutput(nextComplete)).toEqual(cliOutput(statusComplete));
 
   const journalBeforeLateRecord = readFileSync(pending.journal, "utf8");
   const lateRecord = await recordFinalDeliveryCheck(

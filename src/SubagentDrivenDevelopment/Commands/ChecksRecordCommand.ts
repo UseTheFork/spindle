@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { ChecksRecordOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
@@ -54,8 +55,15 @@ export class ChecksRecordCommand extends Command {
             "checks record needs --ticket or --scope delivery/final; scope post-merge also needs --ticket.",
           );
         }
-        const command = await (await createApp()).make(ChecksRecordCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(ChecksRecordCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        output.result({
+          level: options.result === "passed" ? "success" : "info",
+          human: `Recorded ${options.result} check for ${options.ticket ? `ticket ${options.ticket}` : `${options.scope ?? "delivery"} scope`}.`,
+          data,
+        });
       });
   }
 

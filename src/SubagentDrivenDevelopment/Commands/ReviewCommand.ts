@@ -2,6 +2,7 @@ import type { Command as CommanderCommand } from "commander";
 
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { reviewSchema } from "@/SubagentDrivenDevelopment/Commands/groups";
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
 import type {
@@ -32,20 +33,21 @@ export class ReviewCommand extends Command {
             throw new Error("review require needs --spec, --type, --details, and --author.");
           }
           if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
-          const command = await (await createApp()).make(ReviewRequireCommand);
-          console.log(
-            JSON.stringify(
-              await command.run({
-                ...options,
-                spec: options.spec,
-                type: reviewType,
-                details: options.details,
-                author: options.author,
-              }),
-              null,
-              2,
-            ),
-          );
+          const app = await createApp();
+          const command = await app.make(ReviewRequireCommand);
+          const data = await command.run({
+            ...options,
+            spec: options.spec,
+            type: reviewType,
+            details: options.details,
+            author: options.author,
+          });
+          const output = await app.make(ConsoleOutputService);
+          output.result({
+            level: "success",
+            human: `Recorded ${reviewType} review requirement for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+            data,
+          });
           return;
         }
         if (action !== undefined) throw new Error(`Unknown review action: ${action}.`);
@@ -55,19 +57,29 @@ export class ReviewCommand extends Command {
         if (!options.spec || !options.inventory || !options.author) {
           throw new Error("review requires --spec, --inventory, and --author.");
         }
-        const command = await (await createApp()).make(ReviewCommand);
-        console.log(
-          JSON.stringify(
-            await command.run({
-              ...options,
-              spec: options.spec,
-              inventory: options.inventory,
-              author: options.author,
-            }),
-            null,
-            2,
-          ),
-        );
+        const app = await createApp();
+        const command = await app.make(ReviewCommand);
+        const data = await command.run({
+          ...options,
+          spec: options.spec,
+          inventory: options.inventory,
+          author: options.author,
+        });
+        const output = await app.make(ConsoleOutputService);
+        const human = [
+          `Review completed for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+          ...data.assignments.flatMap((assignment) => [
+            `Review assignment ${assignment.id} (${assignment.agent}, ${assignment.status}).`,
+            `Report: ${assignment.report}`,
+            ...(assignment.workspace ? [`Workspace: ${assignment.workspace}`] : []),
+            ...(assignment.branch ? [`Branch: ${assignment.branch}`] : []),
+          ]),
+        ];
+        output.result({
+          level: "success",
+          human,
+          data,
+        });
       },
     );
   }

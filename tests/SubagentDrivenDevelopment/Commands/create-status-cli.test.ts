@@ -53,7 +53,11 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toBe("");
   }
-  const features: string[] = results.map((result) => JSON.parse(result.stdout).feature);
+  const features: string[] = results.map((result) => {
+    const envelope = JSON.parse(result.stdout);
+    expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
+    return envelope.data.feature;
+  });
   expect(features.map((feature) => feature.slice(0, 4)).sort()).toEqual([
     "0001",
     "0002",
@@ -83,6 +87,7 @@ test("sdd review require accepts a catalog reviewer through --type", async () =>
     "controller",
   ]);
   expect(created.status, created.stderr).toBe(0);
+  expect(JSON.parse(created.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
   const spec = join(repo, ".scratch", "0001-review-feature", "spec.md");
 
   const required = await invokeAsync(repo, [
@@ -101,7 +106,9 @@ test("sdd review require accepts a catalog reviewer through --type", async () =>
   ]);
 
   expect(required.status, required.stderr).toBe(0);
-  expect(JSON.parse(required.stdout).requirement.agent).toBe("sdd-code-reviewer");
+  const envelope = JSON.parse(required.stdout);
+  expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(envelope.data.requirement.agent).toBe("sdd-code-reviewer");
 });
 
 test("sdd help advertises guarded workflow commands", async () => {
@@ -148,6 +155,7 @@ test("sdd create and status expose JSON results and report path errors through t
   const created = runCli(
     repo,
     [
+      "--json",
       "sdd",
       "create",
       "--title",
@@ -167,16 +175,36 @@ test("sdd create and status expose JSON results and report path errors through t
     spec: join(repo, ".scratch", "0001-cli-feature", "spec.md"),
     ledger: join(repo, ".scratch", "0001-cli-feature", "sdd.json"),
   };
-  expect(JSON.parse(created.stdout)).toEqual(expected);
+  expect(created.stdout).toBe(`${JSON.stringify({ ok: true, data: expected })}\n`);
+  const createdEnvelope = JSON.parse(created.stdout);
+  expect(createdEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(createdEnvelope.data).toEqual(expected);
   expect(readFileSync(expected.spec, "utf8")).toContain("# CLI Feature");
   expect(existsSync(join(repo, ".scratch", "0001-cli-feature", "design.md"))).toBe(true);
-  const status = runCli(repo, ["sdd", "status", "--spec", expected.spec], searchPath);
+  const status = runCli(repo, ["--json", "sdd", "status", "--spec", expected.spec], searchPath);
   expect(status.status, status.stderr).toBe(0);
   expect(status.stderr).toBe("");
-  expect(JSON.parse(status.stdout)).toEqual(
+  const statusEnvelope = JSON.parse(status.stdout);
+  expect(statusEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(statusEnvelope.data).toEqual(
     service.featureInspectionService.status({ spec: expected.spec }),
   );
-  expect(JSON.parse(status.stdout).state.retrospectiveRequired).toBe(true);
+  expect(statusEnvelope.data.state.retrospectiveRequired).toBe(true);
+  const humanStatus = runCli(repo, ["sdd", "status", "--spec", expected.spec], searchPath);
+  expect(humanStatus.status, humanStatus.stderr).toBe(0);
+  expect(humanStatus.stdout).toContain("Feature status for feature 0001-cli-feature.");
+  expect(humanStatus.stdout).toContain("Delivery: active; unstarted; close-tickets.");
+  expect(humanStatus.stdout).toContain(
+    "Delivery blockers: Tickets are not closed: feature has no tickets.",
+  );
+  const humanNext = runCli(repo, ["sdd", "next", "--spec", expected.spec], searchPath);
+  expect(humanNext.status, humanNext.stderr).toBe(0);
+  expect(humanNext.stdout).toContain(
+    "Delivery status and permitted actions for feature 0001-cli-feature.",
+  );
+  expect(humanNext.stdout).toContain(
+    "Delivery blockers: Tickets are not closed: feature has no tickets.",
+  );
   const invalid = runCli(
     repo,
     ["sdd", "status", "--spec", `${repo}/.scratch/../.scratch/0001-cli-feature/spec.md`],
@@ -185,6 +213,19 @@ test("sdd create and status expose JSON results and report path errors through t
   expect(invalid.status).not.toBe(0);
   expect(invalid.stdout).toBe("");
   expect(invalid.stderr).toMatch(/spindle:/);
+});
+
+test("sdd create uses human-readable output by default", async () => {
+  const { repo } = await serviceFixture();
+  const result = runCli(
+    repo,
+    ["sdd", "create", "--title", "Human Output", "--author", "maintainer"],
+    process.env.PATH ?? "",
+  );
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stdout.trim()).not.toBe("");
+  expect(result.stdout).not.toMatch(/^\{"ok":/);
 });
 
 test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in template", async () => {
@@ -197,6 +238,7 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
     "controller",
   ]);
   expect(feature.status, feature.stderr).toBe(0);
+  expect(JSON.parse(feature.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
   const spec = join(repo, ".scratch", "0001-ticket-feature", "spec.md");
   const created = await invokeAsync(repo, [
     "ticket",
@@ -214,7 +256,9 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   ]);
 
   expect(created.status, created.stderr).toBe(0);
-  expect(JSON.parse(created.stdout)).toEqual({
+  const ticketEnvelope = JSON.parse(created.stdout);
+  expect(ticketEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(ticketEnvelope.data).toEqual({
     ticket: "T-0001",
     path: join(repo, ".scratch", "0001-ticket-feature", "tickets", "T-0001.md"),
   });
@@ -247,5 +291,9 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   ]);
   const legacyCommand = await invokeAsync(repo, ["issue", "create"]);
   expect(legacyCommand.status).not.toBe(0);
-  expect(legacyCommand.stderr).toMatch(/unknown command 'issue'/);
+  expect(legacyCommand.stdout).toBe("");
+  expect(JSON.parse(legacyCommand.stderr)).toMatchObject({
+    ok: false,
+    error: { message: expect.stringMatching(/unknown command 'issue'/) },
+  });
 });

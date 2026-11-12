@@ -88,6 +88,35 @@ const goodConfig = {
   tooling: [],
 };
 
+test("JSON update returns one typed result and structured warnings on stderr", async () => {
+  await withProject(
+    { config: goodConfig, skills: { newer: "custom skill\n" } },
+    ["--json"],
+    (_project, result) => {
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        ok: true,
+        data: {
+          stacks: ["python", "typescript"],
+          guidanceInitialized: true,
+          outcomes: expect.arrayContaining([
+            expect.objectContaining({ name: "newer", status: "skipped" }),
+          ]),
+        },
+      });
+      expect(result.stdout.trim().split("\n")).toHaveLength(1);
+      const notices = result.stderr
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(notices).toContainEqual({
+        level: "warning",
+        message: expect.stringContaining("not managed"),
+      });
+    },
+  );
+});
+
 test("update copies a Skill's stacks directory as ordinary recursive content", async () => {
   const blueprints = await makeTempDir("spindle-update-stacks-content-blueprints-");
   const skillDirectory = join(blueprints, "skills", "demo");

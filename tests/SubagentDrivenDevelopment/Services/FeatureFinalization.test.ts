@@ -22,7 +22,7 @@ import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/F
 
 import { applicationFixture } from "../../helpers/ApplicationFixture";
 import { repoRoot } from "../../helpers/TemporaryDirectories";
-import { execute, fixture, invokeAsync } from "../helpers/helpers";
+import { cliOutput, execute, fixture, invokeAsync } from "../helpers/helpers";
 
 vi.setConfig({ testTimeout: 60_000 });
 function git(root: string, ...args: string[]) {
@@ -55,7 +55,7 @@ test("empty feature and premature final declarations cannot commit records or re
   );
   const parent = join(dirname(repo), "external");
   mkdirSync(parent);
-  const started = output(
+  const started = cliOutput(
     await invokeAsync(repo, [
       "start",
       "--spec",
@@ -106,7 +106,7 @@ test("finalization refuses active hooks without executing or disabling them", as
   );
   const parent = join(dirname(repo), "external");
   mkdirSync(parent);
-  const started = output(
+  const started = cliOutput(
     await invokeAsync(repo, [
       "start",
       "--spec",
@@ -150,7 +150,7 @@ async function readyFeature(codeFile = "feature.ts") {
   );
   const parent = join(dirname(original), "external");
   mkdirSync(parent);
-  const started = output(
+  const started = cliOutput(
     await invokeAsync(original, [
       "start",
       "--spec",
@@ -250,7 +250,7 @@ async function readyFeature(codeFile = "feature.ts") {
       ),
     );
   }
-  output(
+  cliOutput(
     await invokeAsync(root, [
       "integrate",
       "--spec",
@@ -262,7 +262,7 @@ async function readyFeature(codeFile = "feature.ts") {
       "--confirm-records",
     ]),
   );
-  const postMerge = output(
+  const postMerge = cliOutput(
     await invokeAsync(root, [
       "checks",
       "require",
@@ -278,7 +278,7 @@ async function readyFeature(codeFile = "feature.ts") {
       "controller",
     ]),
   );
-  output(
+  cliOutput(
     await invokeAsync(root, [
       "checks",
       "record",
@@ -385,7 +385,7 @@ async function recordFinal(
   merged: any,
   result = "passed",
 ) {
-  output(
+  cliOutput(
     await invokeAsync(f.original, [
       "checks",
       "require",
@@ -421,7 +421,7 @@ async function recordFinal(
     ...(result === "passed" ? [] : ["--details", "external test failed"]),
   ]);
   if (result === "passed")
-    output(
+    cliOutput(
       await invokeAsync(f.original, [
         "checks",
         "record",
@@ -464,10 +464,10 @@ function originalIgnoredArtifacts(f: Awaited<ReturnType<typeof readyFeature>>) {
 test("original ignored node_modules and build artifacts survive the real complete flow", async () => {
   const f = await readyFeature();
   const files = originalIgnoredArtifacts(f);
-  const merged = output(await f.finish());
+  const merged = cliOutput(await f.finish());
   expect(merged.finalValidation).toBe("pending");
-  output(await recordFinal(f, merged));
-  const complete = output(
+  cliOutput(await recordFinal(f, merged));
+  const complete = cliOutput(
     await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
   );
   expect(complete.finished).toBe(true);
@@ -504,11 +504,11 @@ test.each(["file", "directory", "parent-file", "empty-directory"])(
     // Simulate the user's safe resolution, preserving rather than deleting data.
     const preserved = join(f.original, "node_modules", "preserved-feature.ts");
     renameSync(collision, preserved);
-    const merged = output(await f.finish());
+    const merged = cliOutput(await f.finish());
     expect(git(f.root, "rev-parse", "HEAD")).toBe(recordsCommit);
-    output(await recordFinal(f, merged));
+    cliOutput(await recordFinal(f, merged));
     expect(
-      output(
+      cliOutput(
         await invokeAsync(f.original, [
           "finish",
           "--spec",
@@ -556,7 +556,7 @@ test("a configured failing signer blocks finalization and preserves staged recor
 test("real complete flow preserves exact preparation guard, relocates reports, records final checks and cleans all worktrees", async () => {
   const f = await readyFeature();
   const beforeLedger = readFileSync(join(dirname(f.spec), "sdd.json"), "utf8");
-  const pending = output(await f.finish());
+  const pending = cliOutput(await f.finish());
   expect(pending).toMatchObject({ finalValidation: "pending", cleanup: "retained" });
   expect(pending).not.toHaveProperty("finished");
   expect(f.featureRevision).not.toBe(f.originalRevision);
@@ -570,19 +570,19 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
   expect(
     git(f.original, "rev-list", "--parents", "-n", "1", pending.mergeCommit).split(" "),
   ).toEqual([pending.mergeCommit, f.featureRevision, journal.featureCommit]);
-  const premature = output(
+  const premature = cliOutput(
     await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
   );
   expect(premature.finalValidation).toBe("pending");
   expect(existsSync(f.root)).toBe(true);
   expect(existsSync(f.ticketRoot)).toBe(true);
-  output(await recordFinal(f, pending, "failed"));
-  const blocked = output(
+  cliOutput(await recordFinal(f, pending, "failed"));
+  const blocked = cliOutput(
     await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
   );
   expect(blocked.finalValidation).toBe("pending");
-  output(await recordFinal(f, pending));
-  const complete = output(
+  cliOutput(await recordFinal(f, pending));
+  const complete = cliOutput(
     await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
   );
   expect(complete).toMatchObject({
@@ -620,9 +620,9 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
     true,
   );
   expect(persisted.approvedLedger.tickets[0].worktree.workspace).toBe(f.ticketRoot);
-  expect(output(await invokeAsync(f.original, ["status", "--spec", f.originalSpec])).finished).toBe(
-    true,
-  );
+  expect(
+    cliOutput(await invokeAsync(f.original, ["status", "--spec", f.originalSpec])).finished,
+  ).toBe(true);
 });
 
 test.each([
@@ -675,8 +675,8 @@ test.each([
   "wrong-final-merge",
 ])("cleanup preflights all targets and rejects %s while preserving worktrees", async (guard) => {
   const f = await readyFeature();
-  const merged = output(await f.finish());
-  output(await recordFinal(f, merged));
+  const merged = cliOutput(await f.finish());
+  cliOutput(await recordFinal(f, merged));
   if (guard === "symlink-ticket") {
     renameSync(f.ticketRoot, `${f.ticketRoot}.preserved`);
     symlinkSync(`${f.ticketRoot}.preserved`, f.ticketRoot);
@@ -715,8 +715,8 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
     let root = f.root;
     let merged: any;
     if (where === "metadata-commit" || where === "remove" || where === "delete") {
-      merged = output(await f.finish());
-      output(await recordFinal(f, merged));
+      merged = cliOutput(await f.finish());
+      cliOutput(await recordFinal(f, merged));
       root = f.original;
     }
     const app = await appAt(root);
@@ -756,8 +756,8 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
     spy.mockRestore();
     const recovered =
       root === f.root
-        ? output(await f.finish())
-        : output(
+        ? cliOutput(await f.finish())
+        : cliOutput(
             await invokeAsync(f.original, [
               "finish",
               "--spec",
@@ -774,7 +774,7 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
 
 test("wrong snapshot/merge, undeclared command and unavailable result cannot authorize cleanup", async () => {
   const f = await readyFeature();
-  const merged = output(await f.finish());
+  const merged = cliOutput(await f.finish());
   const app = await appAt(f.original);
   const finalization = await app.make(FeatureFinalizationService);
   finalization.declare({ spec: f.originalSpec, command: ["test final"], author: "controller" });
@@ -791,7 +791,7 @@ test("wrong snapshot/merge, undeclared command and unavailable result cannot aut
   expect(() => finalization.record({ ...valid, command: "undeclared" })).toThrow();
   finalization.record({ ...valid, result: "unavailable", details: "environment unavailable" });
   expect(
-    output(
+    cliOutput(
       await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
     ).finalValidation,
   ).toBe("pending");

@@ -17,7 +17,7 @@ import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/W
 
 import { applicationFixture } from "../../helpers/ApplicationFixture";
 import { repoRoot } from "../../helpers/TemporaryDirectories";
-import { execute, fixture, invokeAsync } from "../helpers/helpers";
+import { cliOutput, execute, fixture, invokeAsync } from "../helpers/helpers";
 
 function stringEncoding(
   options: SpawnSyncOptionsWithStringEncoding | SpawnSyncOptionsWithBufferEncoding,
@@ -74,7 +74,7 @@ async function setup() {
     "--confirm-records",
   ]);
   expect(started.status, started.stderr).toBe(0);
-  const { featureWorkspace: root, spec } = JSON.parse(started.stdout) as {
+  const { featureWorkspace: root, spec } = cliOutput(started) as {
     featureWorkspace: string;
     spec: string;
   };

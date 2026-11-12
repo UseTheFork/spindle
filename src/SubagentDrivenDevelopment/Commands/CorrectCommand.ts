@@ -3,6 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { CorrectionService } from "@/SubagentDrivenDevelopment/Services/CorrectionService";
@@ -39,8 +40,29 @@ export class CorrectCommand extends Command {
         if (Boolean(options.ticket) === (options.scope === "delivery")) {
           throw new Error("correct needs exactly one of --ticket or --scope delivery.");
         }
-        const command = await (await createApp()).make(CorrectCommand);
-        console.log(JSON.stringify(await command.run(options), null, 2));
+        const app = await createApp();
+        const command = await app.make(CorrectCommand);
+        const data = await command.run(options);
+        const output = await app.make(ConsoleOutputService);
+        const human = data.assignment
+          ? [
+              `Correction assignment ${data.assignment.id} for ${data.ticket ? `ticket ${data.ticket}` : "delivery"} (${data.assignment.status}).`,
+              `Report: ${data.assignment.report}`,
+              ...(data.assignment.workspace ? [`Workspace: ${data.assignment.workspace}`] : []),
+              ...(data.assignment.branch ? [`Branch: ${data.assignment.branch}`] : []),
+              ...(data.attempt ? [`Correction attempt: ${data.attempt.number}.`] : []),
+            ]
+          : [
+              `Correction paused for ${data.ticket ? `ticket ${data.ticket}` : "delivery"}; execution state: ${data.execution}.`,
+              ...(data.adjudication
+                ? [`Adjudication: ${data.adjudication.reason} — ${data.adjudication.details}`]
+                : []),
+            ];
+        output.result({
+          level: "success",
+          human,
+          data,
+        });
       });
   }
 

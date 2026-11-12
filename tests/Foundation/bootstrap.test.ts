@@ -231,7 +231,11 @@ test("Commander alone supplies validated repeated options to the executable comp
     "overwrite",
   ];
   let application: Application | undefined;
-  const run = vi.spyOn(InitCommand.prototype, "run").mockResolvedValue(undefined);
+  const run = vi.spyOn(InitCommand.prototype, "run").mockResolvedValue({
+    stacks: ["python", "typescript"],
+    outcomes: [],
+    guidanceInitialized: true,
+  });
   await dispatch(
     raw,
     () => {

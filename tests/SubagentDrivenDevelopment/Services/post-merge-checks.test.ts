@@ -10,7 +10,7 @@ import {
   isIntegrationRecord,
 } from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
 
-import { execute, fixture, invokeAsync } from "../helpers/helpers";
+import { cliOutput, execute, fixture, invokeAsync } from "../helpers/helpers";
 
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, {
@@ -37,7 +37,7 @@ async function setup() {
     "--confirm-records",
   ]);
   expect(started.status, started.stderr).toBe(0);
-  const { featureWorkspace: root, spec } = JSON.parse(started.stdout) as {
+  const { featureWorkspace: root, spec } = cliOutput(started) as {
     featureWorkspace: string;
     spec: string;
   };
@@ -112,10 +112,10 @@ test("post-merge results freeze the complete list, preserve failures and close o
     "test two",
   ]);
   expect(require.status, require.stderr).toBe(0);
-  const snapshot = JSON.parse(require.stdout).snapshot as string;
+  const snapshot = cliOutput(require).snapshot as string;
   const pendingReady = await invokeAsync(root, ["ready", "--spec", spec]);
   expect(pendingReady.status, pendingReady.stderr).toBe(0);
-  expect(JSON.parse(pendingReady.stdout).ready).not.toContain("T-0002");
+  expect(cliOutput(pendingReady).ready).not.toContain("T-0002");
   const failed = await cli(root, spec, "record", [
     "--snapshot",
     snapshot,
@@ -163,7 +163,7 @@ test("post-merge results freeze the complete list, preserve failures and close o
   ).toBe(true);
   const ready = await invokeAsync(root, ["ready", "--spec", spec]);
   expect(ready.status, ready.stderr).toBe(0);
-  expect(JSON.parse(ready.stdout).ready).toContain("T-0002");
+  expect(cliOutput(ready).ready).toContain("T-0002");
 });
 
 test("closure retry reports stale evidence and requires a fresh check", async () => {
@@ -179,7 +179,7 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(blocked.status, blocked.stderr).toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "test"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
+  const snapshot = cliOutput(declared).snapshot as string;
   const recorded = await cli(root, spec, "record", [
     "--snapshot",
     snapshot,
@@ -201,7 +201,7 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   writeFileSync(spec, `${readFileSync(spec, "utf8")}\nNew requirement.\n`);
   const retry = await cli(root, spec, "require", ["--command", "test"]);
   expect(retry.status, retry.stderr).toBe(0);
-  const outcome = JSON.parse(retry.stdout) as {
+  const outcome = cliOutput(retry) as {
     snapshot: string;
     closed: boolean;
     closureBlocked: string[];
@@ -234,7 +234,7 @@ test("post-merge rejects unauthorized, dirty, stale and wrong-branch evidence", 
   expect(unauthorized.status).not.toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "test"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
+  const snapshot = cliOutput(declared).snapshot as string;
   const args = ["--snapshot", snapshot, "--command", "test", "--result", "passed"];
   writeFileSync(join(root, "dirty.ts"), "dirty");
   expect((await cli(root, spec, "record", args)).status).not.toBe(0);
@@ -262,7 +262,7 @@ test("pending unavailable results survive interruption and changed feature state
   expect(duplicate.status).not.toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "first", "--command", "second"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
+  const snapshot = cliOutput(declared).snapshot as string;
   const unavailable = await cli(root, spec, "record", [
     "--snapshot",
     snapshot,
@@ -283,7 +283,7 @@ test("pending unavailable results survive interruption and changed feature state
     "second",
   ]);
   expect(redeclared.status, redeclared.stderr).toBe(0);
-  const fresh = JSON.parse(redeclared.stdout).snapshot as string;
+  const fresh = cliOutput(redeclared).snapshot as string;
   expect(fresh).not.toBe(snapshot);
   const second = await cli(root, spec, "record", [
     "--snapshot",
@@ -317,7 +317,7 @@ test("post-merge identity ignores independent ticket and report activity but tra
   const commands = ["--command", "first", "--command", "second"];
   const declared = await cli(root, spec, "require", commands);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
+  const snapshot = cliOutput(declared).snapshot as string;
   const update = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
       spec,
@@ -353,7 +353,7 @@ test("post-merge identity ignores independent ticket and report activity but tra
   writeFileSync(report, "Independent ticket report.\n");
   const unchanged = await cli(root, spec, "require", commands);
   expect(unchanged.status, unchanged.stderr).toBe(0);
-  expect(JSON.parse(unchanged.stdout).snapshot).toBe(snapshot);
+  expect(cliOutput(unchanged).snapshot).toBe(snapshot);
   const first = await cli(root, spec, "record", [
     "--snapshot",
     snapshot,

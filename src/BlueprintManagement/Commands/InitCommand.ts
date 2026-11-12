@@ -1,4 +1,3 @@
-import chalk from "chalk";
 import type { Command as CommanderCommand } from "commander";
 
 import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
@@ -12,14 +11,22 @@ import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandl
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
+import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import {
   LoadProjectConfiguration,
   type ProjectConfigurationData,
 } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
+
+export interface InitResult {
+  stacks: string[];
+  outcomes: BlueprintOutcome[];
+  guidanceInitialized: true;
+}
 
 export class InitCommand extends Command {
   private handlers: readonly BlueprintHandler[] = [];
@@ -69,14 +76,20 @@ Run \`spindle --version\` to print the installed version.
       )
       .allowExcessArguments(false)
       .action(
-        async (options: {
-          stack: string[];
-          spindlePackageManager?: string;
-          onConflict?: string;
-          interactive: boolean;
-        }) => {
+        async (
+          options: {
+            stack: string[];
+            spindlePackageManager?: string;
+            onConflict?: string;
+            interactive: boolean;
+          },
+          cli: CommanderCommand,
+        ) => {
           const interactive =
-            options.interactive && Boolean(process.stdin.isTTY) && Boolean(process.stdout.isTTY);
+            cli.optsWithGlobals().json !== true &&
+            options.interactive &&
+            Boolean(process.stdin.isTTY) &&
+            Boolean(process.stdout.isTTY);
           const policy = parseConflictPolicy(options.onConflict);
           Stacks.validate(options.stack);
           const spindlePackageManager =
@@ -88,9 +101,41 @@ Run \`spindle --version\` to print the installed version.
               `Provide at least one --stack flag <${Stacks.supported.join("|")}> (or run interactively).`,
             );
           }
-          await (
-            await (await createApp()).make(InitCommand)
+          const app = await createApp();
+          const result = await (
+            await app.make(InitCommand)
           ).run(options.stack, spindlePackageManager, interactive, policy);
+          const output = await app.make(ConsoleOutputService);
+          for (const outcome of result.outcomes) {
+            if (outcome.warning) output.notice("warning", outcome.warning);
+          }
+          const kinds = [...new Set(result.outcomes.map((outcome) => outcome.kind))];
+          const counts = (status: "installed" | "skipped") =>
+            kinds
+              .map((kind) => ({
+                kind,
+                count: result.outcomes.filter(
+                  (outcome) => outcome.kind === kind && outcome.status === status,
+                ).length,
+              }))
+              .filter(({ count }) => status === "installed" || count > 0)
+              .map(
+                ({ kind, count }) =>
+                  `${count} ${status === "skipped" ? "existing " : ""}${kind.toLowerCase()}(s)`,
+              )
+              .join(", ");
+          const skipped = counts("skipped");
+          output.result({
+            level: "success",
+            human: [
+              ...result.outcomes
+                .filter((outcome) => outcome.status === "removed")
+                .map((outcome) => `Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`),
+              `Installed ${counts("installed") || "0 Blueprints"} for ${result.stacks.join(", ")}${skipped ? `. Skipped ${skipped}` : ""}`,
+              "Initialized project guidance and tooling documentation.",
+            ],
+            data: result,
+          });
         },
       );
   }
@@ -109,7 +154,7 @@ Run \`spindle --version\` to print the installed version.
     packageManagerArgument: string | undefined,
     interactive: boolean,
     policy: ConflictPolicy | undefined,
-  ): Promise<void> {
+  ): Promise<InitResult> {
     this.assertApplicationBooted();
     const existing = LoadProjectConfiguration.current(this.app);
     if (existing.status === "invalid") {
@@ -117,9 +162,8 @@ Run \`spindle --version\` to print the installed version.
     }
     if (existing.status === "valid" && existing.data.stacks.length > 0) {
       await (await this.app.make(ProjectService)).initialize();
-      console.log(`${chalk.green("✔")} Initialized project guidance and tooling documentation.`);
       throw new Error(
-        "This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
+        "Initialized project guidance and tooling documentation. This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
       );
     }
 
@@ -163,28 +207,6 @@ Run \`spindle --version\` to print the installed version.
       chooseConflict: interactive ? promptConflict : undefined,
     });
     await LoadProjectConfiguration.refresh(this.app);
-    for (const outcome of outcomes.filter((item) => item.status === "removed")) {
-      console.log(`${chalk.green("✔")} Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
-    }
-    const kinds = [...new Set(outcomes.map((outcome) => outcome.kind))];
-    const counts = (status: "installed" | "skipped") =>
-      kinds
-        .map((kind) => ({
-          kind,
-          count: outcomes.filter((outcome) => outcome.kind === kind && outcome.status === status)
-            .length,
-        }))
-        .filter(({ count }) => status === "installed" || count > 0)
-        .map(
-          ({ kind, count }) =>
-            `${count} ${status === "skipped" ? "existing " : ""}${kind.toLowerCase()}(s)`,
-        )
-        .join(", ");
-    const skipped = counts("skipped");
-
-    console.log(
-      `${chalk.green("✔")} Installed ${counts("installed") || "0 Blueprints"} for ${chalk.cyan(stacks.join(", "))}${skipped ? `. Skipped ${skipped}` : ""}`,
-    );
     try {
       await project.apply(guidance);
     } catch (error) {
@@ -196,6 +218,6 @@ Run \`spindle --version\` to print the installed version.
         { cause: error },
       );
     }
-    console.log(`${chalk.green("✔")} Initialized project guidance and tooling documentation.`);
+    return { stacks, outcomes, guidanceInitialized: true };
   }
 }

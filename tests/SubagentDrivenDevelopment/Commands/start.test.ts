@@ -31,7 +31,9 @@ test("start commits only the feature records and creates an isolated worktree", 
     "--confirm-records",
   ]);
   expect(result.status, result.stderr).toBe(0);
-  const output = JSON.parse(result.stdout) as {
+  const envelope = JSON.parse(result.stdout);
+  expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  const output = envelope.data as {
     originalWorkspace: string;
     originalBranch: string;
     originalRevision: string;
@@ -77,6 +79,7 @@ test("start commits only the feature records and creates an isolated worktree", 
   });
   const status = await invokeAsync(output.featureWorkspace, ["status", "--spec", output.spec]);
   expect(status.status, status.stderr).toBe(0);
+  expect(JSON.parse(status.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
 });
 
 test("start uses the existing revision without creating an empty commit", async () => {
@@ -94,7 +97,9 @@ test("start uses the existing revision without creating an empty commit", async 
   ]);
   expect(result.status, result.stderr).toBe(0);
   expect(git("rev-parse", "HEAD")).toBe(before);
-  expect(JSON.parse(result.stdout).featureRevision).toBe(before);
+  const envelope = JSON.parse(result.stdout);
+  expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(envelope.data.featureRevision).toBe(before);
 });
 
 test("competing starts resume the same branch, state, and worktree", async () => {
@@ -103,12 +108,16 @@ test("competing starts resume the same branch, state, and worktree", async () =>
   const args = ["start", "--spec", spec, "--workspace", parent, "--confirm-records"];
   const results = await Promise.all([invokeAsync(repo, args), invokeAsync(repo, args)]);
   expect(results.map((result) => result.status)).toEqual([0, 0]);
-  const winner = JSON.parse(results[0]!.stdout) as {
+  const winnerEnvelope = JSON.parse(results[0]!.stdout);
+  const nextEnvelope = JSON.parse(results[1]!.stdout);
+  expect(winnerEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  expect(nextEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  const winner = winnerEnvelope.data as {
     featureRevision: string;
     featureWorkspace: string;
     stateFile: string;
   };
-  expect(JSON.parse(results[1]!.stdout)).toMatchObject(winner);
+  expect(nextEnvelope.data).toMatchObject(winner);
   expect(git("rev-list", "--count", `${before}..HEAD`)).toBe("1");
   expect(git("rev-parse", "features/0001-worktree-feature")).toBe(winner.featureRevision);
   expect(JSON.parse(readFileSync(winner.stateFile, "utf8")).phase).toBe("created");
@@ -389,4 +398,5 @@ test("interrupted startup resumes the journalled allocated directory", async () 
   });
   expect(git("rev-parse", "features/0001-worktree-feature")).toBe(state.featureRevision);
   expect(existsSync(state.featureWorkspace)).toBe(true);
+  expect(JSON.parse(retry.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
 });

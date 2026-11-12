@@ -58,6 +58,13 @@ export async function execute(repo: string, run: (service: WorkflowServices) => 
   }
 }
 
+export function cliOutput(result: { status: number | null; stdout: string; stderr: string }) {
+  expect(result.status, result.stderr).toBe(0);
+  const envelope = JSON.parse(result.stdout);
+  expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
+  return envelope.data;
+}
+
 export function invokeAsync(
   repo: string,
   args: string[],
@@ -72,7 +79,7 @@ export function invokeAsync(
   }>((resolveResult, reject) => {
     const childArgs = ["--import", import.meta.resolve("tsx")];
     if (options.preload) childArgs.push("--import", options.preload);
-    childArgs.push(command, "sdd", ...args);
+    childArgs.push(command, "--json", "sdd", ...args);
     const child = spawn(process.execPath, childArgs, {
       cwd: repo,
       env: {
@@ -594,9 +601,14 @@ export async function finalizeDelivery(
   }
   const completed = await completeDeliveryFinalization(pending);
   expect(completed.status, completed.stderr).toBe(0);
+  const envelope = JSON.parse(completed.stdout) as {
+    ok: boolean;
+    data?: Record<string, unknown>;
+  };
+  expect(envelope).toMatchObject({ ok: true, data: expect.any(Object) });
   return {
     pending,
-    completed: JSON.parse(completed.stdout) as Record<string, unknown>,
+    completed: envelope.data!,
   };
 }
 

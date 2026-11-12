@@ -1,3 +1,8 @@
+# Spindle
+
+See [CLI output](docs/cli-output.md) for human and JSON modes, result envelopes,
+diagnostics, and agent integration.
+
 Credits:
 
 - https://github.com/mattpocock/skills/blob/main/skills/engineering/pr/CREDITS.md

@@ -60,7 +60,8 @@ test("existing config: init initializes project guidance and points to update", 
     async (project, result) => {
       expect(result.status).not.toBe(0);
       expect(result.stderr).toMatch(/spindle update/);
-      expect(result.stdout).toContain("Initialized project guidance and tooling documentation.");
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Initialized project guidance and tooling documentation.");
       expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
       const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
       expect(config.stacks).toEqual(["python"]);

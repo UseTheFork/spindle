@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import {
+  cliOutput,
   commitTicketWorkspace,
   execute,
   invokeAsync,
@@ -778,7 +779,7 @@ test("review submission permits flag-like text in a parsed option value", async 
   ]);
 
   expect(submitted.status, submitted.stderr).toBe(0);
-  const result = JSON.parse(submitted.stdout) as {
+  const result = cliOutput(submitted) as {
     execution: string;
     assignment: { noFindings?: boolean; details?: string };
   };

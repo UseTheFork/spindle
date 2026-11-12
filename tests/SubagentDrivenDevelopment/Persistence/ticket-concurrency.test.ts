@@ -5,7 +5,7 @@ import matter from "gray-matter";
 import { expect, test } from "vitest";
 
 import { repoRoot } from "../../helpers/TemporaryDirectories.ts";
-import { invokeAsync } from "../helpers/helpers";
+import { cliOutput, invokeAsync } from "../helpers/helpers";
 import { createTicket, ticketFixture, workspaceSnapshot } from "../helpers/ticket-helpers";
 
 async function waitForFile(path: string, timeoutMs: number) {
@@ -47,7 +47,7 @@ test("ready does not combine tracker states from interleaved serialized updates"
     writeFileSync(resumePath, "resume");
     const result = await ready;
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ ready: ["T-0002"], unready: [] });
+    expect(cliOutput(result)).toEqual({ ready: ["T-0002"], unready: [] });
     expect(workspaceSnapshot(feature.workspace)).toEqual(afterTriage);
   } finally {
     writeFileSync(resumePath, "resume");
@@ -79,7 +79,7 @@ test("concurrent ticket creation serializes per-feature IDs and ledger updates",
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toBe("");
   }
-  const ids: string[] = results.map((result) => JSON.parse(result.stdout).ticket).sort();
+  const ids: string[] = results.map((result) => cliOutput(result).ticket).sort();
   expect(ids).toEqual(["T-0001", "T-0002", "T-0003", "T-0004", "T-0005"]);
   const ledger = JSON.parse(readFileSync(join(feature.workspace, "sdd.json"), "utf8"));
   const sortedTickets = ledger.tickets.sort((left: { id: string }, right: { id: string }) =>
