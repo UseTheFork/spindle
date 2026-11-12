@@ -1,14 +1,21 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "./SubagentDrivenDevelopment/**/*.ts",
-    "./TemplateRendering/**/*.ts",
-    "./Git/**/*.ts",
-    "./Config/**/*.ts",
-    "./Foundation/**/*.ts",
-    "./Support/**/*.ts",
-    "./integration/GitRoot.test.ts",
-    "./helpers/**/*.ts",
-    "./helpers/ApplicationFixture.ts"
+    "./Unit/SubagentDrivenDevelopment/**/*.ts",
+    "./Integration/SubagentDrivenDevelopment/**/*.ts",
+    "./Unit/TemplateRendering/**/*.ts",
+    "./Integration/TemplateRendering/**/*.ts",
+    "./Unit/Git/**/*.ts",
+    "./Integration/Git/**/*.ts",
+    "./Unit/Config/**/*.ts",
+    "./Integration/Config/**/*.ts",
+    "./Unit/Foundation/**/*.ts",
+    "./Integration/Foundation/**/*.ts",
+    "./Unit/Support/**/*.ts",
+    "./Integration/Support/**/*.ts",
+    "./Integration/GitRoot.test.ts",
+    "./Unit/Helpers/**/*.ts",
+    "./Integration/Helpers/**/*.ts",
+    "./Helpers/**/*.ts"
   ]
 }

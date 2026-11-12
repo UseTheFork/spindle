@@ -1,16 +1,25 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "./BlueprintManagement/**/*.ts",
-    "./TemplateRendering/**/*.ts",
-    "./Project/**/*.ts",
-    "./Tooling/**/*.ts",
-    "./Foundation/**/*.ts",
-    "./Support/**/*.ts",
-    "./Config/**/*.ts",
-    "./Git/**/*.ts",
-    "./integration/PackagedCli.test.ts",
-    "./helpers/**/*.ts",
-    "./helpers/ApplicationFixture.ts"
+    "./Unit/BlueprintManagement/**/*.ts",
+    "./Integration/BlueprintManagement/**/*.ts",
+    "./Unit/TemplateRendering/**/*.ts",
+    "./Integration/TemplateRendering/**/*.ts",
+    "./Unit/Project/**/*.ts",
+    "./Integration/Project/**/*.ts",
+    "./Unit/Tooling/**/*.ts",
+    "./Integration/Tooling/**/*.ts",
+    "./Unit/Foundation/**/*.ts",
+    "./Integration/Foundation/**/*.ts",
+    "./Unit/Support/**/*.ts",
+    "./Integration/Support/**/*.ts",
+    "./Unit/Config/**/*.ts",
+    "./Integration/Config/**/*.ts",
+    "./Unit/Git/**/*.ts",
+    "./Integration/Git/**/*.ts",
+    "./Integration/PackagedCli.test.ts",
+    "./Unit/Helpers/**/*.ts",
+    "./Integration/Helpers/**/*.ts",
+    "./Helpers/**/*.ts"
   ]
 }

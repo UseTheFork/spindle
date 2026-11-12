@@ -28,4 +28,4 @@
 ## Testing
 
 - `pnpm exec vitest run <explicit-files>`: Run selected Vitest tests once.
-- `pnpm exec vitest run tests/integration/PackagedCli.test.ts`: Run packaged CLI smoke tests after pnpm run build.
+- `pnpm exec vitest run tests/Integration/PackagedCli.test.ts`: Run packaged CLI smoke tests after pnpm run build.

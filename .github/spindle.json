@@ -55,7 +55,7 @@
     {
       "key": "test-packaged-cli",
       "section": "Testing",
-      "command": "pnpm exec vitest run tests/integration/PackagedCli.test.ts",
+      "command": "pnpm exec vitest run tests/Integration/PackagedCli.test.ts",
       "description": "Run packaged CLI smoke tests after pnpm run build."
     }
   ]
