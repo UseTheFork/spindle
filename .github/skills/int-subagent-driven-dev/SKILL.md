@@ -4,12 +4,17 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.6.0
+    version: 1.7.0
 ---
 
 # Subagent-Driven Development
 
 The controller coordinates a feature's tickets, workers, checks, reviews, and completion. The feature workspace and `sdd.json` are the source of truth for structured ticket and delivery state; each ticket Markdown file holds its requirements, acceptance criteria, and discussion.
+
+Add `--json` to Spindle commands when consuming structured results. Read the
+success envelope's `data` field; stdout contains one result, while stderr
+contains JSON notices or errors. A nonzero exit indicates failure. Human output
+is the default, and JSON mode never prompts.
 
 ## Workflow map
 

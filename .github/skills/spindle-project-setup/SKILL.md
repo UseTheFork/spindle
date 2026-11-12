@@ -1,11 +1,11 @@
 ---
 name: spindle-project-setup
-description: "Use after spindle init to document project tooling and establish domain glossaries."
+description: "Use after pnpm spindle init to document project tooling and establish domain glossaries."
 disable-model-invocation: false
 user-invocable: true
 metadata:
   spindle:
-    version: 1.5.0
+    version: 1.6.0
 ---
 
 # Setup Project
@@ -14,7 +14,7 @@ Curate the commands agents should use and establish project domain documentation
 
 ## Prerequisite
 
-The user must have completed `spindle init` before running this skill. This skill
+The user must have completed `pnpm spindle init` before running this skill. This skill
 does not initialize the project. If the required project guidance or tooling
 registry is missing, report the prerequisite and stop.
 
@@ -27,21 +27,22 @@ flowchart TD
     B[Explore the project and its conventions] --> C[Update and verify tooling]
     C --> G{Existing project?}
     G -- Yes --> H[Populate domain glossaries]
-    G -- No --> I[Report setup outcome]
-    H --> I
+    G -- No --> J[Create or verify constitution]
+    H --> J
+    J --> I[Report setup outcome]
 ```
 
 ### B. Explore the project and its conventions
 
-Read `docs/agents/domain.md`, the relevant glossary and ADRs, and existing project guidance. Inspect the repository's package manifests, task runner configuration, and test/build configuration to identify candidate commands. Do not treat discovery as registration: decide which commands are useful to agents and verify their names and argument forms against their configuration.
+Read `docs/agents/domain.md`, the relevant glossary and ADRs, and existing project guidance. Inspect the repository's package manifests, task runner configuration, and test/build configuration to identify candidate commands. Do not treat discovery as registration: decide which commands are useful to agents and verify their names and argument forms against their configuration. Complete the inspection before reporting; cite the files and evidence reviewed instead of only announcing an intention to inspect them.
 
 Also inspect the source to determine whether this is an existing project: it contains substantive application or library code, not merely scaffold files or manifests. Ask the user if the evidence is ambiguous.
 
-**Complete when:** each candidate command selected for the guide has a verified invocation and a clear documentation section, and the existing-project classification is established, selecting C.
+**Complete when:** relevant project guidance and decisions are reviewed with cited paths, each candidate command selected for the guide has a verified invocation and a clear documentation section, and the existing-project classification is established, selecting C.
 
 ### C. Update and verify tooling
 
-Load and follow the `spindle-tooling-update` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, `spindle tool` registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
+Load and follow the `spindle-tooling-update` skill. Supply the verified candidate commands and relevant configuration paths found in B as explicit context, and request a full registry comparison for initial setup. That skill owns the proposal, explicit approval, revision loop, `pnpm spindle tool` registry mutations, and generated-guide verification; do not duplicate or bypass its approval gate.
 
 **Complete when:** the delegated workflow has returned with the registry and guide verified, selecting G. If approval is pending, wait; if it reports failures or discrepancies, report the blocker and stop rather than claiming setup is complete.
 
@@ -49,7 +50,7 @@ Load and follow the `spindle-tooling-update` skill. Supply the verified candidat
 
 Use the classification established in B. Only an existing project with substantive application or library code proceeds to domain modeling. A new project containing only scaffold files or manifests skips it; do not create empty glossary files or invent a domain model.
 
-**Complete when:** an existing project selects H or a new project selects I.
+**Complete when:** an existing project selects H or a new project selects J.
 
 ### H. Populate domain glossaries
 
@@ -57,10 +58,16 @@ Load and follow the `int-domain-modeling` skill. Use the existing code and user 
 
 For a single context, populate or refine the root `GLOSSARY.md`. For multiple contexts, populate or refine the context glossaries and `GLOSSARY-MAP.md`, including links to the glossaries and the relationships between contexts. Create the map only when multiple contexts are established. Keep glossaries free of implementation details and create files only when there are resolved terms to record.
 
-**Complete when:** resolved domain terms are recorded in the appropriate glossaries, multiple established contexts are mapped with valid links, and any unresolved questions are explicitly identified, selecting I.
+**Complete when:** resolved domain terms are recorded in the appropriate glossaries, multiple established contexts are mapped with valid links, and any unresolved questions are explicitly identified, selecting J.
+
+### J. Create or verify constitution
+
+Load and follow the `spindle-constitution` skill for every project. Supply the relevant project instructions, domain guidance, and architectural decisions reviewed in B and H. Complete an unratified scaffold or preserve an existing ratified constitution. Do not copy its principles into this workflow or bypass its approval and synchronization rules.
+
+**Complete when:** the constitution skill reports the file ratified or preserved, and any unresolved conflict or follow-up is explicit, selecting I.
 
 ### I. Report setup outcome
 
-Summarize tooling changes applied or declined, guide verification, and domain documentation populated or skipped with the reason. Identify unresolved questions or blockers without claiming they are complete.
+Summarize tooling changes applied or declined, guide verification, domain documentation populated or skipped with the reason, and the constitution created or preserved. Identify unresolved questions or blockers without claiming they are complete.
 
 **Complete when:** the user has an accurate setup outcome and any remaining actions.
