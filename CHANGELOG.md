@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.2.0
+
+### Minor Changes
+
+- [#6](https://github.com/UseTheFork/spindle/pull/6) [`1a57032`](https://github.com/UseTheFork/spindle/commit/1a57032519f1058cad7b5339bd55d9ae95dec869) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Replace the SDD shared-checkout workflow with isolated feature and ticket worktrees, requiring explicit workspace paths and adding integration validation.
+
 ## 0.1.0
 
 ### Minor Changes
