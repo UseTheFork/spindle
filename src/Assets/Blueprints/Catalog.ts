@@ -95,6 +95,10 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-writing-instruction": { path: "int-writing-instruction/", stacks: [] },
     "int-writing-skills": { path: "int-writing-skills/", stacks: [] },
     retrospective: { path: "retrospective/", stacks: [] },
+    "ref-php-laravel-framework": {
+      path: "ref-php-laravel-framework/",
+      stacks: ["php-laravel"],
+    },
     "ref-php-laravel-saloon-api-integrations": {
       path: "ref-php-laravel-saloon-api-integrations/",
       stacks: ["php-laravel"],
