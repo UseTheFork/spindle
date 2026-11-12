@@ -156,7 +156,7 @@ jobs:
         uses: changesets/action/publish@v2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
-          create-github-releases: false
+          create-github-releases: true
 
       - name: Publish schema release asset
         if: steps.publish.outputs.published == 'true'
