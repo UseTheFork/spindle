@@ -88,7 +88,7 @@ const goodConfig = {
   tooling: [],
 };
 
-test("JSON update returns one typed result and structured warnings on stderr", async () => {
+test("JSON update returns one typed result when replacing a collision", async () => {
   await withProject(
     { config: goodConfig, skills: { newer: "custom skill\n" } },
     ["--json"],
@@ -100,19 +100,12 @@ test("JSON update returns one typed result and structured warnings on stderr", a
           stacks: ["python", "typescript"],
           guidanceInitialized: true,
           outcomes: expect.arrayContaining([
-            expect.objectContaining({ name: "newer", status: "skipped" }),
+            expect.objectContaining({ name: "newer", status: "updated" }),
           ]),
         },
       });
       expect(result.stdout.trim().split("\n")).toHaveLength(1);
-      const notices = result.stderr
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line));
-      expect(notices).toContainEqual({
-        level: "warning",
-        message: expect.stringContaining("not managed"),
-      });
+      expect(result.stderr).toBe("");
     },
   );
 });
@@ -227,7 +220,7 @@ test("update preserves paths for duplicate basenames in a Skill's stacks directo
   }
 });
 
-test("newer is overwritten with stored stacks and package manager; other versions are not", async () => {
+test("all selected versions are overwritten with stored stacks and package manager", async () => {
   const configText = JSON.stringify(goodConfig, null, 4);
   await withProject(
     {
@@ -246,15 +239,15 @@ test("newer is overwritten with stored stacks and package manager; other version
       expect(await read(project, "newer")).toBe(
         "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nfresh newer owner=pnpm stacks=python;typescript;\n",
       );
-      expect(await read(project, "equal")).toBe(skill("1.0.0"));
-      expect(await read(project, "lower")).toBe(skill("9.0.0"));
-      expect(await read(project, "missing")).toBe(skill(null));
+      expect(await read(project, "equal")).toContain("fresh equal");
+      expect(await read(project, "lower")).toContain("fresh lower");
+      expect(await read(project, "missing")).toContain("fresh missing");
       expect(await read(project, "bad")).toContain("fresh bad");
       await expect(readFile(join(project, ".github/skills/newer/extra.txt"))).rejects.toThrow();
       expect(await read(project, "absent")).toContain("fresh absent");
       expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(configText);
-      expect(result.stderr).toMatch(/missing.*not managed/);
-      expect(result.stdout).toMatch(/Added 1, updated 2, skipped 1, up to date 2 skill\(s\)/);
+      expect(result.stderr).toBe("");
+      expect(result.stdout).toMatch(/Added 1, updated 5, skipped 0, up to date 0 skill\(s\)/);
     },
   );
 });
@@ -320,8 +313,8 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
       [],
       async (project, result) => {
         expect(result.status, result.stderr).toBe(0);
-        expect(result.stderr).toMatch(/Skill 'demo'.*not managed/);
-        expect(await read(project, "demo")).toBe(legacyInstalled);
+        expect(result.stderr).toBe("");
+        expect(await read(project, "demo")).toContain("shipped");
       },
       blueprints,
     );
@@ -359,7 +352,7 @@ test("update renders a complete static Skill entry before checking an equal vers
   }
 });
 
-test("update aborts on malformed installed Skill YAML before replacing another Skill", async () => {
+test("update overwrites malformed installed Skill YAML at selected paths", async () => {
   const blueprints = await makeTempDir("spindle-malformed-skill-blueprints-");
   const malformed =
     "---\nname: broken\nmetadata:\n  spindle:\n    version: [unterminated\n---\nlocal broken Skill\n";
@@ -374,21 +367,25 @@ test("update aborts on malformed installed Skill YAML before replacing another S
       { config, skills: { "a-outdated": skill("1.0.0", "local"), "z-broken": malformed } },
       [],
       async (project, result) => {
-        expect(result.status).not.toBe(0);
-        expect(result.stderr).toMatch(/Cannot read Blueprint metadata/);
-        expect(await read(project, "a-outdated")).toBe(skill("1.0.0", "local"));
-        expect(await read(project, "z-broken")).toBe(malformed);
+        expect(result.status, result.stderr).toBe(0);
+        expect(await read(project, "a-outdated")).toBe(skill("2.0.0", "shipped"));
+        expect(await read(project, "z-broken")).toBe(skill("2.0.0", "shipped"));
+        await expect(
+          readFile(join(project, ".github", "skills", "a-outdated", "extra.txt"), "utf8"),
+        ).rejects.toMatchObject({ code: "ENOENT" });
         expect(
-          await readFile(join(project, ".github", "skills", "a-outdated", "extra.txt"), "utf8"),
-        ).toBe("stale");
-        expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(config);
+          JSON.parse(await readFile(join(project, ".github", "spindle.json"), "utf8")),
+        ).toEqual({
+          ...JSON.parse(config),
+          tooling: [],
+        });
       },
       blueprints,
     );
   }
 });
 
-test("no-op updates do not require missing Variables", async () => {
+test("updates do not require missing Variables", async () => {
   const currentSkills = {
     newer: skill("2.0.0"),
     equal: skill("1.0.0"),
@@ -405,14 +402,14 @@ test("no-op updates do not require missing Variables", async () => {
     [],
     async (project, result) => {
       expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
-      expect(await read(project, "newer")).toBe(skill("2.0.0"));
+      expect(result.stdout).toMatch(/Added 0, updated 6, skipped 0, up to date 0 skill\(s\)/);
+      expect(await read(project, "newer")).toContain("fresh newer");
     },
   );
 });
 
 test(
-  "interactive no-op updates do not prompt for missing Variables",
+  "interactive updates do not prompt for missing Variables",
   { skip: process.platform !== "linux" },
   async () => {
     const currentSkills = {
@@ -434,7 +431,7 @@ test(
         expect(result.stdout).not.toMatch(
           /owner: Team owner|lint_command: Lint command|Which new Skills/,
         );
-        expect(result.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 6 skill\(s\)/);
+        expect(result.stdout).toMatch(/Added 0, updated 6, skipped 0, up to date 0 skill\(s\)/);
       },
       stubs,
       (project, args, searchPath, env) => runCliInteractive(project, args, searchPath, [], env),
@@ -479,7 +476,7 @@ test(
         [],
         async (project, result) => {
           expect(result.status, result.stdout).toBe(0);
-          expect(result.stdout).toMatch(/Added 1, updated 1, skipped 0, up to date 4 skill\(s\)/);
+          expect(result.stdout).toMatch(/Added 1, updated 5, skipped 0, up to date 0 skill\(s\)/);
           expect(await read(project, "newer")).toMatch(/fresh newer manager=pnpm stacks=python;/);
           expect(await read(project, "absent")).toMatch(/fresh absent manager=pnpm stacks=python;/);
           expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(

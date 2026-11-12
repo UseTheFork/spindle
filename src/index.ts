@@ -7,6 +7,7 @@ import { dispatch } from "@/cli";
 import { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
+import { SettingsServiceProvider } from "@/Settings/SettingsServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
 import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
@@ -24,6 +25,7 @@ export async function runExecutable(
       TemplateRenderingServiceProvider,
       BlueprintManagementServiceProvider,
       ProjectServiceProvider,
+      SettingsServiceProvider,
       ToolingServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],

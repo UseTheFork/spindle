@@ -417,15 +417,15 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     expect(first.status, first.stderr).toBe(0);
     expect(first.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 agent\(s\)/);
     expect(first.stdout).toMatch(/Added 1, updated 0, skipped 0, up to date 0 instruction\(s\)/);
-    expect(first.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 skill\(s\)/);
+    expect(first.stdout).toMatch(/Added 0, updated 1, skipped 0, up to date 0 skill\(s\)/);
     expect(first.stdout).toMatch(/Removed skill 'retired'/);
     expect(first.stdout).toMatch(/Removed skill 'current\/local\.txt'/);
     expect(await readFile(agentPath, "utf8")).toBe(
       `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
     expect(await readFile(instructionPath, "utf8")).toBe(versioned("1.0.0", "new Instruction"));
-    expect(await readFile(join(currentSkill, "SKILL.md"), "utf8")).toBe(currentSkillInstall);
-    expect(await readFile(join(currentSkill, "asset.txt"))).toEqual(preservedAsset);
+    expect(await readFile(join(currentSkill, "SKILL.md"), "utf8")).toBe(currentSkillSource);
+    expect(await readFile(join(currentSkill, "asset.txt"), "utf8")).toBe("source asset\n");
     await expect(readFile(join(currentSkill, "local.txt"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -440,9 +440,9 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
 
     expect(second.status, second.stderr).toBe(0);
     expect(second.stdout.includes("Removed ")).toBe(false);
-    expect(second.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 agent\(s\)/);
-    expect(second.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 instruction\(s\)/);
-    expect(second.stdout).toMatch(/Added 0, updated 0, skipped 0, up to date 1 skill\(s\)/);
+    expect(second.stdout).toMatch(/Added 0, updated 1, skipped 0, up to date 0 agent\(s\)/);
+    expect(second.stdout).toMatch(/Added 0, updated 1, skipped 0, up to date 0 instruction\(s\)/);
+    expect(second.stdout).toMatch(/Added 0, updated 1, skipped 0, up to date 0 skill\(s\)/);
     expect(await readFile(outsideSentinel)).toEqual(outsideBytes);
   }
 });

@@ -20,6 +20,8 @@ import {
 } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { promptCommitSettings } from "@/Settings/Commands/Prompts";
+import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
 import { Stacks } from "@/Support/Stacks";
 
 export interface InitResult {
@@ -70,7 +72,7 @@ export class InitCommand extends Command {
 If Blueprint stacks are already configured, project guidance is initialized and
 \`spindle update\` is required to change the installed Blueprints.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
+Other commands: settings (see \`spindle settings --help\`), update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
 `,
       )
@@ -190,11 +192,15 @@ Run \`spindle --version\` to print the installed version.
       );
     }
     spindlePackageManager = InitCommand.normalizeSpindlePackageManager(spindlePackageManager);
+    const commit = interactive
+      ? await promptCommitSettings(existing.status === "valid" ? existing.data.commit : undefined)
+      : ((existing.status === "valid" ? existing.data.commit : undefined) ?? defaultCommitSettings);
 
     const config: ProjectConfigurationData = {
       ...(existing.status === "valid" ? existing.data : {}),
       stacks,
       spindle_package_manager: spindlePackageManager,
+      commit,
     };
     delete config.variables;
     const project = await this.app.make(ProjectService);

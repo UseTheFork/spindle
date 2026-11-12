@@ -118,7 +118,6 @@ async function planReconciliation(
   blueprintNames: string[],
   sourceFilesByName: Map<string, PlannedBlueprintFile[]>,
   resolveContext: () => Promise<RenderContext | undefined>,
-  managed: Set<string>,
 ): Promise<ReconciliationPlan> {
   const { mode, githubDirectory } = options;
   const destinationDirectory = handler.destinationDirectory(githubDirectory);
@@ -134,26 +133,19 @@ async function planReconciliation(
       plan.push({ name, status: installed ? "conflict" : "install" });
       continue;
     }
-    if (installed && !managed.has(name)) {
-      plan.push({
-        name,
-        status: "warning",
-        warning: `Skipping ${handler.kind} '${name}': installed item is not managed by Spindle.`,
-      });
-      continue;
-    }
-
+    const planned = handler.planUpdate
+      ? await handler.planUpdate({
+          name,
+          sourceFiles: sourceFilesByName.get(name)!,
+          target,
+          installed: false,
+          resolveContext,
+        })
+      : { status: installed ? ("conflict" as const) : ("new" as const) };
     plan.push({
       name,
-      ...(handler.planUpdate
-        ? await handler.planUpdate({
-            name,
-            sourceFiles: sourceFilesByName.get(name)!,
-            target,
-            installed,
-            resolveContext,
-          })
-        : { status: installed ? "conflict" : "new" }),
+      ...planned,
+      status: installed ? "update" : planned.status,
     });
   }
 
@@ -329,8 +321,6 @@ async function performReconciliation(
     handler: BlueprintHandler;
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
-    deletions: PlannedBlueprintDeletion[];
-    managed: Set<string>;
   }[] = [];
   const initializers: {
     handler: BlueprintHandler;
@@ -376,7 +366,7 @@ async function performReconciliation(
     if (handler.entryFile !== undefined || handler.fileTarget) {
       for (const name of names) await assertSingleFileDestination(targetPath(name));
     }
-    collections.push({ handler, names, files, deletions, managed: handlerPlan.managed });
+    collections.push({ handler, names, files });
   }
   const plannedRemovals = [
     ...deletionOperations.map(catalogRemovalOperation),
@@ -397,8 +387,8 @@ async function performReconciliation(
     );
   };
   const plans: ReconciliationPlan[] = [];
-  for (const { handler, names, files, managed } of collections) {
-    plans.push(await planReconciliation(handler, options, names, files, resolveContext, managed));
+  for (const { handler, names, files } of collections) {
+    plans.push(await planReconciliation(handler, options, names, files, resolveContext));
   }
   const installing = plans.find((plan) => plan.willInstall);
   const needsContext =
@@ -477,7 +467,8 @@ async function performReconciliation(
     preparedFilesByPlan.set(plan, preparedFilesByName);
   }
   const configWrite =
-    options.mode === "init"
+    options.mode === "init" ||
+    (options.mode === "update" && options.persistConfig && options.config)
       ? {
           path: join(options.githubDirectory, "spindle.json"),
           content: `${JSON.stringify(options.config, null, 2)}\n`,
@@ -614,7 +605,7 @@ export class BlueprintReconciliationService extends Service {
         },
         this.installationService,
       );
-    if (options.mode === "init") {
+    if (options.config !== undefined) {
       return LoadProjectConfiguration.withTemporaryState(
         this.app,
         { status: "valid", data: options.config },

@@ -8,6 +8,7 @@
   documentation.
 - [Tooling](src/Tooling/GLOSSARY.md): registered tooling commands and their
   human-readable guide.
+- [Settings](src/Settings/GLOSSARY.md): project settings and their lifecycle.
 - [Shared project terms](GLOSSARY.md): Stacks, Variables, Config, and
   Application Configuration.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):

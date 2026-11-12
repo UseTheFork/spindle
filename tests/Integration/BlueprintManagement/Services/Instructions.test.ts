@@ -78,13 +78,13 @@ test("init and update install selected Instructions as single versioned files", 
       instruction("style", "2.0.0", "pnpm v2"),
     );
     expect(await readFile(join(installed, "local.instructions.md"), "utf8")).toBe(
-      instruction("local", null, "mine"),
+      instruction("local", "1.0.0", "shipped"),
     );
     expect(await readFile(invalidInstalled, "utf8")).toBe(
       instruction("invalid", "1.0.0", "shipped"),
     );
-    expect(update.stderr).toMatch(/Instruction 'local\.instructions\.md'.*not managed/);
-    expect(update.stdout).toBe("✔ Added 0, updated 2, skipped 1, up to date 2 instruction(s)\n");
+    expect(update.stderr).toBe("");
+    expect(update.stdout).toBe("✔ Added 0, updated 5, skipped 0, up to date 0 instruction(s)\n");
   }
 });
 
@@ -136,11 +136,12 @@ test("production init and update install the shipped Instructions", async () => 
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(init.status, init.stderr).toBe(0);
     expect(init.stdout).toMatch(
-      /[1-9]\d* skill\(s\), [1-9]\d* agent\(s\), 2 instruction\(s\) for python/,
+      /[1-9]\d* skill\(s\), [1-9]\d* agent\(s\), 3 instruction\(s\) for python/,
     );
-    expect(init.stdout).toMatch(/2 instruction\(s\) for python/);
+    expect(init.stdout).toMatch(/3 instruction\(s\) for python/);
     expect(await readdir(join(project, ".github", "instructions"))).toEqual([
       "code-commenting.instructions.md",
+      "commit-format.instructions.md",
       "source-architecture.instructions.md",
     ]);
     expect(
@@ -158,6 +159,6 @@ test("production init and update install the shipped Instructions", async () => 
 
     const update = runCli(project, ["update"], process.env.PATH ?? "");
     expect(update.status, update.stderr).toBe(0);
-    expect(update.stdout).toMatch(/up to date 2 instruction\(s\)/);
+    expect(update.stdout).toMatch(/updated 3, skipped 0, up to date 0 instruction\(s\)/);
   }
 });

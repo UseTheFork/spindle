@@ -68,7 +68,7 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     const pythonResult = runCli(project, args, process.env.PATH ?? "", env);
     expect(pythonResult.status, pythonResult.stderr).toBe(0);
     expect(await readFile(join(github, "agents", "python-only.agent.md"), "utf8")).toBe(
-      versioned("python-only", "installed python-only"),
+      versioned("python-only", "shipped python-only"),
     );
 
     await writeFile(
@@ -79,7 +79,7 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     expect(typescriptResult.status, typescriptResult.stderr).toBe(0);
     await assertMissing(join(github, "agents", "python-only.agent.md"));
     expect(await readFile(join(github, "agents", "multi.agent.md"), "utf8")).toBe(
-      versioned("multi", "installed multi"),
+      versioned("multi", "shipped multi"),
     );
     expect(await readFile(join(github, "agents", "old.agent.md"), "utf8")).toBe(
       "old path content\n",

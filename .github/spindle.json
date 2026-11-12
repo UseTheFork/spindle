@@ -3,6 +3,13 @@
     "typescript"
   ],
   "spindle_package_manager": "pnpm",
+  "commit": {
+    "allow_body": false,
+    "title_max_length": 72,
+    "scopes_enabled": false,
+    "allowed_scopes": [],
+    "allow_breaking_changes": false
+  },
   "tooling": [
     {
       "key": "build",

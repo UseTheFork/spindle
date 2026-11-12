@@ -6,7 +6,10 @@ import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import {
+  LoadProjectConfiguration,
+  type ProjectConfigurationData,
+} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { Stacks } from "@/Support/Stacks";
@@ -25,7 +28,7 @@ export class UpdateCommand extends Command {
     program
       .command("update")
       .description(
-        `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
+        `Re-render installed Blueprints (Skills, Agents, and Instructions).
 Reads stacks and the Spindle package-manager command from .github/spindle.json.
 Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes project guidance.`,
       )
@@ -33,7 +36,7 @@ Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes 
         "after",
         `
 Requires .github/spindle.json; run \`spindle init\` first.
-Unmanaged Blueprints are preserved.
+Catalog paths are overwritten, including local edits. Unrelated paths are preserved.
 `,
       )
       .allowExcessArguments(false)
@@ -69,11 +72,16 @@ Unmanaged Blueprints are preserved.
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(): Promise<UpdateResult> {
+  public async run(replacement?: ProjectConfigurationData): Promise<UpdateResult> {
     this.assertApplicationBooted();
-    const config = LoadProjectConfiguration.require(
+    const current = LoadProjectConfiguration.require(
       await LoadProjectConfiguration.refresh(this.app),
     );
+    const state =
+      replacement === undefined
+        ? { status: "valid" as const, data: current.config }
+        : LoadProjectConfiguration.parse(JSON.stringify(replacement));
+    const config = LoadProjectConfiguration.require(state);
     if (config.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
@@ -91,6 +99,7 @@ Unmanaged Blueprints are preserved.
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
       config: config.config,
+      persistConfig: replacement !== undefined,
       resolveContext: async () => ({
         stacks: config.stacks,
         variables: {},

@@ -56,7 +56,7 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
   }
 });
 
-test("update replaces older and invalid managed Agents and preserves unmanaged Agents", async () => {
+test("update overwrites selected Agents regardless of ownership or version", async () => {
   const blueprints = await makeTempDir("spindle-agent-version-blueprints-");
   const project = await makeTempDir("spindle-agent-version-project-");
   const installedAgents = join(project, ".github", "agents");
@@ -95,13 +95,13 @@ test("update replaces older and invalid managed Agents and preserves unmanaged A
 
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(join(installedAgents, "equal.agent.md"), "utf8")).toBe(
-      contents("equal", "1.0.0", "preserve local content"),
+      contents("equal", "1.0.0", "shipped pnpm"),
     );
     expect(await readFile(join(installedAgents, "newer-installed.agent.md"), "utf8")).toBe(
-      contents("newer-installed", "9.0.0", "preserve local content"),
+      contents("newer-installed", "1.0.0", "shipped pnpm"),
     );
     expect(await readFile(join(installedAgents, "unversioned.agent.md"), "utf8")).toBe(
-      contents("unversioned", null, "preserve local content"),
+      contents("unversioned", "1.0.0", "shipped pnpm"),
     );
     expect(await readFile(join(installedAgents, "invalid.agent.md"), "utf8")).toBe(
       contents("invalid", "1.0.0", "shipped pnpm"),
@@ -110,8 +110,8 @@ test("update replaces older and invalid managed Agents and preserves unmanaged A
       contents("outdated", "2.0.0", "shipped pnpm"),
     );
     expect(await readFile(join(installedAgents, "new.agent.md"), "utf8")).toContain("shipped pnpm");
-    expect(result.stderr).toMatch(/Agent 'unversioned\.agent\.md'.*not managed/);
-    expect(result.stdout).toBe("✔ Added 1, updated 2, skipped 1, up to date 2 agent(s)\n");
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("✔ Added 1, updated 5, skipped 0, up to date 0 agent(s)\n");
   }
 });
 
@@ -207,7 +207,13 @@ test(
         project,
         ["init", "--stack", "python"],
         process.env.PATH ?? "",
-        [{ trigger: "What should happen?", input: "\r" }],
+        [
+          { trigger: "Allow commit message bodies?", input: "\r" },
+          { trigger: "Maximum commit title length", input: "\r" },
+          { trigger: "Require commit scopes?", input: "\r" },
+          { trigger: "Allow breaking-change notation?", input: "\r" },
+          { trigger: "What should happen?", input: "\r" },
+        ],
         { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
       );
 
@@ -401,14 +407,14 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
 
     const update = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(update.status, update.stderr).toBe(0);
-    expect(update.stdout).toMatch(/up to date 1 skill\(s\)/);
+    expect(update.stdout).toMatch(/updated 1, skipped 0, up to date 0 skill\(s\)/);
     await expect(readdir(join(project, ".github", "agents"))).rejects.toMatchObject({
       code: "ENOENT",
     });
   }
 });
 
-test("update rejects an Agent with unreadable version frontmatter", async () => {
+test("update overwrites a selected Agent with unreadable version frontmatter", async () => {
   const blueprints = await makeTempDir("spindle-agent-bad-frontmatter-blueprints-");
   const project = await makeTempDir("spindle-agent-bad-frontmatter-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
@@ -431,9 +437,8 @@ test("update rejects an Agent with unreadable version frontmatter", async () => 
       SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
     });
 
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/Cannot read Blueprint metadata/);
-    expect(await readFile(agentPath, "utf8")).toBe(installed);
+    expect(result.status, result.stderr).toBe(0);
+    expect(await readFile(agentPath, "utf8")).toContain("shipped Agent");
   }
 });
 

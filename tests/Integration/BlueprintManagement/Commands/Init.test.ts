@@ -234,7 +234,13 @@ test(
       project,
       ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
       process.env.PATH ?? "",
-      [{ trigger: "What should happen?", input: "\r" }],
+      [
+        { trigger: "Allow commit message bodies?", input: "\r" },
+        { trigger: "Maximum commit title length", input: "\r" },
+        { trigger: "Require commit scopes?", input: "\r" },
+        { trigger: "Allow breaking-change notation?", input: "\r" },
+        { trigger: "What should happen?", input: "\r" },
+      ],
       { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
     );
 

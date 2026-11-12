@@ -34,6 +34,7 @@ export type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "update";
       config?: ProjectConfigurationData;
+      persistConfig?: boolean;
     });
 
 type WithoutApplicationRoots<T> = T extends unknown

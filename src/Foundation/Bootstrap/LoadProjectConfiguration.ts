@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import type { Application } from "@/Foundation/Application";
 import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
+import { isCommitSettings, type CommitSettings } from "@/Settings/Models/CommitSettings";
 import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
 import { isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
@@ -11,6 +12,7 @@ export interface ProjectConfigurationData extends Record<string, unknown> {
   stacks: string[];
   spindle_package_manager?: string;
   tooling?: ToolingEntry[];
+  commit?: CommitSettings;
 }
 
 export type ProjectConfigurationState =
@@ -19,7 +21,7 @@ export type ProjectConfigurationState =
   | { status: "invalid"; data: unknown; error: Error; reason: string };
 
 const malformed =
-  '.github/spindle.json is malformed; expected {"stacks": [...], "spindle_package_manager"?: string, "tooling"?: [...]}. Fix the file or run `spindle init`.';
+  ".github/spindle.json is malformed; check stacks, spindle_package_manager, tooling, and commit settings. Fix the file or run `spindle init`.";
 
 export class LoadProjectConfiguration extends Bootstrapper {
   public static parse(raw: string): ProjectConfigurationState {
@@ -151,6 +153,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
       (value.spindle_package_manager === undefined ||
         (typeof value.spindle_package_manager === "string" &&
           this.isSingleLine(value.spindle_package_manager))) &&
+      (value.commit === undefined || isCommitSettings(value.commit)) &&
       (value.tooling === undefined ||
         (Array.isArray(value.tooling) &&
           value.tooling.every((entry) => this.isToolingEntry(entry)) &&
