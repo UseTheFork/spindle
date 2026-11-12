@@ -4,143 +4,65 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.4.0
+    version: 1.6.0
 ---
 
 # Subagent-Driven Development
 
-Controller for assigned tickets or dependency graphs; the brief governs. The controller owns scheduling, execution states, acceptance, snapshot freshness, integration, and hand-back. Workers own role workflows and report contracts; assignment templates carry inputs only.
+The controller coordinates a feature's tickets, workers, checks, reviews, and completion. The feature workspace and `sdd.json` are the source of truth for structured ticket and delivery state; each ticket Markdown file holds its requirements, acceptance criteria, and discussion.
 
-**First action:** Confirm invocation access to `sdd-implementer` and `sdd-reviewer`. Files existing is not proof of access. If access is unavailable or unconfirmed, stop and identify the missing agents. Use the assigned agents, not substitutes.
+## Workflow map
 
-| Assignment                                             | Agent             | Required template                             |
-| ------------------------------------------------------ | ----------------- | --------------------------------------------- |
-| Implementation and batched fixes                       | `sdd-implementer` | [implementer](./assets/implementer-prompt.md) |
-| Initial, corrective, and aggregate Spec/Quality review | `sdd-reviewer`    | [reviewer](./assets/reviewer-prompt.md)       |
-
-Read and populate the matching template for every dispatch, omitting sections whose stated condition does not apply. Load and follow the `int-test-driven-development` skill and the `int-verification-before-completion` skill. Use the existing checkout and preserve user changes and report history. Serialize implementation and fixes; freeze implementation edits until the reviewer returns. Only the controller changes execution states. Retain the project's current triage fields, dated tracker, integration permissions, and retrospective convention; this workflow does not require new CLI commands or a new ledger format.
-
-## Controller flow
-
-Announce `Step <node path> - <label path> (ticket <ID>, when applicable)` before each node, including resumed nodes and loop re-entries. State decision results and selected branches. Disclosed sub-flowcharts extend the parent path with dot-separated IDs and `/`-separated labels; include corrective rounds when applicable.
+Before acting on each chart node, announce `Step <node ID> - <node label>`, including initial entries, resumed steps, and loop re-entries. After each decision, state its result and selected branch before entering the target node.
 
 ```mermaid
 flowchart TD
-    A[Restore scope and ledger] --> B[Claim eligible ticket]
-    A -- No ticket remains --> K
-    B --> C[Dispatch implementation]
-    C --> D[Controller checks]
-    D --> E[Freeze and review]
-    D -- Non-mechanical fix needed --> G
-    D -- Blocked --> Q
-    C -- Blocked --> Q
-    A -- Blocked --> Q
-    E --> F{Accepted?}
-    E -- Blocked --> Q
-    F -- No --> G[Corrective branch]
-    F -- Coverage missing --> Q
-    G -- Re-reviewed --> F
-    G -- Initial review pending --> E
-    G -- Incomplete or blocked --> Q
-    F -- Yes --> H[Verify coverage]
-    H --> I{Caller-owned?}
-    H -- Blocked --> Q
-    I -- Yes --> Q[Hand back]
-    I -- No --> J[Integrate]
-    J --> K{More eligible?}
-    J -- Blocked --> Q
-    K -- Yes --> B
-    K -- No --> L{Full-spec?}
-    K -- Dependency or triage blocker --> Q
-    L -- Yes --> M[Full-spec branch]
-    L -- No --> Q
-    M --> Q
+    A[Restore feature state and readiness] --> B{Ready ticket available?}
+    B -- Yes --> C[Implement, review, integrate, and validate tickets]
+    C --> A
+    B -- No --> D{All tickets closed?}
+    D -- No --> E[Resolve prerequisites or record blocker]
+    E --> A
+    D -- Yes --> F[Run feature checks]
+    F --> G{Checks current and passing?}
+    G -- No --> K[Correct feature-level work]
+    G -- Yes --> H[Request comprehensive feature review]
+    H --> I{Blocking finding?}
+    I -- Linked ticket --> J[Resume ticket work after review batch]
+    J --> A
+    I -- Feature-level --> K
+    K --> L
+    I -- No --> L{Finish gates pass?}
+    L -- No --> A
+    L -- Yes --> M[Finish feature]
 ```
 
-### A. Restore scope and ledger
+## Ticket workflow
 
-Read tickets/comments, spec, instructions, glossary, and ADRs. Map every criterion to observable outcomes and confirm seams, permissions, baseline, tracker, and dated `.scratch` destinations. Confirm an acyclic dependency graph. Restore snapshot, checks, findings, rulings, attempts, progress decisions, and recorded gate on resume; continue there rather than restarting completed work. Preserve earlier reports, including legacy reviewer reports, as history; judge usable coverage rather than discarding it or restarting reviews solely because the reviewer roles changed. If no ticket remains, continue at K.
+1. Read the feature spec, tickets, applicable instructions, glossary, and ADRs. Inspect `pnpm spindle sdd status --spec <path>` and `pnpm spindle sdd ready --spec <path>` to understand blockers, dependencies, and available work. Inspect feature records for secrets and start the feature worktree with `pnpm spindle sdd start --spec <path> --workspace <external-directory> --confirm-records`. Handle unrelated changes before starting. Run subsequent controller commands in the feature worktree using its returned spec path.
+2. Create a ticket for independently actionable work with `pnpm spindle sdd ticket create`. Fill its `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Use `pnpm spindle sdd ticket update` for tracker status, explicit blockers, and dependencies; the supported lifecycle is `open`, `in-progress`, and `closed`. Readiness is derived from status, blockers, and dependencies rather than stored as a separate triage state.
+3. Choose a safe concurrency limit. Use `pnpm spindle sdd implement --workspace <external-directory>` for each ready ticket and dispatch the returned assignment until capacity is full. As workers finish, dispatch other ready independent tickets without waiting for unrelated work. Inspect changed canonical records for secrets and pass `--confirm-records` before any automatic record commit. Each worker uses its own worktree. Give workers the canonical source and report paths; submit each implementation report with `pnpm spindle sdd submit --role implementation`.
+4. Have each implementer commit its changes. Record relevant checks and submit reviews against that exact ticket commit. Keep its worktree frozen during review; any changed commit requires fresh checks and review.
+5. Use `pnpm spindle sdd integrate` to merge reviewed work, inspecting changed canonical records and passing `--confirm-records` before any automatic record commit. Serialize merges and their post-merge checks. Declare the full non-empty check list with `checks require --scope post-merge`, run it in the feature worktree, and record results with `checks record --scope post-merge`. Passing checks close the ticket automatically and unblock eligible dependents.
 
-**Complete when:** scope and ownership are explicit, the ledger is current, and required inputs/baseline are available. Resume the recorded gate, or select B for new ticket work and K if no ticket remains; unresolved triage or missing inputs select Q.
+   If closure is blocked by a ticket blocker or unmet dependency, resolve it and repeat `checks require --scope post-merge` with the same complete list. Passing evidence is retained; rerun checks if their snapshot became stale.
 
-### B. Claim eligible ticket
+   If a post-merge check fails, keep other merges blocked. Fast-forward the clean ticket worktree to the recorded failed merge commit, then use `sdd correct --check-failure <command>` to dispatch a fix. Commit, check, and review the fix before merging it and rerunning the frozen post-merge check list.
 
-Claim only a ticket whose dependencies are integrated. Set `Execution: claimed`.
+   If integration reports a conflict, rebase the ticket worktree onto the current feature branch, resolve and commit the conflict there, and use `sdd checks require --rebase-baseline` with an existing required command. Run fresh checks and obtain fresh review before retrying integration. Preserve all uncommitted changes and stop if recovery is unsafe.
 
-**Complete when:** one eligible ticket is claimed and its dependencies are integrated; proceed to C.
+If work is interrupted, inspect `pnpm spindle sdd status` and use `pnpm spindle sdd resume` to restore the recorded assignment. Preserve existing reports, findings, and evidence. Do not invent missing results or reset progress.
 
-### C. Dispatch implementation
+## Feature review and completion
 
-Set `Execution: implementing`. Assign absolute destinations inside the canonical dated reports directory and record their tracker-relative paths: `<NN>-implementation.md`, `<NN>-review.md`, and `<NN>-round-<R>-review.md` for corrections. Preserve previous reports; expanded reviews after later changes also need distinct destinations. Assign paths directly without introducing a report-resolution command.
+After every ticket is closed, establish current feature-level checks and request the comprehensive review with `pnpm spindle sdd review --scope delivery --inventory <json-array>`. The `sdd-reviewer` is the default reviewer. Add specialists only for justified objectives with `pnpm spindle sdd review require --scope delivery --type <agent-name>`; eligible names must be marked `canReview: true` in the Blueprint Catalog, and actual agent access must be confirmed before dispatch.
 
-Populate the implementer assignment in initial mode and dispatch `sdd-implementer`. Wait for its report.
+Submit every assigned review report against its exact assignment. Register findings from their report and snapshot. A blocking finding can name `--related-ticket`; once the complete review batch is submitted, that ticket is reopened so work can resume. Resolve blocking findings through ticket work and repeat any invalidated checks and reviews.
 
-**Complete when:** the implementation report identifies the assigned changes and current focused-test evidence, allowing D. Missing, stale, failing, or unavailable required handoff evidence selects Q with a blocker.
+For detailed review, findings, correction, final merge, checks, and cleanup, read [feature delivery](./references/full-spec.md). For feature-level corrective work, follow [corrective rounds](./references/corrective-rounds.md). Feature completion requires all tickets integrated, current passing required checks and reviews, no unresolved delivery blockers, and passing checks on the final merge. Do not modify the affected checkout concurrently with a Git transition. Never stash, discard, force-delete, push, or publish without authorization.
 
-### D. Controller checks
+## Reports and verification
 
-Apply formatting, then applicable lint, type, and ticket-wide regression checks. Record commands, results, and covered snapshot. Apply safe mechanical fixes only while no worker edits; route non-mechanical fixes through G. Repeat this gate after every fix, including final fixes. Reuse passing evidence that covers the current snapshot; rerun invalidated or explicitly scheduled checks.
+Keep worker reports at their assigned absolute paths inside the feature's `reports/` directory. Preserve earlier reports as history and distinguish inspected evidence from checks actually run. Record failures, unavailable checks, and limitations explicitly. A passing test run is not a substitute for review or for the acceptance criteria.
 
-**Complete when:** all required checks pass and cover the snapshot, selecting E. Non-mechanical fixes select G; other failed/unavailable checks select Q with a blocker.
-
-### E. Freeze and review
-
-Before preparing the assignment, read [review inputs](./references/review-inputs.md). Set `Execution: in-review`, freeze the snapshot, and dispatch one independent `sdd-reviewer` using the reviewer template in `INITIAL` mode. Supply complete requirements, change and same-snapshot evidence, implementation report, concerns/dependencies, prior findings/rulings or `NONE`, and assigned destination. Reference existing durable inputs rather than copying logs.
-
-Wait for its report, reconcile stable finding IDs, and record controller rulings. A demonstrated defect proceeds to correction; missing context or unavailable required review evidence is a blocker, not a clean report.
-
-**Complete when:** the comprehensive report covers Spec and Quality on the frozen snapshot and findings are ruled, selecting F. Missing/inconsistent review context or unavailable review selects Q after the reviewer returns.
-
-### F. Accepted?
-
-Compare Spec/Quality verdicts, finding dispositions, and controller rulings with the current snapshot. Keep nonblocking recommendations separate from required fixes; park them only with reasons and follow-up. Set `Execution: accepted` only after sufficient current review/check evidence and no unresolved blocker.
-
-**Complete when:** both verdicts `PASS` and no unresolved blocker select H; actionable blocking findings or non-mechanical failures select G with `Execution: changes-requested`. Missing required coverage or `UNVERIFIED` without an actionable fix selects Q. A confirmed finding is not a verified fix; scope changes require triage resolution and fresh affected review.
-
-### G. Corrective branch
-
-When findings or non-mechanical check failures require fixes, read [corrective rounds](./references/corrective-rounds.md) before dispatch. Batch compatible actionable blockers into one assignment; do not cycle through separate code, task, and slop reviews.
-
-**Complete when:** the child exits with a checked snapshot requiring initial reviews (E), current scoped verdicts (F), or an incomplete/blocker result (Q). Announce `Step G - Corrective branch` as resumed, then take that exit without restarting child work.
-
-### H. Verify coverage
-
-Confirm required checks and reviews cover the accepted snapshot; freshness means coverage, not unconditional reruns. Missing, stale, failing, or unavailable required evidence blocks acceptance.
-
-**Complete when:** required evidence is current and sufficient, selecting I; otherwise Q records the blocker.
-
-### I. Caller-owned?
-
-Use the ownership established in A.
-
-**Complete when:** caller-owned tickets select Q; controller-owned delivery selects J.
-
-### J. Integrate
-
-Read [integration](./references/integration.md) before changing integration state or committing.
-
-**Complete when:** integration succeeds with a clean worktree, selecting K; unsafe pending files or failed commits select Q with a blocker.
-
-### K. More eligible?
-
-Evaluate the dependency graph and integrated ticket states.
-
-**Complete when:** more eligible tickets select B; a finished graph selects L. Unfinished tickets with no eligible continuation select Q with their dependency or triage blockers.
-
-### L. Full-spec?
-
-Compare the completed delivery with the scope established in A.
-
-**Complete when:** standalone full-spec delivery selects M; other scopes select Q.
-
-### M. Full-spec branch
-
-Read [full-spec delivery](./references/full-spec.md) only after ticket integration.
-
-**Complete when:** the child supplies final evidence and retrospective or an explicit incomplete/blocker result. Announce `Step M - Full-spec branch` as resumed and return to Q without repeating child work.
-
-### Q. Hand back
-
-Return snapshot, criterion-to-evidence mapping, verdicts/rulings, check results, report paths, ticket states, applicable retrospective, and limitations. Preserve checkout and reports; publishing, closing tickets, or deleting user work requires authorization.
-
-**Complete when:** the caller receives current evidence and every unresolved blocker or limitation.
+See [verification evidence](./references/verification-evidence.md) for the worker handoff contract.

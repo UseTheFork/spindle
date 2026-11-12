@@ -1,62 +1,92 @@
-# Standalone full-spec delivery
+# Feature delivery
 
-Parent: M - Full-spec branch. Enter only when all tickets in standalone full-spec scope are integrated and no eligible ticket remains. Restore aggregate findings, review coverage, and delivery correction history independently of ticket attempts.
+Feature delivery is the completion gate for one feature workspace. It begins
+after every ticket is closed; it does not replace ticket-level implementation or
+acceptance criteria. Use `--scope delivery` instead of `--ticket` for feature
+checks, review assignments, findings, and corrections.
 
-```mermaid
-flowchart TD
-    A[Freeze and aggregate or corrective review] -- Report current --> B{Spec and Quality pass?}
-    A -- Blocked --> X[Record adjudication or blocker]
-    B -- Yes --> D[Final verification]
-    B -- Actionable blockers --> C[Progress decision and batch fix]
-    B -- Coverage unavailable --> X
-    C -- Checked fix --> A
-    C -- Stalled or blocked --> X
-    D -- Evidence current --> E[Retrospective]
-    D -- Non-mechanical fix needed --> C
-    D -- Blocked --> X
-    E -- Available --> Q[Parent hand-back]
-    E -- Blocked --> X
-    X --> Q
-```
+## Checks and review
 
-Child IDs are local to this diagram: announce `Step M.<ID> - Full-spec branch / <label>` before acting. Q denotes parent Q, not child work. Before returning, announce `Step M - Full-spec branch` as resumed and state the exit without restarting child work.
+Inspect `pnpm spindle sdd status --spec <spec>` and `pnpm spindle sdd next --spec <spec>`. Establish
+required final checks with `pnpm spindle sdd checks require --scope delivery`, run them, and
+record actual results against the returned snapshot. Then dispatch the
+comprehensive review with
+`pnpm spindle sdd review --scope delivery --inventory <json-array>`. Its inventory must
+cover the feature's current Git-derived changes.
 
-## A. Freeze and aggregate or corrective review
+The `sdd-reviewer` is the default comprehensive reviewer. Before dispatch,
+record any justified specialist with
+`pnpm spindle sdd review require --scope delivery --type <agent-name> --details <objective>`.
+Only catalog agents with `canReview: true` are eligible. Confirm that the
+controller can actually dispatch each selected agent; catalog eligibility does
+not guarantee harness access.
 
-Read [review inputs](review-inputs.md) and [aggregate scope](aggregate-review.md). Freeze the whole delivery, including cross-ticket behavior and parked findings. Assign `final-review.md` for the first aggregate review and `final-round-<R>-review.md` for delivery corrections; preserve earlier evidence.
+Preserve each assignment's ID, objective, snapshot, inventory, and report
+path. Submit every report against its exact assignment. A missing, pending,
+failed, unavailable, stale, or mismatched review blocks completion.
 
-Dispatch one `sdd-reviewer` with the [reviewer template](../assets/reviewer-prompt.md) in `AGGREGATE` mode for initial whole-spec coverage. After a narrow checked fix, use `CORRECTIVE` mode with delivery scope, fix-only changes, prior/fixed identities, selected findings, prior aggregate verdicts/rulings, and fresh checks. Broader contract changes require expanded affected aggregate coverage. A scoped report cannot replace missing aggregate review.
+## Findings and correction
 
-**Complete when:** the report covers the assigned scope and findings are reconciled, selecting M.B; missing context or unavailable review selects M.X. Keep implementation frozen until the reviewer returns.
+Register findings from their assigned reports and snapshots with
+`pnpm spindle sdd finding create --scope delivery`. Delivery findings have feature-scoped
+IDs, provenance, ruling history, and status. Use `--related-ticket <id>` for a
+finding that should return work to a specific ticket. A blocking linked finding
+reopens its ticket after the complete review batch is submitted; dependent
+tickets remain blocked until that ticket is closed again.
 
-## B. Spec and Quality pass?
+Use `pnpm spindle sdd finding update --scope delivery` for explicit rulings. Deferring a
+blocker requires rationale, a follow-up reference, and an approved delivery
+requirements decision. Record that decision with
+`pnpm spindle sdd requirements decide --scope delivery` only after a requirements change
+and completed prior review. Approval invalidates earlier aggregate assignments.
 
-Evaluate current aggregate verdicts, corrected findings, unaffected coverage, and controller rulings.
+For actionable feature findings, follow [feature correction](./corrective-rounds.md)
+and use `pnpm spindle sdd correct --scope delivery` to record
+each independent correction attempt. Record passing checks against the changed
+feature snapshot and submit the implementation report before requesting a new
+feature review. Pause unproductive work, recurring failures, or requirements
+disagreement for adjudication. Resume with `pnpm spindle sdd resume --scope delivery`;
+preserve existing assignments, attempts, evidence, and adjudication.
 
-**Complete when:** Spec and Quality pass with no unresolved blocker selects M.D; actionable blockers select M.C. Missing required coverage selects M.X, not acceptance or an unfounded fix.
+## Finish
 
-## C. Progress decision and batch fix
+Review each committed ticket before merging it into the feature worktree, then
+record post-merge checks before unblocking dependents. A changed code or
+requirements snapshot invalidates evidence that no longer covers it.
 
-Apply the [continuation decision](corrective-rounds.md#continuation-decision) to delivery history. There is no single-final-fix allowance: continue only with recorded progress or an explicit adjudicated revised plan. Persist the next delivery attempt before dispatching `sdd-implementer` with batched findings and [corrective inputs](implementer-corrections.md). Use the [implementer template](../assets/implementer-prompt.md), delivery scope, and append-only final implementation evidence.
+Do not silently substitute the current `HEAD` for the recorded Git baseline;
+that could omit completed feature work from review.
 
-Wait for the focused-test handoff, then perform parent D controller checks on the fixed snapshot, reusing unaffected passing checks. Final fixes must be integrated under the established permissions before final hand-back; do not silently alter caller ownership or commit permissions.
+Completion requires at least one ticket, every ticket integrated and validated,
+current passing required feature checks and reviews, and no unresolved delivery
+blockers. The retrospective policy is stored at feature creation: when required,
+attach a Markdown report with `--report`; otherwise it is optional. Any report
+must remain inside that feature's `reports/` directory.
 
-**Complete when:** current required checks cover the fix, selecting M.A for one scoped review; stalled progress, requirements disagreement, or failed/unavailable evidence selects M.X. Preserve the attempt and original aggregate coverage.
+Inspect canonical records for sensitive content, then run
+`pnpm spindle sdd finish --spec <feature-spec> --author <controller> --confirm-records`
+from the feature worktree, adding `--report <absolute-report-path>` when needed.
+This merges into the recorded original branch and returns a pending final
+validation, merge SHA, snapshot, and original spec path; it does not yet complete
+the feature.
 
-## D. Final verification
+In the original checkout, declare the entire non-empty final list with
+`pnpm spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <controller>`,
+repeating `--command` for each check. Run each command there, then record each
+actual result with `pnpm spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --snapshot <snapshot> --command <command> --result <result> --author <controller>`.
+Failed or unavailable results require `--details` and block cleanup until the
+latest result for each command passes. The list is frozen once declared.
 
-Confirm required evidence covers the final delivered snapshot, rerunning only invalidated or explicitly scheduled checks. Apply the existing [integration permissions](integration.md) to accepted final changes; record committed/delivered identity and confirm coverage survives integration.
+Run `pnpm spindle sdd finish --spec <original-spec> --author <controller>`
+again to preflight and clean up the recorded worktrees and branches. The final
+merge is the checked commit; the subsequent ledger-only relocation commit is
+reported separately and is not itself checked. Preserve any dirty or unexpected
+work and follow the reported journal for recovery rather than forcing cleanup.
+Ignored files in worktrees slated for removal also block cleanup; do not discard
+them without authorization. After a crash, remove a reported finalization lock
+only after verifying its recorded owner has stopped.
 
-**Complete when:** final changes are safely integrated and required evidence is current and passing, selecting M.E; a new non-mechanical failure selects M.C; unsafe integration or unavailable evidence selects M.X.
-
-## E. Retrospective
-
-Load and follow the `int-retrospective` skill once for the full spec after final verification. Identify a `delivery` retrospective and supply verified evidence pointers. Preserve the current required-retrospective convention; do not add creation flags or command policy.
-
-**Complete when:** retrospective and final evidence are available; resume parent M and return to Q. Unavailable required retrospective output selects M.X.
-
-## X. Record adjudication or blocker
-
-Persist residual findings/rulings, progress assessment, and incomplete status while preserving checkout, reports, attempts, and gate. Use current triage for requirements decisions; do not weaken criteria to terminate corrections.
-
-**Complete when:** the decision needed or failed/unavailable evidence is explicit; resume parent M and return to Q.
+Use `pnpm spindle sdd status`, `pnpm spindle sdd next`, and
+`pnpm spindle sdd resume --scope delivery` to inspect blockers and
+restore interrupted feature-level work. These commands do not close tickets or
+publish changes.
