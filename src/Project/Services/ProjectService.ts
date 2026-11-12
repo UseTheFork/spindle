@@ -39,7 +39,12 @@ export interface PreparedProjectGuidance {
   workspace: string;
   configuration: ProjectConfigurationData;
   directories: readonly string[];
-  files: { destination: string; content: string; original: string | undefined }[];
+  files: {
+    destination: string;
+    content: string;
+    original: string | undefined;
+    createOnce: boolean;
+  }[];
 }
 
 function copilotInstructions(template: string, existing: string | undefined): string {
@@ -85,7 +90,7 @@ export class ProjectService extends Service {
       { status: "valid", data: configuration },
       async () => resolveRenderContext(this.app, { stacks: configuration.stacks, variables: {} }),
     );
-    const files = templateCatalog.project.map(({ source, destination }) => {
+    const files = templateCatalog.project.map(({ source, destination, createOnce }) => {
       const target = join(workspace, destination);
       this.assertRegularFileOrMissing(target, destination);
       const original = lstatSync(target, { throwIfNoEntry: false })
@@ -102,6 +107,7 @@ export class ProjectService extends Service {
       return {
         destination,
         original,
+        createOnce: createOnce ?? false,
         content: destination === copilotPath ? copilotInstructions(rendered, original) : rendered,
       };
     });
@@ -124,13 +130,17 @@ export class ProjectService extends Service {
       for (const directory of directories) {
         (this.ensureDirectory(workspace, directory) ? created : preserved).push(directory);
       }
-      for (const { destination, content, original } of files) {
+      for (const { destination, content, original, createOnce } of files) {
         const target = join(workspace, destination);
         this.assertRegularFileOrMissing(target, destination);
         const stat = lstatSync(target, { throwIfNoEntry: false });
         const current = stat ? readFileSync(target, "utf8") : undefined;
         if (current !== original)
           throw new Error(`'${destination}' changed while preparing project guidance; run again.`);
+        if (createOnce && original !== undefined) {
+          preserved.push(destination);
+          continue;
+        }
         if (current === content) {
           preserved.push(destination);
           continue;

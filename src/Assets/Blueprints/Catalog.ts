@@ -101,6 +101,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
     "sdd-to-spec": { path: "sdd-to-spec/", stacks: [] },
     "sdd-to-tickets": { path: "sdd-to-tickets/", stacks: [] },
+    "spindle-constitution": { path: "spindle-constitution/", stacks: [] },
     "spindle-project-setup": { path: "spindle-project-setup/", stacks: [] },
     "spindle-tooling-update": { path: "spindle-tooling-update/", stacks: [] },
   },

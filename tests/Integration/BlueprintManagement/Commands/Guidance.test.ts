@@ -54,6 +54,8 @@ test("update renders and replaces project guidance and initializes missing tooli
   );
   await put(join(project, "docs/agents/domain.md"), "old domain");
   await put(join(project, "docs/agents/ticket-tracker.md"), "old tickets");
+  const ratifiedConstitution = "# Ratified constitution\n";
+  await put(join(project, "docs/agents/constitution.md"), ratifiedConstitution);
   const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", env);
   expect(result.status, result.stderr).toBe(0);
   expect(await readFile(join(github, "copilot-instructions.md"), "utf8")).toBe(
@@ -62,6 +64,9 @@ test("update renders and replaces project guidance and initializes missing tooli
   expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).toBe("Domain pnpm.\n");
   expect(await readFile(join(project, "docs/agents/ticket-tracker.md"), "utf8")).toContain(
     "pnpm spindle sdd",
+  );
+  expect(await readFile(join(project, "docs/agents/constitution.md"), "utf8")).toBe(
+    ratifiedConstitution,
   );
   const config = JSON.parse(await readFile(join(github, "spindle.json"), "utf8"));
   expect(config).toEqual({

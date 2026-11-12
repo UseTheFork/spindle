@@ -74,6 +74,7 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       ".github/copilot-instructions.md",
       "docs/agents/domain.md",
       "docs/agents/ticket-tracker.md",
+      "docs/agents/constitution.md",
       "docs/agents/tooling.md",
     ],
     preserved: [".github"],
@@ -118,6 +119,22 @@ test("project initialization replaces unmarked Copilot instructions", async () =
   );
   expect(second.updated).not.toContain(".github/copilot-instructions.md");
   expect(second.preserved).toContain(".github/copilot-instructions.md");
+});
+
+test("project initialization preserves a project-owned constitution after creation", async () => {
+  const { workspace, service } = await fixture();
+  const first = await service.initialize();
+  const constitutionPath = join(workspace, "docs/agents/constitution.md");
+  expect(first.created).toContain("docs/agents/constitution.md");
+  expect(readFileSync(constitutionPath, "utf8")).toContain("Status:** Draft");
+
+  const ratifiedConstitution = "# Ratified constitution\n";
+  writeFileSync(constitutionPath, ratifiedConstitution);
+
+  const second = await service.initialize();
+  expect(readFileSync(constitutionPath, "utf8")).toBe(ratifiedConstitution);
+  expect(second.preserved).toContain("docs/agents/constitution.md");
+  expect(second.updated).not.toContain("docs/agents/constitution.md");
 });
 
 test("project initialization replaces a bounded Copilot block while preserving surrounding content", async () => {
