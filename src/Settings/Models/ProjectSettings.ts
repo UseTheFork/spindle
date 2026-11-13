@@ -43,7 +43,7 @@ export const projectSettingsSchema = z.looseObject({
 export type ProjectSettings = z.output<typeof projectSettingsSchema>;
 
 export class ProjectSettingsSchema {
-  public static releaseUrl(): string {
+  public static schemaUrl(): string {
     const metadata: unknown = JSON.parse(
       readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
     );
@@ -55,6 +55,6 @@ export class ProjectSettingsSchema {
     ) {
       throw new Error("Package metadata must contain a version.");
     }
-    return `https://github.com/UseTheFork/spindle/releases/download/v${metadata.version}/spindle.schema.json`;
+    return `https://unpkg.com/@use-the-fork/spindle@${metadata.version}/build/spindle.schema.json`;
   }
 }

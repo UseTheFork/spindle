@@ -250,7 +250,9 @@ test("all selected versions are overwritten with stored stacks and package manag
       ).toMatchObject({
         ...goodConfig,
         commit: { title_max_length: 72 },
-        $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+        $schema: expect.stringMatching(
+          /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+        ),
       });
       expect(result.stderr).toBe("");
       expect(result.stdout).toMatch(/Added 1, updated 5, skipped 0, up to date 0 skill\(s\)/);

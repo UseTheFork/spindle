@@ -20,7 +20,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
     await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
   );
   expect(config.$schema).toBe(
-    `https://github.com/UseTheFork/spindle/releases/download/v${version}/spindle.schema.json`,
+    `https://unpkg.com/@use-the-fork/spindle@${version}/build/spindle.schema.json`,
   );
   expect(config.commit).toEqual({
     allow_body: false,

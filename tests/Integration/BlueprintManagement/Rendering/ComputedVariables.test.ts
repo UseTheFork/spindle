@@ -266,7 +266,9 @@ test("update reuses computed output and leaves Config and version metadata intac
     expect(JSON.parse(await readFile(join(github, "spindle.json"), "utf8"))).toMatchObject({
       ...JSON.parse(configBytes.toString("utf8")),
       commit: { title_max_length: 72 },
-      $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+      $schema: expect.stringMatching(
+        /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+      ),
     });
     expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
   }

@@ -87,7 +87,7 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
       ...resolved,
       config: projectSettingsSchema.parse({
         ...resolved.config,
-        $schema: ProjectSettingsSchema.releaseUrl(),
+        $schema: ProjectSettingsSchema.schemaUrl(),
       }),
     };
     if (config.stacks.length === 0) {

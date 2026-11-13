@@ -75,7 +75,9 @@ test("update renders and replaces project guidance and initializes missing tooli
     custom: true,
     tooling: [],
     commit: { title_max_length: 72 },
-    $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+    $schema: expect.stringMatching(
+      /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+    ),
   });
   const guide = await readFile(join(project, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("## Spindle\n\n- `spindle init`");
@@ -131,7 +133,9 @@ test("update preserves a valid registry and rejects reserved registry keys befor
   expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
     ...JSON.parse(raw),
     commit: { title_max_length: 72 },
-    $schema: expect.stringMatching(/\/releases\/download\/v[^/]+\/spindle\.schema\.json$/),
+    $schema: expect.stringMatching(
+      /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+    ),
   });
   const guide = await readFile(join(project, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("## Testing\n\n- `pnpm test`");

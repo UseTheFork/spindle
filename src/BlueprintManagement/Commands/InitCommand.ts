@@ -199,7 +199,7 @@ Run \`spindle --version\` to print the installed version.
 
     const config: ProjectConfigurationData = projectSettingsSchema.parse({
       ...(existing.status === "valid" ? existing.data : {}),
-      $schema: ProjectSettingsSchema.releaseUrl(),
+      $schema: ProjectSettingsSchema.schemaUrl(),
       stacks,
       spindle_package_manager: spindlePackageManager,
       commit,
