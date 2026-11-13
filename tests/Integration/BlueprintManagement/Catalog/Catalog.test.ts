@@ -518,5 +518,29 @@ test("the shipped Blueprint collection initializes through the compiled catalog"
     const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toMatch(/^✔ Installed /);
+
+    const earsSkill = await readFile(
+      join(project, ".github", "skills", "int-ref-ears", "SKILL.md"),
+      "utf8",
+    );
+    expect(earsSkill).toContain("name: int-ref-ears");
+    expect(earsSkill).toContain(
+      'description: "This is an internal skill do not load it unless explicitly required by the user or another skill."',
+    );
+    expect(earsSkill).toContain("user-invocable: false");
+    expect(earsSkill).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
+    expect(earsSkill).toContain(
+      "While `<state>`, when `<trigger>`, the system shall `<response>`.",
+    );
+    expect(earsSkill).toContain(
+      "For ticket acceptance criteria with a single behavior and a clear condition, trigger, and response, prefer the matching EARS pattern.",
+    );
+    for (const skillName of ["sdd-to-spec", "sdd-to-tickets"]) {
+      const skill = await readFile(
+        join(project, ".github", "skills", skillName, "SKILL.md"),
+        "utf8",
+      );
+      expect(skill).toContain("- **REQUIRED:** `int-ref-ears`");
+    }
   }
 });

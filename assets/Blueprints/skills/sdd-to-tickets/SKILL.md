@@ -5,7 +5,7 @@ argument-hint: "[spec path or tracker reference]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 # To Tickets
@@ -13,6 +13,12 @@ metadata:
 Break an approved feature spec into **tickets**: independently actionable vertical slices with explicit blocking dependencies.
 
 An optional argument is one spec path or tracker reference. Read the full spec and its comments before planning. Without an argument, use the approved spec already in context. If the source is missing or ambiguous, ask for a usable reference before proceeding.
+
+## Required Skills
+
+Before drafting tickets, read and apply:
+
+- **REQUIRED:** `int-ref-ears`
 
 ## Process
 
