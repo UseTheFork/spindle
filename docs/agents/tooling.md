@@ -8,7 +8,7 @@
 
 ## Build
 
-- `pnpm run build`: Rebuild the Blueprint bundle and compile the CLI.
+- `pnpm run build`: Compile the CLI and generate the project schema.
 
 ## Linting
 

@@ -7,11 +7,11 @@ import { Application } from "@/Foundation/Application";
 const root = process.env.SPINDLE_TEST_BLUEPRINTS_DIR;
 const templates = process.env.SPINDLE_TEST_TEMPLATES_DIR;
 if (root || templates) {
-  const appPath = Application.prototype.appPath;
-  Application.prototype.appPath = function (path = "") {
-    if (root && path === "Assets/Blueprints") return resolve(root);
-    if (templates && path === "Assets/Templates") return resolve(templates);
-    return appPath.call(this, path);
+  const assetsPath = Application.prototype.assetsPath;
+  Application.prototype.assetsPath = function (path = "") {
+    if (root && path === "Blueprints") return resolve(root);
+    if (templates && path === "Templates") return resolve(templates);
+    return assetsPath.call(this, path);
   };
 }
 

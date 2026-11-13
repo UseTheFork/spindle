@@ -34,7 +34,7 @@ export function fixture() {
 
 export async function serviceFixture() {
   const workspace = fixture();
-  const app = applicationFixture(workspace.repo, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(workspace.repo, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const service = await workflowServices(app);
@@ -42,7 +42,7 @@ export async function serviceFixture() {
 }
 
 export async function execute(repo: string, run: (service: WorkflowServices) => unknown) {
-  const app = applicationFixture(repo, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(repo, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const command = await workflowServices(app);

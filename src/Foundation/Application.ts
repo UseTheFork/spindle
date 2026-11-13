@@ -67,6 +67,10 @@ export class Application extends Container {
     return this.joinPaths(fileURLToPath(new URL("../", import.meta.url)), path);
   }
 
+  public assetsPath(path = ""): string {
+    return this.joinPaths(fileURLToPath(new URL("../../assets/", import.meta.url)), path);
+  }
+
   public basePath(path = ""): string {
     return this.joinPaths(this._basePath, path);
   }

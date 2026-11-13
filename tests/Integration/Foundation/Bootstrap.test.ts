@@ -89,7 +89,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
       super(app);
       expect(app.basePath()).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
-      expect(app.appPath("Assets/Blueprints")).toContain("Assets/Blueprints");
+      expect(app.assetsPath("Blueprints")).toContain("assets/Blueprints");
       expect(app.value("console.invocation")).toBe(invocation);
       expect(consoleArgs(app).array("raw")).toBe(invocation.raw);
       events.push("construct");
@@ -208,12 +208,12 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
   expect(app.hasBeenBootstrapped).toBe(true);
 });
 
-test("packaged Blueprint assets derive from the application path, independent of basePath", async () => {
+test("Blueprint assets derive from the installation path, independent of basePath", async () => {
   const { root, nested } = workspace();
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.appPath("Assets/Blueprints")).toBe(resolve(repoRoot, "src/Assets/Blueprints"));
+  expect(app.assetsPath("Blueprints")).toBe(resolve(repoRoot, "assets/Blueprints"));
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {

@@ -30,7 +30,7 @@ Apply the clarity rules from the `asd-ste100` skill. Include a before/after tabl
 
 4. **Create or select the SDD feature workspace.**
    - For a new feature, choose a concise title and author identity, then run `pnpm spindle sdd create --title "<feature title>" --author "<author>" --with-design`. Use the returned workspace and spec paths; `design.md` is beside `spec.md`. The command creates both template files, but fill and approve the design before filling the spec.
-   - For an existing numbered SDD feature workspace, reuse it. If `design.md` already exists, preserve it and edit it only as requested. If it is missing, first confirm `spec.md` is still the untouched template; then copy the design template from the Spindle installation's `build/Assets/Templates/sdd/design.md` into that workspace without overwriting existing files. In a source checkout, use `src/Assets/Templates/sdd/design.md`.
+   - For an existing numbered SDD feature workspace, reuse it. If `design.md` already exists, preserve it and edit it only as requested. If it is missing, first confirm `spec.md` is still the untouched template; then copy the design template from the Spindle installation's `assets/Templates/sdd/design.md` into that workspace without overwriting existing files.
    - If the existing spec has substantive content, stop before adding or revising a design: that would put design after spec. Explain the conflict and ask whether the user wants to continue as an explicit exception or keep the feature spec-only.
    - Do not create a dated feature directory or a second SDD workspace for the same feature.
 

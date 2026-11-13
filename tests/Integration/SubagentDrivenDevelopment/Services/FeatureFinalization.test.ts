@@ -38,7 +38,7 @@ function git(root: string, ...args: string[]) {
   }).trim();
 }
 async function appAt(root: string) {
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   return app;

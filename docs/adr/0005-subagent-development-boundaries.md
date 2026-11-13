@@ -44,7 +44,7 @@ providers during construction. The default Kernel order is `LoadConsoleArgs`,
 `DiscoverGitRoot`, `LoadProjectConfiguration`, `RegisterProviders`. Git is
 therefore resolvable before final provider registration, and project configuration
 is available to external providers. Blueprint assets derive from
-`Application.appPath("Assets/Blueprints")`.
+`Application.assetsPath("Blueprints")`.
 
 `config.project` contains a discriminated absent, valid, or invalid snapshot of
 `.github/spindle.json`, including original data and validation error when invalid.

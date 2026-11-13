@@ -189,6 +189,7 @@ test("path helpers use distinct workspace, installation and invocation roots", (
   for (const [helper, root] of [
     [app.workspacePath.bind(app), "/workspace"],
     [app.appPath.bind(app), installationRoot],
+    [app.assetsPath.bind(app), fileURLToPath(new URL("../../../assets/", import.meta.url))],
     [app.basePath.bind(app), "/unrelated/invocation"],
   ] as const) {
     expect(helper()).toBe(root);
@@ -212,6 +213,9 @@ test("appPath remains module-relative when cwd is unrelated", () => {
   vi.spyOn(process, "cwd").mockReturnValue("/unrelated/cwd");
   expect(app.appPath()).toBe(installationRoot);
   expect(app.appPath("nested/file")).toBe(join(installationRoot, "nested/file"));
+  expect(app.assetsPath("Templates")).toBe(
+    fileURLToPath(new URL("../../../assets/Templates", import.meta.url)),
+  );
 });
 
 test("configuration is isolated and available before explicit provider construction", async () => {

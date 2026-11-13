@@ -68,7 +68,7 @@ async function setup() {
   const spec = JSON.parse(created.stdout).spec as string;
   const parent = join(dirname(repo), "external");
   mkdirSync(parent);
-  const app = applicationFixture(repo, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(repo, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const git = new InterruptingGitService(app);

@@ -375,8 +375,7 @@ async function performReconciliation(
   for (const operation of plannedRemovals) {
     await validateRemovalTarget(options.githubDirectory, operation);
   }
-  if (!hasBlueprints) {
-    if (options.mode === "update") return outcomes;
+  if (!hasBlueprints && options.mode === "init") {
     throw new Error("No Blueprints are available to install.");
   }
   let contextService: Promise<ComputedContextService> | undefined;
@@ -601,7 +600,7 @@ export class BlueprintReconciliationService extends Service {
           ...options,
           app: this.app,
           githubDirectory: this.app.workspacePath(".github"),
-          blueprintSourceRoot: this.app.appPath("Assets/Blueprints"),
+          blueprintSourceRoot: this.app.assetsPath("Blueprints"),
         },
         this.installationService,
       );

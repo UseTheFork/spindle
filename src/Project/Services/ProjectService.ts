@@ -97,7 +97,7 @@ export class ProjectService extends Service {
         ? readFileSync(target, "utf8")
         : undefined;
       const rendered = renderText(
-        readFileSync(join(this.app.appPath("Assets/Templates"), source), "utf8"),
+        readFileSync(join(this.app.assetsPath("Templates"), source), "utf8"),
         {
           stacks: [...context.stacks],
           variables: { ...context.variables },

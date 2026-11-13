@@ -13,7 +13,7 @@ import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 import { makeTempDirSync, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
 
 const copilotInstructionsTemplate = readFileSync(
-  join(repoRoot, "src/Assets/Templates/project/copilot-instructions.md"),
+  join(repoRoot, "assets/Templates/project/copilot-instructions.md"),
   "utf8",
 );
 

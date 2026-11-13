@@ -8,7 +8,6 @@ vi.setConfig({ testTimeout: 30_000 });
 import matter from "gray-matter";
 
 import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
 import type { Application } from "@/Foundation/Application";
@@ -108,48 +107,6 @@ async function makeBlueprints() {
   writeCatalogFixture(blueprints, fixtureCatalog());
   return blueprints;
 }
-
-test("init and update render shipped Skills and preserve current installations", async () => {
-  const blueprints = await makeTempDir("spindle-shipped-internal-blueprints-");
-  const project = await makeTempDir("spindle-shipped-internal-project-");
-
-  {
-    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
-    writeCatalogFixture(blueprints, blueprintCatalog);
-
-    const initialized = runCliWithCatalog(
-      project,
-      ["init", "--stack", "python", "--spindle-package-manager", "pnpm", "--no-interactive"],
-      process.env.PATH ?? "",
-      { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
-    );
-    expect(initialized.status, initialized.stderr).toBe(0);
-
-    const installedPath = (name: string) => join(project, ".github", "skills", name, "SKILL.md");
-    const currentSkill = "int-code-review";
-    const outdatedSkill = "int-test-driven-development";
-    const currentBeforeUpdate = await readFile(installedPath(currentSkill), "utf8");
-    const outdatedBefore = await readFile(installedPath(outdatedSkill), "utf8");
-
-    const updatedSourcePath = join(blueprints, "skills", outdatedSkill, "SKILL.md");
-    const updatedSource = matter(await readFile(updatedSourcePath, "utf8"));
-    updatedSource.data.metadata.spindle.version = "2.0.0";
-    await writeFile(updatedSourcePath, matter.stringify(updatedSource.content, updatedSource.data));
-
-    const updated = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", {
-      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-    });
-    expect(updated.status, updated.stderr).toBe(0);
-
-    const refreshed = await readFile(installedPath(outdatedSkill), "utf8");
-    expect(refreshed, "the outdated Skill is updated").not.toBe(outdatedBefore);
-    expect(matter(refreshed).data.metadata.spindle.version).toBe("2.0.0");
-    expect(
-      await readFile(installedPath(currentSkill), "utf8"),
-      "an otherwise-current matching Skill remains byte-identical",
-    ).toBe(currentBeforeUpdate);
-  }
-});
 
 test("init renders the computed namespace throughout Skills, Agents, and Instructions", async () => {
   const blueprints = await makeBlueprints();
@@ -395,13 +352,13 @@ test("repeated Updates through one App render fresh Config with computed outputs
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(
-    join(repoRoot, "src/Assets/Blueprints/skills", skillName, "SKILL.md"),
+    join(repoRoot, "assets/Blueprints/skills", skillName, "SKILL.md"),
     "utf8",
   );
   const app = applicationFixture(project, blueprints);
 
   {
-    await cp(join(repoRoot, "src/Assets/Blueprints"), blueprints, { recursive: true });
+    await cp(join(repoRoot, "assets/Blueprints"), blueprints, { recursive: true });
     await app.boot();
     const source = matter(descriptionSkill);
     source.content += "\nRun manager={{ computed.spindle_package_manager }}\n";

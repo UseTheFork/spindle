@@ -83,7 +83,7 @@ async function setup() {
     featureWorkspace: string;
     spec: string;
   };
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const feature = (await app.make(FeatureInspectionService)).resolveFeature(spec);

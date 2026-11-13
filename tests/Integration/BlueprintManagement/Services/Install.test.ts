@@ -17,7 +17,7 @@ import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
 test("source Blueprint roots resolve from the module location, independent of App roots", async () => {
   const workspace = await makeTempDir("spindle-install-relative-root-");
   const expectedSourceRoot = fileURLToPath(
-    new URL("../../../../src/Assets/Blueprints/", import.meta.url),
+    new URL("../../../../assets/Blueprints/", import.meta.url),
   );
   const config = projectSettingsSchema.parse({
     stacks: ["typescript"],
@@ -29,8 +29,8 @@ test("source Blueprint roots resolve from the module location, independent of Ap
     await new LoadProjectConfiguration().bootstrap(app);
     await app.boot();
 
-    expect(isAbsolute(app.appPath("Assets/Blueprints"))).toBeTruthy();
-    expect(app.appPath("Assets/Blueprints")).toBe(expectedSourceRoot);
+    expect(isAbsolute(app.assetsPath("Blueprints"))).toBeTruthy();
+    expect(app.assetsPath("Blueprints")).toBe(expectedSourceRoot);
     const service = await app.make(BlueprintReconciliationService);
     await service.reconcile(blueprintHandlers, {
       mode: "init",
@@ -95,7 +95,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const firstWorkspace = await makeTempDir("spindle-install-app-first-");
   const secondWorkspace = await makeTempDir("spindle-install-app-second-");
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
-  const sourceRoot = fileURLToPath(new URL("../../../../src/Assets/Blueprints/", import.meta.url));
+  const sourceRoot = fileURLToPath(new URL("../../../../assets/Blueprints/", import.meta.url));
   const firstSourceRoot = join(sourceParent, "first");
   const skillSource = join(firstSourceRoot, "skills", "int-test-driven-development", "SKILL.md");
   const skillTarget = (workspace: string) =>

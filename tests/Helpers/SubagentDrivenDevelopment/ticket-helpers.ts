@@ -10,7 +10,7 @@ import { workflowServices, type WorkflowServices } from "./WorkflowServices";
 
 export async function ticketFixture(title: string) {
   const { repo, git } = fixture();
-  const app = applicationFixture(repo, resolve(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(repo, resolve(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const service = await workflowServices(app);

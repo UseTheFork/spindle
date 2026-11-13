@@ -76,8 +76,7 @@ test.each([
       await readFile(
         join(
           repoRoot,
-          "src",
-          "Assets",
+          "assets",
           "Blueprints",
           "skills",
           "ref-php-laravel-saloon-api-integrations",
@@ -279,105 +278,6 @@ test("init validates symlinks in active nonmatching catalog directories before p
   }
 });
 
-test("update applies version decisions independently to grouped Agents and Instructions", async () => {
-  const blueprints = await makeTempDir("spindle-catalog-versioned-blueprints-");
-  const project = await makeTempDir("spindle-catalog-versioned-project-");
-  const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  const versioned = (name: string, version: string, body: string) =>
-    `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
-  const writeVersioned = async (kind: string, file: string, content: string) => {
-    const path = join(blueprints, kind, "group", file);
-    await mkdir(join(path, ".."), { recursive: true });
-    await writeFile(path, content);
-  };
-  {
-    writeCatalogFixture(blueprints, {
-      agents: {
-        "review-group": {
-          path: "group/",
-          stacks: [],
-        },
-      },
-      instructions: {
-        "instruction-group": {
-          path: "group/",
-          stacks: [],
-        },
-      },
-      skills: {},
-    } satisfies BlueprintCatalogDefinition);
-    await writeVersioned("agents", "first.agent.md", versioned("first", "1.0.0", "original one"));
-    await writeVersioned("agents", "second.agent.md", versioned("second", "1.0.0", "original two"));
-    await writeVersioned(
-      "instructions",
-      "first.instructions.md",
-      versioned("first instruction", "1.0.0", "original instruction one"),
-    );
-    await writeVersioned(
-      "instructions",
-      "second.instructions.md",
-      versioned("second instruction", "1.0.0", "original instruction two"),
-    );
-
-    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
-    expect(init.status, init.stderr).toBe(0);
-
-    await writeVersioned("agents", "first.agent.md", versioned("first", "2.0.0", "updated one"));
-    await writeVersioned(
-      "agents",
-      "second.agent.md",
-      versioned("second", "1.0.0", "changed without bump"),
-    );
-    await writeVersioned("agents", "new.agent.md", versioned("new", "1.0.0", "new Agent"));
-    await writeVersioned(
-      "instructions",
-      "first.instructions.md",
-      versioned("first instruction", "2.0.0", "updated instruction"),
-    );
-    await writeVersioned(
-      "instructions",
-      "second.instructions.md",
-      versioned("second instruction", "1.0.0", "changed without bump"),
-    );
-    await writeVersioned(
-      "instructions",
-      "new.instructions.md",
-      versioned("new instruction", "1.0.0", "new Instruction"),
-    );
-
-    const update = runCli(project, ["update"], process.env.PATH ?? "", env);
-
-    expect(update.status, update.stderr).toBe(0);
-    expect(
-      await readFile(join(project, ".github", "agents", "group", "first.agent.md"), "utf8"),
-    ).toBe(versioned("first", "2.0.0", "updated one"));
-    expect(
-      await readFile(join(project, ".github", "agents", "group", "second.agent.md"), "utf8"),
-    ).toBe(versioned("second", "1.0.0", "original two"));
-    expect(
-      await readFile(join(project, ".github", "agents", "group", "new.agent.md"), "utf8"),
-    ).toBe(versioned("new", "1.0.0", "new Agent"));
-    expect(
-      await readFile(
-        join(project, ".github", "instructions", "group", "first.instructions.md"),
-        "utf8",
-      ),
-    ).toBe(versioned("first instruction", "2.0.0", "updated instruction"));
-    expect(
-      await readFile(
-        join(project, ".github", "instructions", "group", "second.instructions.md"),
-        "utf8",
-      ),
-    ).toBe(versioned("second instruction", "1.0.0", "original instruction two"));
-    expect(
-      await readFile(
-        join(project, ".github", "instructions", "group", "new.instructions.md"),
-        "utf8",
-      ),
-    ).toBe(versioned("new instruction", "1.0.0", "new Instruction"));
-  }
-});
-
 test("init rejects a nested destination symlink before writing outside the GitHub root", async () => {
   const blueprints = await makeTempDir("spindle-catalog-destination-link-blueprints-");
   const project = await makeTempDir("spindle-catalog-destination-link-project-");
@@ -412,49 +312,6 @@ test("init rejects a nested destination symlink before writing outside the GitHu
   }
 });
 
-test("a current Skill receives new supporting content only after its version increases", async () => {
-  const blueprints = await makeTempDir("spindle-catalog-skill-version-blueprints-");
-  const project = await makeTempDir("spindle-catalog-skill-version-project-");
-  const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
-  const skill = (version: string) =>
-    `---\nname: authoring\nmetadata:\n  spindle:\n    version: ${version}\n---\nSkill ${version}\n`;
-  {
-    writeCatalogFixture(blueprints, {
-      agents: {},
-      instructions: {},
-      skills: {
-        "authoring-key": {
-          path: "authoring/",
-          stacks: [],
-        },
-      },
-    } satisfies BlueprintCatalogDefinition);
-    await mkdir(join(blueprints, "skills", "authoring"), { recursive: true });
-    await writeFile(join(blueprints, "skills", "authoring", "SKILL.md"), skill("1.0.0"));
-    await writeFile(join(blueprints, "skills", "authoring", "existing.txt"), "existing\n");
-
-    const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
-    expect(init.status, init.stderr).toBe(0);
-
-    await writeFile(join(blueprints, "skills", "authoring", "new.txt"), "new after bump\n");
-    const current = runCli(project, ["update"], process.env.PATH ?? "", env);
-    expect(current.status, current.stderr).toBe(0);
-    await expect(
-      readFile(join(project, ".github", "skills", "authoring", "new.txt")),
-    ).rejects.toThrow();
-
-    await writeFile(join(blueprints, "skills", "authoring", "SKILL.md"), skill("2.0.0"));
-    const bumped = runCli(project, ["update"], process.env.PATH ?? "", env);
-    expect(bumped.status, bumped.stderr).toBe(0);
-    expect(await readFile(join(project, ".github", "skills", "authoring", "new.txt"), "utf8")).toBe(
-      "new after bump\n",
-    );
-    expect(
-      await readFile(join(project, ".github", "skills", "authoring", "SKILL.md"), "utf8"),
-    ).toBe(skill("2.0.0"));
-  }
-});
-
 test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
   const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
   const project = await makeTempDir("spindle-writing-guidance-project-");
@@ -476,7 +333,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     } satisfies BlueprintCatalogDefinition);
     for (const name of names) {
       await cp(
-        resolve(repoRoot, "src", "Assets", "Blueprints", "skills", name),
+        resolve(repoRoot, "assets", "Blueprints", "skills", name),
         join(blueprints, "skills", name),
         {
           recursive: true,
@@ -627,7 +484,7 @@ test("the compiled catalog ignores external catalog files", async () => {
       for (const entry of catalog[kind]) {
         const destination = join(blueprints, kind, entry.path);
         await mkdir(dirname(destination), { recursive: true });
-        await cp(resolve(repoRoot, "src/Assets/Blueprints", kind, entry.path), destination, {
+        await cp(resolve(repoRoot, "assets/Blueprints", kind, entry.path), destination, {
           recursive: true,
         });
       }

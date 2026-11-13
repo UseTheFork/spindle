@@ -51,7 +51,7 @@ async function preparedDispatch() {
     }),
   );
   expect(ticket.status, ticket.stderr).toBe(0);
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const assignment = await app.make(AssignmentService);

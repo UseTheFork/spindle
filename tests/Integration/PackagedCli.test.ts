@@ -20,10 +20,13 @@ import matter from "gray-matter";
 import { makeTempDirSync, repoRoot } from "../Helpers/TemporaryDirectories.ts";
 
 const checkout = repoRoot;
-function packagedCli() {
-  const packageRoot = makeTempDirSync("spindle-packaged-cli-");
-  cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
-  cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
+function packagedCli(existingRoot?: string) {
+  const packageRoot = existingRoot ?? makeTempDirSync("spindle-packaged-cli-");
+  if (!existingRoot) {
+    cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
+    cpSync(join(checkout, "assets"), join(packageRoot, "assets"), { recursive: true });
+    cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
+  }
   // Use installed runtime dependencies as an installed package would, while keeping
   // the executable and all of its package assets outside the checkout.
   symlinkSync(join(checkout, "node_modules"), join(packageRoot, "node_modules"), "dir");
@@ -67,6 +70,56 @@ function makeGitWorkspace(directory: string) {
   git("commit", "-qm", "package fixture");
   return { git };
 }
+
+test("published tarball supplies assets for initialization and SDD documents", () => {
+  const directory = makeTempDirSync("spindle-packed-tarball-");
+  execFileSync("pnpm", ["pack", "--pack-destination", directory], { cwd: checkout });
+  const archives = readdirSync(directory).filter((name) => name.endsWith(".tgz"));
+  expect(archives).toHaveLength(1);
+  execFileSync("tar", ["-xzf", join(directory, archives[0]!), "-C", directory]);
+  const cli = packagedCli(join(directory, "package"));
+  const workspace = tempDirectory("spindle-tarball-workspace-");
+  makeGitWorkspace(workspace);
+
+  const initialized = cli.run(workspace, [
+    "init",
+    "--stack",
+    "python",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
+  expect(initialized.status, initialized.stderr).toBe(0);
+  const created = cli.run(workspace, [
+    "sdd",
+    "create",
+    "--title",
+    "Tarball feature",
+    "--author",
+    "maintainer",
+    "--with-design",
+  ]);
+  expect(created.status, created.stderr).toBe(0);
+  const feature = join(workspace, ".scratch", "0001-tarball-feature");
+  const ticket = cli.run(workspace, [
+    "sdd",
+    "ticket",
+    "create",
+    "--spec",
+    join(feature, "spec.md"),
+    "--title",
+    "Tarball ticket",
+    "--reporter",
+    "maintainer",
+    "--category",
+    "enhancement",
+    "--author",
+    "maintainer",
+  ]);
+  expect(ticket.status, ticket.stderr).toBe(0);
+  expect(readFileSync(join(feature, "design.md"), "utf8")).toContain("## Intent");
+  expect(readFileSync(join(feature, "tickets", "T-0001.md"), "utf8")).toContain("# Tarball ticket");
+});
 
 test("packaged schema describes project settings and supported stacks", () => {
   const cli = packagedCli();
@@ -218,7 +271,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(setup.stdout).toContain("Initialized project guidance and tooling documentation.");
   expect(setup.stderr).toBe("");
   const copilotTemplate = readFileSync(
-    join(checkout, "build/Assets/Templates/project/copilot-instructions.md"),
+    join(checkout, "assets/Templates/project/copilot-instructions.md"),
     "utf8",
   );
   expect(readFileSync(join(invocationWorkspace, ".github/copilot-instructions.md"), "utf8")).toBe(

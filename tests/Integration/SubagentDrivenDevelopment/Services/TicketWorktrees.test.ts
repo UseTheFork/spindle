@@ -1015,7 +1015,7 @@ test("pending-gate ticket startup resumes after worktree allocation without adva
   const integrated = await integrate(root, spec);
   expect(integrated.status, integrated.stderr).toBe(0);
   const mergeSha = cliOutput(integrated).mergeCommit as string;
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const transaction = await app.make(WorkspaceTransaction);
@@ -1299,7 +1299,7 @@ test("integration refuses dirty canonical state before creating a merge journal"
 
 test("integration recovers its journalled staged records but rejects unrelated staged data", async () => {
   const { root, spec } = await acceptedTicket();
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectConfiguration().bootstrap(app);
   await app.boot();
   const feature = (await app.make(FeatureInspectionService)).resolveFeature(spec);

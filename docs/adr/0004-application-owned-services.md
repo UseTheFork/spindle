@@ -65,12 +65,14 @@ See [CLI output](../cli-output.md) for the stream and envelope contracts.
 is normalized to an absolute path and never changes. The workspace root is bound
 by bootstrap, not supplied as a constructor argument. The getter-only
 `workspaceRoot` accessor reads `path.workspace` and validates its value as a
-string. Blueprint assets derive from `appPath("Assets/Blueprints")` rather than a
+string. Blueprint assets derive from `assetsPath("Blueprints")` rather than a
 separately bound root. `basePath(path = "")` is a method using the immutable
 constructor base path, also bound under `path.base`. `workspacePath(path = "")` joins
 the discovered workspace root, throwing before it is bound. `appPath(path = "")`
 joins the module-relative installation directory (`src/` from source, `build/`
-when compiled), not the Git root. All delegate to `joinPaths(basePath, path = "")`,
+when compiled), not the Git root. `assetsPath(path = "")` joins the package's
+`assets/` directory in both source and compiled execution. All delegate to
+`joinPaths(basePath, path = "")`,
 which preserves the base for an empty suffix, replaces it for an absolute suffix,
 and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.

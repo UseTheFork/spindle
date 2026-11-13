@@ -9,7 +9,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { templateCatalog } from "@/Assets/Templates/Catalog";
 import type { Application } from "@/Foundation/Application";
@@ -31,8 +30,6 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
-
-const templates = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 
 export class FeatureCreationService extends Service {
   public constructor(
@@ -112,11 +109,17 @@ export class FeatureCreationService extends Service {
           },
         });
         const spec = renderText(
-          readFileSync(join(templates, templateCatalog.sdd.spec), "utf8"),
+          readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.spec), "utf8"),
           context,
         );
         const design = options.withDesign
-          ? renderText(readFileSync(join(templates, templateCatalog.sdd.design), "utf8"), context)
+          ? renderText(
+              readFileSync(
+                join(this.app.assetsPath("Templates"), templateCatalog.sdd.design),
+                "utf8",
+              ),
+              context,
+            )
           : undefined;
         const ledger: FeatureLedger = {
           schemaVersion: 3,

@@ -14,9 +14,9 @@ export function applicationFixture(
   const application = new Application({ basePath: workspaceRoot });
   application.instance("path.workspace", workspaceRoot);
   application.instance("config.project", projectConfiguration);
-  const appPath = application.appPath.bind(application);
-  Object.defineProperty(application, "appPath", {
-    value: (path = "") => (path === "Assets/Blueprints" ? blueprintSourceRoot : appPath(path)),
+  const assetsPath = application.assetsPath.bind(application);
+  Object.defineProperty(application, "assetsPath", {
+    value: (path = "") => (path === "Blueprints" ? blueprintSourceRoot : assetsPath(path)),
   });
   application.register(TemplateRenderingServiceProvider);
   application.register(BlueprintManagementServiceProvider);

@@ -15,7 +15,7 @@ async function put(path: string, value: string) {
 async function assets() {
   const blueprints = await makeTempDir("guidance-blueprints-");
   const templates = await makeTempDir("guidance-templates-");
-  await cp(join(repoRoot, "src/Assets/Templates"), templates, { recursive: true });
+  await cp(join(repoRoot, "assets/Templates"), templates, { recursive: true });
   writeCatalogFixture(blueprints, {
     agents: {},
     instructions: {},

@@ -442,7 +442,7 @@ test("update overwrites a selected Agent with unreadable version frontmatter", a
   }
 });
 
-test("update renders a block-templated Agent version before comparing it", async () => {
+test("update renders a block-templated Agent version", async () => {
   const blueprints = await makeTempDir("spindle-agent-version-template-blueprints-");
   const project = await makeTempDir("spindle-agent-version-template-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
@@ -483,45 +483,6 @@ test("update renders a block-templated Agent version before comparing it", async
   }
 });
 
-test("update compares large numeric SemVer identifiers without losing precision", async () => {
-  const blueprints = await makeTempDir("spindle-agent-large-version-blueprints-");
-  const project = await makeTempDir("spindle-agent-large-version-project-");
-  {
-    await mkdir(join(project, ".github", "agents"), { recursive: true });
-    await writeFile(
-      join(project, ".github", "spindle.json"),
-      JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
-    );
-    for (const [name, installed, shipped] of [
-      ["core", "9007199254740992.0.0", "9007199254740993.0.0"],
-      ["prerelease", "1.0.0-9007199254740992", "1.0.0-9007199254740993"],
-    ]) {
-      await mkdir(join(blueprints, "agents", name), { recursive: true });
-      await writeFile(
-        join(blueprints, "agents", `${name}.agent.md`),
-        `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${shipped}\n---\nshipped\n`,
-      );
-      await writeFile(
-        join(project, ".github", "agents", `${name}.agent.md`),
-        `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${installed}\n---\nlocal\n`,
-      );
-    }
-
-    const result = runCli(project, ["update"], process.env.PATH ?? "", {
-      SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-    });
-
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toMatch(/updated 2.*agent\(s\)/);
-    expect(await readFile(join(project, ".github", "agents", "core.agent.md"), "utf8")).toMatch(
-      /version: 9007199254740993\.0\.0/,
-    );
-    expect(
-      await readFile(join(project, ".github", "agents", "prerelease.agent.md"), "utf8"),
-    ).toMatch(/version: 1\.0\.0-9007199254740993/);
-  }
-});
-
 test("catalog-selected Agent file installs and updates as a single rendered file", async () => {
   const blueprints = await makeTempDir("spindle-agent-catalog-blueprints-");
   const project = await makeTempDir("spindle-agent-catalog-project-");
@@ -550,7 +511,7 @@ test("catalog-selected Agent file installs and updates as a single rendered file
   }
 });
 
-test("init rejects an empty catalog and update succeeds without changes", async () => {
+test("init rejects an empty catalog while update and settings persist configuration", async () => {
   const blueprints = await makeTempDir("spindle-empty-kinds-blueprints-");
   const project = await makeTempDir("spindle-empty-kinds-project-");
   {
@@ -562,17 +523,33 @@ test("init rejects an empty catalog and update succeeds without changes", async 
     await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
 
     await mkdir(join(project, ".github"), { recursive: true });
-    const config = JSON.stringify({
+    const config = {
       stacks: ["python"],
       spindle_package_manager: "pnpm",
       variables: {},
       tooling: [],
-    });
-    await writeFile(join(project, ".github", "spindle.json"), config);
+    };
+    const configPath = join(project, ".github", "spindle.json");
+    await writeFile(configPath, JSON.stringify(config));
     const update = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(update.status, update.stderr).toBe(0);
     expect(update.stdout).toMatch(/No Blueprints apply/);
-    expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(config);
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
+      ...config,
+      $schema: expect.stringMatching(/\/build\/spindle\.schema\.json$/),
+    });
+
+    const settings = runCli(
+      project,
+      ["settings", "set", "commit.title_max_length", "80"],
+      process.env.PATH ?? "",
+      env,
+    );
+    expect(settings.status, settings.stderr).toBe(0);
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
+      ...config,
+      commit: { title_max_length: 80 },
+    });
   }
 });
 
@@ -1142,7 +1119,7 @@ test("update keeps a nested Agent version stable when a Skill supporting templat
     expect(await readFile(agentInstalled, "utf8")).toBe(
       "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nShipped Agent\n",
     );
-    expect(await readFile(configPath, "utf8")).toBe(config);
+    expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject(JSON.parse(config));
     expect(result.stdout).toMatch(/updated 1.*skill\(s\)/);
     expect(result.stdout).toMatch(/updated 1.*agent\(s\)/);
   }

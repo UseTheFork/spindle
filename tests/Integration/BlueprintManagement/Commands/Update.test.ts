@@ -329,7 +329,7 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
   }
 });
 
-test("update renders a complete static Skill entry before checking an equal version", async () => {
+test("update rejects an unrenderable Skill before replacing the installed file", async () => {
   const blueprints = await makeTempDir("spindle-static-version-");
   const project = await makeTempDir("spindle-static-version-project-");
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");

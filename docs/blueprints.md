@@ -56,7 +56,7 @@ Update installs all missing, stack-matching items and overwrites every selected
 catalog path without prompting, including local edits and unmanaged collisions.
 
 Paths are relative to the corresponding kind directory under
-`src/Assets/Blueprints/`. A path ending in `/` selects a directory recursively; its
+`assets/Blueprints/`. A path ending in `/` selects a directory recursively; its
 filenames and relative structure are preserved. A path without a trailing slash
 selects one file. Do not use glob patterns or internal Stack overlays. A nested
 directory named `stacks/` is ordinary content.
@@ -152,15 +152,10 @@ cleanup. Preparation failures leave the project unchanged. An application-time
 filesystem failure stops reconciliation and reports completed changes;
 application is not transactional and does not roll back earlier writes.
 
-The package build compiles the catalog and bundles the Blueprint tree under `build/Assets/Blueprints`.
-It copies only distributed Agents, Instructions, and Skills; catalog JavaScript
-is emitted by TypeScript rather than overwritten with source files.
-Published packages use that bundled tree and do not include a separate
-`src/Assets/Blueprints` fallback.
-
-The CLI uses module-relative Blueprint assets: source execution uses
-`src/Assets/Blueprints/` and packaged execution uses the bundled `build/Assets/Blueprints/`
-assets. External YAML catalogs are not loaded. Runtime validation checks safe,
+The package build compiles the catalog into `build/`. Both source execution and
+published packages use the package-relative `assets/Blueprints/` tree. The
+`assets/` directory must accompany `build/` when deploying the CLI.
+External YAML catalogs are not loaded. Runtime validation checks safe,
 nonoverlapping paths, source types and existence, symbolic links, and required
 `SKILL.md` files.
 
