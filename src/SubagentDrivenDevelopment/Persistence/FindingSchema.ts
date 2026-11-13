@@ -33,8 +33,8 @@ export function isReviewFinding(value: unknown): value is ReviewFinding {
         isRecord(source) &&
         typeof source.report === "string" &&
         isAbsolute(source.report) &&
-        typeof source.snapshot === "string" &&
-        /^[0-9a-f]{64}$/i.test(source.snapshot) &&
+        typeof source.headSha === "string" &&
+        /^[0-9a-f]{40,64}$/i.test(source.headSha) &&
         typeof source.author === "string" &&
         !!source.author.trim() &&
         typeof source.summary === "string" &&
@@ -67,8 +67,8 @@ export function isReviewFinding(value: unknown): value is ReviewFinding {
         /^R-\d{4,}$/.test(value.requirementsDecision))) &&
     (value.status !== "fixed" ||
       (isRecord(value.verification) &&
-        typeof value.verification.snapshot === "string" &&
-        /^[0-9a-f]{64}$/i.test(value.verification.snapshot) &&
+        typeof value.verification.headSha === "string" &&
+        /^[0-9a-f]{40,64}$/i.test(value.verification.headSha) &&
         Array.isArray(value.verification.checkCommands) &&
         value.verification.checkCommands.length > 0 &&
         value.verification.checkCommands.every(
@@ -93,8 +93,8 @@ export function isRequirementsDecision(value: unknown): value is RequirementsDec
     !!value.details.trim() &&
     typeof value.author === "string" &&
     !!value.author.trim() &&
-    typeof value.requirementsSnapshot === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
+    typeof value.commitSha === "string" &&
+    /^[0-9a-f]{40,64}$/i.test(value.commitSha) &&
     typeof value.recordedAt === "string" &&
     Number.isFinite(Date.parse(value.recordedAt))
   );

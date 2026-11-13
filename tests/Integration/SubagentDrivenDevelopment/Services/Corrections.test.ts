@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import {
+  commitRequirementAndRebaseTicket,
   commitTicketWorkspace,
   execute,
   prepareImplementationForReview,
@@ -19,7 +20,6 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Incorrect empty-input behavior",
@@ -94,7 +94,6 @@ test("corrective implementation reports submit through the implementation eviden
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Incorrect empty-input behavior",
@@ -166,8 +165,8 @@ test("corrective implementation reports submit through the implementation eviden
 });
 
 test("a current non-mechanical failed check can select a correction before initial review", async () => {
-  const { repo, spec, command, submission } = await prepareImplementationForReview();
-  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  const { repo, spec, command } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, "failed");
   expect(failed.status, failed.stderr).toBe(0);
 
   const corrected = await execute(repo, (service) =>
@@ -192,9 +191,8 @@ test("a current non-mechanical failed check can select a correction before initi
 });
 
 test("explicit progress assessments permit productive continuation beyond five attempts", async () => {
-  const { repo, spec, command, submission, ticketWorkspace } =
-    await prepareImplementationForReview();
-  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  const { repo, spec, command, ticketWorkspace } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, "failed");
   expect(failed.status, failed.stderr).toBe(0);
   let correction = await execute(repo, (service) =>
     service.correctionService.correct({
@@ -228,14 +226,7 @@ test("explicit progress assessments permit productive continuation beyond five a
     );
     expect(submitted.status, submitted.stderr).toBe(0);
     if (nextAttempt < 6) {
-      const currentSnapshot = JSON.parse(submitted.stdout).snapshot as string;
-      const nextFailedCheck = await recordReviewCheck(
-        repo,
-        spec,
-        command,
-        currentSnapshot,
-        "failed",
-      );
+      const nextFailedCheck = await recordReviewCheck(repo, spec, command, "failed");
       expect(nextFailedCheck.status, nextFailedCheck.stderr).toBe(0);
       const unassessed = await execute(repo, (service) =>
         service.correctionService.correct({
@@ -286,8 +277,8 @@ test("explicit progress assessments permit productive continuation beyond five a
 });
 
 test("a progress pause records adjudication and resume preserves it without dispatching a fix", async () => {
-  const { repo, spec, command, submission } = await prepareImplementationForReview();
-  const failed = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  const { repo, spec, command } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, "failed");
   expect(failed.status, failed.stderr).toBe(0);
 
   const paused = await execute(repo, (service) =>
@@ -333,7 +324,6 @@ test("corrective review findings retain assignment provenance for the next progr
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Incorrect empty-input behavior",
@@ -391,8 +381,7 @@ test("corrective review findings retain assignment provenance for the next progr
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const fixedSnapshot = JSON.parse(submitted.stdout).snapshot as string;
-  const passingCheck = await recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
 
   const dispatched = await execute(repo, (service) =>
@@ -408,11 +397,9 @@ test("corrective review findings retain assignment provenance for the next progr
     id: string;
     scope: string;
     attempt?: number;
-    snapshot: string;
   };
   expect(correctiveReview.scope).toBe("corrective");
   expect(correctiveReview.attempt).toBe(1);
-  expect(correctiveReview.snapshot).toBe(fixedSnapshot);
 
   writeFileSync(
     JSON.parse(dispatched.stdout).assignments[0].report,
@@ -423,7 +410,6 @@ test("corrective review findings retain assignment provenance for the next progr
       spec,
       ticket: "T-0001",
       source: JSON.parse(dispatched.stdout).assignments[0].report,
-      snapshot: fixedSnapshot,
       severity: "medium",
       blocking: true,
       summary: "A new regression remains",
@@ -458,7 +444,6 @@ test("resume returns pending corrective reviews after initial review coverage is
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Incorrect empty-input behavior",
@@ -516,9 +501,9 @@ test("resume returns pending corrective reviews after initial review coverage is
     }),
   );
   expect(submittedCorrection.status, submittedCorrection.stderr).toBe(0);
-  const correctedSnapshot = JSON.parse(submittedCorrection.stdout).snapshot as string;
-  expect(correctedSnapshot).not.toBe(assignment.snapshot);
-  const passingCheck = await recordReviewCheck(repo, spec, command, correctedSnapshot, "passed");
+  const correctedHeadSha = JSON.parse(submittedCorrection.stdout).headSha as string;
+  expect(correctedHeadSha).not.toBe(assignment.headSha);
+  const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
 
   const dispatchedReview = await execute(repo, (service) =>
@@ -563,7 +548,6 @@ test("a verified corrective review permits ticket integration while retaining in
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Incorrect empty-input behavior",
@@ -621,8 +605,7 @@ test("a verified corrective review permits ticket integration while retaining in
     }),
   );
   expect(implementation.status, implementation.stderr).toBe(0);
-  const fixedSnapshot = JSON.parse(implementation.stdout).snapshot as string;
-  const passingCheck = await recordReviewCheck(repo, spec, command, fixedSnapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
   const verified = await execute(repo, (service) =>
     service.findingService.findingUpdate({
@@ -630,7 +613,6 @@ test("a verified corrective review permits ticket integration while retaining in
       ticket: "T-0001",
       finding: "F-0001",
       status: "fixed",
-      evidence: fixedSnapshot,
       author: "controller",
     }),
   );
@@ -686,14 +668,13 @@ test("a verified corrective review permits ticket integration while retaining in
 });
 
 test("requirements decisions require fresh review before deferring a blocking finding", async () => {
-  const { repo, spec, command, assignment } = await prepareReviewAssignment();
+  const { repo, spec, command, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA criterion is implicated.\n");
   const created = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Scope no longer includes this behavior",
@@ -724,6 +705,12 @@ test("requirements decisions require fresh review before deferring a blocking fi
       "[ACCEPTANCE CRITERIA]\n\n## Comments",
       "The changed scope excludes this behavior.\n\n## Comments",
     ),
+  );
+  commitRequirementAndRebaseTicket(
+    repo,
+    ticketWorkspace,
+    ".scratch/0001-ticket-flow/tickets/T-0001.md",
+    "revise ticket requirements",
   );
   const deferred = async (
     extra: Partial<Parameters<WorkflowServices["findingService"]["findingUpdate"]>[0]>,
@@ -760,7 +747,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
   const decision = JSON.parse(decided.stdout).decision as {
     id: string;
     status: string;
-    requirementsSnapshot: string;
+    headSha: string;
   };
   expect(decision.id).toBe("R-0001");
   expect(decision.status).toBe("approved");
@@ -786,8 +773,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.featureInspectionService.status({ spec }),
   );
   expect(currentStatus.status, currentStatus.stderr).toBe(0);
-  const currentSnapshot = JSON.parse(currentStatus.stdout).snapshots[0].snapshot as string;
-  const passing = await recordReviewCheck(repo, spec, command, currentSnapshot, "passed");
+  const passing = await recordReviewCheck(repo, spec, command, "passed");
   expect(passing.status, passing.stderr).toBe(0);
 
   const reviewed = await execute(repo, (service) =>
@@ -802,18 +788,14 @@ test("requirements decisions require fresh review before deferring a blocking fi
   const freshAssignment = JSON.parse(reviewed.stdout).assignments[0] as {
     id: string;
     report: string;
-    snapshot: string;
-    requirementsSnapshot: string;
   };
   expect(freshAssignment.id).not.toBe(assignment.id);
-  expect(freshAssignment.requirementsSnapshot).toBe(decision.requirementsSnapshot);
   writeFileSync(freshAssignment.report, "# Fresh review\n\nThe revised criterion is reviewed.\n");
   const linked = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
       source: freshAssignment.report,
-      snapshot: freshAssignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Scope no longer includes this behavior",
@@ -910,7 +892,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
       status: string;
       result: string;
       noFindings: boolean;
-      snapshot: string;
+      headSha: string;
       reportSha256: string;
     };
   };
@@ -919,7 +901,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(result.assignment.status).toBe("submitted");
   expect(result.assignment.result).toBe("passed");
   expect(result.assignment.noFindings).toBe(true);
-  expect(result.assignment.snapshot).toBe(assignment.snapshot);
+  expect(result.assignment.headSha).toBe(assignment.headSha);
   expect(result.assignment.reportSha256).toMatch(/^[0-9a-f]{64}$/);
 
   const repeated = await submit({

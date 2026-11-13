@@ -20,10 +20,7 @@ import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type {
-  AcceptedEvidence,
-  ContentIdentity,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { AcceptedEvidence, CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeaturePaths, TicketProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -47,9 +44,7 @@ interface MergeJournal {
   ticket: string;
   featureHead: string;
   ticketHead: string;
-  snapshot: string;
   files: string[];
-  contentDigest: string;
 }
 
 export class TicketIntegrationService extends Service {
@@ -113,12 +108,7 @@ export class TicketIntegrationService extends Service {
         throw new Error("Only the ticket controller may integrate this ticket.");
       }
       this.assertCanonical(root, feature);
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const outstandingPostMerge = ledger.tickets.filter((candidate) => {
         const integration = candidate.integration ?? candidate.integrationHistory?.at(-1);
         return integration?.postMerge?.status === "pending";
@@ -194,23 +184,32 @@ export class TicketIntegrationService extends Service {
       if (blockers.length)
         throw new Error(`Ticket review or checks are not current:\n${blockers.join("\n")}`);
       const accepted = this.acceptedEvidence(feature, progress, identity);
-      if (
-        alreadyIntegrated &&
-        (identity.snapshot !== accepted.snapshot ||
-          identity.codeSnapshot !== accepted.codeSnapshot ||
-          identity.requirementsSnapshot !== accepted.requirementsSnapshot)
-      ) {
+      if (alreadyIntegrated && identity.headSha !== accepted.commitSha) {
         throw new Error("Ticket review evidence is stale; fresh review is required.");
       }
       this.reports.assertAcceptedReportsCurrent(feature, progress);
       const workspace = this.gitEvidence.ticketWorkspace(progress)!;
       this.gitEvidence.assertTicketCodeCommitted(progress);
+      const currentTicket = {
+        id: ticket.id,
+        path: ticket.path,
+      };
+      this.gitEvidence.assertCommittedRequirements(
+        feature,
+        [currentTicket],
+        this.gitEvidence.headSha(feature.workspace),
+      );
+      this.gitEvidence.assertTicketRequirementsCurrent(
+        feature,
+        currentTicket,
+        identity.headSha,
+        workspace,
+      );
       if (
         JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha, workspace)) !==
-          JSON.stringify(accepted.files) ||
-        this.gitEvidence.worktreeContentDigest(accepted.files, workspace) !== accepted.contentDigest
+        JSON.stringify(accepted.files)
       ) {
-        throw new Error("Ticket inventory or content differs from its current review.");
+        throw new Error("Ticket inventory differs from its current review.");
       }
       if (!alreadyIntegrated) {
         this.assertNoOperation(root);
@@ -263,9 +262,7 @@ export class TicketIntegrationService extends Service {
           ticket: options.ticket,
           featureHead,
           ticketHead: identity.headSha,
-          snapshot: identity.snapshot,
           files: accepted.files,
-          contentDigest: accepted.contentDigest,
         };
         this.createJournal(journalPath, journal);
       }
@@ -277,7 +274,6 @@ export class TicketIntegrationService extends Service {
           progress.integration?.postMerge?.status !== "pending" ||
           progress.integration.postMerge.mergeSha !== mergeSha ||
           progress.integration.commitSha !== journal.ticketHead ||
-          progress.integration.contentDigest !== journal.contentDigest ||
           JSON.stringify(progress.integration.files) !== JSON.stringify(journal.files)
         ) {
           throw new Error("Ticket integration has no valid pending post-merge record.");
@@ -321,13 +317,8 @@ export class TicketIntegrationService extends Service {
           if (mergeHead !== journal.ticketHead)
             throw new Error("Unexpected merge input was preserved.");
           this.assertIndexMatchesReview(root, journal);
-          const confirmed = this.gitEvidence.contentIdentity(
-            feature,
-            ticket,
-            progress.baseSha,
-            progress.checks,
-          );
-          if (confirmed.snapshot !== journal.snapshot || confirmed.headSha !== journal.ticketHead) {
+          const confirmed = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+          if (confirmed.headSha !== journal.ticketHead) {
             throw new Error("Ticket evidence changed during merge; re-review is required.");
           }
           const confirmedBlockers = this.acceptance.acceptBlockers(
@@ -370,7 +361,6 @@ export class TicketIntegrationService extends Service {
           integratedAt: new Date().toISOString(),
           integratedBy: options.author.trim(),
           files: accepted.files,
-          contentDigest: accepted.contentDigest,
         };
         const afterTicket = matter.stringify(
           this.tickets.appendAudit(
@@ -422,7 +412,7 @@ export class TicketIntegrationService extends Service {
   private acceptedEvidence(
     feature: FeaturePaths,
     progress: TicketProgress,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): AcceptedEvidence {
     if (
       progress.execution === "integrated" &&
@@ -432,14 +422,10 @@ export class TicketIntegrationService extends Service {
       return progress.acceptedEvidence;
     }
     const files = this.workflow.acceptedInventory(progress, progress.id);
-    const workspace = this.gitEvidence.ticketWorkspace(progress);
     this.gitEvidence.assertTicketCodeCommitted(progress);
     return {
-      snapshot: identity.snapshot,
-      codeSnapshot: identity.codeSnapshot,
-      requirementsSnapshot: identity.requirementsSnapshot,
+      commitSha: identity.headSha,
       files,
-      contentDigest: this.gitEvidence.worktreeContentDigest(files, workspace),
     };
   }
 
@@ -464,8 +450,7 @@ export class TicketIntegrationService extends Service {
       typeof value.featureHead !== "string" ||
       !/^[0-9a-f]{40,64}$/i.test(value.featureHead) ||
       value.ticketHead !== ticketHead ||
-      value.snapshot !== accepted.snapshot ||
-      value.contentDigest !== accepted.contentDigest ||
+      value.ticketHead !== accepted.commitSha ||
       JSON.stringify(value.files) !== JSON.stringify(accepted.files)
     ) {
       throw new Error(`Integration journal conflicts with current ticket evidence: ${path}.`);
@@ -477,9 +462,7 @@ export class TicketIntegrationService extends Service {
       ticket: progress.id,
       featureHead: value.featureHead,
       ticketHead,
-      snapshot: accepted.snapshot,
       files: accepted.files,
-      contentDigest: accepted.contentDigest,
     };
   }
 

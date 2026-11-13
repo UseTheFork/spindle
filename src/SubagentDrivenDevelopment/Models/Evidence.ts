@@ -1,9 +1,6 @@
 export interface AcceptedEvidence {
-  snapshot: string;
-  codeSnapshot: string;
-  requirementsSnapshot: string;
+  commitSha: string;
   files: string[];
-  contentDigest: string;
 }
 
 export interface IntegrationRecord {
@@ -17,7 +14,6 @@ export interface IntegrationRecord {
   integratedAt: string;
   integratedBy: string;
   files: string[];
-  contentDigest: string;
 }
 
 export interface CheckRequirement {
@@ -38,19 +34,12 @@ export interface CheckRecord {
   command: string;
   result: "passed" | "failed" | "unavailable";
   author: string;
-  snapshot: string;
-  codeSnapshot: string;
-  requirementsSnapshot: string;
   headSha: string;
   recordedAt: string;
   coveredPaths?: string[];
-  coverageSnapshot?: string;
   details?: string;
 }
 
-export interface ContentIdentity {
-  snapshot: string;
-  codeSnapshot: string;
-  requirementsSnapshot: string;
+export interface CommitIdentity {
   headSha: string;
 }

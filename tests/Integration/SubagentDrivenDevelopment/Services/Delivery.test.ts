@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,6 +9,7 @@ import {
   commitTicketWorkspace,
   execute,
   commitAll,
+  commitRequirement,
   invokeAsync,
   integrateReviewedTicket,
   beginDeliveryFinalization,
@@ -62,9 +64,9 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
     assignments: {
       id: string;
       agent: string;
+      headSha: string;
       role: string;
       scope: string;
-      snapshot: string;
       report: string;
       status: string;
     }[];
@@ -83,7 +85,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   ]);
   expect(new Set(output.assignments.map(({ id }) => id)).size).toBe(2);
   expect(new Set(output.assignments.map(({ report }) => report)).size).toBe(2);
-  expect(output.assignments.every(({ snapshot }) => /^[0-9a-f]{64}$/.test(snapshot))).toBeTruthy();
+  expect(output.assignments.every(({ headSha }) => /^[0-9a-f]{40,64}$/.test(headSha))).toBeTruthy();
 
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
@@ -163,7 +165,7 @@ test("blocking delivery findings reopen their related ticket after all required 
   const assignments = JSON.parse(reviewed.stdout).assignments as {
     id: string;
     agent: string;
-    snapshot: string;
+    headSha: string;
     report: string;
   }[];
   const comprehensive = assignments.find(({ agent }) => agent === "sdd-reviewer")!;
@@ -178,7 +180,6 @@ test("blocking delivery findings reopen their related ticket after all required 
       scope: "delivery",
       relatedTicket: "T-0001",
       source: comprehensive.report,
-      snapshot: comprehensive.snapshot,
       severity: "medium",
       blocking: true,
       summary: "Cross-ticket behavior needs documentation",
@@ -189,11 +190,11 @@ test("blocking delivery findings reopen their related ticket after all required 
   expect(registered.status, registered.stderr).toBe(0);
   const finding = JSON.parse(registered.stdout).finding as {
     id: string;
-    provenance: { report: string; snapshot: string }[];
+    provenance: { report: string; headSha: string }[];
   };
   expect(finding.id).toBe("F-0001");
-  expect(finding.provenance.map(({ report, snapshot }) => ({ report, snapshot }))).toEqual([
-    { report: comprehensive.report, snapshot: comprehensive.snapshot },
+  expect(finding.provenance.map(({ report, headSha }) => ({ report, headSha }))).toEqual([
+    { report: comprehensive.report, headSha: comprehensive.headSha },
   ]);
 
   const submitted = await execute(repo, (service) =>
@@ -266,7 +267,7 @@ test("blocking delivery findings reopen their related ticket after all required 
   ]);
 });
 
-test("delivery checks use their own current snapshot and stale aggregate checks block review", async () => {
+test("delivery checks use their own current commit and stale aggregate checks block review", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
 
   const command = "just test::test tests/whole-feature.test.ts";
@@ -280,15 +281,14 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
     }),
   );
   expect(required.status, required.stderr).toBe(0);
-  const requiredIdentity = JSON.parse(required.stdout) as { snapshot: string };
-  expect(requiredIdentity.snapshot).toMatch(/^[0-9a-f]{64}$/);
+  const requiredIdentity = JSON.parse(required.stdout) as { headSha: string };
+  expect(requiredIdentity.headSha).toMatch(/^[0-9a-f]{40,64}$/);
 
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
       spec,
       scope: "delivery",
-      snapshot: requiredIdentity.snapshot,
       command,
       result: "passed",
       author: "controller",
@@ -301,20 +301,8 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
     join(repo, "feature.ts"),
     "export const feature = 'changed after aggregate check';\n",
   );
-  const staleRecord = await execute(repo, (service) =>
-    service.checksService.checksRecord({
-      ticket: "",
-      spec,
-      scope: "delivery",
-      snapshot: requiredIdentity.snapshot,
-      command,
-      result: "passed",
-      author: "controller",
-    }),
-  );
-  expect(staleRecord.status).not.toBe(0);
-  expect(staleRecord.stderr).toMatch(/snapshot is stale/i);
-
+  execFileSync("git", ["add", "feature.ts"], { cwd: repo });
+  execFileSync("git", ["commit", "-qm", "change code after aggregate check"], { cwd: repo });
   const staleReview = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
@@ -324,7 +312,7 @@ test("delivery checks use their own current snapshot and stale aggregate checks 
     }),
   );
   expect(staleReview.status).not.toBe(0);
-  expect(staleReview.stderr).toMatch(/delivery check .*stale/i);
+  expect(staleReview.stderr).toMatch(/delivery check .*stale|current.*checks/i);
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
@@ -347,7 +335,6 @@ test("delivery correction attempts resume independently with the same assignment
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignments[0] as {
     id: string;
-    snapshot: string;
     report: string;
   };
   writeFileSync(assignment.report, "# Aggregate review\n\nA whole-feature blocker.\n");
@@ -357,7 +344,6 @@ test("delivery correction attempts resume independently with the same assignment
       spec,
       scope: "delivery",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "Integrated behaviors disagree",
@@ -434,6 +420,10 @@ test("delivery correction attempts resume independently with the same assignment
     join(repo, "feature.ts"),
     "export const feature = 'corrected whole-spec behavior';\n",
   );
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  git("add", "feature.ts");
+  git("commit", "-qm", "commit delivery correction");
   writeFileSync(output.assignment.report, "# Delivery correction\n\nProgress recorded.\n");
   const implementation = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -555,13 +545,11 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     }),
   );
   expect(requiredBeforeReview.status, requiredBeforeReview.stderr).toBe(0);
-  const firstSnapshot = JSON.parse(requiredBeforeReview.stdout).snapshot as string;
   const recordedBeforeReview = await execute(repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
       spec,
       scope: "delivery",
-      snapshot: firstSnapshot,
       command: checkCommand,
       result: "passed",
       author: "controller",
@@ -579,7 +567,6 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   expect(firstReview.status, firstReview.stderr).toBe(0);
   const initialAssignment = JSON.parse(firstReview.stdout).assignments[0] as {
     id: string;
-    snapshot: string;
     report: string;
   };
   writeFileSync(
@@ -592,7 +579,6 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
       spec,
       scope: "delivery",
       source: initialAssignment.report,
-      snapshot: initialAssignment.snapshot,
       severity: "high",
       blocking: true,
       summary: "A feature acceptance requirement is no longer applicable",
@@ -616,10 +602,26 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     }),
   );
   expect(initialSubmission.status, initialSubmission.stderr).toBe(0);
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'code-only change';\n");
+  commitRequirement(repo, "feature.ts", "change code without changing requirements");
+  const codeOnlyDecision = await execute(repo, (service) =>
+    service.requirementsService.requirementsDecide({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      finding: findingId,
+      decision: "approved",
+      details: "Code changes do not authorize a scope change.",
+      author: "controller",
+    }),
+  );
+  expect(codeOnlyDecision.status).not.toBe(0);
+  expect(codeOnlyDecision.stderr).toMatch(/explicit requirements change after review/i);
   writeFileSync(
     spec,
     `${readFileSync(spec, "utf8")}\n## Approved delivery change\n\nThe affected behavior is out of scope.\n`,
   );
+  commitRequirement(repo, ".scratch/0001-ticket-flow/spec.md", "revise delivery requirements");
 
   const unapprovedDeferral = await execute(repo, (service) =>
     service.findingService.findingUpdate({
@@ -688,13 +690,11 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     }),
   );
   expect(required.status, required.stderr).toBe(0);
-  const currentSnapshot = JSON.parse(required.stdout).snapshot as string;
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
       spec,
       scope: "delivery",
-      snapshot: currentSnapshot,
       command: checkCommand,
       result: "passed",
       author: "controller",
@@ -893,15 +893,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
     }),
   );
   expect(submittedImplementation.status, submittedImplementation.stderr).toBe(0);
-  const secondSnapshot = JSON.parse(submittedImplementation.stdout).snapshot as string;
-  const check = await recordReviewCheck(
-    first.repo,
-    first.spec,
-    command,
-    secondSnapshot,
-    "passed",
-    secondId,
-  );
+  const check = await recordReviewCheck(first.repo, first.spec, command, "passed", secondId);
   expect(check.status, check.stderr).toBe(0);
   const review = await execute(first.repo, (service) =>
     service.reviewService.review({
@@ -946,13 +938,11 @@ test("aggregate review covers every closed ticket and stale requirements block f
     }),
   );
   expect(deliveryCheck.status, deliveryCheck.stderr).toBe(0);
-  const deliverySnapshot = JSON.parse(deliveryCheck.stdout).snapshot as string;
   const recordedDeliveryCheck = await execute(first.repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
       spec: first.spec,
       scope: "delivery",
-      snapshot: deliverySnapshot,
       command: deliveryCommand,
       result: "passed",
       author: "controller",
@@ -1005,6 +995,11 @@ test("aggregate review covers every closed ticket and stale requirements block f
       "## Acceptance Criteria\n\nA whole-feature requirement added after aggregate review.\n\n",
     ),
   );
+  commitRequirement(
+    first.repo,
+    ".scratch/0001-ticket-flow/tickets/T-0002.md",
+    "revise second ticket requirements",
+  );
   const staleFinish = await execute(first.repo, (service) =>
     service.deliveryService.finish({
       spec: first.spec,
@@ -1017,6 +1012,11 @@ test("aggregate review covers every closed ticket and stale requirements block f
     /final delivery checks are not current and passing|aggregate required reviews are not current and passing/i,
   );
   writeFileSync(secondTicketPath, originalTicket);
+  commitRequirement(
+    first.repo,
+    ".scratch/0001-ticket-flow/tickets/T-0002.md",
+    "restore second ticket requirements",
+  );
   const finished = await finalizeDelivery(first);
   expect(finished.completed).toMatchObject({ finished: true, cleanup: "complete" });
 });
@@ -1033,10 +1033,10 @@ test("status and next expose delivery assignments, blockers, and finish action w
   expect(status.status, status.stderr).toBe(0);
   expect(next.status, next.stderr).toBe(0);
   const statusDelivery = JSON.parse(status.stdout).delivery as {
+    headSha: string;
     scope: string;
     execution: string;
     action: string;
-    snapshot: string;
     retrospectiveRequired: boolean;
     finished: boolean;
     findings: unknown[];
@@ -1047,7 +1047,7 @@ test("status and next expose delivery assignments, blockers, and finish action w
   expect(statusDelivery.scope).toBe("delivery");
   expect(statusDelivery.execution).toBe("reviewing");
   expect(statusDelivery.action).toBe("finish");
-  expect(statusDelivery.snapshot).toMatch(/^[0-9a-f]{64}$/);
+  expect(statusDelivery.headSha).toMatch(/^[0-9a-f]{40,64}$/);
   expect(statusDelivery.retrospectiveRequired).toBe(false);
   expect(statusDelivery.finished).toBe(false);
   expect(statusDelivery.findings).toEqual([]);

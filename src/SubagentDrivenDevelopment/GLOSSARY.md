@@ -42,14 +42,14 @@ A review of the completed feature changes before the feature is declared complet
 **Review requirement**:
 A required review role for a feature, including the default comprehensive reviewer and any optional specialist reviewers.
 
-**Evidence snapshot**:
-The identity of the feature changes and requirements assessed by a check or review.
+**Committed inputs**:
+The Git commit containing the code and authoritative requirements assessed by a check or review.
 
 **Finding**:
 A review observation that may require work on a ticket before the feature can complete.
 
 **Verification evidence**:
-Recorded check commands and results that establish whether the relevant tests pass for a feature snapshot.
+Recorded check commands and results that establish whether the relevant tests pass for committed code and requirements.
 
 **Feature completion**:
 The state reached when all feature tickets are integrated, required checks and reviews pass, and the feature is merged and validated on its originating branch.

@@ -46,7 +46,6 @@ export class DeliveryFindingService extends Service {
     scope: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
-    snapshot: string;
     headSha: string;
   } {
     validateAuthor(options.author);
@@ -62,9 +61,6 @@ export class DeliveryFindingService extends Service {
     if (options.link !== undefined && options.relatedTicket !== undefined) {
       throw new Error("--related-ticket cannot be combined with --link.");
     }
-    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
-      throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
-    }
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -78,20 +74,15 @@ export class DeliveryFindingService extends Service {
           : resolve(feature.workspace, options.source)
         : "";
       const assignment = delivery.reviewAssignments?.find(
-        (candidate) =>
-          candidate.report === report &&
-          candidate.snapshot === options.snapshot &&
-          candidate.scope === "delivery",
+        (candidate) => candidate.report === report && candidate.scope === "delivery",
       );
       if (!assignment) {
-        throw new Error(
-          "Finding source report and snapshot must match a frozen delivery review assignment.",
-        );
+        throw new Error("Finding source report must match a frozen delivery review assignment.");
       }
       if (assignment.status === "submitted") {
         throw new Error("Findings must be registered before submitting the delivery assignment.");
       }
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
@@ -102,17 +93,12 @@ export class DeliveryFindingService extends Service {
           throw new Error(`Related ticket not found: ${options.relatedTicket}.`);
         }
       }
-      const stale = this.reviewPolicy.reviewSnapshotBlocker(
-        feature,
-        delivery,
-        assignment,
-        identity,
-      );
+      const stale = this.reviewPolicy.reviewCommitBlocker(feature, delivery, assignment, identity);
       if (stale) throw new Error(stale);
       this.reportEvidence.readReportDigest(feature, report);
       const source: FindingProvenance = {
         report,
-        snapshot: options.snapshot,
+        headSha: assignment.headSha,
         author: options.author.trim(),
         summary: options.summary.trim(),
         details: options.details.trim(),
@@ -122,7 +108,7 @@ export class DeliveryFindingService extends Service {
         const canonical = findings.find((finding) => finding.id === options.link);
         if (!canonical) throw new Error(`Canonical delivery finding not found: ${options.link}.`);
         const prior = canonical.provenance.find(
-          (item) => item.report === source.report && item.snapshot === source.snapshot,
+          (item) => item.report === source.report && item.headSha === source.headSha,
         );
         if (prior) {
           if (
@@ -130,7 +116,7 @@ export class DeliveryFindingService extends Service {
             prior.summary !== source.summary ||
             prior.details !== source.details
           ) {
-            throw new Error("This report and snapshot are already linked with different details.");
+            throw new Error("This report and commit are already linked with different details.");
           }
           return { scope: "delivery", finding: canonical, idempotent: true, ...identity };
         }
@@ -139,7 +125,7 @@ export class DeliveryFindingService extends Service {
           at: new Date().toISOString(),
           author: options.author.trim(),
           action: "observation-linked",
-          details: `Linked observation from ${report} at snapshot ${options.snapshot}: ${source.summary} — ${source.details}`,
+          details: `Linked observation from ${report} at commit ${source.headSha}: ${source.summary} — ${source.details}`,
         });
         this.workspaceTransaction.writeLedger(feature, ledger);
         return { scope: "delivery", finding: canonical, ...identity };
@@ -155,7 +141,7 @@ export class DeliveryFindingService extends Service {
           finding.provenance.some(
             (item) =>
               item.report === source.report &&
-              item.snapshot === source.snapshot &&
+              item.headSha === source.headSha &&
               item.author === source.author &&
               item.summary === source.summary &&
               item.details === source.details,
@@ -184,7 +170,7 @@ export class DeliveryFindingService extends Service {
             at,
             author: options.author.trim(),
             action: "registered",
-            details: `Registered from ${report} at snapshot ${options.snapshot}.`,
+            details: `Registered from ${report} at commit ${source.headSha}.`,
           },
         ],
       };
@@ -196,7 +182,7 @@ export class DeliveryFindingService extends Service {
         action: `finding-registered:${finding.id}`,
       });
       this.workspaceTransaction.writeLedger(feature, ledger);
-      return { scope: "delivery", finding, snapshot: identity.snapshot, headSha: identity.headSha };
+      return { scope: "delivery", finding, headSha: identity.headSha };
     });
   }
 
@@ -204,7 +190,7 @@ export class DeliveryFindingService extends Service {
     scope: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
-    snapshot: string;
+    headSha: string;
   } {
     validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
@@ -222,9 +208,6 @@ export class DeliveryFindingService extends Service {
     if (options.status === "deferred" && !options.requirementsDecision?.trim()) {
       throw new Error("--requirements-decision is required for a deferred delivery finding.");
     }
-    if (options.status === "fixed" && !options.evidence?.trim()) {
-      throw new Error("--evidence is required to mark a finding fixed.");
-    }
     if (
       options.status !== "deferred" &&
       (options.followUp !== undefined || options.requirementsDecision !== undefined)
@@ -232,9 +215,6 @@ export class DeliveryFindingService extends Service {
       throw new Error(
         "--follow-up and --requirements-decision are only valid for a deferred finding.",
       );
-    }
-    if (options.status !== "fixed" && options.evidence !== undefined) {
-      throw new Error("--evidence is only valid for a fixed finding.");
     }
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
@@ -245,7 +225,7 @@ export class DeliveryFindingService extends Service {
       }
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
@@ -258,7 +238,7 @@ export class DeliveryFindingService extends Service {
             decision.id === options.requirementsDecision &&
             decision.finding === finding.id &&
             decision.status === "approved" &&
-            decision.requirementsSnapshot === identity.requirementsSnapshot,
+            decision.commitSha === identity.headSha,
         );
         if (!requirementsDecision) {
           throw new Error(
@@ -269,10 +249,7 @@ export class DeliveryFindingService extends Service {
         const assignments = delivery.reviewAssignments ?? [];
         for (const { agent } of requiredReviewers) {
           const matching = assignments.filter(
-            (assignment) =>
-              assignment.agent === agent &&
-              assignment.snapshot === identity.snapshot &&
-              assignment.requirementsSnapshot === identity.requirementsSnapshot,
+            (assignment) => assignment.agent === agent && assignment.headSha === identity.headSha,
           );
           if (
             matching.length !== 1 ||
@@ -288,18 +265,26 @@ export class DeliveryFindingService extends Service {
       }
       let verification: ReviewFinding["verification"];
       if (options.status === "fixed") {
-        if (!/^[0-9a-f]{64}$/i.test(options.evidence!)) {
-          throw new Error("--evidence must be a CLI-returned content snapshot.");
-        }
-        if (options.evidence !== identity.snapshot) {
-          throw new Error("Verification evidence must match the current delivery snapshot.");
-        }
-        if (finding.provenance.some((source) => source.snapshot === identity.snapshot)) {
+        if (
+          finding.provenance.some((source) =>
+            this.gitEvidence.deliveryInputsPreserved(
+              feature,
+              source.headSha,
+              identity.headSha,
+              feature.workspace,
+            ),
+          )
+        ) {
           throw new Error(
-            "Verification evidence must reflect changed content since every finding observation.",
+            "Verification requires a committed change since every finding observation.",
           );
         }
-        const checks = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
+        const checks = this.checkPolicy.deliveryCheckBlockers(
+          feature,
+          this.ticketRepository.readTickets(feature.workspace),
+          delivery,
+          identity,
+        );
         const required = delivery.checks?.required.filter((check) => !check.removedAt) ?? [];
         if (required.length === 0 || checks.length > 0) {
           throw new Error(
@@ -307,7 +292,7 @@ export class DeliveryFindingService extends Service {
           );
         }
         verification = {
-          snapshot: identity.snapshot,
+          headSha: identity.headSha,
           checkCommands: required.map((check) => check.command),
           verifiedAt: new Date().toISOString(),
           verifiedBy: options.author.trim(),
@@ -320,15 +305,15 @@ export class DeliveryFindingService extends Service {
         last?.action === `status:${options.status}` &&
         last.author === options.author.trim()
       ) {
-        return { scope: "delivery", finding, idempotent: true, snapshot: identity.snapshot };
+        return { scope: "delivery", finding, idempotent: true, headSha: identity.headSha };
       }
-      const current = this.gitEvidence.deliveryIdentity(
+      const current = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      if (current.snapshot !== identity.snapshot) {
-        throw new Error("Delivery content changed while recording the finding ruling.");
+      if (current.headSha !== identity.headSha) {
+        throw new Error("Delivery commit changed while recording the finding ruling.");
       }
       const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
       finding.status = options.status as FindingStatus;
@@ -345,7 +330,8 @@ export class DeliveryFindingService extends Service {
       if (verification) finding.verification = verification;
       else delete finding.verification;
       const details =
-        rulingDetails ?? (verification ? `Verified at ${verification.snapshot}.` : options.status);
+        rulingDetails ??
+        (verification ? `Verified at commit ${verification.headSha}.` : options.status);
       finding.history.push({
         at: new Date().toISOString(),
         author: options.author.trim(),
@@ -368,7 +354,7 @@ export class DeliveryFindingService extends Service {
         delivery.execution = "changes-requested";
       }
       this.workspaceTransaction.writeLedger(feature, ledger);
-      return { scope: "delivery", finding, snapshot: identity.snapshot };
+      return { scope: "delivery", finding, headSha: identity.headSha };
     });
   }
 }

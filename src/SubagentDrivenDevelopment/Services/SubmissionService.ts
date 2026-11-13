@@ -51,9 +51,6 @@ export class SubmissionService extends Service {
     reportSha256?: string;
     unavailable?: boolean;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.scope === "delivery") {
@@ -95,12 +92,7 @@ export class SubmissionService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const assignment = progress.assignment;
       if (!assignment || assignment.role !== options.role) {
         throw new Error("No matching implementation assignment is pending for this ticket.");
@@ -234,9 +226,6 @@ export class SubmissionService extends Service {
     report: string;
     reportSha256: string;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (!options.assignment?.trim()) {
@@ -301,12 +290,7 @@ export class SubmissionService extends Service {
       }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       this.gitEvidence.assertTicketCodeCommitted(progress);
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const checkBlockers = this.checkPolicy.reviewCheckBlockers(
         feature,
         ticket,
@@ -314,13 +298,13 @@ export class SubmissionService extends Service {
         identity,
       );
       if (checkBlockers.length > 0) throw new Error(checkBlockers.join("\n"));
-      const snapshotBlocker = this.reviewPolicy.reviewSnapshotBlocker(
+      const commitBlocker = this.reviewPolicy.reviewCommitBlocker(
         feature,
         progress,
         assignment,
         identity,
       );
-      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      if (commitBlocker) throw new Error(commitBlocker);
       const reportPath = this.reportEvidence.submissionReportPath(
         feature,
         assignment,
@@ -331,7 +315,7 @@ export class SubmissionService extends Service {
         .filter((finding) =>
           finding.provenance.some(
             (source) =>
-              source.report === assignment.report && source.snapshot === assignment.snapshot,
+              source.report === assignment.report && source.headSha === assignment.headSha,
           ),
         )
         .map((finding) => finding.id);
@@ -345,7 +329,7 @@ export class SubmissionService extends Service {
         const unknown = findingIds.filter((id) => !registeredFromReport.includes(id));
         if (missing.length > 0 || unknown.length > 0) {
           throw new Error(
-            `--findings must exactly list canonical findings registered from this report and snapshot; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
+            `--findings must exactly list canonical findings registered from this report and commit; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
           );
         }
       }
@@ -375,11 +359,10 @@ export class SubmissionService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
       );
-      const confirmedIdentity = this.gitEvidence.contentIdentity(
+      const confirmedIdentity = this.gitEvidence.commitIdentity(
         feature,
         confirmedTicket,
         progress.baseSha,
-        progress.checks,
       );
       this.gitEvidence.assertTicketCodeCommitted(progress);
       const confirmedInventory = this.gitEvidence.changedPaths(
@@ -388,13 +371,13 @@ export class SubmissionService extends Service {
       );
       const confirmedReportDigest = this.reportEvidence.readReportDigest(feature, reportPath);
       if (
-        confirmedIdentity.snapshot !== identity.snapshot ||
+        confirmedIdentity.headSha !== identity.headSha ||
         (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
         JSON.stringify(confirmedInventory) !== JSON.stringify(assignment.inventory) ||
         confirmedReportDigest !== reportSha256
       ) {
         throw new Error(
-          "Review inputs changed while submitting; retry against the frozen assignment.",
+          "Review commit or inputs changed while submitting; retry against the frozen assignment.",
         );
       }
 

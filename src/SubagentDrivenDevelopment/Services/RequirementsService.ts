@@ -35,8 +35,7 @@ export class RequirementsService extends Service {
     execution: ExecutionState;
     decision: RequirementsDecision;
     idempotent?: boolean;
-    snapshot: string;
-    requirementsSnapshot: string;
+    headSha: string;
   } {
     validateAuthor(options.author);
     if (options.scope === "delivery") {
@@ -73,12 +72,13 @@ export class RequirementsService extends Service {
       if (!progress.baseSha) {
         throw new Error("Requirements decisions require a recorded Git baseline.");
       }
-      const identity = this.gitEvidence.contentIdentity(
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+      this.gitEvidence.assertCommittedRequirements(
         feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
+        [ticket],
+        this.gitEvidence.headSha(feature.workspace),
       );
+      const currentFeatureHead = this.gitEvidence.headSha(feature.workspace);
       const decisions = (progress.requirementsDecisions ??= []);
       const existing = decisions.find(
         (decision) =>
@@ -86,7 +86,7 @@ export class RequirementsService extends Service {
           decision.status === options.decision &&
           decision.details === options.details.trim() &&
           decision.author === options.author.trim() &&
-          decision.requirementsSnapshot === identity.requirementsSnapshot,
+          decision.commitSha === currentFeatureHead,
       );
       if (existing) {
         return {
@@ -94,8 +94,7 @@ export class RequirementsService extends Service {
           execution: progress.execution,
           decision: existing,
           idempotent: true,
-          snapshot: identity.snapshot,
-          requirementsSnapshot: identity.requirementsSnapshot,
+          headSha: identity.headSha,
         };
       }
       const priorAssignments = [
@@ -103,8 +102,14 @@ export class RequirementsService extends Service {
         ...(progress.reviewAssignments ?? []),
       ];
       if (
-        priorAssignments.every(
-          (assignment) => assignment.requirementsSnapshot === identity.requirementsSnapshot,
+        priorAssignments.every((assignment) =>
+          this.gitEvidence.requirementsMatchAtCommits(
+            feature,
+            ticket,
+            assignment.headSha,
+            currentFeatureHead,
+            feature.workspace,
+          ),
         )
       ) {
         throw new Error(
@@ -130,7 +135,7 @@ export class RequirementsService extends Service {
         status: options.decision as RequirementsDecision["status"],
         details: options.details.trim(),
         author: options.author.trim(),
-        requirementsSnapshot: identity.requirementsSnapshot,
+        commitSha: currentFeatureHead,
         recordedAt: new Date().toISOString(),
       };
       decisions.push(decision);
@@ -142,19 +147,15 @@ export class RequirementsService extends Service {
         delete progress.reviewAssignments;
         progress.execution = "reviewing";
       }
-      const currentIdentity = this.gitEvidence.contentIdentity(
+      const currentIdentity = this.gitEvidence.commitIdentity(
         feature,
         this.ticketRepository.requireTicket(
           this.ticketRepository.readTickets(feature.workspace),
           ticketId,
         ),
         progress.baseSha,
-        progress.checks,
       );
-      if (
-        currentIdentity.snapshot !== identity.snapshot ||
-        currentIdentity.requirementsSnapshot !== identity.requirementsSnapshot
-      ) {
+      if (currentIdentity.headSha !== identity.headSha) {
         throw new Error("Ticket requirements changed while recording the requirements decision.");
       }
       const afterTicket = matter.stringify(
@@ -170,8 +171,7 @@ export class RequirementsService extends Service {
         ticket: ticketId,
         execution: progress.execution,
         decision,
-        snapshot: identity.snapshot,
-        requirementsSnapshot: identity.requirementsSnapshot,
+        headSha: identity.headSha,
       };
     });
   }
@@ -181,8 +181,7 @@ export class RequirementsService extends Service {
     execution: ExecutionState;
     decision: RequirementsDecision;
     idempotent?: boolean;
-    snapshot: string;
-    requirementsSnapshot: string;
+    headSha: string;
   } {
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
@@ -205,11 +204,13 @@ export class RequirementsService extends Service {
       if (!delivery.baseSha) {
         throw new Error("Delivery requirements decisions require a recorded Git baseline.");
       }
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      this.gitEvidence.assertCommittedRequirements(feature, tickets, identity.headSha);
       const decisions = (delivery.requirementsDecisions ??= []);
       const existing = decisions.find(
         (decision) =>
@@ -217,7 +218,7 @@ export class RequirementsService extends Service {
           decision.status === options.decision &&
           decision.details === details &&
           decision.author === options.author.trim() &&
-          decision.requirementsSnapshot === identity.requirementsSnapshot,
+          decision.commitSha === identity.headSha,
       );
       if (existing) {
         return {
@@ -225,8 +226,7 @@ export class RequirementsService extends Service {
           execution: delivery.execution,
           decision: existing,
           idempotent: true,
-          snapshot: identity.snapshot,
-          requirementsSnapshot: identity.requirementsSnapshot,
+          headSha: identity.headSha,
         };
       }
       const priorAssignments = [
@@ -234,8 +234,13 @@ export class RequirementsService extends Service {
         ...(delivery.reviewAssignments ?? []),
       ];
       if (
-        priorAssignments.every(
-          (assignment) => assignment.requirementsSnapshot === identity.requirementsSnapshot,
+        priorAssignments.every((assignment) =>
+          this.gitEvidence.deliveryRequirementsMatchAtCommits(
+            feature,
+            assignment.headSha,
+            identity.headSha,
+            feature.workspace,
+          ),
         )
       ) {
         throw new Error(
@@ -261,7 +266,7 @@ export class RequirementsService extends Service {
         status: options.decision as RequirementsDecision["status"],
         details,
         author: options.author.trim(),
-        requirementsSnapshot: identity.requirementsSnapshot,
+        commitSha: identity.headSha,
         recordedAt: new Date().toISOString(),
       };
       decisions.push(decision);
@@ -273,15 +278,8 @@ export class RequirementsService extends Service {
         delete delivery.reviewAssignments;
         delivery.execution = "reviewing";
       }
-      const confirmed = this.gitEvidence.deliveryIdentity(
-        feature,
-        ledger,
-        this.ticketRepository.readTickets(feature.workspace),
-      );
-      if (
-        confirmed.snapshot !== identity.snapshot ||
-        confirmed.requirementsSnapshot !== identity.requirementsSnapshot
-      ) {
+      const confirmed = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
+      if (confirmed.headSha !== identity.headSha) {
         throw new Error("Delivery requirements changed while recording the requirements decision.");
       }
       delivery.history.push({
@@ -294,8 +292,7 @@ export class RequirementsService extends Service {
         scope: "delivery",
         execution: delivery.execution,
         decision,
-        snapshot: identity.snapshot,
-        requirementsSnapshot: identity.requirementsSnapshot,
+        headSha: identity.headSha,
       };
     });
   }

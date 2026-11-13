@@ -21,17 +21,17 @@ that assignment.
 Before inspecting the checkout, running commands, or writing the assigned
 report, confirm the dispatch supplies:
 
-| Field                    | Required content                                                        |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `SPEC`                   | The explicit feature spec being reviewed.                               |
-| `ASSIGNMENT_ID`          | This review's unique assignment ID and role `review`.                   |
-| `SPECIALIST_OBJECTIVE`   | The controller's justified objective, from the assigned review details. |
-| `SNAPSHOT_AND_INVENTORY` | The exact reviewed snapshot and frozen change inventory.                |
-| `REPORT_PATH`            | This assignment's absolute report destination.                          |
+| Field                  | Required content                                                        |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `SPEC`                 | The explicit feature spec being reviewed.                               |
+| `ASSIGNMENT_ID`        | This review's unique assignment ID and role `review`.                   |
+| `SPECIALIST_OBJECTIVE` | The controller's justified objective, from the assigned review details. |
+| `TARGET_AND_INVENTORY` | The assigned committed target and frozen change inventory.              |
+| `REPORT_PATH`          | This assignment's absolute report destination.                          |
 
 If any field is missing, inconsistent, or belongs to another assignment, ask
 the controller for clarification and stop. Do not substitute another
-reviewer's identity, snapshot, inventory, or report path.
+reviewer's assignment, committed target, inventory, or report path.
 
 ## Review
 
@@ -46,7 +46,10 @@ Assess whether tests adequately cover the assigned behavior, and load and follow
 `int-verification-before-completion` for evidence attribution. Use approved
 project tooling and only run checks authorized by the assignment. The report
 must distinguish inspected evidence from checks you ran, name their exact
-scope and snapshot, and disclose limitations.
+scope and assigned committed target, and disclose limitations.
+
+The workflow owns commit identity; reference the assignment rather than copying,
+comparing, or passing commit IDs by hand.
 
 Do not edit implementation files, register findings, or dispatch other
 agents. The controller owns those actions and decides whether
@@ -57,6 +60,6 @@ harness access before dispatch.
 ## Report and hand-back
 
 Save only to `REPORT_PATH`. Include the assignment ID, role, objective,
-snapshot, inventory, focused findings (or an explicit finding-free result),
+assigned committed target, inventory, focused findings (or an explicit finding-free result),
 evidence, checks and results, limitations, and a concise assessment. Return
 the report path and summary, then stop.

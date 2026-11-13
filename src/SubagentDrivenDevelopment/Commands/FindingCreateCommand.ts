@@ -12,7 +12,7 @@ export class FindingCreateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root, "finding")
       .command("create")
-      .description("Register a review finding with its report and snapshot provenance.")
+      .description("Register a review finding from its assigned report.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
@@ -21,11 +21,6 @@ export class FindingCreateCommand extends Command {
         "--source <path>",
         "Assigned review report containing the finding",
         CommandOptions.once("--source"),
-      )
-      .requiredOption(
-        "--snapshot <snapshot>",
-        "Reviewed snapshot returned by the CLI",
-        CommandOptions.once("--snapshot"),
       )
       .requiredOption(
         "--severity <severity>",

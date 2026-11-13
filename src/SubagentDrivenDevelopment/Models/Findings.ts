@@ -4,7 +4,7 @@ export type FindingStatus = "open" | "confirmed" | "fixed" | "dismissed" | "defe
 
 export interface FindingProvenance {
   report: string;
-  snapshot: string;
+  headSha: string;
   author: string;
   summary: string;
   details: string;
@@ -23,7 +23,7 @@ export interface RequirementsDecision {
   status: "approved" | "rejected";
   details: string;
   author: string;
-  requirementsSnapshot: string;
+  commitSha: string;
   recordedAt: string;
 }
 
@@ -43,7 +43,7 @@ export interface ReviewFinding {
   followUp?: string;
   requirementsDecision?: string;
   verification?: {
-    snapshot: string;
+    headSha: string;
     checkCommands: string[];
     verifiedAt: string;
     verifiedBy: string;

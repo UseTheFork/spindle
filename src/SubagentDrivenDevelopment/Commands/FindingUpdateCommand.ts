@@ -27,7 +27,6 @@ export class FindingUpdateCommand extends Command {
         "--requirements-decision <id>",
         "Approved requirements decision covering a scope change",
       )
-      .option("--evidence <snapshot>", "Current CLI snapshot with passing verification checks")
       .requiredOption("--author <author>", "Ruling author", CommandOptions.once("--author"))
       .allowExcessArguments(false)
       .action(async (options: FindingUpdateOptions) => {

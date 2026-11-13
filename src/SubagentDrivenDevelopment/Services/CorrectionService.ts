@@ -53,9 +53,6 @@ export class CorrectionService extends Service {
     paused?: boolean;
     adjudication?: CorrectionAdjudication;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.scope === "delivery") {
@@ -120,18 +117,9 @@ export class CorrectionService extends Service {
         if (progress.execution === "implementing" && progress.assignment?.status !== "submitted") {
           throw new Error("A pending implementation assignment must be resumed, not paused.");
         }
-        const identity = this.gitEvidence.contentIdentity(
-          feature,
-          ticket,
-          progress.baseSha,
-          progress.checks,
-        );
+        const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
         const hasCurrentFailure = (progress.checks?.records ?? []).some(
-          (record) =>
-            record.snapshot === identity.snapshot &&
-            record.codeSnapshot === identity.codeSnapshot &&
-            record.requirementsSnapshot === identity.requirementsSnapshot &&
-            record.result === "failed",
+          (record) => record.headSha === identity.headSha && record.result === "failed",
         );
         if (
           attempts.length === 0 &&
@@ -192,12 +180,7 @@ export class CorrectionService extends Service {
       ) {
         const current = attempts.find((attempt) => attempt.number === progress.assignment?.attempt);
         if (!current) throw new Error("Corrective assignment has no persisted attempt record.");
-        const identity = this.gitEvidence.contentIdentity(
-          feature,
-          ticket,
-          progress.baseSha,
-          progress.checks,
-        );
+        const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
         return {
           ticket: options.ticket,
           execution: "implementing",
@@ -230,14 +213,8 @@ export class CorrectionService extends Service {
             "Post-merge correction requires the latest result for that command to be failed.",
           );
         }
-        const current = this.checksService.postMergeIdentity(
-          feature,
-          ledger,
-          progress,
-          postMergeChecks,
-          true,
-        );
-        if (latest.snapshot !== current.snapshot || latest.headSha !== current.headSha) {
+        const current = this.checksService.postMergeIdentity(feature, ledger, progress);
+        if (latest.headSha !== current.headSha) {
           throw new Error(
             "Post-merge failure is stale; record current failure evidence before correction.",
           );
@@ -335,12 +312,7 @@ export class CorrectionService extends Service {
         throw new Error("The first correction does not accept a continuation assessment.");
       }
 
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const findings = progress.findings ?? [];
       for (const id of findingIds) {
         const finding = findings.find((candidate) => candidate.id === id);
@@ -353,15 +325,12 @@ export class CorrectionService extends Service {
         const record = progress.checks?.records
           .filter(
             (candidate) =>
-              candidate.command === checkFailure &&
-              candidate.snapshot === identity.snapshot &&
-              candidate.codeSnapshot === identity.codeSnapshot &&
-              candidate.requirementsSnapshot === identity.requirementsSnapshot,
+              candidate.command === checkFailure && candidate.headSha === identity.headSha,
           )
           .at(-1);
         if (!record || record.result !== "failed") {
           throw new Error(
-            `Check failure '${checkFailure}' must be an explicitly recorded failed check for the current snapshot.`,
+            `Check failure '${checkFailure}' must be an explicitly recorded failed check for the current commit.`,
           );
         }
       }
@@ -403,10 +372,7 @@ export class CorrectionService extends Service {
               checks: failedPostMergeRecord
                 ? [failedPostMergeRecord]
                 : (progress.checks?.records ?? []).filter(
-                    (record) =>
-                      record.snapshot === identity.snapshot &&
-                      record.codeSnapshot === identity.codeSnapshot &&
-                      record.requirementsSnapshot === identity.requirementsSnapshot,
+                    (record) => record.headSha === identity.headSha,
                   ),
             }
           : {}),

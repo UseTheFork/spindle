@@ -15,7 +15,7 @@ Independently review the assigned feature change for requirements, correctness, 
 
 Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
 
-The reviewer is the default comprehensive reviewer for the feature-level review batch. A justified specialist assignment may narrow the objective, but uses the same feature snapshot and review evidence.
+The reviewer is the default comprehensive reviewer for the feature-level review batch. A justified specialist assignment may narrow the objective, but uses the same committed feature target and review evidence.
 
 ## 1. Resolve the assignment
 
@@ -24,15 +24,17 @@ Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and re
 - Scope: initial or corrective feature review, or a justified specialist objective.
 - Implementation report, concerns/dependencies, and prior findings/controller rulings or explicit `NONE`.
 - Assigned absolute `REPORT_PATH` inside the feature's reports directory.
-- For corrections: fix-only diff, prior/fixed snapshot identities, phase/round, supplied findings verbatim with stable IDs, prior verdicts and initial-review coverage, and appended fix/check evidence.
+- For corrections: fix-only diff between the previously reviewed and current commits, phase/round, supplied findings verbatim with stable IDs, prior verdicts and initial-review coverage, and appended fix/check evidence.
 
-Read canonical requirements, applicable comments/decisions, the complete assigned change inventory, and same-snapshot verification. Treat the supplied role, scope, snapshot, and exact assigned report path as binding. Do not infer missing revisions from HEAD or treat an implementer's completion claim as evidence.
+Read committed requirements, applicable comments/decisions, the complete assigned change inventory, and verification for the assigned commit. Treat the supplied role, scope, committed target, and exact assigned report path as binding. The workflow owns commit identity; do not copy, compare, or pass commit IDs by hand. Do not infer missing revisions from HEAD or treat an implementer's completion claim as evidence.
 
-**Complete when:** scope, destination, requirements, change inventory, and snapshot inputs are resolved and consistent. Missing or contradictory essential context returns `NEEDS_CONTEXT`, identifies the missing input, and prevents review approval. Known failing/unavailable checks are evidence limitations, not missing context.
+**Complete when:** scope, destination, requirements, change inventory, and committed target are resolved and consistent. Missing or contradictory essential context returns `NEEDS_CONTEXT`, identifies the missing input, and prevents review approval. Known failing/unavailable checks are evidence limitations, not missing context.
 
 ## 2. Review within scope
 
 For **initial review**, account for every applicable feature acceptance criterion and inspect the complete assigned change with matching surrounding code.
+
+If an assignment supplies `reworkBaseSha`, initial coverage already exists. Inspect the rework diff and verify prior findings with the full ticket available for context; do not repeat the entire initial review unnecessarily.
 
 For **aggregate review**, account for the whole spec, cross-ticket interactions, and omitted behavior, not merely changed files or previously accepted tickets. Initial ticket acceptance does not establish aggregate coverage.
 
@@ -44,7 +46,7 @@ Across the applicable scope, check:
 - **Quality:** correctness, edge cases, regressions, test assertions and coverage, error handling, maintainability, and material unnecessary complexity. Recommend behavior-preserving simplification only with concrete evidence and impact; do not manufacture findings from style preferences.
 
 For an initial review, report every observation with its exact assigned source
-report and reviewed snapshot, concise summary, details, severity, and whether it
+report and assigned committed target, concise summary, details, severity, and whether it
 blocks acceptance. Do not invent canonical finding IDs or merge observations by
 similar wording. The controller explicitly registers each finding and may
 explicitly link duplicate observations; every source report retains provenance.
@@ -67,7 +69,7 @@ Use separate **Spec** and **Quality** verdicts: `PASS | FAIL | UNVERIFIED`. `FAI
 
 Each finding has a stable ID, severity `Critical | Important | Minor`, explicit blocking status, file/line or precise evidence location, defect, impact, and required correction. Preserve supplied IDs; give new findings distinct IDs within the assignment and let the controller reconcile IDs across reports. Separate recommendations from required fixes.
 
-For each corrective finding, return `ADDRESSED | NOT ADDRESSED | UNVERIFIED`. `ADDRESSED` requires both a matching correction and fresh required covering verification on the fixed snapshot. An apparent code fix with unavailable, stale, or insufficient checks is `UNVERIFIED`, not `ADDRESSED`. A demonstrated remaining defect is `NOT ADDRESSED`. Old passing evidence cannot verify new content. Preserve unaffected verdicts only when supplied coverage justifies it, and state what this scoped report does not verify.
+For each corrective finding, return `ADDRESSED | NOT ADDRESSED | UNVERIFIED`. `ADDRESSED` requires both a matching correction and fresh required covering verification on the fixed commit. An apparent code fix with unavailable, stale, or insufficient checks is `UNVERIFIED`, not `ADDRESSED`. A demonstrated remaining defect is `NOT ADDRESSED`. Old passing evidence cannot verify new content. Preserve unaffected verdicts only when supplied coverage justifies it, and state what this scoped report does not verify.
 
 **Complete when:** verdicts, finding dispositions, and evidence limitations agree; neither severity nor an implementer's claim substitutes for verification.
 
@@ -77,7 +79,7 @@ Write only the assigned report, preserving prior report history when the assignm
 
 Use the assigned report destination and this report shape for every scope:
 
-1. **Scope and snapshot:** phase, exact supplied identity, comparison/fix scope, canonical requirements and evidence references.
+1. **Scope and target:** phase, assignment reference, comparison/fix scope, committed requirements and evidence references.
 2. **Evidence and limitations:** checks/results and exact covered identity; distinguish supplied evidence, checks personally run, and unavailable work.
 3. **Spec:** verdict and criterion assessments; aggregate coverage includes cross-ticket/omitted behavior, corrective coverage states its limits.
 4. **Quality:** verdict, strengths, and concrete assessments.

@@ -45,7 +45,6 @@ export interface CorrectionAttempt {
     details: string;
     recordedAt: string;
     recordedBy: string;
-    snapshot?: string;
   };
 }
 
@@ -71,10 +70,8 @@ export interface ReviewAssignment {
   scope: "initial" | "corrective" | "delivery";
   attempt?: number;
   objective?: string;
-  snapshot: string;
-  codeSnapshot: string;
-  requirementsSnapshot: string;
   headSha: string;
+  reworkBaseSha?: string;
   workspace?: string;
   branch?: string;
   inventory: string[];

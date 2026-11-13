@@ -57,9 +57,6 @@ export class AssignmentService extends Service {
     ticket: string;
     execution: "implementing";
     assignment: ImplementationAssignment;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     validateTicketId(options.ticket);
@@ -90,7 +87,7 @@ export class AssignmentService extends Service {
           ticket: options.ticket,
           execution: "implementing",
           assignment: progress.assignment,
-          ...this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, progress.checks),
+          ...this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha),
         };
       }
       if (progress.execution !== "unstarted") {
@@ -187,7 +184,7 @@ export class AssignmentService extends Service {
         ticket: options.ticket,
         execution: "implementing",
         assignment,
-        ...this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, progress.checks),
+        ...this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha),
       };
     });
   }
@@ -204,9 +201,6 @@ export class AssignmentService extends Service {
     reviewAssignments?: ReviewAssignment[];
     handoffRecorded?: boolean;
     blocker?: string;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.scope === "delivery") {
@@ -259,12 +253,7 @@ export class AssignmentService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
       );
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        currentTicket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, currentTicket, progress.baseSha);
       const reviewAssignments =
         progress.assignment?.action === "correct"
           ? ((progress.correctionAttempts ?? []).find(
@@ -311,9 +300,6 @@ export class AssignmentService extends Service {
     blocker?: string;
     retrospectiveRequired: boolean;
     finished: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     validateAuthor(options.author);
@@ -348,11 +334,16 @@ export class AssignmentService extends Service {
         handoffRecorded = true;
       }
       const tickets = this.ticketRepository.readTickets(feature.workspace);
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
+      const identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
       const completion = delivery.finished
         ? this.featureInspectionService.deliveryStatus(feature, ledger, tickets)
         : undefined;
-      const checkBlocker = this.checkPolicy.deliveryCheckBlockers(delivery, identity)[0];
+      const checkBlocker = this.checkPolicy.deliveryCheckBlockers(
+        feature,
+        tickets,
+        delivery,
+        identity,
+      )[0];
       let blocker =
         completion?.action === "completion-invalidated"
           ? `Finished delivery completion is invalidated: ${completion.blockers.join(" ")}`

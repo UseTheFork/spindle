@@ -13,6 +13,7 @@ import {
   prepareImplementationForReview,
   recordReviewCheck,
   prepareReviewAssignment,
+  prepareReviewedTicket,
   refreshReviewCheck,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
@@ -33,9 +34,6 @@ test("implement records the ticket baseline and controller while creating an iso
     ticket: string;
     execution: string;
     assignment: { workspace: string; branch: string };
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   };
   expect(output.ticket).toBe("T-0001");
@@ -43,9 +41,7 @@ test("implement records the ticket baseline and controller while creating an iso
   expect(output.headSha).toBe(baseSha);
   expect(output.assignment.workspace).toBe(join(worktreeParent, "0001-ticket-flow-T-0001"));
   expect(output.assignment.branch).toBe("tickets/0001-ticket-flow/T-0001");
-  expect(output.snapshot).toMatch(/^[0-9a-f]{64}$/);
-  expect(output.codeSnapshot).toMatch(/^[0-9a-f]{64}$/);
-  expect(output.requirementsSnapshot).toMatch(/^[0-9a-f]{64}$/);
+  expect(output.headSha).toMatch(/^[0-9a-f]{40,64}$/);
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
@@ -75,13 +71,13 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(missingCheck.status).not.toBe(0);
   expect(missingCheck.stderr).toMatch(/Required check .* is missing/);
 
-  const failedCheck = await recordReviewCheck(repo, spec, command, submission.snapshot, "failed");
+  const failedCheck = await recordReviewCheck(repo, spec, command, "failed");
   expect(failedCheck.status, failedCheck.stderr).toBe(0);
   const failedReview = await review(["feature.ts"]);
   expect(failedReview.status).not.toBe(0);
   expect(failedReview.stderr).toMatch(/Required check .* is failed/);
 
-  const passingCheck = await recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
   const wrongInventory = await review([]);
   expect(wrongInventory.status).not.toBe(0);
@@ -99,7 +95,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
       agent: string;
       role: string;
       scope: string;
-      snapshot: string;
+      headSha: string;
       inventory: string[];
       report: string;
       status: string;
@@ -113,7 +109,7 @@ test("review requires current passing checks and confirmed inventory and reuses 
   expect(assignment.agent).toBe("sdd-task-reviewer");
   expect(assignment.role).toBe("review");
   expect(assignment.scope).toBe("initial");
-  expect(assignment.snapshot).toBe(submission.snapshot);
+  expect(assignment.headSha).toBe(submission.headSha);
   expect(assignment.inventory).toEqual(["feature.ts"]);
   expect(assignment.report).toMatch(/T-0001-review-/);
   expect(assignment.status).toBe("pending");
@@ -146,6 +142,50 @@ test("review requires current passing checks and confirmed inventory and reuses 
     "utf8",
   );
   expect(ticketText.match(/Initial review assignment recorded/g)?.length).toBe(1);
+});
+
+test("rework requires fresh checks and a new review with the prior committed comparison base", async () => {
+  const { repo, spec, command, ticketWorkspace, assignment } = await prepareReviewedTicket();
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'reworked';\n");
+  commitTicketWorkspace(ticketWorkspace, "rework approved implementation");
+  const review = () =>
+    execute(repo, (service) =>
+      service.reviewService.review({
+        spec,
+        ticket: "T-0001",
+        inventory: JSON.stringify(["feature.ts"]),
+        author: "controller",
+      }),
+    );
+  const stale = await review();
+  expect(stale.status).not.toBe(0);
+  expect(stale.stderr).toMatch(/Required check .* is stale/i);
+
+  const checks = await recordReviewCheck(repo, spec, command, "passed");
+  expect(checks.status, checks.stderr).toBe(0);
+  const reviewed = await review();
+  expect(reviewed.status, reviewed.stderr).toBe(0);
+  const rework = JSON.parse(reviewed.stdout).assignments[0];
+  expect(rework.id).not.toBe(assignment.id);
+  expect(rework.headSha).not.toBe(assignment.headSha);
+  expect(rework.reworkBaseSha).toBe(assignment.headSha);
+  expect(rework.status).toBe("pending");
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+  );
+  expect(ledger.tickets[0].reviewHistory[0].id).toBe(assignment.id);
+  expect(ledger.tickets[0].reviewAssignments[0].id).toBe(rework.id);
+
+  const integration = await execute(repo, (service) =>
+    service.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      confirmRecords: true,
+    }),
+  );
+  expect(integration.status).not.toBe(0);
+  expect(integration.stderr).toMatch(/review assignment .* pending/i);
 });
 
 test("required specialist reviews are justified, distinct, provenance-bound, and gate integration", async () => {
@@ -206,7 +246,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   expect(registeredLedger.tickets[0].reviewRequirements[0].details).toBe(details);
   expect(readFileSync(ticketPath, "utf8")).toMatch(/Specialist review required/);
 
-  const check = await recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  const check = await recordReviewCheck(repo, spec, command, "passed");
   expect(check.status, check.stderr).toBe(0);
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
@@ -323,11 +363,11 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   ).tickets[0];
   expect(integratedTicket.execution).toBe("integrated");
-  expect(integratedTicket.acceptedEvidence.snapshot).toBe(submission.snapshot);
+  expect(integratedTicket.acceptedEvidence.commitSha).toBe(submission.headSha);
 });
 
 test("unavailable specialist submissions preserve the pinned objective separately from result details", async () => {
-  const { repo, spec, command, submission } = await prepareImplementationForReview();
+  const { repo, spec, command } = await prepareImplementationForReview();
   const required = await execute(repo, (service) =>
     service.reviewService.reviewRequire({
       spec,
@@ -338,7 +378,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
     }),
   );
   expect(required.status, required.stderr).toBe(0);
-  const check = await recordReviewCheck(repo, spec, command, submission.snapshot, "passed");
+  const check = await recordReviewCheck(repo, spec, command, "passed");
   expect(check.status, check.stderr).toBe(0);
   const dispatched = await execute(repo, (service) =>
     service.reviewService.review({
@@ -414,7 +454,6 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
         spec,
         ticket: "T-0001",
         source: assignment.report,
-        snapshot: assignment.snapshot,
         severity: "high",
         blocking: true,
         summary: "Incorrect result for empty input",
@@ -435,7 +474,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
       summary: string;
       details: string;
       author: string;
-      provenance: { report: string; snapshot: string }[];
+      provenance: { report: string; headSha: string }[];
     };
   };
   expect(output.finding.id).toBe("F-0001");
@@ -448,7 +487,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(output.finding.provenance).toEqual([
     {
       report: assignment.report,
-      snapshot: assignment.snapshot,
+      headSha: assignment.headSha,
       author: "controller",
       summary: "Incorrect result for empty input",
       details: "The implementation returns a success result for empty input.",
@@ -476,7 +515,6 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "medium",
       summary: "Missing blocking choice",
       details: "The blocking policy was omitted.",
@@ -499,7 +537,6 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
       spec,
       ticket: "T-0001",
       source: assignment.report,
-      snapshot: assignment.snapshot,
       severity: "high",
       nonBlocking: true,
       summary: "First ticket observation",
@@ -580,18 +617,19 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     }),
   );
   expect(submittedImplementation.status, submittedImplementation.stderr).toBe(0);
-  const secondSnapshot = JSON.parse(submittedImplementation.stdout).snapshot as string;
   const check = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
       ticket: "T-0002",
-      snapshot: secondSnapshot,
       command,
       result: "passed",
       author: "controller",
     }),
   );
   expect(check.status, check.stderr).toBe(0);
+  expect(JSON.parse(check.stdout).record.headSha).toBe(
+    JSON.parse(submittedImplementation.stdout).headSha,
+  );
   const review = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
@@ -603,7 +641,6 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
   expect(review.status, review.stderr).toBe(0);
   const secondAssignment = JSON.parse(review.stdout).assignments[0] as {
     report: string;
-    snapshot: string;
   };
   writeFileSync(secondAssignment.report, "# Second ticket review\n\nFinding from ticket two.\n");
   const secondFinding = await execute(repo, (service) =>
@@ -611,7 +648,6 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
       spec,
       ticket: "T-0002",
       source: secondAssignment.report,
-      snapshot: secondAssignment.snapshot,
       severity: "low",
       blocking: true,
       summary: "Second ticket observation",
@@ -627,13 +663,12 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
 test("review submission requires canonical findings or exclusive no-findings and cannot bypass blockers", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking ticket was found.\n");
-  const createFinding = async (source = assignment.report, snapshot = assignment.snapshot) =>
+  const createFinding = async (source = assignment.report) =>
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
         source,
-        snapshot,
         severity: "low",
         blocking: true,
         summary: "Acceptance regression",
@@ -677,10 +712,9 @@ test("review submission requires canonical findings or exclusive no-findings and
 
   const wrongSource = await createFinding(
     join(repo, ".scratch", "0001-ticket-flow", "reports", "T-0001-implementation.md"),
-    assignment.snapshot,
   );
   expect(wrongSource.status).not.toBe(0);
-  expect(wrongSource.stderr).toMatch(/source report and snapshot/i);
+  expect(wrongSource.stderr).toMatch(/source report.*frozen review assignment/i);
 
   const registered = await submit({ findingIds: ["F-0001"] });
   expect(registered.status, registered.stderr).toBe(0);
@@ -797,7 +831,6 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
         spec,
         ticket: "T-0001",
         source: assignment.report,
-        snapshot: assignment.snapshot,
         severity: "medium",
         blocking,
         nonBlocking: !blocking,
@@ -842,23 +875,9 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
     join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
     "utf8",
   );
-  const missingEvidence = await update("F-0001", "fixed");
-  expect(missingEvidence.status).not.toBe(0);
-  expect(missingEvidence.stderr).toMatch(/--evidence/);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeInvalidFix,
-  );
-
-  const invalidEvidence = await update("F-0001", "fixed", { evidence: "0".repeat(64) });
-  expect(invalidEvidence.status).not.toBe(0);
-  expect(invalidEvidence.stderr).toMatch(/current snapshot|verification evidence/i);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeInvalidFix,
-  );
-
-  const sameSnapshotFix = await update("F-0001", "fixed", { evidence: assignment.snapshot });
-  expect(sameSnapshotFix.status).not.toBe(0);
-  expect(sameSnapshotFix.stderr).toMatch(/observation|changed content|different snapshot/i);
+  const prematureFix = await update("F-0001", "fixed");
+  expect(prematureFix.status).not.toBe(0);
+  expect(prematureFix.stderr).toMatch(/committed change since every finding observation/i);
   expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
     beforeInvalidFix,
   );
@@ -869,15 +888,15 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
     service.featureInspectionService.status({ spec }),
   );
   expect(changedStatus.status, changedStatus.stderr).toBe(0);
-  const correctedSnapshot = JSON.parse(changedStatus.stdout).snapshots[0].snapshot as string;
-  expect(correctedSnapshot).not.toBe(assignment.snapshot);
-  const correctedCheck = await recordReviewCheck(repo, spec, command, correctedSnapshot, "passed");
+  const correctedHeadSha = JSON.parse(changedStatus.stdout).commits[0].headSha as string;
+  expect(correctedHeadSha).not.toBe(assignment.headSha);
+  const correctedCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(correctedCheck.status, correctedCheck.stderr).toBe(0);
 
-  const fixed = await update("F-0001", "fixed", { evidence: correctedSnapshot });
+  const fixed = await update("F-0001", "fixed");
   expect(fixed.status, fixed.stderr).toBe(0);
   expect(JSON.parse(fixed.stdout).finding.status).toBe("fixed");
-  expect(JSON.parse(fixed.stdout).finding.verification.snapshot).toBe(correctedSnapshot);
+  expect(JSON.parse(fixed.stdout).finding.verification.headSha).toBe(correctedHeadSha);
 
   const missingDismissal = await update("F-0001", "dismissed");
   expect(missingDismissal.status).not.toBe(0);
@@ -971,7 +990,6 @@ test("finding duplicates link explicitly while preserving every source report pr
         spec,
         ticket: "T-0001",
         source,
-        snapshot: assignment.snapshot,
         severity: "medium",
         nonBlocking: true,
         summary: "Same underlying observation",
@@ -991,14 +1009,14 @@ test("finding duplicates link explicitly while preserving every source report pr
   expect(JSON.parse(linked.stdout).finding.provenance).toEqual([
     {
       report: assignment.report,
-      snapshot: assignment.snapshot,
+      headSha: assignment.headSha,
       author: "controller",
       summary: "Same underlying observation",
       details: "Both reports identify the same behavior.",
     },
     {
       report: secondReport,
-      snapshot: assignment.snapshot,
+      headSha: assignment.headSha,
       author: "controller",
       summary: "Same underlying observation",
       details: "Both reports identify the same behavior.",
@@ -1028,7 +1046,6 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
         spec,
         ticket: "T-0001",
         source: assignment.report,
-        snapshot: assignment.snapshot,
         severity: "high",
         blocking,
         nonBlocking: !blocking,
@@ -1099,11 +1116,11 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
   expect(freshReview.status, freshReview.stderr).toBe(0);
   const freshAssignment = JSON.parse(freshReview.stdout).assignments[0] as {
     id: string;
-    snapshot: string;
+    headSha: string;
     report: string;
   };
   expect(freshAssignment.id).not.toBe(assignment.id);
-  expect(freshAssignment.snapshot).toBe(assignment.snapshot);
+  expect(freshAssignment.headSha).toBe(assignment.headSha);
   writeFileSync(freshAssignment.report, "# Fresh review\n\nBoth observations recur.\n");
 
   const link = async (finding: string, blocking: boolean, summary: string) =>
@@ -1112,7 +1129,6 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
         spec,
         ticket: "T-0001",
         source: freshAssignment.report,
-        snapshot: freshAssignment.snapshot,
         severity: "high",
         blocking,
         nonBlocking: !blocking,
@@ -1166,11 +1182,9 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
   expect(beforeFreshVerification.status).not.toBe(0);
   expect(beforeFreshVerification.stderr).toMatch(/F-0001.*blocking|blocking.*F-0001/i);
 
-  const repeatedSnapshotFix = await update("F-0001", "fixed", {
-    evidence: freshAssignment.snapshot,
-  });
-  expect(repeatedSnapshotFix.status).not.toBe(0);
-  expect(repeatedSnapshotFix.stderr).toMatch(/observation|changed content|different snapshot/i);
+  const repeatedCommitFix = await update("F-0001", "fixed", {});
+  expect(repeatedCommitFix.status).not.toBe(0);
+  expect(repeatedCommitFix.stderr).toMatch(/observation|changed content|different commit/i);
   const blockedAccept = await execute(repo, (service) =>
     service.ticketIntegrationService.integrate({
       spec,

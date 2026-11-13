@@ -126,7 +126,6 @@ async function dispatch(root: string, spec: string, parent: string, ticket: stri
   return JSON.parse(result.stdout) as {
     assignment: { id: string; workspace: string; branch: string; report: string };
     headSha: string;
-    snapshot: string;
   };
 }
 
@@ -153,13 +152,7 @@ async function acceptedTicket(file = "first.ts", content = "ticket\n", baseline?
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const check = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    JSON.parse(submitted.stdout).snapshot,
-    "passed",
-  );
+  const check = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(check.status, check.stderr).toBe(0);
   const reviewed = await execute(root, (services) =>
     services.reviewService.review({
@@ -220,21 +213,31 @@ test("independent tickets get distinct persisted branches and isolated evidence"
     services.featureInspectionService.status({ spec }),
   );
   expect(status.status, status.stderr).toBe(0);
-  const snapshots = JSON.parse(status.stdout).snapshots as {
+  const commits = JSON.parse(status.stdout).commits as {
     ticket: string;
-    codeSnapshot: string;
+    headSha: string;
   }[];
-  const firstSnapshot = snapshots.find((item) => item.ticket === "T-0001")!.codeSnapshot;
+  const firstHeadSha = commits.find((item) => item.ticket === "T-0001")!.headSha;
+  const secondHeadSha = commits.find((item) => item.ticket === "T-0002")!.headSha;
   writeFileSync(join(second.assignment.workspace, "second.ts"), "export const second = 3;\n");
   const updated = await execute(root, (services) =>
     services.featureInspectionService.status({ spec }),
   );
   expect(updated.status, updated.stderr).toBe(0);
-  const later = JSON.parse(updated.stdout).snapshots as { ticket: string; codeSnapshot: string }[];
-  expect(later.find((item) => item.ticket === "T-0001")!.codeSnapshot).toBe(firstSnapshot);
-  expect(later.find((item) => item.ticket === "T-0002")!.codeSnapshot).not.toBe(
-    snapshots.find((item) => item.ticket === "T-0002")!.codeSnapshot,
+  const later = JSON.parse(updated.stdout).commits as { ticket: string; headSha: string }[];
+  expect(later.find((item) => item.ticket === "T-0001")!.headSha).toBe(firstHeadSha);
+  expect(later.find((item) => item.ticket === "T-0002")!.headSha).toBe(secondHeadSha);
+  gitAt(second.assignment.workspace, "add", "second.ts");
+  gitAt(second.assignment.workspace, "commit", "-qm", "commit second ticket");
+  const committed = await execute(root, (services) =>
+    services.featureInspectionService.status({ spec }),
   );
+  expect(committed.status, committed.stderr).toBe(0);
+  expect(
+    JSON.parse(committed.stdout).commits.find(
+      (item: { ticket: string }) => item.ticket === "T-0002",
+    ).headSha,
+  ).not.toBe(secondHeadSha);
   expect(existsSync(join(root, "first.ts"))).toBe(false);
   expect(existsSync(join(first.assignment.workspace, "second.ts"))).toBe(false);
 });
@@ -373,11 +376,13 @@ test("ticket worktree parent may be inside another Git checkout", async () => {
   );
 });
 
-test("review uses the committed ticket worktree and becomes stale when its HEAD changes", async () => {
+test("review assignments become stale when the committed ticket HEAD changes", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
   writeFileSync(join(workspace, "first.ts"), "export const first = 1;\n");
+  gitAt(workspace, "add", "first.ts");
+  gitAt(workspace, "commit", "-qm", "implement first");
   writeFileSync(first.assignment.report, "# Implementation report\n\nImplemented.\n");
   const submitted = await execute(root, (services) =>
     services.submissionService.submit({
@@ -388,8 +393,8 @@ test("review uses the committed ticket worktree and becomes stale when its HEAD 
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const initialSnapshot = JSON.parse(submitted.stdout).snapshot as string;
-  const check = await recordReviewCheck(root, spec, "test ticket", initialSnapshot, "passed");
+  const initialHead = JSON.parse(submitted.stdout).headSha as string;
+  const check = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(check.status, check.stderr).toBe(0);
   const review = () =>
     execute(root, (services) =>
@@ -400,25 +405,15 @@ test("review uses the committed ticket worktree and becomes stale when its HEAD 
         author: "controller",
       }),
     );
-  const dirtyReview = await review();
-  expect(dirtyReview.status).not.toBe(0);
-  expect(dirtyReview.stderr).toMatch(/commit ticket code/i);
-  gitAt(workspace, "add", "first.ts");
-  gitAt(workspace, "commit", "-qm", "implement first");
   const status = await execute(root, (services) =>
     services.featureInspectionService.status({ spec }),
   );
   expect(status.status, status.stderr).toBe(0);
-  const current = JSON.parse(status.stdout).snapshots.find(
+  const currentHeadSha = JSON.parse(status.stdout).commits.find(
     (item: { ticket: string }) => item.ticket === "T-0001",
-  );
-  const committedCheck = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    current.snapshot,
-    "passed",
-  );
+  )!.headSha as string;
+  expect(currentHeadSha).toBe(initialHead);
+  const committedCheck = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(committedCheck.status, committedCheck.stderr).toBe(0);
   const dispatched = await review();
   expect(dispatched.status, dispatched.stderr).toBe(0);
@@ -430,6 +425,7 @@ test("review uses the committed ticket worktree and becomes stale when its HEAD 
   };
   expect(assignment.workspace).toBe(workspace);
   expect(assignment.headSha).toBe(gitAt(workspace, "rev-parse", "HEAD"));
+  expect(assignment.headSha).toBe(initialHead);
   expect(assignment.report).toContain(join(dirname(spec), "reports"));
   writeFileSync(assignment.report, "# Review\n\nNo findings.\n");
   gitAt(workspace, "commit", "--allow-empty", "-qm", "advance ticket HEAD");
@@ -466,13 +462,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const check = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    JSON.parse(submitted.stdout).snapshot,
-    "passed",
-  );
+  const check = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(check.status, check.stderr).toBe(0);
   const reviewed = await execute(root, (services) =>
     services.reviewService.review({
@@ -575,13 +565,11 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     }),
   );
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
   const recorded = await execute(root, (services) =>
     services.checksService.checksRecord({
       spec,
       ticket: "T-0001",
       scope: "post-merge",
-      snapshot,
       command: "test integrated feature",
       result: "passed",
       author: "controller",
@@ -744,7 +732,8 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
     "controller",
   ]);
   expect(require.status, require.stderr).toBe(0);
-  const snapshot = cliOutput(require).snapshot as string;
+  const requiredHeadSha = cliOutput(require).headSha as string;
+  expect(requiredHeadSha).toBe(gitAt(root, "rev-parse", "HEAD"));
   const failed = await invokeAsync(root, [
     "checks",
     "record",
@@ -754,8 +743,6 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
     "T-0001",
     "--scope",
     "post-merge",
-    "--snapshot",
-    snapshot,
     "--command",
     "post-merge test",
     "--result",
@@ -878,7 +865,6 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
       scope: "post-merge",
       command: "integration test",
       result: "passed",
-      snapshot: JSON.parse(declared.stdout).snapshot,
       author: "controller",
     }),
   );
@@ -930,13 +916,11 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
     services.checksService.checksRequire(declaration),
   );
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
   const record = (command: string) =>
     execute(root, (services) =>
       services.checksService.checksRecord({
         ...declaration,
         command,
-        snapshot,
         result: "passed",
       }),
     );
@@ -999,7 +983,7 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
     services.checksService.checksRequire(declaration),
   );
   expect(retried.status, retried.stderr).toBe(0);
-  expect(JSON.parse(retried.stdout)).toMatchObject({ closed: true, snapshot });
+  expect(JSON.parse(retried.stdout)).toMatchObject({ closed: true, headSha: mergeSha });
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.status).toBe("passed");
@@ -1055,7 +1039,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = JSON.parse(declared.stdout).snapshot as string;
   const failed = await execute(root, (services) =>
     services.checksService.checksRecord({
       spec,
@@ -1063,7 +1046,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
       scope: "post-merge",
       command: "integration test",
       result: "failed",
-      snapshot,
       details: "Integration defect.",
       author: "controller",
     }),
@@ -1116,7 +1098,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.correctionService.correct(correctionOptions),
   );
   expect(stale.status).not.toBe(0);
-  expect(stale.stderr).toMatch(/stale/i);
+  expect(stale.stderr).toMatch(/uncommitted changes/i);
   writeFileSync(spec, originalSpec);
   const prerequisite = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
@@ -1174,13 +1156,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const check = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    JSON.parse(submitted.stdout).snapshot,
-    "passed",
-  );
+  const check = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(check.status, check.stderr).toBe(0);
   const review = await execute(root, (services) =>
     services.reviewService.review({
@@ -1251,8 +1227,8 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(fresh.status, fresh.stderr).toBe(0);
-  const freshSnapshot = JSON.parse(fresh.stdout).snapshot as string;
-  expect(freshSnapshot).not.toBe(snapshot);
+  const freshHeadSha = JSON.parse(fresh.stdout).headSha as string;
+  expect(freshHeadSha).toBe(newMerge);
   const passed = await execute(root, (services) =>
     services.checksService.checksRecord({
       spec,
@@ -1260,7 +1236,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
       scope: "post-merge",
       command: "integration test",
       result: "passed",
-      snapshot: freshSnapshot,
       author: "controller",
     }),
   );
@@ -1274,7 +1249,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
       scope: "post-merge",
       command: "smoke",
       result: "passed",
-      snapshot: freshSnapshot,
       author: "controller",
     }),
   );
@@ -1321,6 +1295,7 @@ test("integration recovers its journalled staged records but rejects unrelated s
 
 test("conflicts are resolved in the ticket worktree and require fresh checks and review", async () => {
   const { root, spec, workspace } = await acceptedTicket("tracked.txt", "ticket change\n");
+  const reviewedHead = gitAt(workspace, "rev-parse", "HEAD");
   writeFileSync(join(root, "tracked.txt"), "feature change\n");
   gitAt(root, "add", "tracked.txt");
   gitAt(root, "commit", "-qm", "independent feature change");
@@ -1399,13 +1374,7 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     }),
   );
   expect(adopted.status, adopted.stderr).toBe(0);
-  const rechecked = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    JSON.parse(adopted.stdout).snapshot,
-    "passed",
-  );
+  const rechecked = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(rechecked.status, rechecked.stderr).toBe(0);
   const reviewed = await execute(root, (services) =>
     services.reviewService.review({
@@ -1416,7 +1385,14 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     }),
   );
   expect(reviewed.status, reviewed.stderr).toBe(0);
-  const reviewer = JSON.parse(reviewed.stdout).assignments[0] as { id: string; report: string };
+  const reviewer = JSON.parse(reviewed.stdout).assignments[0] as {
+    id: string;
+    report: string;
+    headSha: string;
+    reworkBaseSha: string;
+  };
+  expect(reviewer.reworkBaseSha).toBe(reviewedHead);
+  expect(reviewer.headSha).toBe(gitAt(workspace, "rev-parse", "HEAD"));
   writeFileSync(reviewer.report, "# Review\n\nResolution reviewed.\n");
   const approved = await execute(root, (services) =>
     services.submissionService.submit({
@@ -1635,12 +1611,12 @@ test("an unavailable ticket worktree does not hide another ticket's evidence", a
   expect(status.status, status.stderr).toBe(0);
   const output = JSON.parse(status.stdout) as {
     blockers: { ticket: string; reason: string }[];
-    snapshots: { ticket: string }[];
+    commits: { ticket: string }[];
   };
   expect(
     output.blockers.some((item) => item.ticket === "T-0001" && /unavailable/.test(item.reason)),
   ).toBe(true);
-  expect(output.snapshots.some((item) => item.ticket === "T-0002")).toBe(true);
+  expect(output.commits.some((item) => item.ticket === "T-0002")).toBe(true);
   expect(readFileSync(join(moved, "preserve.txt"), "utf8")).toBe("preserve\n");
   expect(existsSync(second.assignment.workspace)).toBe(true);
 });
@@ -1671,7 +1647,7 @@ test("dependent dispatch waits for closed and post-merge-validated prerequisites
   expect(existsSync(join(parent, "0001-ticket-isolation-T-0002"))).toBe(false);
 });
 
-test("ticket review rejects committed changes to its local scratch records", async () => {
+test("ticket review rejects committed changes to requirements that differ from canonical records", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
@@ -1689,33 +1665,20 @@ test("ticket review rejects committed changes to its local scratch records", asy
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  const check = await recordReviewCheck(
-    root,
-    spec,
-    "test ticket",
-    JSON.parse(submitted.stdout).snapshot,
-    "passed",
-  );
-  expect(check.status, check.stderr).toBe(0);
-  const review = await execute(root, (services) =>
-    services.reviewService.review({
-      spec,
-      ticket: "T-0001",
-      inventory: JSON.stringify(["first.ts"]),
-      author: "controller",
-    }),
-  );
-  expect(review.status).not.toBe(0);
-  expect(review.stderr).toMatch(/must not modify \.scratch/i);
+  const check = await recordReviewCheck(root, spec, "test ticket", "passed");
+  expect(check.status).not.toBe(0);
+  expect(check.stderr).toMatch(/current committed requirements/i);
 });
 
-test("a check cannot be recorded using a snapshot from a different ticket commit", async () => {
+test("a check records the current ticket commit instead of accepting a supplied identity", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   gitAt(first.assignment.workspace, "commit", "--allow-empty", "-qm", "advance ticket");
-  const stale = await recordReviewCheck(root, spec, "test ticket", first.snapshot, "passed");
-  expect(stale.status).not.toBe(0);
-  expect(stale.stderr).toMatch(/snapshot is stale/i);
+  const recorded = await recordReviewCheck(root, spec, "test ticket", "passed");
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(JSON.parse(recorded.stdout).record.headSha).toBe(
+    gitAt(first.assignment.workspace, "rev-parse", "HEAD"),
+  );
 });
 
 test("resume recovers a dispatch interrupted while persisting its assignment", async () => {

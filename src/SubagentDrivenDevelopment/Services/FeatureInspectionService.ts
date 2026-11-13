@@ -15,7 +15,7 @@ import type {
 import type {
   CheckRequirement,
   CheckRecord,
-  ContentIdentity,
+  CommitIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
@@ -58,7 +58,7 @@ export class FeatureInspectionService extends Service {
 
   public status({ spec }: StatusOptions): FeaturePaths & {
     state: FeatureLedger;
-    snapshots: ({ ticket: string } & ContentIdentity)[];
+    commits: ({ ticket: string } & CommitIdentity)[];
     findings: { ticket: string; finding: ReviewFinding }[];
     requirementsDecisions: { ticket: string; decision: RequirementsDecision }[];
     actions: { ticket: string; action: string }[];
@@ -79,9 +79,7 @@ export class FeatureInspectionService extends Service {
       status: "active" | "complete";
       execution: ExecutionState;
       action: string;
-      snapshot?: string;
-      codeSnapshot?: string;
-      requirementsSnapshot?: string;
+      headSha?: string;
       baseSha?: string;
       retrospectiveRequired: boolean;
       finished: boolean;
@@ -102,7 +100,7 @@ export class FeatureInspectionService extends Service {
     const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]));
     const progressById = new Map(feature.state.tickets.map((item) => [item.id, item]));
     const actions: { ticket: string; action: string }[] = [];
-    const snapshots: ({ ticket: string } & ContentIdentity)[] = [];
+    const commits: ({ ticket: string } & CommitIdentity)[] = [];
     const findings: { ticket: string; finding: ReviewFinding }[] = [];
     const requirementsDecisions: { ticket: string; decision: RequirementsDecision }[] = [];
     const pendingAssignments: {
@@ -124,14 +122,9 @@ export class FeatureInspectionService extends Service {
         blockers.push({ ticket: progress.id, reason: "Ticket Markdown is missing." });
         continue;
       }
-      let identity: ContentIdentity;
+      let identity: CommitIdentity;
       try {
-        identity = this.gitEvidence.contentIdentity(
-          feature,
-          ticket,
-          progress.baseSha,
-          progress.checks,
-        );
+        identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       } catch (error) {
         blockers.push({
           ticket: progress.id,
@@ -139,7 +132,7 @@ export class FeatureInspectionService extends Service {
         });
         continue;
       }
-      snapshots.push({ ticket: progress.id, ...identity });
+      commits.push({ ticket: progress.id, ...identity });
       if (ticket.status === "closed") {
         if (
           progress.execution === "integrated" &&
@@ -158,10 +151,7 @@ export class FeatureInspectionService extends Service {
       }
       for (const decision of progress.requirementsDecisions ?? []) {
         requirementsDecisions.push({ ticket: progress.id, decision });
-        if (
-          decision.status === "rejected" &&
-          decision.requirementsSnapshot === identity.requirementsSnapshot
-        ) {
+        if (decision.status === "rejected" && decision.commitSha === identity.headSha) {
           blockers.push({
             ticket: progress.id,
             reason: `Requirements decision ${decision.id} was rejected; acceptance requires an approved decision and fresh review.`,
@@ -170,7 +160,12 @@ export class FeatureInspectionService extends Service {
       }
       const checkBlockers = this.checkPolicy.checkBlockers(feature, ticket, progress, identity);
       for (const reason of checkBlockers) blockers.push({ ticket: progress.id, reason });
-      for (const reason of this.findingPolicy.findingBlockers(progress, identity)) {
+      for (const reason of this.findingPolicy.findingBlockers(
+        feature,
+        ticket,
+        progress,
+        identity,
+      )) {
         blockers.push({ ticket: progress.id, reason });
       }
       if (progress.adjudication?.status === "pending") {
@@ -301,7 +296,7 @@ export class FeatureInspectionService extends Service {
             actions.push({
               ticket: progress.id,
               action:
-                this.findingPolicy.findingBlockers(progress, identity).length > 0
+                this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length > 0
                   ? "resolve-findings"
                   : "integrate",
             });
@@ -323,7 +318,7 @@ export class FeatureInspectionService extends Service {
             (progress.findings ?? []).some((finding) => finding.status === "confirmed") ||
             (progress.correctionAttempts?.length ?? 0) > 0
               ? "correct"
-              : this.findingPolicy.findingBlockers(progress, identity).length > 0
+              : this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length > 0
                 ? "adjudicate-findings"
                 : "controller-correction-decision",
         });
@@ -349,7 +344,7 @@ export class FeatureInspectionService extends Service {
 
     return {
       ...feature,
-      snapshots,
+      commits,
       findings,
       requirementsDecisions,
       actions,
@@ -399,9 +394,7 @@ export class FeatureInspectionService extends Service {
     status: "active" | "complete";
     execution: ExecutionState;
     action: string;
-    snapshot?: string;
-    codeSnapshot?: string;
-    requirementsSnapshot?: string;
+    headSha?: string;
     baseSha?: string;
     retrospectiveRequired: boolean;
     finished: boolean;
@@ -419,7 +412,7 @@ export class FeatureInspectionService extends Service {
     const blockers: string[] = [];
     const allClosed =
       ledger.tickets.length > 0 && ledger.tickets.every((ticket) => ticket.status === "closed");
-    let identity: ContentIdentity | undefined;
+    let identity: CommitIdentity | undefined;
     if (!allClosed) {
       const missing = ledger.tickets
         .filter((ticket) => ticket.status !== "closed")
@@ -427,8 +420,10 @@ export class FeatureInspectionService extends Service {
       blockers.push(`Tickets are not closed: ${missing.join(", ") || "feature has no tickets"}.`);
     } else {
       try {
-        identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
-        blockers.push(...this.checkPolicy.deliveryCheckBlockers(delivery, identity));
+        identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
+        blockers.push(
+          ...this.checkPolicy.deliveryCheckBlockers(feature, tickets, delivery, identity),
+        );
         if (delivery.adjudication?.status === "pending") {
           blockers.push(`Correction is paused for adjudication (${delivery.adjudication.reason}).`);
         }
@@ -497,13 +492,10 @@ export class FeatureInspectionService extends Service {
       action = "await-implementation-report";
     } else if (
       this.checkPolicy.deliveryCheckBlockers(
+        feature,
+        tickets,
         delivery,
-        identity ?? {
-          snapshot: "",
-          codeSnapshot: "",
-          requirementsSnapshot: "",
-          headSha: "",
-        },
+        identity ?? { headSha: "" },
       ).length > 0
     ) {
       action = "record-final-checks";
@@ -521,7 +513,7 @@ export class FeatureInspectionService extends Service {
         feature,
         ledger,
         delivery,
-        identity ?? { snapshot: "", codeSnapshot: "", requirementsSnapshot: "", headSha: "" },
+        identity ?? { headSha: "" },
       ).length > 0
     ) {
       action = "correct";

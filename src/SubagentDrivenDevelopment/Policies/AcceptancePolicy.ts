@@ -1,6 +1,6 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
@@ -29,15 +29,12 @@ export class AcceptancePolicy extends Service {
     ledger: FeatureLedger,
     ticket: TicketDocument,
     progress: TicketProgress,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string[] {
     const blockers = this.checkPolicy.reviewCheckBlockers(feature, ticket, progress, identity);
-    blockers.push(...this.findingPolicy.findingBlockers(progress, identity));
+    blockers.push(...this.findingPolicy.findingBlockers(feature, ticket, progress, identity));
     for (const decision of progress.requirementsDecisions ?? []) {
-      if (
-        decision.status === "rejected" &&
-        decision.requirementsSnapshot === identity.requirementsSnapshot
-      ) {
+      if (decision.status === "rejected" && decision.commitSha === identity.headSha) {
         blockers.push(
           `Requirements decision ${decision.id} was rejected; acceptance requires an approved decision and fresh review.`,
         );

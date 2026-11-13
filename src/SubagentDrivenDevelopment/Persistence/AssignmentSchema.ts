@@ -142,9 +142,7 @@ export function isCorrectionAttempt(value: unknown): value is CorrectionAttempt 
       typeof outcome.recordedAt !== "string" ||
       !Number.isFinite(Date.parse(outcome.recordedAt)) ||
       typeof outcome.recordedBy !== "string" ||
-      !outcome.recordedBy.trim() ||
-      (Object.hasOwn(outcome, "snapshot") &&
-        (typeof outcome.snapshot !== "string" || !/^[0-9a-f]{64}$/i.test(outcome.snapshot)))
+      !outcome.recordedBy.trim()
     ) {
       return false;
     }

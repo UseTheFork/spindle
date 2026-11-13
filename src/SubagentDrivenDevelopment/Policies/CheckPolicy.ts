@@ -1,7 +1,7 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   DeliveryProgress,
@@ -22,12 +22,7 @@ export class CheckPolicy extends Service {
     ticket: TicketDocument,
     progress: TicketProgress,
   ): boolean {
-    const identity = this.gitEvidence.contentIdentity(
-      feature,
-      ticket,
-      progress.baseSha,
-      progress.checks,
-    );
+    const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
     return this.checkBlockers(feature, ticket, progress, identity).length === 0;
   }
 
@@ -35,61 +30,45 @@ export class CheckPolicy extends Service {
     feature: FeaturePaths,
     ticket: TicketDocument,
     progress: TicketProgress,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string[] {
     const checks = progress.checks;
     if (!checks) return [];
+    const workspace = progress.worktree
+      ? this.gitEvidence.ticketWorkspace(progress)
+      : this.app.workspaceRoot;
+    try {
+      const featureHead = this.gitEvidence.headSha(feature.workspace);
+      this.gitEvidence.assertCommittedRequirements(feature, [ticket], featureHead);
+      if (progress.worktree) {
+        this.gitEvidence.assertTicketRequirementsCurrent(
+          feature,
+          ticket,
+          identity.headSha,
+          workspace!,
+        );
+      }
+    } catch (error) {
+      return [error instanceof Error ? error.message : String(error)];
+    }
+
     return checks.required
       .filter((requirement) => !requirement.removedAt)
       .flatMap((requirement) => {
         const records = checks.records.filter((record) => record.command === requirement.command);
-        const preservedIntegrationEvidence = this.gitEvidence.integrationPreservesEvidence(
-          progress,
-          identity,
+        const current = records.filter((record) =>
+          this.gitEvidence.commitPreservesInputs(
+            feature,
+            ticket,
+            record.headSha,
+            identity.headSha,
+            workspace!,
+          ),
         );
-        const current = records.filter((record) => {
-          if (
-            (!progress.worktree || record.headSha === identity.headSha) &&
-            record.snapshot === identity.snapshot &&
-            record.codeSnapshot === identity.codeSnapshot &&
-            record.requirementsSnapshot === identity.requirementsSnapshot
-          ) {
-            return true;
-          }
-          if (
-            !progress.worktree &&
-            preservedIntegrationEvidence &&
-            record.snapshot === progress.acceptedEvidence?.snapshot &&
-            record.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
-            record.requirementsSnapshot === progress.acceptedEvidence?.requirementsSnapshot
-          ) {
-            return true;
-          }
-          if (
-            (progress.worktree && record.headSha !== identity.headSha) ||
-            !record.coveredPaths ||
-            !record.coverageSnapshot ||
-            record.requirementsSnapshot !== identity.requirementsSnapshot
-          ) {
-            return false;
-          }
-          try {
-            const scopedIdentity = this.gitEvidence.contentIdentity(
-              feature,
-              ticket,
-              progress.baseSha,
-              checks,
-              record.coveredPaths,
-            );
-            return scopedIdentity.codeSnapshot === record.coverageSnapshot;
-          } catch {
-            return false;
-          }
-        });
         const latest = current.at(-1);
         if (!latest) {
           const state = records.length > 0 ? "stale" : "missing";
-          return [`Required check ${requirement.command} is ${state} for the current content.`];
+          return [`Required check ${requirement.command} is ${state} for the current commit.`];
         }
         if (latest.result !== "passed") {
           const suffix = latest.details ? ` Details: ${latest.details}` : "";
@@ -103,7 +82,7 @@ export class CheckPolicy extends Service {
     feature: FeaturePaths,
     ticket: TicketDocument,
     progress: TicketProgress,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string[] {
     const activeRequirements =
       progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
@@ -113,31 +92,35 @@ export class CheckPolicy extends Service {
     return this.checkBlockers(feature, ticket, progress, identity);
   }
 
-  public deliveryCheckBlockers(delivery: DeliveryProgress, identity: ContentIdentity): string[] {
+  public deliveryCheckBlockers(
+    feature: FeaturePaths,
+    _tickets: TicketDocument[],
+    delivery: DeliveryProgress,
+    identity: CommitIdentity,
+  ): string[] {
     const records = delivery.checks?.records ?? [];
+    const currentRecord = (record: (typeof records)[number]) =>
+      record.headSha === identity.headSha ||
+      this.gitEvidence.deliveryInputsPreserved(
+        feature,
+        record.headSha,
+        identity.headSha,
+        this.app.workspaceRoot,
+      );
     const hasPassingCheck = records.some(
-      (record) =>
-        record.result === "passed" &&
-        record.snapshot === identity.snapshot &&
-        record.codeSnapshot === identity.codeSnapshot &&
-        record.requirementsSnapshot === identity.requirementsSnapshot,
+      (record) => record.result === "passed" && currentRecord(record),
     );
     const evidenceBlockers = hasPassingCheck
       ? []
-      : ["At least one relevant test/check must pass for the current feature snapshot."];
+      : ["At least one relevant test/check must pass for the current committed inputs."];
     return [
       ...evidenceBlockers,
       ...(delivery.checks?.required ?? [])
         .filter((requirement) => !requirement.removedAt)
         .flatMap((requirement) => {
-          const matchingRecords = records.filter(
-            (record) =>
-              record.command === requirement.command &&
-              record.snapshot === identity.snapshot &&
-              record.codeSnapshot === identity.codeSnapshot &&
-              record.requirementsSnapshot === identity.requirementsSnapshot,
-          );
-          const latest = matchingRecords.at(-1);
+          const latest = records
+            .filter((record) => record.command === requirement.command && currentRecord(record))
+            .at(-1);
           if (!latest)
             return [`Required delivery check ${requirement.command} is missing or stale.`];
           if (latest.result !== "passed") {

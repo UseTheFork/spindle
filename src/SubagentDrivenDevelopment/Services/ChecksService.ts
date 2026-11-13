@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -8,7 +7,7 @@ import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type {
   TicketChecks,
   CheckRecord,
-  ContentIdentity,
+  CommitIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   ChecksRequireOptions,
@@ -55,9 +54,6 @@ export class ChecksService extends Service {
     closed?: boolean;
     closureBlocked?: string[];
     retry?: string;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.rebaseBaseline && options.scope !== undefined)
@@ -98,7 +94,7 @@ export class ChecksService extends Service {
         (progress.reviewAssignments?.length ?? 0) > 0
       ) {
         throw new Error(
-          "The review snapshot is frozen; required checks cannot change while review assignments are active.",
+          "The reviewed commit is frozen; required checks cannot change while review assignments are active.",
         );
       }
       const checks = (progress.checks ??= { required: [], records: [] });
@@ -112,15 +108,13 @@ export class ChecksService extends Service {
         active.removalDetails = options.details!.trim();
       } else {
         if (active) {
-          const identity = this.gitEvidence.contentIdentity(
+          const identity = this.gitEvidence.commitIdentity(
             feature,
             this.ticketRepository.requireTicket(
               this.ticketRepository.readTickets(feature.workspace),
               options.ticket,
             ),
             progress.baseSha,
-            checks,
-            undefined,
             rebased ? progress.worktree?.workspace : undefined,
           );
           if (rebased) this.workspaceTransaction.writeLedger(feature, ledger);
@@ -142,12 +136,7 @@ export class ChecksService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
       );
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        currentTicket,
-        progress.baseSha,
-        checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, currentTicket, progress.baseSha);
       this.workspaceTransaction.writeLedger(feature, ledger);
       return {
         ticket: options.ticket,
@@ -293,7 +282,7 @@ export class ChecksService extends Service {
     closed?: boolean;
     closureBlocked?: string[];
     retry?: string;
-  } & ContentIdentity {
+  } & CommitIdentity {
     if (options.scope === "post-merge") return this.postMergeRecord(options);
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
@@ -310,13 +299,11 @@ export class ChecksService extends Service {
     closed?: boolean;
     closureBlocked?: string[];
     retry?: string;
-  } & ContentIdentity {
+  } & CommitIdentity {
     validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (options.remove || options.details !== undefined)
-      throw new Error(
-        "Post-merge checks must be declared as a complete list, without --remove or --details.",
-      );
+      throw new Error("Post-merge checks must be declared as a complete list.");
     const commands = (Array.isArray(options.command) ? options.command : [options.command]).map(
       (command) => command.trim(),
     );
@@ -358,7 +345,7 @@ export class ChecksService extends Service {
               records: [],
             };
       if (!same) postMerge.checks = checks;
-      const identity = this.postMergeIdentity(feature, ledger, progress, checks);
+      const identity = this.postMergeIdentity(feature, ledger, progress);
       if (!same) this.workspaceTransaction.writeLedger(feature, ledger);
       const closure =
         same && checks.records.length
@@ -382,7 +369,7 @@ export class ChecksService extends Service {
     closed?: boolean;
     closureBlocked?: string[];
     retry?: string;
-  } & ContentIdentity {
+  } & CommitIdentity {
     validateTicketId(options.ticket);
     validateAuthor(options.author);
     if (options.paths !== undefined)
@@ -393,8 +380,6 @@ export class ChecksService extends Service {
       throw new Error(`Invalid check result: ${result}.`);
     if (result !== "passed" && !options.details?.trim())
       throw new Error("--details is required for failed or unavailable checks.");
-    if (!/^[0-9a-f]{64}$/i.test(options.snapshot))
-      throw new Error("Snapshot must be a 64-character hexadecimal content identity.");
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -408,9 +393,7 @@ export class ChecksService extends Service {
         throw new Error("Declare the entire non-empty post-merge check list first.");
       if (!checks.required.some((item) => item.command === command))
         throw new Error(`Check command is not required: ${command}.`);
-      const identity = this.postMergeIdentity(feature, ledger, progress, checks);
-      if (identity.snapshot !== options.snapshot)
-        throw new Error(`Snapshot is stale; current post-merge identity is ${identity.snapshot}.`);
+      const identity = this.postMergeIdentity(feature, ledger, progress);
       const record: CheckRecord = {
         command,
         result,
@@ -420,9 +403,9 @@ export class ChecksService extends Service {
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       checks.records.push(record);
-      const confirmed = this.postMergeIdentity(feature, ledger, progress, checks);
-      if (confirmed.snapshot !== identity.snapshot || confirmed.headSha !== identity.headSha)
-        throw new Error("Feature changed while recording the check; retry with a fresh snapshot.");
+      const confirmed = this.postMergeIdentity(feature, ledger, progress);
+      if (confirmed.headSha !== identity.headSha)
+        throw new Error("Feature commit changed while recording the check; retry.");
       const closure = this.closePostMergeIfReady(
         feature,
         ledger,
@@ -441,28 +424,37 @@ export class ChecksService extends Service {
     ledger: FeatureLedger,
     progress: TicketProgress,
     checks: TicketChecks,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
     author: string,
   ): { closed?: boolean; closureBlocked?: string[]; retry?: string } {
     const latest = checks.required.map((item) =>
       [...checks.records].reverse().find((candidate) => candidate.command === item.command),
     );
     if (!latest.length || latest.some((record) => record?.result !== "passed")) return {};
+    const tickets = this.ticketRepository.readTickets(feature.workspace);
+    const ticket = this.ticketRepository.requireTicket(tickets, progress.id);
     if (
       latest.some(
-        (record) => record?.snapshot !== identity.snapshot || record.headSha !== identity.headSha,
+        (record) =>
+          !record ||
+          (record.headSha !== identity.headSha &&
+            !this.gitEvidence.commitPreservesInputs(
+              feature,
+              ticket,
+              record.headSha,
+              identity.headSha,
+              this.app.workspaceRoot,
+            )),
       )
     ) {
       return {
         closed: false,
-        closureBlocked: ["Post-merge check evidence is stale for the current requirements."],
+        closureBlocked: ["Post-merge check evidence is stale for the current committed inputs."],
         retry:
-          "Run and record each stale check against the current snapshot before retrying closure.",
+          "Run and record each stale check against the current committed inputs before closure.",
       };
     }
-    const tickets = this.ticketRepository.readTickets(feature.workspace);
     this.ticketRepository.validateDependencyGraph(tickets);
-    const ticket = this.ticketRepository.requireTicket(tickets, progress.id);
     const unmet = ReadinessPolicy.unmetDependencies(ticket, tickets, ledger);
     const closureBlocked = [
       ...(ticket.blocker ? [`Ticket blocker: ${ticket.blocker}`] : []),
@@ -516,9 +508,7 @@ export class ChecksService extends Service {
     feature: FeaturePaths,
     ledger: FeatureLedger,
     progress: TicketProgress,
-    checks: TicketChecks,
-    allowWorkflowDescendants = false,
-  ): ContentIdentity {
+  ): CommitIdentity {
     for (const variable of [
       "GIT_DIR",
       "GIT_WORK_TREE",
@@ -553,8 +543,6 @@ export class ChecksService extends Service {
     if (!mergeSha) throw new Error("The recorded merge commit is missing.");
     const allowed = this.gitEvidence.workflowDeliveryRecordPaths(feature, ledger);
     if (currentHead !== mergeSha) {
-      if (!allowWorkflowDescendants)
-        throw new Error("Feature HEAD is not the exact recorded merge commit.");
       git(["merge-base", "--is-ancestor", mergeSha, currentHead]);
       const changed = this.gitEvidence
         .gitBuffer(
@@ -564,12 +552,13 @@ export class ChecksService extends Service {
         .toString("utf8")
         .split("\0")
         .filter(Boolean);
-      if (changed.some((path) => !allowed.has(path)))
+      if (changed.some((path) => !allowed.has(path))) {
         throw new Error(
-          "Feature code changed after the recorded merge; post-merge failure is stale.",
+          "Feature code changed after the recorded merge; post-merge checks are stale.",
         );
+      }
     }
-    const headSha = mergeSha;
+    const headSha = currentHead;
     for (const operation of [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
@@ -586,40 +575,23 @@ export class ChecksService extends Service {
       .allGitChangePaths()
       .filter((path) => path !== lock && !allowed.has(path));
     if (dirty.length) throw new Error(`Post-merge checks require clean code: ${dirty.join(", ")}`);
-    const ticket = this.ticketRepository.requireTicket(
-      this.ticketRepository.readTickets(feature.workspace),
-      progress.id,
-    );
-    const hash = (value: unknown) =>
-      createHash("sha256").update(JSON.stringify(value)).digest("hex");
-    const codeSnapshot = hash(["post-merge-code-v1", headSha]);
-    const requirementsSnapshot = hash([
-      "post-merge-requirements-v1",
-      readFileSync(feature.spec, "utf8"),
-      this.gitEvidence.ticketRequirements(ticket.raw),
-      checks.required.map((item) => item.command),
-    ]);
-    return {
-      headSha,
-      codeSnapshot,
-      requirementsSnapshot,
-      snapshot: hash(["post-merge-v1", codeSnapshot, requirementsSnapshot]),
-    };
+    this.gitEvidence.assertCommittedCode(root);
+    const tickets = this.ticketRepository.readTickets(feature.workspace);
+    const ticket = this.ticketRepository.requireTicket(tickets, progress.id);
+    this.gitEvidence.assertCommittedRequirements(feature, [ticket], currentHead);
+    return { headSha };
   }
   private ticketChecksRecord(options: ChecksRecordOptions): {
     ticket?: string;
     record: CheckRecord;
     idempotent?: boolean;
-  } & ContentIdentity {
+  } & CommitIdentity {
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("checks record needs --ticket or --scope delivery.");
     validateTicketId(options.ticket);
     validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
-    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
-      throw new Error("Snapshot must be a 64-character hexadecimal content identity.");
-    }
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
       throw new Error(`Invalid check result: ${options.result}.`);
     }
@@ -652,12 +624,20 @@ export class ChecksService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
       );
-      const identity = this.gitEvidence.contentIdentity(feature, ticket, progress.baseSha, checks);
-      if (identity.snapshot !== options.snapshot) {
-        throw new Error(
-          `Snapshot is stale; current content identity is ${identity.snapshot}. No check result was recorded.`,
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+      this.gitEvidence.assertTicketCodeCommitted(progress);
+      this.gitEvidence.assertCommittedRequirements(
+        feature,
+        [ticket],
+        this.gitEvidence.headSha(feature.workspace),
+      );
+      if (progress.worktree)
+        this.gitEvidence.assertTicketRequirementsCurrent(
+          feature,
+          ticket,
+          identity.headSha,
+          this.gitEvidence.ticketWorkspace(progress)!,
         );
-      }
       const latestForCommand = [...checks.records]
         .reverse()
         .find((record) => record.command === command);
@@ -665,7 +645,7 @@ export class ChecksService extends Service {
         latestForCommand &&
         latestForCommand.result === options.result &&
         latestForCommand.author === options.author.trim() &&
-        latestForCommand.snapshot === options.snapshot &&
+        latestForCommand.headSha === identity.headSha &&
         (!progress.worktree || latestForCommand.headSha === identity.headSha) &&
         latestForCommand.details === options.details?.trim() &&
         JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
@@ -676,23 +656,9 @@ export class ChecksService extends Service {
         command,
         result: options.result as CheckRecord["result"],
         author: options.author.trim(),
-        snapshot: identity.snapshot,
-        codeSnapshot: identity.codeSnapshot,
-        requirementsSnapshot: identity.requirementsSnapshot,
         headSha: identity.headSha,
         recordedAt: new Date().toISOString(),
-        ...(coveredPaths
-          ? {
-              coveredPaths,
-              coverageSnapshot: this.gitEvidence.contentIdentity(
-                feature,
-                ticket,
-                progress.baseSha,
-                checks,
-                coveredPaths,
-              ).codeSnapshot,
-            }
-          : {}),
+        ...(coveredPaths ? { coveredPaths } : {}),
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       checks.records.push(record);
@@ -713,19 +679,15 @@ export class ChecksService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
       );
-      const confirmedIdentity = this.gitEvidence.contentIdentity(
+      const confirmedIdentity = this.gitEvidence.commitIdentity(
         feature,
         confirmedTicket,
         progress.baseSha,
-        checks,
       );
-      if (
-        confirmedIdentity.snapshot !== identity.snapshot ||
-        (progress.worktree && confirmedIdentity.headSha !== identity.headSha)
-      ) {
+      if (confirmedIdentity.headSha !== identity.headSha) {
         checks.records.pop();
         correctionCheckHistory?.pop();
-        throw new Error("Content changed while recording the check; retry with a fresh snapshot.");
+        throw new Error("Commit changed while recording the check; retry.");
       }
       this.workspaceTransaction.writeLedger(feature, ledger);
       return { ticket: options.ticket, record, ...identity };
@@ -736,9 +698,6 @@ export class ChecksService extends Service {
     scope: "delivery";
     checks: TicketChecks;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     validateAuthor(options.author);
@@ -773,7 +732,7 @@ export class ChecksService extends Service {
         active.removalDetails = options.details!.trim();
       } else {
         if (active) {
-          const identity = this.gitEvidence.deliveryIdentity(
+          const identity = this.gitEvidence.deliveryCommitIdentity(
             feature,
             ledger,
             this.ticketRepository.readTickets(feature.workspace),
@@ -786,7 +745,7 @@ export class ChecksService extends Service {
           addedBy: options.author.trim(),
         });
       }
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
@@ -805,13 +764,10 @@ export class ChecksService extends Service {
     scope: "delivery";
     record: CheckRecord;
     idempotent?: boolean;
-  } & ContentIdentity {
+  } & CommitIdentity {
     validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
-    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
-      throw new Error("Snapshot must be a 64-character hexadecimal content identity.");
-    }
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
       throw new Error(`Invalid check result: ${options.result}.`);
     }
@@ -832,16 +788,11 @@ export class ChecksService extends Service {
       );
       if (!requirement)
         throw new Error(`Check command is not currently required for delivery: ${command}.`);
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      if (identity.snapshot !== options.snapshot) {
-        throw new Error(
-          `Snapshot is stale; current delivery identity is ${identity.snapshot}. No check result was recorded.`,
-        );
-      }
       const prior = [...delivery.checks.records]
         .reverse()
         .find((record) => record.command === command);
@@ -849,7 +800,7 @@ export class ChecksService extends Service {
         prior &&
         prior.result === options.result &&
         prior.author === options.author.trim() &&
-        prior.snapshot === identity.snapshot &&
+        prior.headSha === identity.headSha &&
         prior.details === options.details?.trim()
       ) {
         return { scope: "delivery", record: prior, idempotent: true, ...identity };
@@ -858,9 +809,6 @@ export class ChecksService extends Service {
         command,
         result: options.result as CheckRecord["result"],
         author: options.author.trim(),
-        snapshot: identity.snapshot,
-        codeSnapshot: identity.codeSnapshot,
-        requirementsSnapshot: identity.requirementsSnapshot,
         headSha: identity.headSha,
         recordedAt: new Date().toISOString(),
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
@@ -872,17 +820,15 @@ export class ChecksService extends Service {
         author: record.author,
         action: `delivery-check-recorded:${command}:${record.result}`,
       });
-      const confirmed = this.gitEvidence.deliveryIdentity(
+      const confirmed = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      if (confirmed.snapshot !== identity.snapshot) {
+      if (confirmed.headSha !== identity.headSha) {
         delivery.checks.records.pop();
         delivery.history.pop();
-        throw new Error(
-          "Content changed while recording the delivery check; retry with a fresh snapshot.",
-        );
+        throw new Error("Commit changed while recording the delivery check; retry.");
       }
       this.workspaceTransaction.writeLedger(feature, ledger);
       return { scope: "delivery", record, ...identity };

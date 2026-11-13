@@ -87,7 +87,6 @@ export interface FindingCreateOptions extends TicketSelection {
   scope?: string;
   relatedTicket?: string;
   source: string;
-  snapshot: string;
   severity: string;
   blocking?: boolean;
   nonBlocking?: boolean;
@@ -102,7 +101,6 @@ export interface FindingUpdateOptions extends TicketSelection {
   status: string;
   details?: string;
   followUp?: string;
-  evidence?: string;
   requirementsDecision?: string;
 }
 
@@ -147,7 +145,6 @@ export interface ChecksRequireOptions extends TicketSelection {
 
 export interface ChecksRecordOptions extends TicketSelection {
   scope?: string;
-  snapshot: string;
   command: string;
   result: string;
   paths?: string[];
