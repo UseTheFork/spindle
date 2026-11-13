@@ -79,7 +79,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-codebase-design": { path: "int-codebase-design/", stacks: [] },
     "int-code-review": { path: "int-code-review/", stacks: [] },
     "int-code-slop-review": { path: "int-code-slop-review/", stacks: [] },
-    "int-domain-modeling": { path: "int-domain-modeling/", stacks: [] },
+    "ref-domain-modeling": { path: "ref-domain-modeling/", stacks: [] },
     "int-prototype": { path: "int-prototype/", stacks: [] },
     "int-retrospective": { path: "int-retrospective/", stacks: [] },
     "int-subagent-driven-dev": { path: "int-subagent-driven-dev/", stacks: [] },

@@ -414,7 +414,7 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
 
   for (const [name, references] of [
     ["int-test-driven-development", ["tests.md", "mocking.md"]],
-    ["int-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
+    ["ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
     ["int-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
   ] as const) {
     const directory = join(project, ".github", "skills", name);
@@ -424,6 +424,14 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
       expect(existsSync(join(directory, "references", reference))).toBe(true);
     }
   }
+
+  const domainModelingSkill = matter(
+    readFileSync(join(project, ".github", "skills", "ref-domain-modeling", "SKILL.md"), "utf8"),
+  );
+  expect(domainModelingSkill.data.name).toBe("ref-domain-modeling");
+  expect(domainModelingSkill.data.description).toBe(
+    "Build and sharpen a project's domain model. Use when discussing codebase terminology, writing or editing a GLOSSARY.md, or recording or editing an ADR.",
+  );
 
   const legacySkill = matter(installed);
   legacySkill.data.metadata.spindle.version = "1.0.0";
