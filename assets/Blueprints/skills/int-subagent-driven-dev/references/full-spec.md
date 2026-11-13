@@ -72,20 +72,20 @@ attach a Markdown report with `--report`; otherwise it is optional. Any report
 must remain inside that feature's `reports/` directory.
 
 Inspect canonical records for sensitive content, then run
-`{{ computed.spindle_package_manager }} spindle sdd finish --spec <feature-spec> --author <controller> --confirm-records`
+`{{ computed.spindle_package_manager }} spindle sdd finish --spec <feature-spec> --author <agent-name> --confirm-records`
 from the feature worktree, adding `--report <absolute-report-path>` when needed.
 This merges into the recorded original branch and returns a pending final
 validation, merge commit, and original spec path; it does not yet complete the
 feature.
 
 In the original checkout, declare the entire non-empty final list with
-`{{ computed.spindle_package_manager }} spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <controller>`,
+`{{ computed.spindle_package_manager }} spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <agent-name>`,
 repeating `--command` for each check. Run each command there, then record each
-actual result with `{{ computed.spindle_package_manager }} spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --command <command> --result <result> --author <controller>`.
+actual result with `{{ computed.spindle_package_manager }} spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --command <command> --result <result> --author <agent-name>`.
 Failed or unavailable results require `--details` and block cleanup until the
 latest result for each command passes. The list is frozen once declared.
 
-Run `{{ computed.spindle_package_manager }} spindle sdd finish --spec <original-spec> --author <controller>`
+Run `{{ computed.spindle_package_manager }} spindle sdd finish --spec <original-spec> --author <agent-name>`
 again to preflight and clean up the recorded worktrees and branches. The final
 merge is the checked commit; the subsequent ledger-only relocation commit is
 reported separately and is not itself checked. Preserve any dirty or unexpected
