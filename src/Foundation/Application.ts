@@ -2,8 +2,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { CommandConstructor } from "@/Commands/Command";
-import { Config } from "@/Config/Config";
 import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
+import { ApplicationConfiguration } from "@/Foundation/ApplicationConfiguration";
 import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { Container } from "@/Foundation/Container";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
@@ -22,7 +22,7 @@ export type ServiceProviderConstructor<T extends ServiceProvider = ServiceProvid
 };
 
 export class Application extends Container {
-  public readonly config = new Config();
+  public readonly config = new ApplicationConfiguration();
   private readonly _basePath: string;
   private readonly providers = new Map<ServiceProviderConstructor, ServiceProvider>();
   private readonly commands = new Set<CommandConstructor>();

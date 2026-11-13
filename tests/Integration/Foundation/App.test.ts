@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, expectTypeOf, test, vi } from "vitest";
 
-import { Config } from "@/Config/Config";
 import { Application } from "@/Foundation/Application";
 import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
+import { ApplicationConfiguration } from "@/Foundation/ApplicationConfiguration";
 import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
@@ -100,7 +100,7 @@ test("base bindings and configuration are available before foundation provider c
       expect(this.value(Container)).toBe(this);
       expect(this.value("path.base")).toBe("/project");
       expect(this.basePath()).toBe("/project");
-      expect(this.config).toBeInstanceOf(Config);
+      expect(this.config).toBeInstanceOf(ApplicationConfiguration);
       expect(this.config.has("foundation")).toBe(false);
       registrations.push(this);
     }
@@ -219,11 +219,11 @@ test("appPath remains module-relative when cwd is unrelated", () => {
 });
 
 test("configuration is isolated and available before explicit provider construction", async () => {
-  const configurations: Config[] = [];
+  const configurations: ApplicationConfiguration[] = [];
   class Provider extends ServiceProvider {
     public constructor(app: Application) {
       super(app);
-      expect(app.config).toBeInstanceOf(Config);
+      expect(app.config).toBeInstanceOf(ApplicationConfiguration);
       expect(app.config.has("provider")).toBe(false);
       configurations.push(app.config);
       app.config.set("provider.constructed", true);
