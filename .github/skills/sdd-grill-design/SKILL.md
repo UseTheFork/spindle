@@ -24,7 +24,7 @@ Challenge and refine an existing design through an interview, keeping the select
 Before acting, read and understand each required skill:
 
 - **REQUIRED:** `grill`
-- **REQUIRED:** `int-domain-modeling`
+- **REQUIRED:** `ref-domain-modeling`
 
 These skills define the interview and domain-modeling workflows.
 

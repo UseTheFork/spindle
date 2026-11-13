@@ -20,18 +20,26 @@ import matter from "gray-matter";
 import { makeTempDirSync, repoRoot } from "../Helpers/TemporaryDirectories.ts";
 
 const checkout = repoRoot;
-function packagedCli() {
-  const packageRoot = makeTempDirSync("spindle-packaged-cli-");
-  cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
-  cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
+function packagedCli(existingRoot?: string) {
+  const packageRoot = existingRoot ?? makeTempDirSync("spindle-packaged-cli-");
+  if (!existingRoot) {
+    cpSync(join(checkout, "build"), join(packageRoot, "build"), { recursive: true });
+    cpSync(join(checkout, "assets"), join(packageRoot, "assets"), { recursive: true });
+    cpSync(join(checkout, "package.json"), join(packageRoot, "package.json"));
+  }
   // Use installed runtime dependencies as an installed package would, while keeping
   // the executable and all of its package assets outside the checkout.
   symlinkSync(join(checkout, "node_modules"), join(packageRoot, "node_modules"), "dir");
 
   return {
     root: packageRoot,
-    run(project: string, args: readonly string[], env: Record<string, string> = {}) {
-      return spawnSync(process.execPath, [join(packageRoot, "build", "index.js"), ...args], {
+    run(
+      project: string,
+      args: readonly string[],
+      env: Record<string, string> = {},
+      entrypoint = join(packageRoot, "build", "index.js"),
+    ) {
+      return spawnSync(process.execPath, [entrypoint, ...args], {
         cwd: project,
         encoding: "utf8",
         env: {
@@ -67,6 +75,64 @@ function makeGitWorkspace(directory: string) {
   git("commit", "-qm", "package fixture");
   return { git };
 }
+
+test("published tarball supplies assets for initialization and SDD documents", () => {
+  const directory = makeTempDirSync("spindle-packed-tarball-");
+  execFileSync("pnpm", ["pack", "--pack-destination", directory], { cwd: checkout });
+  const archives = readdirSync(directory).filter((name) => name.endsWith(".tgz"));
+  expect(archives).toHaveLength(1);
+  execFileSync("tar", ["-xzf", join(directory, archives[0]!), "-C", directory]);
+  const cli = packagedCli(join(directory, "package"));
+  const workspace = tempDirectory("spindle-tarball-workspace-");
+  makeGitWorkspace(workspace);
+
+  const initialized = cli.run(workspace, [
+    "init",
+    "--stack",
+    "python",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
+  expect(initialized.status, initialized.stderr).toBe(0);
+  const created = cli.run(workspace, [
+    "sdd",
+    "create",
+    "--title",
+    "Tarball feature",
+    "--author",
+    "maintainer",
+    "--with-design",
+  ]);
+  expect(created.status, created.stderr).toBe(0);
+  const feature = join(workspace, ".scratch", "0001-tarball-feature");
+  const ticket = cli.run(workspace, [
+    "sdd",
+    "ticket",
+    "create",
+    "--spec",
+    join(feature, "spec.md"),
+    "--title",
+    "Tarball ticket",
+    "--reporter",
+    "maintainer",
+    "--category",
+    "enhancement",
+    "--author",
+    "maintainer",
+  ]);
+  expect(ticket.status, ticket.stderr).toBe(0);
+  expect(readFileSync(join(feature, "design.md"), "utf8")).toContain("## Intent");
+  expect(readFileSync(join(feature, "tickets", "T-0001.md"), "utf8")).toContain("# Tarball ticket");
+});
+
+test("packaged schema describes project settings and supported stacks", () => {
+  const cli = packagedCli();
+  const schema = JSON.parse(readFileSync(join(cli.root, "build/spindle.schema.json"), "utf8"));
+  expect(schema.properties.stacks.items.enum).toEqual(["php-laravel", "python", "typescript"]);
+  expect(schema.properties.commit.properties.title_max_length.minimum).toBe(11);
+  expect(schema.required).toContain("stacks");
+});
 
 test("packaged sdd create and status expose feature state outside the checkout", () => {
   const cli = packagedCli();
@@ -140,7 +206,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     spec: expected.spec,
     ledger: expected.ledger,
     state: ledger,
-    snapshots: [],
+    commits: [],
     findings: [],
     requirementsDecisions: [],
     actions: [],
@@ -210,7 +276,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(setup.stdout).toContain("Initialized project guidance and tooling documentation.");
   expect(setup.stderr).toBe("");
   const copilotTemplate = readFileSync(
-    join(checkout, "build/Assets/Templates/project/copilot-instructions.md"),
+    join(checkout, "assets/Templates/project/copilot-instructions.md"),
     "utf8",
   );
   expect(readFileSync(join(invocationWorkspace, ".github/copilot-instructions.md"), "utf8")).toBe(
@@ -250,6 +316,41 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(listed.stdout).toContain("- test-unit [Testing]: pnpm test -- --run");
   expect(listed.stderr).toBe("");
 });
+test("packaged CLI executes commands through a symlinked launcher", () => {
+  const cli = packagedCli();
+  const launcher = join(cli.root, "spindle");
+  symlinkSync(join(cli.root, "build", "index.js"), launcher, "file");
+  const project = tempDirectory("spindle-packaged-launcher-project-");
+  makeGitWorkspace(project);
+
+  const initialized = cli.run(project, [
+    "init",
+    "--stack",
+    "typescript",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
+  expect(initialized.status, initialized.stderr).toBe(0);
+
+  const help = cli.run(project, ["--help"], {}, launcher);
+  expect(help.status, help.stderr).toBe(0);
+  expect(help.stdout).toContain("Usage: spindle");
+  expect(help.stdout).toMatch(/^\s*tool\b/m);
+  expect(help.stderr).toBe("");
+
+  const listed = cli.run(project, ["tool", "list"], {}, launcher);
+  expect(listed.status, listed.stderr).toBe(0);
+  expect(listed.stdout).toMatch(/^Tooling commands \(\d+\):/);
+  expect(listed.stdout).toMatch(/^- .+ \[.+\]: .+/m);
+  expect(listed.stderr).toBe("");
+
+  const invalid = cli.run(project, ["--unknown"], {}, launcher);
+  expect(invalid.status).not.toBe(0);
+  expect(invalid.stdout).toBe("");
+  expect(invalid.stderr).toContain("unknown option");
+});
+
 test("packaged command discovery and help remain intact", () => {
   const cli = packagedCli();
   const projectWorkspace = tempDirectory("spindle-packaged-help-project-");
@@ -353,7 +454,7 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
 
   for (const [name, references] of [
     ["int-test-driven-development", ["tests.md", "mocking.md"]],
-    ["int-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
+    ["ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
     ["int-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
   ] as const) {
     const directory = join(project, ".github", "skills", name);
@@ -363,6 +464,14 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
       expect(existsSync(join(directory, "references", reference))).toBe(true);
     }
   }
+
+  const domainModelingSkill = matter(
+    readFileSync(join(project, ".github", "skills", "ref-domain-modeling", "SKILL.md"), "utf8"),
+  );
+  expect(domainModelingSkill.data.name).toBe("ref-domain-modeling");
+  expect(domainModelingSkill.data.description).toBe(
+    "Build and sharpen a project's domain model. Use when discussing codebase terminology, writing or editing a GLOSSARY.md, or recording or editing an ADR.",
+  );
 
   const legacySkill = matter(installed);
   legacySkill.data.metadata.spindle.version = "1.0.0";

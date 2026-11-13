@@ -24,7 +24,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
     spec: second.spec,
     ledger: second.ledger,
     state,
-    snapshots: [],
+    commits: [],
     findings: [],
     requirementsDecisions: [],
     actions: [],

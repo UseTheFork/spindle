@@ -12,16 +12,16 @@ import {
 import { join, relative } from "node:path";
 
 import { templateCatalog } from "@/Assets/Templates/Catalog";
-import {
-  LoadProjectConfiguration,
-  type ProjectConfigurationData,
-} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
+import {
+  ProjectSettingsService,
+  type ProjectSettingsData,
+} from "@/Settings/Services/ProjectSettingsService";
 import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
-const configPath = ".github/spindle.json";
+const projectSettingsPath = ".github/spindle.json";
 const copilotPath = ".github/copilot-instructions.md";
 const startMarker = "<!-- spindle:start -->";
 const endMarker = "<!-- spindle:end -->";
@@ -37,7 +37,7 @@ export interface ProjectInitializationResult {
 
 export interface PreparedProjectGuidance {
   workspace: string;
-  configuration: ProjectConfigurationData;
+  settings: ProjectSettingsData;
   directories: readonly string[];
   files: {
     destination: string;
@@ -65,14 +65,14 @@ function copilotInstructions(template: string, existing: string | undefined): st
 
 export class ProjectService extends Service {
   public async prepare(
-    configuration: ProjectConfigurationData,
+    settings: ProjectSettingsData,
     mode: "init" | "update" = "init",
   ): Promise<PreparedProjectGuidance> {
     this.assertApplicationBooted();
-    const state = LoadProjectConfiguration.parse(JSON.stringify(configuration));
+    const state = ProjectSettingsService.parse(JSON.stringify(settings));
     if (state.status !== "valid")
-      throw new Error(state.status === "invalid" ? state.reason : "Invalid project configuration.");
-    if (configuration.stacks.length === 0) {
+      throw new Error(state.status === "invalid" ? state.reason : "Invalid Project Settings.");
+    if (settings.stacks.length === 0) {
       throw new Error(
         "Install at least one Blueprint stack with `spindle init` before initializing project guidance.",
       );
@@ -80,15 +80,15 @@ export class ProjectService extends Service {
     const workspace = realpathSync(this.app.workspacePath());
     const directories = mode === "init" ? initializationDirectories : updateDirectories;
     for (const directory of directories) this.validateDirectory(workspace, directory);
-    this.assertRegularFileOrMissing(join(workspace, configPath), configPath);
+    this.assertRegularFileOrMissing(join(workspace, projectSettingsPath), projectSettingsPath);
     this.assertRegularFileOrMissing(
       join(workspace, "docs/agents/tooling.md"),
       "docs/agents/tooling.md",
     );
-    const context = await LoadProjectConfiguration.withTemporaryState(
+    const context = await ProjectSettingsService.withTemporaryState(
       this.app,
-      { status: "valid", data: configuration },
-      async () => resolveRenderContext(this.app, { stacks: configuration.stacks, variables: {} }),
+      { status: "valid", data: settings },
+      async () => resolveRenderContext(this.app, { stacks: settings.stacks, variables: {} }),
     );
     const files = templateCatalog.project.map(({ source, destination, createOnce }) => {
       const target = join(workspace, destination);
@@ -97,7 +97,7 @@ export class ProjectService extends Service {
         ? readFileSync(target, "utf8")
         : undefined;
       const rendered = renderText(
-        readFileSync(join(this.app.appPath("Assets/Templates"), source), "utf8"),
+        readFileSync(join(this.app.assetsPath("Templates"), source), "utf8"),
         {
           stacks: [...context.stacks],
           variables: { ...context.variables },
@@ -111,18 +111,18 @@ export class ProjectService extends Service {
         content: destination === copilotPath ? copilotInstructions(rendered, original) : rendered,
       };
     });
-    return { workspace, configuration, directories, files };
+    return { workspace, settings, directories, files };
   }
 
   public async initialize(): Promise<ProjectInitializationResult> {
     this.assertApplicationBooted();
-    const { config } = LoadProjectConfiguration.requireCurrent(this.app);
-    return this.apply(await this.prepare(config));
+    const { settings } = ProjectSettingsService.requireCurrent(this.app);
+    return this.apply(await this.prepare(settings));
   }
 
   public async apply(prepared: PreparedProjectGuidance): Promise<ProjectInitializationResult> {
     this.assertApplicationBooted();
-    const { workspace, files, configuration, directories } = prepared;
+    const { workspace, files, settings, directories } = prepared;
     const created: string[] = [];
     const preserved: string[] = [];
     const updated: string[] = [];
@@ -155,7 +155,7 @@ export class ProjectService extends Service {
         }
         (stat ? updated : created).push(destination);
       }
-      const tooling = await (await this.app.make(ToolingService)).initialize(configuration);
+      const tooling = await (await this.app.make(ToolingService)).initialize(settings);
       created.push(...tooling.created);
       updated.push(...tooling.updated);
     } catch (error) {

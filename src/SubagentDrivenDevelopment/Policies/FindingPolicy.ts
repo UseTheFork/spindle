@@ -1,11 +1,13 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
   DeliveryProgress,
   FeaturePaths,
+  TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
@@ -13,12 +15,18 @@ import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy"
 export class FindingPolicy extends Service {
   public constructor(
     app: Application,
+    private readonly gitEvidence: GitEvidence,
     private readonly reviewPolicy: ReviewPolicy,
   ) {
     super(app);
   }
 
-  public findingBlockers(progress: TicketProgress, identity: ContentIdentity): string[] {
+  public findingBlockers(
+    feature: FeaturePaths,
+    ticket: TicketDocument,
+    progress: TicketProgress,
+    identity: CommitIdentity,
+  ): string[] {
     return (progress.findings ?? [])
       .filter(
         (finding) =>
@@ -33,15 +41,20 @@ export class FindingPolicy extends Service {
                 decision.id === finding.requirementsDecision &&
                 decision.finding === finding.id &&
                 decision.status === "approved" &&
-                decision.requirementsSnapshot === identity.requirementsSnapshot,
+                this.gitEvidence.requirementsMatchAtCommits(
+                  feature,
+                  ticket,
+                  decision.commitSha,
+                  identity.headSha,
+                  this.gitEvidence.ticketWorkspace(progress) ?? feature.workspace,
+                ),
             ) &&
             (progress.reviewAssignments?.length ?? 0) > 0 &&
             progress.reviewAssignments!.every(
               (assignment) =>
                 assignment.status === "submitted" &&
                 assignment.result === "passed" &&
-                assignment.snapshot === identity.snapshot &&
-                assignment.requirementsSnapshot === identity.requirementsSnapshot,
+                assignment.headSha === identity.headSha,
             )
           ),
       )
@@ -55,7 +68,7 @@ export class FindingPolicy extends Service {
     feature: FeaturePaths,
     ledger: FeatureLedger,
     delivery: DeliveryProgress,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string[] {
     return (delivery.findings ?? [])
       .filter((finding) => {
@@ -66,7 +79,12 @@ export class FindingPolicy extends Service {
             candidate.id === finding.requirementsDecision &&
             candidate.finding === finding.id &&
             candidate.status === "approved" &&
-            candidate.requirementsSnapshot === identity.requirementsSnapshot,
+            this.gitEvidence.deliveryRequirementsMatchAtCommits(
+              feature,
+              candidate.commitSha,
+              identity.headSha,
+              feature.workspace,
+            ),
         );
         if (!decision) return true;
         const required = requiredDeliveryReviewers(ledger, delivery);
@@ -76,8 +94,7 @@ export class FindingPolicy extends Service {
               assignment.agent === agent &&
               assignment.status === "submitted" &&
               assignment.result === "passed" &&
-              assignment.snapshot === identity.snapshot &&
-              assignment.requirementsSnapshot === identity.requirementsSnapshot,
+              assignment.headSha === identity.headSha,
           );
           return (
             matching.length !== 1 ||

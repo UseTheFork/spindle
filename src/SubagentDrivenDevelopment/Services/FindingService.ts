@@ -55,7 +55,6 @@ export class FindingService extends Service {
     scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
-    snapshot: string;
     headSha: string;
   } {
     if (options.scope === "delivery") {
@@ -77,10 +76,6 @@ export class FindingService extends Service {
     }
     if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
     if (!options.details.trim()) throw new Error("Finding details must not be empty.");
-    if (!/^[0-9a-f]{64}$/i.test(options.snapshot)) {
-      throw new Error("Finding snapshot must be a CLI-returned content snapshot.");
-    }
-
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -98,20 +93,14 @@ export class FindingService extends Service {
           : resolve(feature.workspace, options.source)
         : "";
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
-        attempt.reviewAssignments?.some(
-          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
-        ),
+        attempt.reviewAssignments?.some((candidate) => candidate.report === report),
       );
       const assignment =
-        correctionAttempt?.reviewAssignments?.find(
-          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
-        ) ??
-        progress.reviewAssignments?.find(
-          (candidate) => candidate.report === report && candidate.snapshot === options.snapshot,
-        );
+        correctionAttempt?.reviewAssignments?.find((candidate) => candidate.report === report) ??
+        progress.reviewAssignments?.find((candidate) => candidate.report === report);
       if (!assignment) {
         throw new Error(
-          "Finding source report and snapshot must match a frozen review assignment for this ticket.",
+          "Finding source report must match a frozen review assignment for this ticket.",
         );
       }
       if (assignment.status === "submitted") {
@@ -119,23 +108,18 @@ export class FindingService extends Service {
       }
       if (!progress.baseSha)
         throw new Error("Finding registration requires a recorded Git baseline.");
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
-      const snapshotBlocker = this.reviewPolicy.reviewSnapshotBlocker(
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+      const commitBlocker = this.reviewPolicy.reviewCommitBlocker(
         feature,
         progress,
         assignment,
         identity,
       );
-      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      if (commitBlocker) throw new Error(commitBlocker);
       this.reportEvidence.readReportDigest(feature, report);
       const source: FindingProvenance = {
         report,
-        snapshot: options.snapshot,
+        headSha: assignment.headSha,
         author: options.author.trim(),
         summary: options.summary.trim(),
         details: options.details.trim(),
@@ -149,7 +133,7 @@ export class FindingService extends Service {
         if (!canonical) throw new Error(`Canonical finding not found: ${options.link}.`);
         const priorSource = canonical.provenance.find(
           (provenance) =>
-            provenance.report === source.report && provenance.snapshot === source.snapshot,
+            provenance.report === source.report && provenance.headSha === source.headSha,
         );
         if (priorSource) {
           if (
@@ -157,13 +141,12 @@ export class FindingService extends Service {
             priorSource.summary !== source.summary ||
             priorSource.details !== source.details
           ) {
-            throw new Error("This report and snapshot are already linked with different details.");
+            throw new Error("This report and commit are already linked with different details.");
           }
           return {
             ticket: options.ticket,
             finding: canonical,
             idempotent: true,
-            snapshot: identity.snapshot,
             headSha: identity.headSha,
           };
         }
@@ -172,7 +155,7 @@ export class FindingService extends Service {
           at: new Date().toISOString(),
           author: options.author.trim(),
           action: "observation-linked",
-          details: `Linked observation from ${report} at snapshot ${options.snapshot}: ${source.summary} — ${source.details}`,
+          details: `Linked observation from ${report} at commit ${source.headSha}: ${source.summary} — ${source.details}`,
         });
         if (canonical.status === "fixed" || canonical.status === "dismissed") {
           canonical.status = "open";
@@ -184,14 +167,14 @@ export class FindingService extends Service {
             at: new Date().toISOString(),
             author: options.author.trim(),
             action: "observation-reopened",
-            details: `New observation from ${report} at snapshot ${options.snapshot} requires renewed adjudication.`,
+            details: `New observation from ${report} at commit ${source.headSha} requires renewed adjudication.`,
           });
         }
         const afterTicket = matter.stringify(
           this.ticketRepository.appendAudit(
             ticket.body,
             options.author,
-            `Observation linked to finding ${canonical.id}: source=${report}; snapshot=${options.snapshot}; summary=${source.summary}.`,
+            `Observation linked to finding ${canonical.id}: source=${report}; commit=${source.headSha}; summary=${source.summary}.`,
           ),
           this.ticketRepository.metadata(ticket),
         );
@@ -199,7 +182,6 @@ export class FindingService extends Service {
         return {
           ticket: options.ticket,
           finding: canonical,
-          snapshot: identity.snapshot,
           headSha: identity.headSha,
         };
       }
@@ -213,7 +195,7 @@ export class FindingService extends Service {
           finding.provenance.some(
             (provenance) =>
               provenance.report === source.report &&
-              provenance.snapshot === source.snapshot &&
+              provenance.headSha === source.headSha &&
               provenance.author === source.author &&
               provenance.summary === source.summary &&
               provenance.details === source.details,
@@ -224,7 +206,6 @@ export class FindingService extends Service {
           ticket: options.ticket,
           finding: existing,
           idempotent: true,
-          snapshot: identity.snapshot,
           headSha: identity.headSha,
         };
       }
@@ -251,7 +232,7 @@ export class FindingService extends Service {
             at,
             author: options.author.trim(),
             action: "registered",
-            details: `Registered from ${report} at snapshot ${options.snapshot}.`,
+            details: `Registered from ${report} at commit ${source.headSha}.`,
           },
         ],
       };
@@ -260,7 +241,7 @@ export class FindingService extends Service {
         this.ticketRepository.appendAudit(
           ticket.body,
           options.author,
-          `Finding ${finding.id} registered by ${options.author.trim()}: ${finding.summary}; source=${report}; snapshot=${options.snapshot}.`,
+          `Finding ${finding.id} registered by ${options.author.trim()}: ${finding.summary}; source=${report}; commit=${source.headSha}.`,
         ),
         this.ticketRepository.metadata(ticket),
       );
@@ -268,7 +249,6 @@ export class FindingService extends Service {
       return {
         ticket: options.ticket,
         finding,
-        snapshot: identity.snapshot,
         headSha: identity.headSha,
       };
     });
@@ -279,7 +259,7 @@ export class FindingService extends Service {
     scope?: "delivery";
     finding: ReviewFinding;
     idempotent?: boolean;
-    snapshot: string;
+    headSha: string;
   } {
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
@@ -301,17 +281,11 @@ export class FindingService extends Service {
     if (options.status === "deferred" && !options.followUp?.trim()) {
       throw new Error("--follow-up is required for a deferred finding.");
     }
-    if (options.status === "fixed" && !options.evidence?.trim()) {
-      throw new Error("--evidence is required to mark a finding fixed.");
-    }
     if (options.status !== "deferred" && options.followUp !== undefined) {
       throw new Error("--follow-up is only valid for a deferred finding.");
     }
     if (options.status !== "deferred" && options.requirementsDecision !== undefined) {
       throw new Error("--requirements-decision is only valid for a deferred finding.");
-    }
-    if (options.status !== "fixed" && options.evidence !== undefined) {
-      throw new Error("--evidence is only valid for a fixed finding.");
     }
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
@@ -329,12 +303,7 @@ export class FindingService extends Service {
         throw new Error("Only the current ticket controller may record a finding ruling.");
       }
       if (!progress.baseSha) throw new Error("Finding rulings require a recorded Git baseline.");
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       let verification: ReviewFinding["verification"];
       let requirementsDecision: RequirementsDecision | undefined;
       if (options.status === "deferred" && finding.blocking) {
@@ -348,11 +317,17 @@ export class FindingService extends Service {
             decision.id === options.requirementsDecision &&
             decision.finding === finding.id &&
             decision.status === "approved" &&
-            decision.requirementsSnapshot === identity.requirementsSnapshot,
+            this.gitEvidence.requirementsMatchAtCommits(
+              feature,
+              ticket,
+              decision.commitSha,
+              identity.headSha,
+              this.gitEvidence.ticketWorkspace(progress) ?? feature.workspace,
+            ),
         );
         if (!requirementsDecision) {
           throw new Error(
-            "Blocking finding deferral requires a matching approved requirements decision for the current requirements snapshot.",
+            "Blocking finding deferral requires a matching approved requirements decision for the current commit.",
           );
         }
         const assignments = progress.reviewAssignments ?? [];
@@ -374,15 +349,19 @@ export class FindingService extends Service {
         }
       }
       if (options.status === "fixed") {
-        if (!/^[0-9a-f]{64}$/i.test(options.evidence!)) {
-          throw new Error("--evidence must be a CLI-returned content snapshot.");
-        }
-        if (options.evidence !== identity.snapshot) {
-          throw new Error("Verification evidence must match the current ticket snapshot.");
-        }
-        if (finding.provenance.some((observation) => observation.snapshot === identity.snapshot)) {
+        if (
+          finding.provenance.some((observation) =>
+            this.gitEvidence.commitPreservesInputs(
+              feature,
+              ticket,
+              observation.headSha,
+              identity.headSha,
+              this.gitEvidence.ticketWorkspace(progress) ?? feature.workspace,
+            ),
+          )
+        ) {
           throw new Error(
-            "Verification evidence must reflect changed content since every finding observation; dismiss an invalid finding with --details.",
+            "Verification requires a committed change since every finding observation; dismiss an invalid finding with --details.",
           );
         }
         const required = progress.checks?.required.filter((check) => !check.removedAt) ?? [];
@@ -394,7 +373,7 @@ export class FindingService extends Service {
           throw new Error(`Verification evidence is insufficient:\n${checkBlockers.join("\n")}`);
         }
         verification = {
-          snapshot: identity.snapshot,
+          headSha: identity.headSha,
           checkCommands: required.map((check) => check.command),
           verifiedAt: new Date().toISOString(),
           verifiedBy: options.author.trim(),
@@ -413,24 +392,23 @@ export class FindingService extends Service {
         last.author === options.author.trim() &&
         last.details ===
           (rulingDetails ??
-            (verification ? `Verified at ${verification.snapshot}.` : options.status)) &&
-        (options.status !== "fixed" || finding.verification?.snapshot === verification?.snapshot)
+            (verification ? `Verified at commit ${verification.headSha}.` : options.status)) &&
+        (options.status !== "fixed" || finding.verification?.headSha === verification?.headSha)
       ) {
-        return { ticket: options.ticket, finding, idempotent: true, snapshot: identity.snapshot };
+        return { ticket: options.ticket, finding, idempotent: true, headSha: identity.headSha };
       }
 
-      const before = identity.snapshot;
-      const currentIdentity = this.gitEvidence.contentIdentity(
+      const before = identity.headSha;
+      const currentIdentity = this.gitEvidence.commitIdentity(
         feature,
         this.ticketRepository.requireTicket(
           this.ticketRepository.readTickets(feature.workspace),
           options.ticket,
         ),
         progress.baseSha,
-        progress.checks,
       );
-      if (currentIdentity.snapshot !== before) {
-        throw new Error("Ticket content changed while recording the finding ruling.");
+      if (currentIdentity.headSha !== before) {
+        throw new Error("Ticket commit changed while recording the finding ruling.");
       }
       finding.status = options.status as FindingStatus;
       if (["dismissed", "deferred"].includes(options.status)) {
@@ -451,7 +429,7 @@ export class FindingService extends Service {
         progress.execution === "changes-requested" &&
         wasBlocking &&
         ["fixed", "dismissed"].includes(options.status) &&
-        this.findingPolicy.findingBlockers(progress, identity).length === 0
+        this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length === 0
       ) {
         const assignments = progress.reviewAssignments ?? [];
         const requiredReviewers = requiredTicketReviewers(ledger, progress);
@@ -479,7 +457,8 @@ export class FindingService extends Service {
         progress.execution = "reviewing";
       }
       const historyDetails =
-        rulingDetails ?? (verification ? `Verified at ${verification.snapshot}.` : options.status);
+        rulingDetails ??
+        (verification ? `Verified at commit ${verification.headSha}.` : options.status);
       finding.history.push({
         at: new Date().toISOString(),
         author: options.author.trim(),
@@ -494,7 +473,7 @@ export class FindingService extends Service {
           ? `requirements-decision=${finding.requirementsDecision}`
           : undefined,
         followUp ? `follow-up=${followUp}` : undefined,
-        verification ? `verification=${verification.snapshot}` : undefined,
+        verification ? `verification=${verification.headSha}` : undefined,
       ]
         .filter((entry): entry is string => entry !== undefined)
         .join("; ");
@@ -503,7 +482,7 @@ export class FindingService extends Service {
         this.ticketRepository.metadata(ticket),
       );
       this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
-      return { ticket: options.ticket, finding, snapshot: identity.snapshot };
+      return { ticket: options.ticket, finding, headSha: identity.headSha };
     });
   }
 }

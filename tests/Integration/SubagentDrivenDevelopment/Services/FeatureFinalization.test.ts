@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
@@ -38,8 +38,8 @@ function git(root: string, ...args: string[]) {
   }).trim();
 }
 async function appAt(root: string) {
-  const app = applicationFixture(root, join(repoRoot, "src/Assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   return app;
 }
@@ -206,7 +206,7 @@ async function readyFeature(codeFile = "feature.ts") {
   git(ticketRoot, "add", codeFile);
   git(ticketRoot, "commit", "-qm", "ticket implementation");
   writeFileSync(implemented.assignment.report, "# Implemented\n");
-  const submitted = output(
+  output(
     await execute(root, (s) =>
       s.submissionService.submit({
         spec,
@@ -222,7 +222,6 @@ async function readyFeature(codeFile = "feature.ts") {
         spec,
         ticket: "T-0001",
         command: "test ticket",
-        snapshot: submitted.snapshot,
         result: "passed",
         author: "controller",
       }),
@@ -267,7 +266,7 @@ async function readyFeature(codeFile = "feature.ts") {
       "--confirm-records",
     ]),
   );
-  const postMerge = cliOutput(
+  cliOutput(
     await invokeAsync(root, [
       "checks",
       "require",
@@ -293,8 +292,6 @@ async function readyFeature(codeFile = "feature.ts") {
       "T-0001",
       "--scope",
       "post-merge",
-      "--snapshot",
-      postMerge.snapshot,
       "--command",
       "test merged ticket",
       "--result",
@@ -303,7 +300,7 @@ async function readyFeature(codeFile = "feature.ts") {
       "controller",
     ]),
   );
-  const declared = output(
+  output(
     await execute(root, (s) =>
       s.checksService.checksRequire({
         spec,
@@ -321,7 +318,6 @@ async function readyFeature(codeFile = "feature.ts") {
         ticket: "",
         scope: "delivery",
         command: "test final",
-        snapshot: declared.snapshot,
         result: "passed",
         author: "controller",
       }),
@@ -415,8 +411,6 @@ async function recordFinal(
     "final",
     "--merge",
     merged.mergeCommit,
-    "--snapshot",
-    merged.snapshot,
     "--command",
     "test final",
     "--result",
@@ -436,8 +430,6 @@ async function recordFinal(
         "final",
         "--merge",
         merged.mergeCommit,
-        "--snapshot",
-        merged.snapshot,
         "--command",
         "lint final",
         "--result",
@@ -777,7 +769,7 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
   },
 );
 
-test("wrong snapshot/merge, undeclared command and unavailable result cannot authorize cleanup", async () => {
+test("wrong merge, undeclared command and unavailable result cannot authorize cleanup", async () => {
   const f = await readyFeature();
   const merged = cliOutput(await f.finish());
   const app = await appAt(f.original);
@@ -786,13 +778,12 @@ test("wrong snapshot/merge, undeclared command and unavailable result cannot aut
   const valid = {
     feature: f.feature,
     merge: merged.mergeCommit,
-    snapshot: merged.snapshot,
     command: "test final",
     result: "passed",
     author: "controller",
   };
   expect(() => finalization.record({ ...valid, merge: f.featureRevision })).toThrow();
-  expect(() => finalization.record({ ...valid, snapshot: "a".repeat(64) })).toThrow();
+  finalization.record(valid);
   expect(() => finalization.record({ ...valid, command: "undeclared" })).toThrow();
   finalization.record({ ...valid, result: "unavailable", details: "environment unavailable" });
   expect(

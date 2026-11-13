@@ -1,112 +1,49 @@
 ---
 name: sdd-to-tickets
+description: "Break an approved feature spec into tracer-bullet tickets with explicit blockers, then publish them to the configured ticket tracker."
+argument-hint: "[spec path or tracker reference]"
+disable-model-invocation: true
 metadata:
   spindle:
     version: 1.0.0
-description: Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, published to the configured tracker (edges as text in one file per ticket locally, or native blocking links on a real tracker).
-disable-model-invocation: true
 ---
 
 # To Tickets
 
-Break a plan, spec, or conversation into a set of **tickets**: tracer-bullet vertical slices, each declaring the tickets that **block** it.
+Break an approved feature spec into **tickets**: independently actionable vertical slices with explicit blocking dependencies.
 
-The issue tracker and triage label vocabulary should have been provided to you. If not, tell the user to run `/spindle-project-setup`.
+An optional argument is one spec path or tracker reference. Read the full spec and its comments before planning. Without an argument, use the approved spec already in context. If the source is missing or ambiguous, ask for a usable reference before proceeding.
 
 ## Process
 
-### 1. Gather context
+1. **Select the feature and confirm sequence.**
+   - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.scratch/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
+   - If `design.md` exists in the feature workspace, read it and confirm it was completed and approved before the spec. If the spec is not approved or a present design is unfinished, stop and resolve that before ticket planning.
+   - A design is optional. Do not require or create one when the approved spec was intentionally written without a design.
+   - For local SDD tracker work, use the feature's `spec.md` path with `pnpm spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
 
-Work from whatever is already in the conversation context. If the user passes a reference (a spec path, an issue number or URL) as an argument, fetch it and read its full body and comments.
+   **Complete when:** one approved spec and its tracker destination are identified; any existing design precedes it and is approved.
 
-### 2. Explore the codebase (optional)
+2. **Gather context.** Use the conversation and spec as the requirements source. If the user supplies a tracker reference, read its full body and comments. Explore the codebase when needed, using its glossary vocabulary and relevant ADRs. Look for useful prefactoring that reduces implementation difficulty.
 
-If you have not already explored the codebase, do so to understand the current state of the code. Ticket titles and descriptions should use the project's domain glossary vocabulary, and respect ADRs in the area you're touching.
+   **Complete when:** requirements, relevant project context, and tracker rules are understood.
 
-Look for opportunities to prefactor the code to make the implementation easier. "Make the change easy, then make the easy change."
+3. **Draft vertical slices.** Break the approved work into tracer-bullet tickets:
+   - Each slice is a narrow, complete path through the relevant layers and is verifiable on its own.
+   - Each slice fits a fresh context window.
+   - Identify only genuine blockers and list tickets in dependency order.
+   - A wide mechanical refactor may use expand–migrate–contract sequencing when no vertical slice can remain green.
 
-### 3. Draft vertical slices
+   **Complete when:** every requirement is covered, each ticket is independently actionable, and blocking relationships are explicit.
 
-Break the work into **tracer bullet** tickets.
+4. **Get approval.** Present the proposed breakdown as a numbered list. For each ticket, show its title, blockers, and end-to-end behavior. Ask whether the granularity and dependency edges are right and whether anything should be merged or split. Iterate until the user approves. Do not publish before approval.
 
-<vertical-slice-rules>
+   **Complete when:** the user approves the ticket breakdown and blocker relationships.
 
-- Each slice cuts a narrow but COMPLETE path through every layer (schema, API, UI, tests): vertical, NOT a horizontal slice of one layer
-- A completed slice is demoable or verifiable on its own
-- Each slice is sized to fit in a single fresh context window
-- Any prefactoring should be done first
+5. **Publish the tickets.**
+   - For a local Spindle SDD tracker, create each ticket in dependency order with `pnpm spindle sdd ticket create --spec <absolute-spec-path>`. Supply its title, reporter, category (`bug` or `enhancement`), and author. Fill the generated ticket's Requirements and Acceptance Criteria using the tracker guidance. After creation, use `pnpm spindle sdd ticket update --spec <absolute-spec-path> --ticket <id> --blocked-by <blocker-ids...> --author <author>` to record each dependency; omit `--blocked-by` when there are no blockers. Keep the approved spec and feature ledger authoritative.
+   - For an external ticket tracker, create one ticket per approved ticket in dependency order and use native blocking relationships when available; otherwise record blockers in each ticket. If the source was an existing ticket, create sub-tickets as required by the tracker.
+   - Apply a status only when the project documents it or the user requests it. Do not close or modify a parent ticket.
+   - Publishing ends here. Tell the user that delivery begins through the project's documented implementation workflow; do not start implementation.
 
-</vertical-slice-rules>
-
-Give each ticket its **blocking edges**: the other tickets that must complete before it can start. A ticket with no blockers can start immediately.
-
-**Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
-
-### 4. Quiz the user
-
-Present the proposed breakdown as a numbered list. For each ticket, show:
-
-- **Title**: short descriptive name
-- **Blocked by**: which other tickets (if any) must complete first
-- **What it delivers**: the end-to-end behaviour this ticket makes work
-
-Ask the user:
-
-- Does the granularity feel right? (too coarse / too fine)
-- Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
-- Should any tickets be merged or split further?
-
-Iterate until the user approves the breakdown.
-
-### 5. Publish the tickets to the configured tracker
-
-Publish the approved tickets. **How** depends on the tracker `/spindle-project-setup` configured; the tickets are the same either way, only the shape of the blocking edges changes:
-
-- **Local files** → write one file per ticket under `.scratch/YYYY-MM-DD-<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Use the source spec's existing dated directory; for a new feature, choose its directory using the configured tracker's creation-date naming rule. Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
-- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. If the source was an existing issue, make each ticket its sub-issue (tracker doc's operation). Apply the `ready-for-agent` triage label unless instructed otherwise; the tickets are agent-grabbable by construction.
-
-Publishing ends here; do not start implementation. Delivery starts through `sdd-implement-spec`, which assigns the complete graph to `int-subagent-driven-dev`; it picks up each ticket once every blocker is `Execution: integrated`.
-
-Do NOT close or modify any parent issue.
-
-<local-ticket-template>
-
-# <NN>: <Ticket title>
-
-**What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective, not a layer-by-layer implementation list.
-
-**Blocked by:** the numbers/titles of the tickets that gate this one, or "None (can start immediately)".
-
-**Status:** ready-for-agent
-
-- [ ] Acceptance criterion 1
-- [ ] Acceptance criterion 2
-
-Checklist key: `- [ ]` Not started; `- [X]` Complete; `- [-]` In progress; `- [S]` Skipped.
-
-## Comments
-
-</local-ticket-template>
-
-<issue-template>
-
-## Parent
-
-A reference to the parent issue on the tracker (if the source was an existing issue, otherwise omit this section).
-
-## What to build
-
-The end-to-end behaviour this ticket makes work, from the user's perspective, not layer-by-layer implementation.
-
-## Acceptance criteria
-
-- [ ] Criterion 1
-- [ ] Criterion 2
-
-## Blocked by
-
-- A reference to each blocking ticket, or "None (can start immediately)". Omit this section when blockers were set as native edges.
-
-</issue-template>
-
-In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
+   **Complete when:** every approved ticket exists in the configured tracker with its acceptance criteria and blockers, and no implementation work has started.

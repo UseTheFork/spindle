@@ -15,7 +15,7 @@ async function put(path: string, value: string) {
 async function assets() {
   const blueprints = await makeTempDir("guidance-blueprints-");
   const templates = await makeTempDir("guidance-templates-");
-  await cp(join(repoRoot, "src/Assets/Templates"), templates, { recursive: true });
+  await cp(join(repoRoot, "assets/Templates"), templates, { recursive: true });
   writeCatalogFixture(blueprints, {
     agents: {},
     instructions: {},
@@ -69,11 +69,15 @@ test("update renders and replaces project guidance and initializes missing tooli
     ratifiedConstitution,
   );
   const config = JSON.parse(await readFile(join(github, "spindle.json"), "utf8"));
-  expect(config).toEqual({
+  expect(config).toMatchObject({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
     custom: true,
     tooling: [],
+    commit: { title_max_length: 72 },
+    $schema: expect.stringMatching(
+      /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+    ),
   });
   const guide = await readFile(join(project, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("## Spindle\n\n- `spindle init`");
@@ -126,7 +130,13 @@ test("update preserves a valid registry and rejects reserved registry keys befor
   await put(path, raw);
   const result = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", env);
   expect(result.status, result.stderr).toBe(0);
-  expect(await readFile(path, "utf8")).toBe(raw);
+  expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
+    ...JSON.parse(raw),
+    commit: { title_max_length: 72 },
+    $schema: expect.stringMatching(
+      /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
+    ),
+  });
   const guide = await readFile(join(project, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("## Testing\n\n- `pnpm test`");
 

@@ -181,9 +181,6 @@ export class ReviewService extends Service {
     execution: "reviewing";
     assignments: ReviewAssignment[];
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     validateAuthor(options.author);
@@ -229,12 +226,7 @@ export class ReviewService extends Service {
 
       const ticketWorkspace = this.gitEvidence.ticketWorkspace(progress);
       this.gitEvidence.assertTicketCodeCommitted(progress);
-      const identity = this.gitEvidence.contentIdentity(
-        feature,
-        ticket,
-        progress.baseSha,
-        progress.checks,
-      );
+      const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const reviewCheckBlockers = this.checkPolicy.reviewCheckBlockers(
         feature,
         ticket,
@@ -281,18 +273,16 @@ export class ReviewService extends Service {
                   assignment.attempt !== attempt.number ||
                   assignment.agent !== requiredReviewers[index]?.agent ||
                   assignment.objective !== requiredReviewers[index]?.details ||
-                  assignment.snapshot !== identity.snapshot ||
-                  assignment.codeSnapshot !== identity.codeSnapshot ||
-                  assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
+                  assignment.headSha !== identity.headSha ||
                   JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
               )
             ) {
               throw new Error(
-                "The frozen corrective review assignment no longer matches the current ticket snapshot.",
+                "The frozen corrective review assignment no longer matches the current ticket commit.",
               );
             }
             for (const assignment of correctionAssignments) {
-              const blocker = this.reviewPolicy.reviewSnapshotBlocker(
+              const blocker = this.reviewPolicy.reviewCommitBlocker(
                 feature,
                 progress,
                 assignment,
@@ -331,9 +321,6 @@ export class ReviewService extends Service {
               scope: "corrective" as const,
               attempt: attempt.number,
               ...(details ? { objective: details } : {}),
-              snapshot: identity.snapshot,
-              codeSnapshot: identity.codeSnapshot,
-              requirementsSnapshot: identity.requirementsSnapshot,
               headSha: identity.headSha,
               ...(progress.worktree
                 ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
@@ -345,19 +332,17 @@ export class ReviewService extends Service {
             };
           });
           attempt.reviewAssignments = assignments;
-          const confirmedIdentity = this.gitEvidence.contentIdentity(
+          const confirmedIdentity = this.gitEvidence.commitIdentity(
             feature,
             this.ticketRepository.requireTicket(
               this.ticketRepository.readTickets(feature.workspace),
               ticketId,
             ),
             progress.baseSha,
-            progress.checks,
           );
           this.gitEvidence.assertTicketCodeCommitted(progress);
           if (
-            confirmedIdentity.snapshot !== identity.snapshot ||
-            (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
+            confirmedIdentity.headSha !== identity.headSha ||
             JSON.stringify(this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace)) !==
               JSON.stringify(inventory)
           ) {
@@ -366,14 +351,11 @@ export class ReviewService extends Service {
               "Ticket content changed while freezing corrective review; retry with a fresh inventory.",
             );
           }
-          const assignmentSummary = assignments
-            .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
-            .join("; ");
           const afterTicket = matter.stringify(
             this.ticketRepository.appendAudit(
               ticket.body,
               options.author,
-              `Corrective review assignments for attempt ${attempt.number} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
+              `Corrective review assignments for attempt ${attempt.number} recorded for ${identity.headSha}.`,
             ),
             this.ticketRepository.metadata(ticket),
           );
@@ -398,7 +380,6 @@ export class ReviewService extends Service {
         existing.every((assignment) => assignment.status === "submitted") &&
         existing.some(
           (assignment) =>
-            assignment.snapshot !== identity.snapshot ||
             assignment.headSha !== identity.headSha ||
             JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
         )
@@ -415,18 +396,16 @@ export class ReviewService extends Service {
             (assignment, index) =>
               assignment.agent !== requiredReviewers[index]?.agent ||
               assignment.objective !== requiredReviewers[index]?.details ||
-              assignment.snapshot !== identity.snapshot ||
-              assignment.codeSnapshot !== identity.codeSnapshot ||
-              assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
+              assignment.headSha !== identity.headSha ||
               JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
           )
         ) {
           throw new Error(
-            "The frozen review assignment no longer matches the current ticket snapshot.",
+            "The frozen review assignment no longer matches the current ticket commit.",
           );
         }
         for (const assignment of existing) {
-          const blocker = this.reviewPolicy.reviewSnapshotBlocker(
+          const blocker = this.reviewPolicy.reviewCommitBlocker(
             feature,
             progress,
             assignment,
@@ -454,16 +433,24 @@ export class ReviewService extends Service {
         if (lstatIfPresent(report)) {
           throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
         }
+        const priorReview = [...(progress.reviewHistory ?? [])]
+          .reverse()
+          .find((assignment) => assignment.agent === agent && assignment.objective === details);
+        const reworkBaseSha =
+          priorReview &&
+          priorReview.status === "submitted" &&
+          priorReview.result !== "unavailable" &&
+          !this.reviewPolicy.reviewReportIntegrityBlocker(feature, priorReview)
+            ? priorReview.headSha
+            : undefined;
         return {
           id,
           agent,
           role: "review" as const,
           scope: "initial" as const,
           ...(details ? { objective: details } : {}),
-          snapshot: identity.snapshot,
-          codeSnapshot: identity.codeSnapshot,
-          requirementsSnapshot: identity.requirementsSnapshot,
           headSha: identity.headSha,
+          ...(reworkBaseSha ? { reworkBaseSha } : {}),
           ...(progress.worktree
             ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
             : {}),
@@ -478,11 +465,10 @@ export class ReviewService extends Service {
         this.ticketRepository.readTickets(feature.workspace),
         ticketId,
       );
-      const confirmedIdentity = this.gitEvidence.contentIdentity(
+      const confirmedIdentity = this.gitEvidence.commitIdentity(
         feature,
         confirmedTicket,
         progress.baseSha,
-        progress.checks,
       );
       this.gitEvidence.assertTicketCodeCommitted(progress);
       const confirmedCurrentInventory = this.gitEvidence.changedPaths(
@@ -490,8 +476,7 @@ export class ReviewService extends Service {
         ticketWorkspace,
       );
       if (
-        confirmedIdentity.snapshot !== identity.snapshot ||
-        (progress.worktree && confirmedIdentity.headSha !== identity.headSha) ||
+        confirmedIdentity.headSha !== identity.headSha ||
         JSON.stringify(confirmedCurrentInventory) !== JSON.stringify(inventory)
       ) {
         throw new Error(
@@ -499,14 +484,11 @@ export class ReviewService extends Service {
         );
       }
       progress.reviewAssignments = assignments;
-      const assignmentSummary = assignments
-        .map((assignment) => `${assignment.agent} (${assignment.id}) -> ${assignment.report}`)
-        .join("; ");
       const afterTicket = matter.stringify(
         this.ticketRepository.appendAudit(
           ticket.body,
           options.author,
-          `Initial review assignment${assignments.length === 1 ? "" : "s"} recorded: ${assignmentSummary}. Inventory and snapshot are frozen.`,
+          `Initial review assignment${assignments.length === 1 ? "" : "s"} recorded for ${identity.headSha}.`,
         ),
         this.ticketRepository.metadata(ticket),
       );
@@ -525,9 +507,6 @@ export class ReviewService extends Service {
     execution: "reviewing";
     assignments: ReviewAssignment[];
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
@@ -583,8 +562,8 @@ export class ReviewService extends Service {
         throw new Error("Delivery correction is paused for adjudication.");
       }
       delivery.owner = options.author.trim();
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
-      const blockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
+      const identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
+      const blockers = this.checkPolicy.deliveryCheckBlockers(feature, tickets, delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
       const baseline = delivery.baseSha;
       if (!baseline) {
@@ -615,14 +594,12 @@ export class ReviewService extends Service {
               assignment.attempt === correctionNumber &&
               assignment.agent === required[index]?.agent &&
               assignment.objective === required[index]?.details &&
-              assignment.snapshot === identity.snapshot &&
-              assignment.codeSnapshot === identity.codeSnapshot &&
-              assignment.requirementsSnapshot === identity.requirementsSnapshot &&
+              assignment.headSha === identity.headSha &&
               JSON.stringify(assignment.inventory) === JSON.stringify(inventory),
           )
         ) {
           for (const assignment of existing) {
-            const blocker = this.reviewPolicy.reviewSnapshotBlocker(
+            const blocker = this.reviewPolicy.reviewCommitBlocker(
               feature,
               delivery,
               assignment,
@@ -665,9 +642,6 @@ export class ReviewService extends Service {
           scope: "delivery" as const,
           ...(correctionNumber ? { attempt: correctionNumber } : {}),
           ...(details ? { objective: details } : {}),
-          snapshot: identity.snapshot,
-          codeSnapshot: identity.codeSnapshot,
-          requirementsSnapshot: identity.requirementsSnapshot,
           headSha: identity.headSha,
           inventory,
           report,
@@ -689,13 +663,13 @@ export class ReviewService extends Service {
         author: options.author.trim(),
         action: "aggregate-review-dispatched",
       });
-      const confirmed = this.gitEvidence.deliveryIdentity(
+      const confirmed = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
       if (
-        confirmed.snapshot !== identity.snapshot ||
+        confirmed.headSha !== identity.headSha ||
         JSON.stringify(this.gitEvidence.changedPaths(baseline)) !== JSON.stringify(inventory)
       ) {
         delivery.reviewAssignments = [];

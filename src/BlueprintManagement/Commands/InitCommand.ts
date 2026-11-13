@@ -14,12 +14,15 @@ import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
 import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import {
-  LoadProjectConfiguration,
-  type ProjectConfigurationData,
-} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { promptCommitSettings } from "@/Settings/Commands/Prompts";
+import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import {
+  ProjectSettingsService,
+  type ProjectSettingsData,
+} from "@/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@/Support/Stacks";
 
 export interface InitResult {
@@ -70,7 +73,7 @@ export class InitCommand extends Command {
 If Blueprint stacks are already configured, project guidance is initialized and
 \`spindle update\` is required to change the installed Blueprints.
 Prompts are also disabled when stdin or stdout is not a terminal.
-Other commands: update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
+Other commands: settings (see \`spindle settings --help\`), update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
 `,
       )
@@ -156,7 +159,7 @@ Run \`spindle --version\` to print the installed version.
     policy: ConflictPolicy | undefined,
   ): Promise<InitResult> {
     this.assertApplicationBooted();
-    const existing = LoadProjectConfiguration.current(this.app);
+    const existing = ProjectSettingsService.current(this.app);
     if (existing.status === "invalid") {
       throw new Error(existing.reason, { cause: existing.error });
     }
@@ -190,23 +193,27 @@ Run \`spindle --version\` to print the installed version.
       );
     }
     spindlePackageManager = InitCommand.normalizeSpindlePackageManager(spindlePackageManager);
+    const commit = interactive
+      ? await promptCommitSettings(existing.status === "valid" ? existing.data.commit : undefined)
+      : ((existing.status === "valid" ? existing.data.commit : undefined) ?? defaultCommitSettings);
 
-    const config: ProjectConfigurationData = {
+    const settings: ProjectSettingsData = projectSettingsSchema.parse({
       ...(existing.status === "valid" ? existing.data : {}),
+      $schema: ProjectSettingsSchema.schemaUrl(),
       stacks,
       spindle_package_manager: spindlePackageManager,
-    };
-    delete config.variables;
+      commit,
+    });
     const project = await this.app.make(ProjectService);
-    const guidance = await project.prepare(config);
+    const guidance = await project.prepare(settings);
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "init",
       context: { stacks, variables: {} },
-      config,
+      settings,
       conflictPolicy: policy,
       chooseConflict: interactive ? promptConflict : undefined,
     });
-    await LoadProjectConfiguration.refresh(this.app);
+    await ProjectSettingsService.refresh(this.app);
     try {
       await project.apply(guidance);
     } catch (error) {

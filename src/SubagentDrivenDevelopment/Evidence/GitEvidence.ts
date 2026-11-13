@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, readlinkSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import matter from "gray-matter";
@@ -7,15 +6,13 @@ import matter from "gray-matter";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
-import type { TicketChecks, ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
-  DeliveryProgress,
   FeaturePaths,
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { isSafeCoveragePath } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 
@@ -85,70 +82,6 @@ export class GitEvidence extends Service {
       }
     }
     return paths;
-  }
-
-  public worktreeContentDigest(paths: string[], workspace?: string): string {
-    const records = paths.map((path) => {
-      const location = join(workspace ?? this.app.workspaceRoot, path);
-      const entry = lstatIfPresent(location);
-      if (!entry) return [path, "deleted", ""];
-      if (entry.isSymbolicLink()) {
-        return [path, "120000", readlinkSync(location)];
-      }
-      if (!entry.isFile()) {
-        throw new Error(`Accepted path '${path}' is not a regular file or symlink.`);
-      }
-      const mode = entry.mode & 0o111 ? "100755" : "100644";
-      return [path, mode, readFileSync(location).toString("base64")];
-    });
-    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
-  }
-
-  public gitTreeContentDigest(commitSha: string, paths: string[]): string {
-    const records = paths.map((path) => {
-      const entries = this.gitBuffer(["ls-tree", "-z", commitSha, "--", `:(literal)${path}`])
-        .toString("utf8")
-        .split("\0")
-        .filter(Boolean);
-      const exact = entries
-        .map((entry) => {
-          const [metadata, treePath] = entry.split("\t", 2);
-          const [mode, type, object] = (metadata ?? "").split(" ");
-          return treePath === path && mode && type === "blob" && object
-            ? { mode, object }
-            : undefined;
-        })
-        .find((entry) => entry !== undefined);
-      if (!exact) return [path, "deleted", ""];
-      const content = this.gitBuffer(["cat-file", "blob", exact.object]).toString("base64");
-      return [path, exact.mode, content];
-    });
-    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
-  }
-
-  public gitIndexContentDigest(paths: string[]): string {
-    const records = paths.map((path) => {
-      const entries = this.gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`])
-        .toString("utf8")
-        .split("\0")
-        .filter(Boolean);
-      if (entries.length !== 1) return [path, "invalid-index-entry", ""];
-      const separator = entries[0]!.indexOf("\t");
-      if (separator < 0 || entries[0]!.slice(separator + 1) !== path) {
-        return [path, "invalid-index-entry", ""];
-      }
-      const [mode, object, stage] = entries[0]!.slice(0, separator).split(" ");
-      if (
-        stage !== "0" ||
-        !object ||
-        (mode !== "100644" && mode !== "100755" && mode !== "120000")
-      ) {
-        return [path, "invalid-index-entry", ""];
-      }
-      const content = this.gitBuffer(["cat-file", "blob", object]).toString("base64");
-      return [path, mode, content];
-    });
-    return createHash("sha256").update(JSON.stringify(records)).digest("hex");
   }
 
   public cleanDispatchBaseline(feature: FeaturePaths, allowPendingRecords = false): string {
@@ -265,14 +198,12 @@ export class GitEvidence extends Service {
     return head;
   }
 
-  public contentIdentity(
+  public commitIdentity(
     feature: FeaturePaths,
     ticket: TicketDocument,
     baseSha?: string,
-    checks?: TicketChecks,
-    coveredPaths?: string[],
     workspace?: string,
-  ): ContentIdentity {
+  ): CommitIdentity {
     const progress = this.ledgerRepository
       .readLedger(feature)
       .tickets.find((item) => item.id === ticket.id);
@@ -281,140 +212,191 @@ export class GitEvidence extends Service {
       (progress ? this.ticketWorkspace(progress) : undefined) ??
       realpathSync(this.app.workspaceRoot);
     const headSha = this.headSha(root);
-    const changedPaths = this.changedPaths(baseSha ?? headSha, root);
-    const paths = new Set(coveredPaths ?? changedPaths);
-    if (coveredPaths) {
-      for (const path of paths) {
-        if (!isSafeCoveragePath(path) || !isPathInside(root, resolve(root, path))) {
-          throw new Error(`Unsafe path in content identity scope: ${path}.`);
-        }
-      }
-    }
-    const code = createHash("sha256");
-    code.update("spindle-code-snapshot-v2\0");
-    const field = (tag: string, value: Buffer | string) => {
-      const tagBytes = Buffer.from(tag);
-      const valueBytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
-      const tagLength = Buffer.alloc(4);
-      tagLength.writeUInt32BE(tagBytes.length);
-      const valueLength = Buffer.alloc(8);
-      valueLength.writeBigUInt64BE(BigInt(valueBytes.length));
-      code.update(tagLength);
-      code.update(tagBytes);
-      code.update(valueLength);
-      code.update(valueBytes);
-    };
-    for (const path of [...paths].sort()) {
-      field("record", "path");
-      field("path", path);
-      field(
-        "index-stage",
-        this.gitBuffer(["ls-files", "--stage", "-z", "--", `:(literal)${path}`], root),
-      );
-      const indexed = this.git.run(["show", `:${path}`], {
-        cwd: root,
-        encoding: "buffer",
-        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
-      });
-      if (indexed.error) throw indexed.error;
-      field("index-state", indexed.status === 0 ? "present" : "absent");
-      if (indexed.status === 0) field("index-content", indexed.stdout);
-      const pathOnDisk = join(root, path);
-      const entry = lstatIfPresent(pathOnDisk);
-      if (!entry) {
-        field("worktree-state", "deleted");
-      } else {
-        field("worktree-mode", String(entry.mode & 0o777));
-        if (entry.isSymbolicLink()) {
-          field("worktree-type", "symlink");
-          field("worktree-target", readlinkSync(pathOnDisk));
-        } else if (entry.isFile()) {
-          field("worktree-type", "file");
-          field("worktree-content", readFileSync(pathOnDisk));
-        } else if (entry.isDirectory()) {
-          throw new Error(
-            `Cannot compute code identity for nested repository or worktree '${path}'; directory worktrees are unsupported.`,
-          );
-        } else {
-          throw new Error(
-            `Cannot compute code identity for unsupported non-file worktree path '${path}'.`,
-          );
-        }
-      }
-    }
-    const codeSnapshot = code.digest("hex");
-    const requirementParts = [
-      readFileSync(feature.spec, "utf8"),
-      this.ticketRequirements(ticket.raw),
-      checks?.required ?? [],
-    ];
-    const requirementsSnapshot = createHash("sha256")
-      .update(JSON.stringify(requirementParts))
-      .digest("hex");
-    const snapshot = createHash("sha256")
-      .update(
-        JSON.stringify(
-          progress?.worktree && root === progress.worktree.workspace
-            ? [codeSnapshot, requirementsSnapshot, headSha]
-            : [codeSnapshot, requirementsSnapshot],
-        ),
-      )
-      .digest("hex");
-    if (this.headSha(root) !== headSha) {
-      throw new Error("Git HEAD changed while computing content evidence.");
+    if (baseSha && this.headSha(root) !== headSha) {
+      throw new Error("Git HEAD changed while reading commit evidence.");
     }
     if (progress?.worktree && root === progress.worktree.workspace) {
       this.ticketWorkspace(progress);
     }
-    return { snapshot, codeSnapshot, requirementsSnapshot, headSha };
+    return { headSha };
   }
 
-  public deliveryIdentity(
+  public deliveryCommitIdentity(
     feature: FeaturePaths,
     ledger: FeatureLedger,
     tickets: TicketDocument[],
-  ): ContentIdentity {
+  ): CommitIdentity {
     if (tickets.length === 0) throw new Error("Aggregate evidence requires at least one ticket.");
     const delivery = ledger.delivery;
     delivery.baseSha ??= ledger.tickets.find((progress) => progress.baseSha)?.baseSha;
     if (!delivery.baseSha) {
       throw new Error("Aggregate evidence requires the first ticket's recorded Git baseline.");
     }
-    const codeIdentity = this.contentIdentity(
-      feature,
-      tickets[0]!,
-      delivery.baseSha,
-      undefined,
-      undefined,
-      realpathSync(this.app.workspaceRoot),
+    const root = realpathSync(this.app.workspaceRoot);
+    this.assertCommittedCode(root);
+    const headSha = this.headSha(root);
+    this.assertCommittedRequirements(feature, tickets, headSha);
+    return { headSha };
+  }
+
+  public assertCommittedRequirements(
+    feature: FeaturePaths,
+    tickets: Pick<TicketDocument, "id" | "path">[],
+    commitSha: string,
+  ): void {
+    const root = realpathSync(this.app.workspaceRoot);
+    const specPath = relative(root, feature.spec);
+    const canonicalSpec = this.gitBuffer(["show", `${commitSha}:${specPath}`], root).toString(
+      "utf8",
     );
-    const requirementsSnapshot = createHash("sha256")
-      .update(
-        JSON.stringify([
-          readFileSync(feature.spec, "utf8"),
-          tickets.map((ticket) => [
-            ticket.id,
-            ticket.title,
-            ticket.reporter,
-            ticket.category,
-            ticket.status,
-            ticket.blocked_by,
-            ticket.blocker,
-            this.ticketRequirements(ticket.raw),
-          ]),
-          (delivery.checks?.required ?? []).filter((requirement) => !requirement.removedAt),
-        ]),
-      )
-      .digest("hex");
-    const snapshot = createHash("sha256")
-      .update(JSON.stringify([codeIdentity.codeSnapshot, requirementsSnapshot]))
-      .digest("hex");
-    return {
-      snapshot,
-      codeSnapshot: codeIdentity.codeSnapshot,
-      requirementsSnapshot,
-      headSha: codeIdentity.headSha,
-    };
+    if (canonicalSpec !== readFileSync(feature.spec, "utf8")) {
+      throw new Error(
+        "The feature spec has uncommitted changes; commit requirements before review.",
+      );
+    }
+    for (const ticket of tickets) {
+      const path = relative(root, ticket.path);
+      const committed = this.gitBuffer(["show", `${commitSha}:${path}`], root).toString("utf8");
+      if (
+        this.ticketRequirements(committed) !==
+        this.ticketRequirements(readFileSync(ticket.path, "utf8"))
+      ) {
+        throw new Error(
+          `Ticket ${ticket.id} requirements have uncommitted changes; commit them before review.`,
+        );
+      }
+    }
+  }
+
+  public assertTicketRequirementsCurrent(
+    feature: FeaturePaths,
+    ticket: Pick<TicketDocument, "id" | "path">,
+    ticketCommit: string,
+    ticketWorkspace: string,
+  ): void {
+    const featureHead = this.headSha(realpathSync(this.app.workspaceRoot));
+    const root = realpathSync(this.app.workspaceRoot);
+    const featureSpecPath = relative(root, feature.spec);
+    const ticketPath = relative(root, ticket.path);
+    const canonicalSpec = this.gitBuffer(
+      ["show", `${featureHead}:${featureSpecPath}`],
+      root,
+    ).toString("utf8");
+    const ticketSpec = this.gitBuffer(
+      ["show", `${ticketCommit}:${featureSpecPath}`],
+      ticketWorkspace,
+    ).toString("utf8");
+    const canonicalTicket = this.gitBuffer(["show", `${featureHead}:${ticketPath}`], root).toString(
+      "utf8",
+    );
+    const branchTicket = this.gitBuffer(
+      ["show", `${ticketCommit}:${ticketPath}`],
+      ticketWorkspace,
+    ).toString("utf8");
+    if (
+      canonicalSpec !== ticketSpec ||
+      this.ticketRequirements(canonicalTicket) !== this.ticketRequirements(branchTicket)
+    ) {
+      throw new Error(
+        `Ticket ${ticket.id} does not contain the current committed requirements; update and commit the requirements before review.`,
+      );
+    }
+  }
+
+  public commitPreservesInputs(
+    feature: FeaturePaths,
+    ticket: Pick<TicketDocument, "id" | "path">,
+    fromSha: string,
+    toSha: string,
+    workspace: string,
+  ): boolean {
+    if (fromSha === toSha) return true;
+    const ancestor = this.git.run(["merge-base", "--is-ancestor", fromSha, toSha], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    if (ancestor.error) throw ancestor.error;
+    if (ancestor.status === 1) return false;
+    if (ancestor.status !== 0) {
+      throw new Error(`Cannot validate commit ancestry: ${ancestor.stderr.trim()}`);
+    }
+    const changes = this.changedPathsBetween(fromSha, toSha, workspace);
+    if (changes.length > 0) return false;
+    return this.requirementsMatchAtCommits(feature, ticket, fromSha, toSha, workspace);
+  }
+
+  public changedPathsBetween(fromSha: string, toSha: string, workspace: string): string[] {
+    return this.gitBuffer(
+      ["diff", "--name-only", "-z", "--no-renames", fromSha, toSha, "--", "."],
+      workspace,
+    )
+      .toString("utf8")
+      .split("\0")
+      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+  }
+
+  public requirementsMatchAtCommits(
+    feature: FeaturePaths,
+    ticket: Pick<TicketDocument, "id" | "path">,
+    fromSha: string,
+    toSha: string,
+    workspace: string,
+  ): boolean {
+    const root = realpathSync(this.app.workspaceRoot);
+    const specPath = relative(root, feature.spec);
+    const ticketPath = relative(root, ticket.path);
+    const requirementsAt = (sha: string) => [
+      this.gitBuffer(["show", `${sha}:${specPath}`], workspace).toString("utf8"),
+      this.ticketRequirements(
+        this.gitBuffer(["show", `${sha}:${ticketPath}`], workspace).toString("utf8"),
+      ),
+    ];
+    return JSON.stringify(requirementsAt(fromSha)) === JSON.stringify(requirementsAt(toSha));
+  }
+
+  public deliveryInputsPreserved(
+    feature: FeaturePaths,
+    fromSha: string,
+    toSha: string,
+    workspace: string,
+  ): boolean {
+    if (fromSha === toSha) return true;
+    const ancestor = this.git.run(["merge-base", "--is-ancestor", fromSha, toSha], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    if (ancestor.error) throw ancestor.error;
+    if (ancestor.status === 1) return false;
+    if (ancestor.status !== 0) {
+      throw new Error(`Cannot validate commit ancestry: ${ancestor.stderr.trim()}`);
+    }
+    if (this.changedPathsBetween(fromSha, toSha, workspace).length) {
+      return false;
+    }
+    return this.deliveryRequirementsMatchAtCommits(feature, fromSha, toSha, workspace);
+  }
+
+  public deliveryRequirementsMatchAtCommits(
+    feature: FeaturePaths,
+    fromSha: string,
+    toSha: string,
+    workspace: string,
+  ): boolean {
+    const root = realpathSync(this.app.workspaceRoot);
+    const specPath = relative(root, feature.spec);
+    const ticketPaths = readdirSync(join(feature.workspace, "tickets"))
+      .filter((path) => path.endsWith(".md"))
+      .sort()
+      .map((path) => relative(root, join(feature.workspace, "tickets", path)));
+    const inputsAt = (sha: string) => [
+      this.gitBuffer(["show", `${sha}:${specPath}`], workspace).toString("utf8"),
+      ...ticketPaths.map((path) =>
+        this.ticketRequirements(
+          this.gitBuffer(["show", `${sha}:${path}`], workspace).toString("utf8"),
+        ),
+      ),
+    ];
+    return JSON.stringify(inputsAt(fromSha)) === JSON.stringify(inputsAt(toSha));
   }
 
   public changedPaths(baseSha: string, workspace?: string): string[] {
@@ -594,16 +576,12 @@ export class GitEvidence extends Service {
   public assertTicketCodeCommitted(progress: TicketProgress): void {
     const workspace = this.ticketWorkspace(progress);
     if (!workspace) return;
-    const scratchDiff = this.gitBuffer(
-      ["diff", "--name-only", "--no-renames", "-z", progress.baseSha!, "HEAD", "--", ".scratch"],
-      workspace,
-    );
     const scratchStatus = this.gitBuffer(
       ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".scratch"],
       workspace,
     );
-    if (scratchDiff.length || scratchStatus.length) {
-      throw new Error("Ticket worktree must not modify .scratch; use canonical feature records.");
+    if (scratchStatus.length) {
+      throw new Error("Commit ticket requirements and keep workflow records clean before review.");
     }
     const changed = new Set<string>();
     for (const args of [
@@ -617,6 +595,23 @@ export class GitEvidence extends Service {
     }
     if (changed.size > 0)
       throw new Error(`Commit ticket code before review: ${[...changed].sort().join(", ")}.`);
+  }
+
+  public assertCommittedCode(workspace: string): void {
+    const changed = new Set<string>();
+    for (const args of [
+      ["diff", "--name-only", "--no-renames", "-z", "HEAD", "--", "."],
+      ["diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD", "--", "."],
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+    ]) {
+      for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
+        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+      }
+    }
+    if (changed.size > 0)
+      throw new Error(
+        `Commit code changes before checks or review: ${[...changed].sort().join(", ")}.`,
+      );
   }
 
   public headSha(workspace?: string): string {
@@ -673,35 +668,6 @@ export class GitEvidence extends Service {
       );
     }
     return status.stdout.trim();
-  }
-
-  public integrationPreservesEvidence(
-    progress: TicketProgress | DeliveryProgress,
-    identity: ContentIdentity,
-  ): boolean {
-    if (!("id" in progress)) return false;
-    const accepted = progress.acceptedEvidence;
-    if (
-      progress.execution !== "integrated" ||
-      !progress.integration ||
-      !accepted ||
-      !progress.baseSha ||
-      identity.requirementsSnapshot !== accepted.requirementsSnapshot
-    ) {
-      return false;
-    }
-    try {
-      const workspace = this.ticketWorkspace(progress);
-      return (
-        progress.integration.contentDigest === accepted.contentDigest &&
-        JSON.stringify(progress.integration.files) === JSON.stringify(accepted.files) &&
-        JSON.stringify(this.changedPaths(progress.baseSha!, workspace)) ===
-          JSON.stringify(accepted.files) &&
-        this.worktreeContentDigest(accepted.files, workspace) === accepted.contentDigest
-      );
-    } catch {
-      return false;
-    }
   }
 
   public assertSafeIntegrationChanges(

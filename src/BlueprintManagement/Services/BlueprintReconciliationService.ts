@@ -41,8 +41,8 @@ import type {
 } from "@/BlueprintManagement/Types/Reconciliation";
 import { readBlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
@@ -118,7 +118,6 @@ async function planReconciliation(
   blueprintNames: string[],
   sourceFilesByName: Map<string, PlannedBlueprintFile[]>,
   resolveContext: () => Promise<RenderContext | undefined>,
-  managed: Set<string>,
 ): Promise<ReconciliationPlan> {
   const { mode, githubDirectory } = options;
   const destinationDirectory = handler.destinationDirectory(githubDirectory);
@@ -134,26 +133,19 @@ async function planReconciliation(
       plan.push({ name, status: installed ? "conflict" : "install" });
       continue;
     }
-    if (installed && !managed.has(name)) {
-      plan.push({
-        name,
-        status: "warning",
-        warning: `Skipping ${handler.kind} '${name}': installed item is not managed by Spindle.`,
-      });
-      continue;
-    }
-
+    const planned = handler.planUpdate
+      ? await handler.planUpdate({
+          name,
+          sourceFiles: sourceFilesByName.get(name)!,
+          target,
+          installed: false,
+          resolveContext,
+        })
+      : { status: installed ? ("conflict" as const) : ("new" as const) };
     plan.push({
       name,
-      ...(handler.planUpdate
-        ? await handler.planUpdate({
-            name,
-            sourceFiles: sourceFilesByName.get(name)!,
-            target,
-            installed,
-            resolveContext,
-          })
-        : { status: installed ? "conflict" : "new" }),
+      ...planned,
+      status: installed ? "update" : planned.status,
     });
   }
 
@@ -324,13 +316,11 @@ async function performReconciliation(
 ): Promise<BlueprintOutcome[]> {
   const outcomes: BlueprintOutcome[] = [];
   let hasBlueprints = false;
-  const stacks = options.config?.stacks ?? options.context?.stacks ?? [];
+  const stacks = options.settings?.stacks ?? options.context?.stacks ?? [];
   const collections: {
     handler: BlueprintHandler;
     names: string[];
     files: Map<string, PlannedBlueprintFile[]>;
-    deletions: PlannedBlueprintDeletion[];
-    managed: Set<string>;
   }[] = [];
   const initializers: {
     handler: BlueprintHandler;
@@ -376,7 +366,7 @@ async function performReconciliation(
     if (handler.entryFile !== undefined || handler.fileTarget) {
       for (const name of names) await assertSingleFileDestination(targetPath(name));
     }
-    collections.push({ handler, names, files, deletions, managed: handlerPlan.managed });
+    collections.push({ handler, names, files });
   }
   const plannedRemovals = [
     ...deletionOperations.map(catalogRemovalOperation),
@@ -385,8 +375,7 @@ async function performReconciliation(
   for (const operation of plannedRemovals) {
     await validateRemovalTarget(options.githubDirectory, operation);
   }
-  if (!hasBlueprints) {
-    if (options.mode === "update") return outcomes;
+  if (!hasBlueprints && options.mode === "init") {
     throw new Error("No Blueprints are available to install.");
   }
   let contextService: Promise<ComputedContextService> | undefined;
@@ -397,8 +386,8 @@ async function performReconciliation(
     );
   };
   const plans: ReconciliationPlan[] = [];
-  for (const { handler, names, files, managed } of collections) {
-    plans.push(await planReconciliation(handler, options, names, files, resolveContext, managed));
+  for (const { handler, names, files } of collections) {
+    plans.push(await planReconciliation(handler, options, names, files, resolveContext));
   }
   const installing = plans.find((plan) => plan.willInstall);
   const needsContext =
@@ -476,11 +465,12 @@ async function performReconciliation(
     }
     preparedFilesByPlan.set(plan, preparedFilesByName);
   }
-  const configWrite =
-    options.mode === "init"
+  const settingsWrite =
+    options.mode === "init" ||
+    (options.mode === "update" && options.persistSettings && options.settings)
       ? {
           path: join(options.githubDirectory, "spindle.json"),
-          content: `${JSON.stringify(options.config, null, 2)}\n`,
+          content: `${JSON.stringify(options.settings, null, 2)}\n`,
         }
       : undefined;
   const preparedInitializers: {
@@ -558,14 +548,14 @@ async function performReconciliation(
         recordAppliedChange,
       )),
     );
-    if (configWrite !== undefined) {
+    if (settingsWrite !== undefined) {
       try {
         await mkdir(options.githubDirectory, { recursive: true });
-        await writeFile(configWrite.path, configWrite.content);
-        recordAppliedChange("wrote Config '.github/spindle.json'");
+        await writeFile(settingsWrite.path, settingsWrite.content);
+        recordAppliedChange("wrote Project Settings '.github/spindle.json'");
       } catch (error) {
         throw new Error(
-          `Failed to write Config '${configWrite.path}': ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to write Project Settings '${settingsWrite.path}': ${error instanceof Error ? error.message : String(error)}`,
           { cause: error },
         );
       }
@@ -610,14 +600,14 @@ export class BlueprintReconciliationService extends Service {
           ...options,
           app: this.app,
           githubDirectory: this.app.workspacePath(".github"),
-          blueprintSourceRoot: this.app.appPath("Assets/Blueprints"),
+          blueprintSourceRoot: this.app.assetsPath("Blueprints"),
         },
         this.installationService,
       );
-    if (options.mode === "init") {
-      return LoadProjectConfiguration.withTemporaryState(
+    if (options.settings !== undefined) {
+      return ProjectSettingsService.withTemporaryState(
         this.app,
-        { status: "valid", data: options.config },
+        { status: "valid", data: options.settings },
         perform,
       );
     }

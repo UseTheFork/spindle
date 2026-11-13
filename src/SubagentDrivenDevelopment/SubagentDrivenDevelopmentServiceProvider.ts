@@ -404,7 +404,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     );
     this.app.singleton(
       FindingPolicy,
-      async (app) => new FindingPolicy(app, await app.make(ReviewPolicy)),
+      async (app) =>
+        new FindingPolicy(app, await app.make(GitEvidence), await app.make(ReviewPolicy)),
     );
     this.app.singleton(
       AcceptancePolicy,

@@ -53,7 +53,7 @@ test("init from a nested directory installs into the Git worktree root", async (
   expect(await readdir(nested)).toEqual([]);
 });
 
-test("update from a nested directory reads Config and reconciles at the Git worktree root", async () => {
+test("update from a nested directory reads Project Settings and reconciles at the Git worktree root", async () => {
   const project = await makeTempDir("spindle-git-root-update-");
   const blueprints = await makeTempDir("spindle-git-root-update-blueprints-");
 

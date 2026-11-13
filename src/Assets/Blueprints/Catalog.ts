@@ -47,6 +47,10 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
   },
   instructions: {
+    "commit-format": {
+      path: "commit-format.instructions.md",
+      stacks: [],
+    },
     "code-commenting": {
       path: "code-commenting.instructions.md",
       stacks: [],
@@ -57,6 +61,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
   },
   skills: {
+    "int-commit-format": { path: "int-commit-format/", stacks: [] },
     "ref-asd-ste100": { path: "ref-asd-ste100/", stacks: [] },
     "author-agent": { path: "author-agent/", stacks: [] },
     "sdd-author-design": { path: "sdd-author-design/", stacks: [] },
@@ -74,7 +79,8 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-codebase-design": { path: "int-codebase-design/", stacks: [] },
     "int-code-review": { path: "int-code-review/", stacks: [] },
     "int-code-slop-review": { path: "int-code-slop-review/", stacks: [] },
-    "int-domain-modeling": { path: "int-domain-modeling/", stacks: [] },
+    "int-ref-ears": { path: "int-ref-ears/", stacks: [] },
+    "ref-domain-modeling": { path: "ref-domain-modeling/", stacks: [] },
     "int-prototype": { path: "int-prototype/", stacks: [] },
     "int-retrospective": { path: "int-retrospective/", stacks: [] },
     "int-subagent-driven-dev": { path: "int-subagent-driven-dev/", stacks: [] },
@@ -95,6 +101,10 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "int-writing-instruction": { path: "int-writing-instruction/", stacks: [] },
     "int-writing-skills": { path: "int-writing-skills/", stacks: [] },
     retrospective: { path: "retrospective/", stacks: [] },
+    "ref-php-laravel-framework": {
+      path: "ref-php-laravel-framework/",
+      stacks: ["php-laravel"],
+    },
     "ref-php-laravel-saloon-api-integrations": {
       path: "ref-php-laravel-saloon-api-integrations/",
       stacks: ["php-laravel"],

@@ -31,7 +31,7 @@ Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and re
 
 Load and follow the `int-code-slop-review` skill and the `int-verification-before-completion` skill. Follow applicable repository instructions and approved project tooling.
 
-- Inspect requirements and the exact change, including supplied uncommitted and untracked files. A snapshot mismatch blocks approval; ask the controller to resolve it.
+- Inspect the committed requirements and exact assigned committed change. Uncommitted review-affecting changes or an inconsistent target block approval; ask the controller to resolve them. The workflow owns commit identity; do not copy, compare, or pass commit IDs by hand.
 - Read changed code and only enough surrounding context to show that a proposed simplification preserves required behavior and repository conventions.
 - For final aggregate mode, read `references/aggregate-review.md` in the `int-subagent-driven-dev` skill before inspecting changes. Initial task review does not load it.
 - Keep implementation files, index, HEAD, branches, and execution states unchanged. The edit tool is only for the assigned report; preserve prior report history. Use read-only inspection and checks that cannot mutate the reviewed checkout.
@@ -41,8 +41,8 @@ On entering each node, announce `Step <node ID> - <node label> (review <INITIAL_
 
 ```mermaid
 flowchart TD
-    A[Read assignment and requirements] --> B[Inspect exact snapshot]
-    B --> C{Snapshot matches?}
+    A[Read assignment and requirements] --> B[Inspect assigned committed target]
+    B --> C{Target consistent?}
     C -- No --> D[Report mismatch as unverified]
     C -- Yes --> E[Identify material code slop]
     E --> F[Verify behavior-preserving simplifications]
@@ -52,8 +52,8 @@ flowchart TD
 
 ## Report and hand-back
 
-Save `REPORT_PATH` with these sections in order: Findings (Important, Minor), Checks and Snapshot, and Assessment. Each finding needs file:line, evidence, impact, and a behavior-preserving simplification; use `None` for empty categories.
+Save `REPORT_PATH` with these sections in order: Findings (Important, Minor), Checks and Target, and Assessment. Each finding needs file:line, evidence, impact, and a behavior-preserving simplification; use `None` for empty categories.
 
-Record the exact reviewed snapshot, covered changes, evidence inspected, checks run, and limitations. Set `Code slop found?` to `Yes`, `No`, or `Unverified` with 1-2 sentences of reasoning. `No` means no concrete, material simplification was supported by the reviewed changes; a snapshot mismatch or insufficient evidence is `Unverified`, not a clean result.
+Reference the assigned committed target, covered changes, evidence inspected, checks run, and limitations. Set `Code slop found?` to `Yes`, `No`, or `Unverified` with 1-2 sentences of reasoning. `No` means no concrete, material simplification was supported by the reviewed changes; an inconsistent target or insufficient evidence is `Unverified`, not a clean result.
 
 Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

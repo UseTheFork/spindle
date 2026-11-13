@@ -11,4 +11,4 @@ metadata:
 Before acting, read and understand each required skill:
 
 - **REQUIRED:** `grill`
-- **REQUIRED:** `int-domain-modeling`
+- **REQUIRED:** `ref-domain-modeling`

@@ -6,9 +6,13 @@ import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import {
+  ProjectSettingsService,
+  type ProjectSettingsData,
+} from "@/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@/Support/Stacks";
 
 export interface UpdateResult {
@@ -25,7 +29,7 @@ export class UpdateCommand extends Command {
     program
       .command("update")
       .description(
-        `Re-render installed Blueprints (Skills, Agents, and Instructions) whose shipped version is newer.
+        `Re-render installed Blueprints (Skills, Agents, and Instructions).
 Reads stacks and the Spindle package-manager command from .github/spindle.json.
 Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes project guidance.`,
       )
@@ -33,7 +37,7 @@ Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes 
         "after",
         `
 Requires .github/spindle.json; run \`spindle init\` first.
-Unmanaged Blueprints are preserved.
+Catalog paths are overwritten, including local edits. Unrelated paths are preserved.
 `,
       )
       .allowExcessArguments(false)
@@ -69,17 +73,24 @@ Unmanaged Blueprints are preserved.
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(): Promise<UpdateResult> {
+  public async run(replacement?: ProjectSettingsData): Promise<UpdateResult> {
     this.assertApplicationBooted();
-    const config = LoadProjectConfiguration.require(
-      await LoadProjectConfiguration.refresh(this.app),
-    );
-    if (config.stacks.length === 0) {
+    const current = ProjectSettingsService.requireCurrent(this.app);
+    const state =
+      replacement === undefined
+        ? { status: "valid" as const, data: current.settings }
+        : ProjectSettingsService.parse(JSON.stringify(replacement));
+    const resolved = ProjectSettingsService.require(state);
+    const settings = projectSettingsSchema.parse({
+      ...resolved.settings,
+      $schema: ProjectSettingsSchema.schemaUrl(),
+    });
+    if (settings.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
       );
     }
-    const spindlePackageManager = config.config.spindle_package_manager;
+    const spindlePackageManager = settings.spindle_package_manager;
     if (spindlePackageManager === undefined) {
       throw new Error(
         'Missing "spindle_package_manager" in .github/spindle.json; add the preferred Spindle package-manager command before running `spindle update`.',
@@ -87,12 +98,13 @@ Unmanaged Blueprints are preserved.
     }
 
     const project = await this.app.make(ProjectService);
-    const guidance = await project.prepare(config.config, "update");
+    const guidance = await project.prepare(settings, "update");
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
-      config: config.config,
+      settings,
+      persistSettings: true,
       resolveContext: async () => ({
-        stacks: config.stacks,
+        stacks: settings.stacks,
         variables: {},
       }),
     });
@@ -110,7 +122,7 @@ Unmanaged Blueprints are preserved.
         { cause: error },
       );
     }
-    await LoadProjectConfiguration.refresh(this.app);
-    return { stacks: config.stacks, outcomes, guidanceInitialized: true };
+    await ProjectSettingsService.refresh(this.app);
+    return { stacks: settings.stacks, outcomes, guidanceInitialized: true };
   }
 }

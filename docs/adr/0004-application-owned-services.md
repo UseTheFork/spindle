@@ -51,7 +51,7 @@ bound `ToolingService` singleton. `ComputedContextService` is a transient Templa
 as established by [ADR-0009](./0009-shared-template-rendering.md).
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
-runs. Config, prompt answers, plans, and operational mutable state remain per-run.
+runs. Project Settings, prompt answers, plans, and operational mutable state remain per-run.
 Stateless utilities remain standalone functions, not artificial services.
 
 `FoundationServiceProvider` explicitly binds the ordinary, stateful
@@ -65,20 +65,21 @@ See [CLI output](../cli-output.md) for the stream and envelope contracts.
 is normalized to an absolute path and never changes. The workspace root is bound
 by bootstrap, not supplied as a constructor argument. The getter-only
 `workspaceRoot` accessor reads `path.workspace` and validates its value as a
-string. Blueprint assets derive from `appPath("Assets/Blueprints")` rather than a
+string. Blueprint assets derive from `assetsPath("Blueprints")` rather than a
 separately bound root. `basePath(path = "")` is a method using the immutable
 constructor base path, also bound under `path.base`. `workspacePath(path = "")` joins
 the discovered workspace root, throwing before it is bound. `appPath(path = "")`
 joins the module-relative installation directory (`src/` from source, `build/`
-when compiled), not the Git root. All delegate to `joinPaths(basePath, path = "")`,
+when compiled), not the Git root. `assetsPath(path = "")` joins the package's
+`assets/` directory in both source and compiled execution. All delegate to
+`joinPaths(basePath, path = "")`,
 which preserves the base for an empty suffix, replaces it for an absolute suffix,
 and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.
-Its initially empty mutable `config` is isolated between applications and available
+its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
-project's `.github/spindle.json` Config. [ADR-0005](./0005-subagent-development-boundaries.md)
-adds a distinct project-file snapshot bootstrapper without populating `app.config`;
-config consumers use the boot-bound snapshot and successful writes refresh it.
+project's `.github/spindle.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
+adds a distinct Project Settings snapshot bootstrap adapter without populating `app.config`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
 then queues its instance for boot. Providers receive getter-only application
@@ -104,7 +105,8 @@ flag false. An empty list succeeds without registering additional providers;
 the constructor-registered foundation provider is already queued.
 
 The ordinary `Kernel` defaults to the explicit ordered list
-`LoadConsoleArgs`, `DiscoverGitRoot`, `LoadProjectConfiguration`, `RegisterProviders`.
+`LoadConsoleArgs`, `DiscoverGitRoot`, `LoadProjectSettings`, `RequireProjectSettings`,
+`RegisterProviders`.
 Its protected list can be overridden without normalization.
 `boot(invocation)` supplies the validated invocation under `console.invocation`
 before bootstrap, then awaits application provider boot. Subsequent calls retain

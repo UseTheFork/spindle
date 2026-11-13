@@ -65,11 +65,8 @@ async function setup() {
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const first = ledger.tickets[0];
   const evidence = {
-    snapshot: "a".repeat(64),
-    codeSnapshot: "b".repeat(64),
-    requirementsSnapshot: "c".repeat(64),
+    commitSha: sha,
     files: ["source.ts"],
-    contentDigest: "d".repeat(64),
   };
   Object.assign(first, {
     status: "in-progress",
@@ -84,7 +81,6 @@ async function setup() {
       integratedAt: new Date().toISOString(),
       integratedBy: "controller",
       files: evidence.files,
-      contentDigest: evidence.contentDigest,
     },
   });
   ledger.tickets[1].blockedBy = ["T-0001"];
@@ -117,13 +113,11 @@ test("post-merge results freeze the complete list, preserve failures and close o
     "test two",
   ]);
   expect(require.status, require.stderr).toBe(0);
-  const snapshot = cliOutput(require).snapshot as string;
+  expect(cliOutput(require).headSha).toMatch(/^[0-9a-f]{40,64}$/);
   const pendingReady = await invokeAsync(root, ["ready", "--spec", spec]);
   expect(pendingReady.status, pendingReady.stderr).toBe(0);
   expect(cliOutput(pendingReady).ready).not.toContain("T-0002");
   const failed = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
     "--command",
     "test one",
     "--result",
@@ -135,25 +129,11 @@ test("post-merge results freeze the complete list, preserve failures and close o
   const frozen = await cli(root, spec, "require", ["--command", "test one"]);
   expect(frozen.status).not.toBe(0);
   expect(frozen.stderr).toContain("frozen");
-  const passed = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
-    "--command",
-    "test one",
-    "--result",
-    "passed",
-  ]);
+  const passed = await cli(root, spec, "record", ["--command", "test one", "--result", "passed"]);
   expect(passed.status, passed.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("in-progress");
-  const last = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
-    "--command",
-    "test two",
-    "--result",
-    "passed",
-  ]);
+  const last = await cli(root, spec, "record", ["--command", "test two", "--result", "passed"]);
   expect(last.status, last.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("closed");
@@ -184,15 +164,8 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(blocked.status, blocked.stderr).toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "test"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = cliOutput(declared).snapshot as string;
-  const recorded = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
-    "--command",
-    "test",
-    "--result",
-    "passed",
-  ]);
+  const firstCommit = cliOutput(declared).headSha as string;
+  const recorded = await cli(root, spec, "record", ["--command", "test", "--result", "passed"]);
   expect(recorded.status, recorded.stderr).toBe(0);
   const cleared = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
@@ -204,29 +177,20 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   );
   expect(cleared.status, cleared.stderr).toBe(0);
   writeFileSync(spec, `${readFileSync(spec, "utf8")}\nNew requirement.\n`);
+  const uncommitted = await cli(root, spec, "require", ["--command", "test"]);
+  expect(uncommitted.status).not.toBe(0);
+  expect(uncommitted.stderr).toMatch(/uncommitted changes/i);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].status).not.toBe("closed");
+  git(root, "add", ".scratch");
+  git(root, "commit", "-qm", "commit updated feature requirements");
   const retry = await cli(root, spec, "require", ["--command", "test"]);
   expect(retry.status, retry.stderr).toBe(0);
-  const outcome = cliOutput(retry) as {
-    snapshot: string;
-    closed: boolean;
-    closureBlocked: string[];
-    retry: string;
-  };
-  expect(outcome).toMatchObject({
+  expect(cliOutput(retry).headSha).not.toBe(firstCommit);
+  expect(cliOutput(retry)).toMatchObject({
     closed: false,
     closureBlocked: [expect.stringMatching(/stale/i)],
-    retry: expect.stringMatching(/record/i),
   });
-  expect(outcome.snapshot).not.toBe(snapshot);
-  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].status).not.toBe("closed");
-  const fresh = await cli(root, spec, "record", [
-    "--snapshot",
-    outcome.snapshot,
-    "--command",
-    "test",
-    "--result",
-    "passed",
-  ]);
+  const fresh = await cli(root, spec, "record", ["--command", "test", "--result", "passed"]);
   expect(fresh.status, fresh.stderr).toBe(0);
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("closed");
@@ -239,8 +203,7 @@ test("post-merge rejects unauthorized, dirty, stale and wrong-branch evidence", 
   expect(unauthorized.status).not.toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "test"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = cliOutput(declared).snapshot as string;
-  const args = ["--snapshot", snapshot, "--command", "test", "--result", "passed"];
+  const args = ["--command", "test", "--result", "passed"];
   writeFileSync(join(root, "dirty.ts"), "dirty");
   expect((await cli(root, spec, "record", args)).status).not.toBe(0);
   rmSync(join(root, "dirty.ts"));
@@ -248,7 +211,7 @@ test("post-merge rejects unauthorized, dirty, stale and wrong-branch evidence", 
   writeFileSync(spec, `${originalSpec}\nchanged requirements\n`);
   const stale = await cli(root, spec, "record", args);
   expect(stale.status).not.toBe(0);
-  expect(stale.stderr).toContain("stale");
+  expect(stale.stderr).toMatch(/uncommitted changes/i);
   writeFileSync(spec, originalSpec);
   git(root, "checkout", "-qb", "wrong-branch");
   expect((await cli(root, spec, "record", args)).status).not.toBe(0);
@@ -267,10 +230,8 @@ test("pending unavailable results survive interruption and changed feature state
   expect(duplicate.status).not.toBe(0);
   const declared = await cli(root, spec, "require", ["--command", "first", "--command", "second"]);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = cliOutput(declared).snapshot as string;
+  const declaredHeadSha = cliOutput(declared).headSha as string;
   const unavailable = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
     "--command",
     "first",
     "--result",
@@ -281,6 +242,8 @@ test("pending unavailable results survive interruption and changed feature state
   expect(unavailable.status, unavailable.stderr).toBe(0);
   const specContent = readFileSync(spec, "utf8");
   writeFileSync(spec, `${specContent}\nUpdated feature requirements.\n`);
+  git(root, "add", ".scratch");
+  git(root, "commit", "-qm", "commit updated requirements");
   const redeclared = await cli(root, spec, "require", [
     "--command",
     "first",
@@ -288,27 +251,13 @@ test("pending unavailable results survive interruption and changed feature state
     "second",
   ]);
   expect(redeclared.status, redeclared.stderr).toBe(0);
-  const fresh = cliOutput(redeclared).snapshot as string;
-  expect(fresh).not.toBe(snapshot);
-  const second = await cli(root, spec, "record", [
-    "--snapshot",
-    fresh,
-    "--command",
-    "second",
-    "--result",
-    "passed",
-  ]);
+  const fresh = cliOutput(redeclared).headSha as string;
+  expect(fresh).not.toBe(declaredHeadSha);
+  const second = await cli(root, spec, "record", ["--command", "second", "--result", "passed"]);
   expect(second.status, second.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("in-progress");
-  const first = await cli(root, spec, "record", [
-    "--snapshot",
-    fresh,
-    "--command",
-    "first",
-    "--result",
-    "passed",
-  ]);
+  const first = await cli(root, spec, "record", ["--command", "first", "--result", "passed"]);
   expect(first.status, first.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(
@@ -322,7 +271,7 @@ test("post-merge identity ignores independent ticket and report activity but tra
   const commands = ["--command", "first", "--command", "second"];
   const declared = await cli(root, spec, "require", commands);
   expect(declared.status, declared.stderr).toBe(0);
-  const snapshot = cliOutput(declared).snapshot as string;
+  const initialCommit = cliOutput(declared).headSha as string;
   const update = await execute(root, (services) =>
     services.ticketService.ticketUpdate({
       spec,
@@ -358,17 +307,10 @@ test("post-merge identity ignores independent ticket and report activity but tra
   writeFileSync(report, "Independent ticket report.\n");
   const unchanged = await cli(root, spec, "require", commands);
   expect(unchanged.status, unchanged.stderr).toBe(0);
-  expect(cliOutput(unchanged).snapshot).toBe(snapshot);
-  const first = await cli(root, spec, "record", [
-    "--snapshot",
-    snapshot,
-    "--command",
-    "first",
-    "--result",
-    "passed",
-  ]);
+  expect(cliOutput(unchanged).headSha).toBe(initialCommit);
+  const first = await cli(root, spec, "record", ["--command", "first", "--result", "passed"]);
   expect(first.status, first.stderr).toBe(0);
-  const args = ["--snapshot", snapshot, "--command", "second", "--result", "passed"];
+  const args = ["--command", "second", "--result", "passed"];
   const ticketPath = join(dirname(spec), "tickets", "T-0001.md");
   const ticket = readFileSync(ticketPath, "utf8");
   expect(ticket).toContain("## Requirements");
@@ -378,20 +320,31 @@ test("post-merge identity ignores independent ticket and report activity but tra
   );
   const ticketStale = await cli(root, spec, "record", args);
   expect(ticketStale.status).not.toBe(0);
-  expect(ticketStale.stderr).toContain("stale");
+  expect(ticketStale.stderr).toMatch(/uncommitted changes/i);
   writeFileSync(ticketPath, ticket);
   const originalSpec = readFileSync(spec, "utf8");
   writeFileSync(spec, `${originalSpec}\nNew feature requirement.\n`);
   const specStale = await cli(root, spec, "record", args);
   expect(specStale.status).not.toBe(0);
-  expect(specStale.stderr).toContain("stale");
+  expect(specStale.stderr).toMatch(/uncommitted changes/i);
   writeFileSync(spec, originalSpec);
-  writeFileSync(report, "Independent ticket report updated again.\n");
-  const second = await cli(root, spec, "record", args);
-  expect(second.status, second.stderr).toBe(0);
+  writeFileSync(
+    ticketPath,
+    ticket.replace("## Requirements", "## Requirements\n\nCommitted ticket requirement."),
+  );
+  writeFileSync(spec, `${originalSpec}\nCommitted feature requirement.\n`);
+  git(root, "add", ".scratch");
+  git(root, "commit", "-qm", "commit changed requirements");
+  const updatedCommit = git(root, "rev-parse", "HEAD");
+  const staleRecord = await cli(root, spec, "record", args);
+  expect(staleRecord.status, staleRecord.stderr).toBe(0);
+  expect(cliOutput(staleRecord).headSha).toBe(updatedCommit);
+  const freshFirst = await cli(root, spec, "record", ["--command", "first", "--result", "passed"]);
+  expect(freshFirst.status, freshFirst.stderr).toBe(0);
+  expect(cliOutput(freshFirst).closed).toBe(true);
 });
 
-test("integration schema rejects empty, missing, stale and failed passed evidence", () => {
+test("integration schema rejects empty, missing and failed passed evidence", () => {
   const sha = "a".repeat(40);
   const at = new Date().toISOString();
   const base = {
@@ -400,7 +353,6 @@ test("integration schema rejects empty, missing, stale and failed passed evidenc
     integratedAt: at,
     integratedBy: "controller",
     files: ["source.ts"],
-    contentDigest: "d".repeat(64),
   };
   expect(isIntegrationRecord({ ...base, postMerge: { status: "passed", mergeSha: sha } })).toBe(
     false,
@@ -417,9 +369,6 @@ test("integration schema rejects empty, missing, stale and failed passed evidenc
     result: "failed",
     details: "bad",
     author: "controller",
-    snapshot: "a".repeat(64),
-    codeSnapshot: "b".repeat(64),
-    requirementsSnapshot: "c".repeat(64),
     headSha: sha,
     recordedAt: at,
   };
@@ -448,7 +397,7 @@ test("integration schema rejects empty, missing, stale and failed passed evidenc
         checks: { required, records: [{ ...record, result: "passed", headSha: "b".repeat(40) }] },
       },
     }),
-  ).toBe(false);
+  ).toBe(true);
 });
 
 test("legacy accepted and check-invalidation states are rejected", () => {

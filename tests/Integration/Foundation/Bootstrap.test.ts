@@ -13,9 +13,9 @@ import { Application } from "@/Foundation/Application";
 import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { RequireProjectConfiguration } from "@/Foundation/Bootstrap/RequireProjectConfiguration";
+import { RequireProjectSettings } from "@/Foundation/Bootstrap/RequireProjectSettings";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
 import { Kernel } from "@/Foundation/Kernel";
@@ -71,8 +71,8 @@ test("default kernel bootstrap order is explicit and ordinary Kernel make does n
   expect(new Inspectable(app).list()).toEqual([
     LoadConsoleArgs,
     DiscoverGitRoot,
-    LoadProjectConfiguration,
-    RequireProjectConfiguration,
+    LoadProjectSettings,
+    RequireProjectSettings,
     RegisterProviders,
   ]);
   await app.make(Kernel);
@@ -89,7 +89,7 @@ test("kernel supplies invocation first, resolves distinct roots, then registers 
       super(app);
       expect(app.basePath()).toBe(nested);
       expect(app.workspaceRoot).toBe(root);
-      expect(app.appPath("Assets/Blueprints")).toContain("Assets/Blueprints");
+      expect(app.assetsPath("Blueprints")).toContain("assets/Blueprints");
       expect(app.value("console.invocation")).toBe(invocation);
       expect(consoleArgs(app).array("raw")).toBe(invocation.raw);
       events.push("construct");
@@ -133,23 +133,21 @@ test("LoadConsoleArgs retains parsed option arrays, false values, positionals, r
   expect(app.config.has("args")).toBe(false);
 });
 
-test("non-init commands require project Config while init can bootstrap without one", () => {
+test("non-init commands require Project Settings while init can bootstrap without them", () => {
   const app = new Application({ basePath: "/project" });
   const args = new Repository();
   args.set("commandPath", ["sdd", "create"]);
   app.instance("console.args", args);
-  app.instance("config.project", { status: "absent" });
+  app.instance("settings.project", { status: "absent" });
 
-  expect(() => new RequireProjectConfiguration().bootstrap(app)).toThrow(
-    /no \.github\/spindle\.json/i,
-  );
+  expect(() => new RequireProjectSettings().bootstrap(app)).toThrow(/no \.github\/spindle\.json/i);
 
   const initApp = new Application({ basePath: "/project" });
   const initArgs = new Repository();
   initArgs.set("commandPath", ["init"]);
   initApp.instance("console.args", initArgs);
-  initApp.instance("config.project", { status: "absent" });
-  expect(() => new RequireProjectConfiguration().bootstrap(initApp)).not.toThrow();
+  initApp.instance("settings.project", { status: "absent" });
+  expect(() => new RequireProjectSettings().bootstrap(initApp)).not.toThrow();
 });
 
 test.each([
@@ -208,12 +206,12 @@ test("overridden bootstrap lists are not normalized and may contain repeated hoo
   expect(app.hasBeenBootstrapped).toBe(true);
 });
 
-test("packaged Blueprint assets derive from the application path, independent of basePath", async () => {
+test("Blueprint assets derive from the installation path, independent of basePath", async () => {
   const { root, nested } = workspace();
   const app = Application.configure(nested).create();
   await (await app.make(Kernel)).boot(invocation);
   expect(app.workspaceRoot).toBe(root);
-  expect(app.appPath("Assets/Blueprints")).toBe(resolve(repoRoot, "src/Assets/Blueprints"));
+  expect(app.assetsPath("Blueprints")).toBe(resolve(repoRoot, "assets/Blueprints"));
 });
 
 test("Commander alone supplies validated repeated options to the executable composition", async () => {

@@ -13,7 +13,7 @@ export class ChecksRecordCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root, "checks")
       .command("record")
-      .description("Record an externally executed check against a current snapshot.")
+      .description("Record an externally executed check against the current commit.")
       .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery, post-merge or final")
@@ -21,11 +21,6 @@ export class ChecksRecordCommand extends Command {
         "--merge <sha>",
         "Exact feature merge commit; required for scope final",
         CommandOptions.once("--merge"),
-      )
-      .requiredOption(
-        "--snapshot <snapshot>",
-        "CLI-returned content snapshot identity",
-        CommandOptions.once("--snapshot"),
       )
       .requiredOption(
         "--command <command>",
@@ -78,7 +73,6 @@ export class ChecksRecordCommand extends Command {
       return finalization.record({
         feature: feature.feature,
         merge: options.merge,
-        snapshot: options.snapshot,
         command: options.command,
         result: options.result,
         author: options.author,

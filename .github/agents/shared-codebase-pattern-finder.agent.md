@@ -72,19 +72,20 @@ Structure your findings like this:
 ## Pattern Examples: [Pattern Type]
 
 ### Pattern 1: [Descriptive Name]
+
 **Found in**: `src/api/users.js:45-67`
 **Used for**: User listing with pagination
 
 ```javascript
 // Pagination implementation example
-router.get('/users', async (req, res) => {
+router.get("/users", async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
   const offset = (page - 1) * limit;
 
   const users = await db.users.findMany({
     skip: offset,
     take: limit,
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: "desc" },
   });
 
   const total = await db.users.count();
@@ -95,10 +96,11 @@ router.get('/users', async (req, res) => {
       page: Number(page),
       limit: Number(limit),
       total,
-      pages: Math.ceil(total / limit)
-    }
+      pages: Math.ceil(total / limit),
+    },
   });
 });
+```
 ````
 
 **Key aspects**:
@@ -116,29 +118,29 @@ router.get('/users', async (req, res) => {
 ```javascript
 // Cursor-based pagination example
 router.get("/products", async (req, res) => {
-  const { cursor, limit = 20 } = req.query
+  const { cursor, limit = 20 } = req.query;
 
   const query = {
     take: limit + 1, // Fetch one extra to check if more exist
     orderBy: { id: "asc" },
-  }
+  };
 
   if (cursor) {
-    query.cursor = { id: cursor }
-    query.skip = 1 // Skip the cursor itself
+    query.cursor = { id: cursor };
+    query.skip = 1; // Skip the cursor itself
   }
 
-  const products = await db.products.findMany(query)
-  const hasMore = products.length > limit
+  const products = await db.products.findMany(query);
+  const hasMore = products.length > limit;
 
-  if (hasMore) products.pop() // Remove the extra item
+  if (hasMore) products.pop(); // Remove the extra item
 
   res.json({
     data: products,
     cursor: products[products.length - 1]?.id,
     hasMore,
-  })
-})
+  });
+});
 ```
 
 **Key aspects**:
@@ -155,16 +157,16 @@ router.get("/products", async (req, res) => {
 describe("Pagination", () => {
   it("should paginate results", async () => {
     // Create test data
-    await createUsers(50)
+    await createUsers(50);
 
     // Test first page
-    const page1 = await request(app).get("/users?page=1&limit=20").expect(200)
+    const page1 = await request(app).get("/users?page=1&limit=20").expect(200);
 
-    expect(page1.body.data).toHaveLength(20)
-    expect(page1.body.pagination.total).toBe(50)
-    expect(page1.body.pagination.pages).toBe(3)
-  })
-})
+    expect(page1.body.data).toHaveLength(20);
+    expect(page1.body.pagination.total).toBe(50);
+    expect(page1.body.pagination.pages).toBe(3);
+  });
+});
 ```
 
 ### Pattern Usage in Codebase
@@ -180,10 +182,10 @@ describe("Pagination", () => {
 - `src/middleware/validate.js:34` - Query parameter validation
 
 ```markdown
-
 ## Pattern Categories to Search
 
 ### API Patterns
+
 - Route structure
 - Middleware usage
 - Error handling
@@ -192,12 +194,14 @@ describe("Pagination", () => {
 - Pagination
 
 ### Data Patterns
+
 - Database queries
 - Caching strategies
 - Data transformation
 - Migration patterns
 
 ### Component Patterns
+
 - File organization
 - State management
 - Event handling
@@ -205,6 +209,7 @@ describe("Pagination", () => {
 - Hooks usage
 
 ### Testing Patterns
+
 - Unit test structure
 - Integration test setup
 - Mock strategies

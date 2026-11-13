@@ -1,0 +1,45 @@
+# Template
+
+```md
+## Assignment
+
+Implement ticket: [TICKET_ID]
+Ticket worktree: [CHECKOUT]
+Mode: [INITIAL_OR_CORRECTIVE]
+
+## Requirements and starting state
+
+Canonical ticket, comments, and spec/brief:
+[ABSOLUTE_SOURCE_POINTERS]
+
+Acceptance criteria and confirmed test seams:
+[CRITERIA_AND_SEAMS]
+
+Completed dependencies and committed ticket requirements:
+[DEPENDENCIES_AND_REQUIREMENTS]
+
+## Scope and permissions
+
+Allowed code and test files in the ticket worktree, and the canonical report path:
+[FILE_SCOPE]
+
+Permissions, including commit authorization:
+[PERMISSIONS]
+
+Before each commit, format changed implementation files with the target project's
+configured formatter. Commit implementation changes in the ticket worktree.
+Do not pass commit IDs or content hashes to the controller; the workflow records
+the committed target.
+
+## Verification and hand-back
+
+Approved project checks and test working directory:
+[CHECKS_AND_DIRECTORY]
+
+Assigned `.scratch` report path:
+[REPORT_PATH]
+
+## Correction context (CORRECTIVE only; omit for INITIAL)
+
+[ROUND, FINDING_IDS, PRIOR_ATTEMPTS, AND RULINGS, INLINE OR READ_REQUIRED_REFERENCE]
+```

@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { expect, test } from "vitest";
 
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -68,8 +68,8 @@ async function setup() {
   const spec = JSON.parse(created.stdout).spec as string;
   const parent = join(dirname(repo), "external");
   mkdirSync(parent);
-  const app = applicationFixture(repo, join(repoRoot, "src/Assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  const app = applicationFixture(repo, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const git = new InterruptingGitService(app);
   const service = new FeatureWorktreeService(

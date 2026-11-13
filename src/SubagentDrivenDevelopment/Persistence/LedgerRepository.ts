@@ -193,8 +193,7 @@ export class LedgerRepository extends Service {
               isIntegrationRecord(ticket.integration) &&
               isAcceptedEvidence(ticket.acceptedEvidence) &&
               JSON.stringify(ticket.integration.files) ===
-                JSON.stringify(ticket.acceptedEvidence.files) &&
-              ticket.integration.contentDigest === ticket.acceptedEvidence.contentDigest)) &&
+                JSON.stringify(ticket.acceptedEvidence.files))) &&
           (!Object.hasOwn(ticket, "integrationHistory") ||
             (Array.isArray(ticket.integrationHistory) &&
               ticket.integrationHistory.length > 0 &&
@@ -387,7 +386,7 @@ export class LedgerRepository extends Service {
         const reported = (ticket.findings ?? []).filter((finding) =>
           finding.provenance.some(
             (source) =>
-              source.report === assignment.report && source.snapshot === assignment.snapshot,
+              source.report === assignment.report && source.headSha === assignment.headSha,
           ),
         );
         if (assignment.noFindings === true && reported.length > 0) {
@@ -401,7 +400,7 @@ export class LedgerRepository extends Service {
             !finding ||
             !finding.provenance.some(
               (source) =>
-                source.report === assignment.report && source.snapshot === assignment.snapshot,
+                source.report === assignment.report && source.headSha === assignment.headSha,
             )
           ) {
             throw new Error(

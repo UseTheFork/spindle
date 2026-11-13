@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 
 import { applicationFixture } from "../ApplicationFixture.ts";
 import { makeTempDirSync, repoRoot } from "../TemporaryDirectories.ts";
@@ -34,16 +34,16 @@ export function fixture() {
 
 export async function serviceFixture() {
   const workspace = fixture();
-  const app = applicationFixture(workspace.repo, join(repoRoot, "src/Assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  const app = applicationFixture(workspace.repo, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const service = await workflowServices(app);
   return { ...workspace, service, app };
 }
 
 export async function execute(repo: string, run: (service: WorkflowServices) => unknown) {
-  const app = applicationFixture(repo, join(repoRoot, "src/Assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  const app = applicationFixture(repo, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const command = await workflowServices(app);
   try {
@@ -142,6 +142,27 @@ export function commitTicketWorkspace(workspace: string, message: string) {
   if (git("status", "--porcelain=v1", "--untracked-files=all")) {
     git("commit", "-qm", message);
   }
+}
+
+export function commitRequirementAndRebaseTicket(
+  repo: string,
+  ticketWorkspace: string,
+  requirementPath: string,
+  message: string,
+) {
+  const gitAt = (workspace: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd: workspace, encoding: "utf8" }).trim();
+  commitRequirement(repo, requirementPath, message);
+  gitAt(ticketWorkspace, "rebase", gitAt(repo, "rev-parse", "HEAD"));
+  return gitAt(ticketWorkspace, "rev-parse", "HEAD");
+}
+
+export function commitRequirement(repo: string, requirementPath: string, message: string) {
+  const gitAt = (workspace: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd: workspace, encoding: "utf8" }).trim();
+  gitAt(repo, "add", "--", requirementPath);
+  gitAt(repo, "commit", "-qm", message);
+  return gitAt(repo, "rev-parse", "HEAD");
 }
 
 export async function prepareReadyTicket(
@@ -260,11 +281,7 @@ export async function prepareImplementationForReview(
     ticketWorkspace: implementation.assignment.workspace,
     command,
     report: implementation.assignment.report,
-    submission: JSON.parse(submitted.stdout) as {
-      snapshot: string;
-      codeSnapshot: string;
-      requirementsSnapshot: string;
-    },
+    submission: JSON.parse(submitted.stdout) as { headSha: string },
   };
 }
 
@@ -272,7 +289,6 @@ export async function recordReviewCheck(
   repo: string,
   spec: string,
   command: string,
-  snapshot: string,
   result: "passed" | "failed",
   ticketId = "T-0001",
 ) {
@@ -280,7 +296,6 @@ export async function recordReviewCheck(
     service.checksService.checksRecord({
       spec,
       ticket: ticketId,
-      snapshot,
       command,
       result,
       ...(result === "failed" ? { details: "The required check failed." } : {}),
@@ -299,10 +314,8 @@ export async function recordDeliveryCheck(
   );
   expect(status.status, status.stderr).toBe(0);
   const delivery = JSON.parse(status.stdout).delivery as {
-    snapshot?: string;
     requiredChecks: { command: string; removedAt?: string }[];
   };
-  let snapshot = delivery.snapshot;
   if (!delivery.requiredChecks.some((check) => check.command === command && !check.removedAt)) {
     const required = await execute(repo, (service) =>
       service.checksService.checksRequire({
@@ -314,15 +327,12 @@ export async function recordDeliveryCheck(
       }),
     );
     expect(required.status, required.stderr).toBe(0);
-    snapshot = JSON.parse(required.stdout).snapshot as string;
   }
-  if (!snapshot) throw new Error("Feature status did not include a delivery snapshot.");
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
       spec,
       scope: "delivery",
-      snapshot,
       command,
       result: "passed",
       author: "controller",
@@ -344,7 +354,6 @@ export async function prepareReviewAssignment(
     prepared.repo,
     prepared.spec,
     prepared.command,
-    prepared.submission.snapshot,
     "passed",
     prepared.ticketId,
   );
@@ -365,7 +374,7 @@ export async function prepareReviewAssignment(
       agent: string;
       role: string;
       scope: string;
-      snapshot: string;
+      headSha: string;
       report: string;
       status: string;
     },
@@ -438,7 +447,6 @@ export async function integrateReviewedTicket(
         spec: prepared.spec,
         ticket: prepared.ticketId,
         scope: "post-merge",
-        snapshot: JSON.parse(required.stdout).snapshot,
         command,
         result: "passed",
         author: "controller",
@@ -504,7 +512,6 @@ type PendingFeatureFinalization = {
   finalValidation: "pending";
   cleanup: "retained";
   mergeCommit: string;
-  snapshot: string;
   originalWorkspace: string;
   originalSpec: string;
   journal: string;
@@ -565,8 +572,6 @@ export async function recordFinalDeliveryCheck(
     "final",
     "--merge",
     pending.mergeCommit,
-    "--snapshot",
-    pending.snapshot,
     "--command",
     command,
     "--result",
@@ -613,10 +618,5 @@ export async function finalizeDelivery(
 }
 
 export async function refreshReviewCheck(repo: string, spec: string, command: string) {
-  const status = await execute(repo, (service) =>
-    service.featureInspectionService.status({ spec }),
-  );
-  expect(status.status, status.stderr).toBe(0);
-  const snapshot = JSON.parse(status.stdout).snapshots[0].snapshot as string;
-  return await recordReviewCheck(repo, spec, command, snapshot, "passed");
+  return await recordReviewCheck(repo, spec, command, "passed");
 }

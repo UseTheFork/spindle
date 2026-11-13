@@ -23,14 +23,11 @@ export function isReviewAssignment(value: unknown): value is ReviewAssignment {
     (value.scope === "delivery" &&
       Object.hasOwn(value, "attempt") &&
       (!Number.isSafeInteger(value.attempt) || Number(value.attempt) < 1)) ||
-    typeof value.snapshot !== "string" ||
-    !/^[0-9a-f]{64}$/i.test(value.snapshot) ||
-    typeof value.codeSnapshot !== "string" ||
-    !/^[0-9a-f]{64}$/i.test(value.codeSnapshot) ||
-    typeof value.requirementsSnapshot !== "string" ||
-    !/^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) ||
     typeof value.headSha !== "string" ||
     !/^[0-9a-f]{40,64}$/i.test(value.headSha) ||
+    (Object.hasOwn(value, "reworkBaseSha") &&
+      (typeof value.reworkBaseSha !== "string" ||
+        !/^[0-9a-f]{40,64}$/i.test(value.reworkBaseSha))) ||
     (Object.hasOwn(value, "workspace") &&
       (typeof value.workspace !== "string" || !isAbsolute(value.workspace))) ||
     (Object.hasOwn(value, "branch") &&

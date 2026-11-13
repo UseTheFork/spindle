@@ -22,7 +22,7 @@ import { GitService } from "@/Git/Services/GitService";
 import type {
   CheckRecord,
   CheckRequirement,
-  ContentIdentity,
+  CommitIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
@@ -60,7 +60,7 @@ interface Journal {
   repository: { dev: number; ino: number };
   original: { dev: number; ino: number };
   author: string;
-  approved: ContentIdentity;
+  approved: CommitIdentity;
   approvedLedger: FeatureLedger;
   ledgerBefore: string;
   ledgerAfter: string;
@@ -74,7 +74,7 @@ interface Journal {
   recordTree?: string;
   featureCommit?: string;
   mergeCommit?: string;
-  finalIdentity?: ContentIdentity;
+  finalIdentity?: CommitIdentity;
   targets: Target[];
   retrospective?: { report: string; reportSha256: string };
   ticketStarts: { path: string; digest: string }[];
@@ -103,7 +103,7 @@ export class FeatureFinalizationService extends Service {
     options: FeatureFinishOptions,
     assertReady: (ledger?: FeatureLedger) => {
       ledger: FeatureLedger;
-      identity: ContentIdentity;
+      identity: CommitIdentity;
       retrospective?: { report: string; reportSha256: string };
     },
   ): unknown {
@@ -432,14 +432,6 @@ export class FeatureFinalizationService extends Service {
         journal.finalIdentity = {
           ...journal.approved,
           headSha: journal.mergeCommit,
-          snapshot: this.digest(
-            JSON.stringify([
-              journal.id,
-              common,
-              journal.mergeCommit,
-              this.tree(state.originalWorkspace, journal.mergeCommit),
-            ]),
-          ),
         };
         journal.phase = "validation";
         this.persist(path, journal);
@@ -518,7 +510,6 @@ export class FeatureFinalizationService extends Service {
   public record(options: {
     feature: string;
     merge: string;
-    snapshot: string;
     command: string;
     result: string;
     author: string;
@@ -539,11 +530,10 @@ export class FeatureFinalizationService extends Service {
       if (
         options.author.trim() !== journal.author ||
         options.merge !== journal.mergeCommit ||
-        options.snapshot !== journal.finalIdentity?.snapshot ||
         !journal.required.some((item) => item.command === options.command)
       ) {
         throw new Error(
-          "Final check controller, declared command, snapshot or exact merge identity does not match.",
+          "Final check controller, declared command, or exact merge identity does not match.",
         );
       }
 
@@ -611,16 +601,23 @@ export class FeatureFinalizationService extends Service {
     journal: Journal,
     gate: (ledger?: FeatureLedger) => {
       ledger: FeatureLedger;
-      identity: ContentIdentity;
+      identity: CommitIdentity;
       retrospective?: { report: string; reportSha256: string };
     },
   ): void {
     const result = gate(structuredClone(journal.approvedLedger));
-    if (
-      result.identity.snapshot !== journal.approved.snapshot ||
-      result.identity.codeSnapshot !== journal.approved.codeSnapshot ||
-      result.identity.requirementsSnapshot !== journal.approved.requirementsSnapshot
-    ) {
+    const changed = this.run(this.app.workspaceRoot, [
+      "diff",
+      "--name-only",
+      "--no-renames",
+      journal.approved.headSha,
+      result.identity.headSha,
+      "--",
+      ".",
+    ])
+      .split("\0")
+      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+    if (changed.length > 0) {
       throw new Error("Aggregate approval became stale during finalization.");
     }
     if (
@@ -713,11 +710,7 @@ export class FeatureFinalizationService extends Service {
         const record = journal.records
           .filter((item) => item.command === requirement.command)
           .at(-1);
-        return (
-          record?.result === "passed" &&
-          record.headSha === journal.mergeCommit &&
-          record.snapshot === journal.finalIdentity?.snapshot
-        );
+        return record?.result === "passed" && record.headSha === journal.mergeCommit;
       })
     );
   }

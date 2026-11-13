@@ -4,7 +4,7 @@
 
 Read this reference before assessing evidence. If it is unavailable, return a blocker rather than a completed assessment. Assess primary sources independently; this assignment is read-only and proposals-only. Return the report to the controller, which owns persistence and approval. Do not edit project files, apply proposals or dispatch agents.
 
-Before assessing evidence, use the Skill tool to load `int-domain-modeling` and read its instructions. This is required even when the session went smoothly or no domain findings are expected; the assignment cannot waive it. If loading fails or the skill is unavailable, report the blocker rather than claiming a completed assessment.
+Before assessing evidence, use the Skill tool to load `ref-domain-modeling` and read its instructions. This is required even when the session went smoothly or no domain findings are expected; the assignment cannot waive it. If loading fails or the skill is unavailable, report the blocker rather than claiming a completed assessment.
 
 Apply its terminology challenges, context boundaries, implementation-free glossary guidance, and three-test ADR criteria to the analysis. Express glossary updates and ADRs as drafts in the report. Put unresolved terminology or model decisions in Open questions for the maintainer instead of resolving them on their behalf. Do not run the skill's inline-update actions.
 
@@ -33,18 +33,18 @@ Look for **friction**: recurring findings, blockers and their duration, rework, 
 
 Keep each correction authoritative in one place. Reuse existing documentation and tooling; put reusable capabilities in skills, scoped project conventions in instructions, and one-off fixes in the task.
 
-Domain assessment follows `int-domain-modeling`: terminology drift on integrated work belongs in domain proposals, not triage.
+Domain assessment follows `ref-domain-modeling`: terminology drift on integrated work belongs in domain proposals, not triage.
 
 ## Report contract
 
 Every proposal has a stable ID, impact/severity, **evidence** (session source location, ticket/comment, review finding or revision), **observed problem**, **durable correction**, **target**, and a checkable **verification criterion**. Rank proposals by impact. Shared fields apply to environment, domain and instruction proposals; cross-reference IDs rather than duplicate a proposal across sections. Verification criteria describe follow-up checks, not validation already performed.
 
-1. **Summary:** entry and assessed work; confirm `int-domain-modeling` was loaded and whether `int-writing-instruction` was consulted (or no instruction candidates were supported); available delivery outcomes, review rounds, blockers with duration, final verdict and evidence gaps. Mark unavailable session metrics explicitly.
+1. **Summary:** entry and assessed work; confirm `ref-domain-modeling` was loaded and whether `int-writing-instruction` was consulted (or no instruction candidates were supported); available delivery outcomes, review rounds, blockers with duration, final verdict and evidence gaps. Mark unavailable session metrics explicitly.
 2. **Environment findings:** shared proposal fields and an assessment category.
-3. **Domain findings**, per `int-domain-modeling`:
-   - **Glossary drift:** the term used, the glossary's term, the context glossary path, and a proposed entry in the [glossary format](../../int-domain-modeling/GLOSSARY-FORMAT.md), free of implementation detail.
+3. **Domain findings**, per `ref-domain-modeling`:
+   - **Glossary drift:** the term used, the glossary's term, the context glossary path, and a proposed entry in the [glossary format](../../ref-domain-modeling/GLOSSARY-FORMAT.md), free of implementation detail.
    - **Undefined terms:** a proposed definition, or a rename to an existing term.
-   - **ADR candidates:** only decisions meeting all three tests (hard to reverse, surprising without context, the result of a real trade-off), with evidence for each test and a draft in the [ADR format](../../int-domain-modeling/ADR-FORMAT.md).
+   - **ADR candidates:** only decisions meeting all three tests (hard to reverse, surprising without context, the result of a real trade-off), with evidence for each test and a draft in the [ADR format](../../ref-domain-modeling/ADR-FORMAT.md).
 4. **Instruction suggestions:** evidence-backed briefs for `.github/instructions/**/*.instructions.md`, not full files. In addition to shared fields, include:
    - Operation (add, amend, consolidate or remove), proposed topic-specific target path, and why that file is the right owner; prefer amending existing guidance over a duplicate.
    - Intended source scope: a narrow proposed `applyTo` glob and/or task-discovery `description`, with rationale. Use `**` only when the evidence supports genuinely workspace-wide guidance.

@@ -40,7 +40,7 @@ test("non-interactive init requires --spindle-package-manager", async () => {
   await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
 });
 
-test("init persists the selected command, renders its computed value, and drops legacy variables", async () => {
+test("init persists the selected command, renders its computed value, and preserves legacy variables", async () => {
   const blueprints = await setupBlueprints();
   const project = await makeTempDir("spindle-package-manager-init-");
   await mkdir(join(project, ".github"), { recursive: true });
@@ -62,8 +62,10 @@ test("init persists the selected command, renders its computed value, and drops 
     spindle_package_manager: "npm run",
   });
   expect(
-    JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
-  ).not.toHaveProperty("variables");
+    JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")).variables,
+  ).toEqual({
+    owner: "legacy",
+  });
   expect(await readFile(join(project, ".github/skills/demo/SKILL.md"), "utf8")).toContain(
     "Command=npm run",
   );
@@ -84,7 +86,7 @@ test.each(["", " \t "])("init rejects an empty package-manager command: %j", (co
 
 test(
   "interactive init accepts a custom package-manager command",
-  { skip: process.platform !== "linux" },
+  { skip: process.platform !== "linux", timeout: 30_000 },
   async () => {
     const blueprints = await setupBlueprints();
     const project = await makeTempDir("spindle-package-manager-other-");
@@ -102,6 +104,10 @@ test(
           trigger: "Enter the package-manager command prefix",
           input: "custom run\r",
         },
+        { trigger: "Allow commit message bodies?", input: "\r" },
+        { trigger: "Allow breaking-change notation?", input: "\r" },
+        { trigger: "Maximum commit title length", input: "\r" },
+        { trigger: "Require commit scopes?", input: "\r" },
       ],
       { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints },
     );

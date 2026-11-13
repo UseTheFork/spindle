@@ -48,16 +48,18 @@ _Avoid_: Setting, parameter
 
 **Computed Variable**:
 A named text value derived from context available to a workflow for use in
-Templates. It may be derived from Config values but is not independently
+Templates. It may be derived from Project Settings values but is not independently
 supplied, stored, or directly overridden.
 
-**Config**:
-The `.github/spindle.json` file holding the user's selected Stacks, preferred
-Spindle package-manager command, and registered tooling commands.
-_Avoid_: Settings file, manifest
+**Project Settings**:
+The `.github/spindle.json` file holding the project's selected Stacks, preferred
+Spindle package-manager command, registered tooling commands, and commit guidance
+settings.
+_Avoid_: Config
 
 **Application Configuration**:
-The settings used by the running Spindle application, distinct from a project's Config.
+The settings used by the running Spindle application, distinct from the project's
+Project Settings.
 
 **Project workspace**:
 The Git working tree whose `.github` directory Spindle maintains. Invocation from

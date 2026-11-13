@@ -234,7 +234,13 @@ test(
       project,
       ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
       process.env.PATH ?? "",
-      [{ trigger: "What should happen?", input: "\r" }],
+      [
+        { trigger: "Allow commit message bodies?", input: "\r" },
+        { trigger: "Maximum commit title length", input: "\r" },
+        { trigger: "Require commit scopes?", input: "\r" },
+        { trigger: "Allow breaking-change notation?", input: "\r" },
+        { trigger: "What should happen?", input: "\r" },
+      ],
       { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
     );
 
@@ -296,7 +302,7 @@ test("init renders computed package-manager and selected Stack values", async ()
   expect(await readFile(join(project, ".github/skills/demo/assets.bin"))).toEqual(binaryAsset);
 });
 
-test("init skip policy leaves existing Skills untouched and still writes Config", async () => {
+test("init skip policy leaves existing Skills untouched and still writes Project Settings", async () => {
   const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
   expect(initialResult.status, initialResult.stderr).toBe(0);
   await writeFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "preserve this");

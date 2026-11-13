@@ -27,10 +27,9 @@ entries must remain as removal records when their destinations require cleanup;
 no installation inventory is maintained. These explicit ownership boundaries
 trade preservation of local additions for deterministic cleanup without tracking.
 
-Reconciliation prepares catalog validation, selected rendered writes, Config
+Reconciliation prepares catalog validation, selected rendered writes, Project Settings
 content, and all deletions and membership cleanup before applying any
 installation changes. A preparation failure leaves the project unchanged. An
 application-time filesystem failure stops reconciliation and reports completed
-changes; it does not promise rollback. The package build
-bundles the catalog and Blueprint assets under `build/Assets/Blueprints`, which is the
-runtime source for packaged CLI use.
+changes; it does not promise rollback. The package build compiles the catalog;
+the separate `assets/Blueprints` tree is the runtime source for packaged CLI use.

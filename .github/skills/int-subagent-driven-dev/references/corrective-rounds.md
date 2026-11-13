@@ -16,7 +16,7 @@ flowchart TD
     B -- Yes --> C[Record objective and dispatch correction]
     B -- No --> X[Record blocker and pause for adjudication]
     C --> D[Run relevant checks and record outcomes]
-    D -- Checks pass --> E[Freeze snapshot and request comprehensive review]
+    D -- Checks pass --> E[Freeze new commit and request focused rework review]
     D -- Checks fail or are blocked --> A
     E --> F{Blocking findings remain?}
     F -- Yes --> A
@@ -45,15 +45,16 @@ recorded objective.
 
 ## D. Run relevant checks and record outcomes
 
-Run appropriate tests and checks against the corrected snapshot. Record actual
-results and limitations. Do not claim stale evidence covers changed code or
-requirements.
+Run appropriate tests and checks against the corrected commit and committed
+requirements. Record actual results and limitations. Do not claim prior
+evidence covers changed code or requirements.
 
-## E. Freeze snapshot and request comprehensive review
+## E. Freeze new commit and request focused rework review
 
-After checks pass, freeze implementation edits and request a new comprehensive
-feature review against the corrected snapshot. Submit each assigned report
-against its exact assignment.
+After checks pass, freeze implementation edits and request a focused rework
+review against the exact new commit. The reviewer checks the fix and prior
+findings in full context. Submit each assigned report against its exact
+assignment. Approval of the previous commit does not approve the rework commit.
 
 ## X. Record blocker and pause for adjudication
 

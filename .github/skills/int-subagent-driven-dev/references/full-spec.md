@@ -9,7 +9,8 @@ checks, review assignments, findings, and corrections.
 
 Inspect `pnpm spindle sdd status --spec <spec>` and `pnpm spindle sdd next --spec <spec>`. Establish
 required final checks with `pnpm spindle sdd checks require --scope delivery`, run them, and
-record actual results against the returned snapshot. Then dispatch the
+record actual results against the current committed feature inputs. Commit any
+feature spec or ticket requirement updates before checks or review. Then dispatch the
 comprehensive review with
 `pnpm spindle sdd review --scope delivery --inventory <json-array>`. Its inventory must
 cover the feature's current Git-derived changes.
@@ -21,13 +22,13 @@ Only catalog agents with `canReview: true` are eligible. Confirm that the
 controller can actually dispatch each selected agent; catalog eligibility does
 not guarantee harness access.
 
-Preserve each assignment's ID, objective, snapshot, inventory, and report
+Preserve each assignment's ID, objective, committed target, inventory, and report
 path. Submit every report against its exact assignment. A missing, pending,
 failed, unavailable, stale, or mismatched review blocks completion.
 
 ## Findings and correction
 
-Register findings from their assigned reports and snapshots with
+Register findings from their assigned reports and commit provenance with
 `pnpm spindle sdd finding create --scope delivery`. Delivery findings have feature-scoped
 IDs, provenance, ruling history, and status. Use `--related-ticket <id>` for a
 finding that should return work to a specific ticket. A blocking linked finding
@@ -42,17 +43,24 @@ and completed prior review. Approval invalidates earlier aggregate assignments.
 
 For actionable feature findings, follow [feature correction](./corrective-rounds.md)
 and use `pnpm spindle sdd correct --scope delivery` to record
-each independent correction attempt. Record passing checks against the changed
-feature snapshot and submit the implementation report before requesting a new
-feature review. Pause unproductive work, recurring failures, or requirements
+each independent correction attempt. Format changed implementation files with
+the configured formatter before committing. Each new commit requires fresh
+checks and a focused rework review that covers the fix and prior findings.
+Pause unproductive work, recurring failures, or requirements
 disagreement for adjudication. Resume with `pnpm spindle sdd resume --scope delivery`;
 preserve existing assignments, attempts, evidence, and adjudication.
 
 ## Finish
 
-Review each committed ticket before merging it into the feature worktree, then
-record post-merge checks before unblocking dependents. A changed code or
-requirements snapshot invalidates evidence that no longer covers it.
+Review each committed ticket before merging that exact approved commit into the
+feature worktree, then record post-merge checks before unblocking dependents.
+Workflow-record-only commits do not invalidate evidence. Code or committed
+requirements changes require fresh checks and review.
+
+When requirements change after ticket dispatch, commit the canonical feature
+records and update the ticket worktree from that feature HEAD before review or
+integration. Never approve a ticket branch with stale or uncommitted canonical
+requirements.
 
 Do not silently substitute the current `HEAD` for the recorded Git baseline;
 that could omit completed feature work from review.
@@ -67,13 +75,13 @@ Inspect canonical records for sensitive content, then run
 `pnpm spindle sdd finish --spec <feature-spec> --author <controller> --confirm-records`
 from the feature worktree, adding `--report <absolute-report-path>` when needed.
 This merges into the recorded original branch and returns a pending final
-validation, merge SHA, snapshot, and original spec path; it does not yet complete
-the feature.
+validation, merge commit, and original spec path; it does not yet complete the
+feature.
 
 In the original checkout, declare the entire non-empty final list with
 `pnpm spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <controller>`,
 repeating `--command` for each check. Run each command there, then record each
-actual result with `pnpm spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --snapshot <snapshot> --command <command> --result <result> --author <controller>`.
+actual result with `pnpm spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --command <command> --result <result> --author <controller>`.
 Failed or unavailable results require `--details` and block cleanup until the
 latest result for each command passes. The list is frozen once declared.
 

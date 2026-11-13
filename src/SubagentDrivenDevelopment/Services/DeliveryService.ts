@@ -110,7 +110,8 @@ export class DeliveryService extends Service {
             `Cannot finish; ticket ${progress.id} has no frozen acceptance evidence or awaits adjudication.`,
           );
         }
-        const blockers = this.findingPolicy.findingBlockers(progress, {
+        const ticket = tickets.find((candidate) => candidate.id === progress.id)!;
+        const blockers = this.findingPolicy.findingBlockers(feature, ticket, progress, {
           ...progress.acceptedEvidence,
           headSha: progress.integration!.commitSha,
         });
@@ -124,8 +125,13 @@ export class DeliveryService extends Service {
           `Cannot finish; delivery correction is paused for adjudication (${delivery.adjudication.reason}).`,
         );
       }
-      const identity = this.gitEvidence.deliveryIdentity(feature, ledger, tickets);
-      const checkBlockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
+      const identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
+      const checkBlockers = this.checkPolicy.deliveryCheckBlockers(
+        feature,
+        tickets,
+        delivery,
+        identity,
+      );
       if (checkBlockers.length > 0) {
         throw new Error(
           `Cannot finish; final delivery checks are not current and passing:\n${checkBlockers.join("\n")}`,
@@ -201,14 +207,14 @@ export class DeliveryService extends Service {
           reportSha256: createHash("sha256").update(content).digest("hex"),
         };
       }
-      const confirmed = this.gitEvidence.deliveryIdentity(
+      const confirmed = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
       if (
-        confirmed.snapshot !== identity.snapshot ||
-        this.checkPolicy.deliveryCheckBlockers(delivery, confirmed).length > 0
+        confirmed.headSha !== identity.headSha ||
+        this.checkPolicy.deliveryCheckBlockers(feature, tickets, delivery, confirmed).length > 0
       ) {
         throw new Error(
           "Aggregate content or check evidence changed while finishing; resume and revalidate delivery.",
@@ -225,7 +231,7 @@ export class DeliveryService extends Service {
     return {
       feature: status.feature,
       spec: status.spec,
-      snapshots: status.snapshots,
+      commits: status.commits,
       findings: status.findings,
       requirementsDecisions: status.requirementsDecisions,
       actions: status.actions,

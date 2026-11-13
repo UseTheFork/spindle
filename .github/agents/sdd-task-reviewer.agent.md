@@ -31,7 +31,7 @@ Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and re
 
 Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. Read applicable repository instructions and use approved project tooling.
 
-1. Read the resolved sources and complete diff once, including stat and surrounding context. Compare actual changes with claims. Follow the common input contract for missing-diff retrieval; use complete supplied artifacts when available. Reread a changed file only when a required hunk is cut off mid-function, and disclose that limitation. Unavailable material or a snapshot mismatch requires controller resolution before approval.
+1. Read the committed requirements and complete assigned committed diff once, including stat and surrounding context. Compare actual changes with claims. Follow the common input contract for missing-diff retrieval; use complete supplied artifacts when available. Reread a changed file only when a required hunk is cut off mid-function, and disclose that limitation. Unavailable material or an inconsistent committed target requires controller resolution before approval.
 2. Verify each criterion against diff evidence, including a corresponding hunk for every required file in batched assignments. Mark anything not verifiable from the diff `UNVERIFIED` and name the controller check needed. Inspect outside the diff only for a named concrete risk, with one focused check per risk.
 3. Assess correctness, standards, maintainability, error handling, regressions, behavioral tests, and plan structure. Cite file:line evidence for findings and affirmative quality claims. Flag file growth only when caused by this change. Treat implementer rationales as unverified claims.
 4. Assess test coverage and use `int-verification-before-completion` to evaluate evidence. Required current evidence that is missing, stale, ambiguous, or failing blocks approval. Read stated report paths to resolve truncated output before reporting gaps; report warnings and test-output noise as findings.
@@ -48,7 +48,7 @@ Save `REPORT_PATH` with these sections in order: Spec Compliance, Quality, Stren
 - Map every criterion to evidence and give separate `PASS`, `FAIL`, or `UNVERIFIED` Spec and Quality verdicts.
 - List unverifiable requirements and required controller checks, or `None`.
 - Give each issue a stable ID, severity/impact, file:line, evidence, required correction, and blocking status; use `None` for empty categories.
-- Distinguish reviewer-run checks from implementer-reported evidence and state the exact snapshot and limitations.
+- Distinguish reviewer-run checks from implementer-reported evidence and reference the assigned committed target and limitations. The workflow owns commit identity; do not copy, compare, or pass commit IDs by hand.
 - Set `Task quality` to `Approved` only when Spec and Quality are `PASS` and no blocking finding remains; otherwise use `Needs fixes`. This is a review recommendation, not controller acceptance.
 
 Return the report itself, beginning directly with the Spec Compliance verdict, without a preamble, process narration, or closing summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

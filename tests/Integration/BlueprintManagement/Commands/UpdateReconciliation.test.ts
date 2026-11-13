@@ -15,7 +15,7 @@ async function put(path: string, text: string) {
   await writeFile(path, text);
 }
 
-test("update reconciles managed items without touching unmanaged items", async () => {
+test("update overwrites catalog paths and preserves unrelated unmanaged items", async () => {
   const project = await makeTempDir("spindle-auto-update-project-");
   const blueprints = await makeTempDir("spindle-auto-update-assets-");
   const github = join(project, ".github");
@@ -77,15 +77,21 @@ test("update reconciles managed items without touching unmanaged items", async (
   expect(await readFile(join(github, "instructions/guide.instructions.md"), "utf8")).toContain(
     "new instruction",
   );
-  expect(await readFile(join(github, "skills/current/SKILL.md"), "utf8")).toContain("newer local");
+  expect(await readFile(join(github, "skills/current/SKILL.md"), "utf8")).toContain(
+    "shipped current",
+  );
   await expect(readFile(join(github, "skills/current/extra.txt"))).rejects.toMatchObject({
     code: "ENOENT",
   });
   expect(await readFile(join(github, "skills/repair/SKILL.md"), "utf8")).toContain(
     "shipped repair",
   );
-  expect(await readFile(join(github, "skills/collision/extra.txt"), "utf8")).toBe("keep");
-  expect(result.stderr).toContain("not managed by Spindle");
+  await expect(readFile(join(github, "skills/collision/extra.txt"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+  expect(await readFile(join(github, "skills/collision/SKILL.md"), "utf8")).toContain(
+    "shipped collision",
+  );
   await expect(readFile(join(github, "skills/other-stack/SKILL.md"))).rejects.toMatchObject({
     code: "ENOENT",
   });

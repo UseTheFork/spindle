@@ -40,9 +40,6 @@ export class DeliveryCorrectionService extends Service {
     paused?: boolean;
     adjudication?: CorrectionAdjudication;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     validateAuthor(options.author);
@@ -91,17 +88,13 @@ export class DeliveryCorrectionService extends Service {
         throw new Error("Only the recorded delivery controller may dispatch a correction.");
       }
       const attempts = (delivery.correctionAttempts ??= []);
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
       const currentFailedCheck = (delivery.checks?.records ?? []).some(
-        (record) =>
-          record.snapshot === identity.snapshot &&
-          record.codeSnapshot === identity.codeSnapshot &&
-          record.requirementsSnapshot === identity.requirementsSnapshot &&
-          record.result === "failed",
+        (record) => record.headSha === identity.headSha && record.result === "failed",
       );
       if (options.decision === "pause") {
         if (delivery.execution === "implementing" && delivery.assignment?.status !== "submitted") {
@@ -220,15 +213,12 @@ export class DeliveryCorrectionService extends Service {
         const record = (delivery.checks?.records ?? [])
           .filter(
             (candidate) =>
-              candidate.command === checkFailure &&
-              candidate.snapshot === identity.snapshot &&
-              candidate.codeSnapshot === identity.codeSnapshot &&
-              candidate.requirementsSnapshot === identity.requirementsSnapshot,
+              candidate.command === checkFailure && candidate.headSha === identity.headSha,
           )
           .at(-1);
         if (!record || record.result !== "failed") {
           throw new Error(
-            `Delivery check failure '${checkFailure}' must be an explicitly recorded failed check for the current snapshot.`,
+            `Delivery check failure '${checkFailure}' must be an explicitly recorded failed check for the current commit.`,
           );
         }
       }
@@ -265,10 +255,7 @@ export class DeliveryCorrectionService extends Service {
         ...(checkFailure
           ? {
               checks: (delivery.checks?.records ?? []).filter(
-                (record) =>
-                  record.snapshot === identity.snapshot &&
-                  record.codeSnapshot === identity.codeSnapshot &&
-                  record.requirementsSnapshot === identity.requirementsSnapshot,
+                (record) => record.headSha === identity.headSha,
               ),
             }
           : {}),

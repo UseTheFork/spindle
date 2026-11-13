@@ -28,12 +28,12 @@ test("sdd create requires named non-empty title and author options", async () =>
   }
 });
 
-test("SDD creation requires valid project Config", async () => {
+test("SDD creation requires valid Project Settings", async () => {
   const { repo } = await serviceFixture();
   writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
   const result = runCli(
     repo,
-    ["sdd", "create", "--title", "Config Independent", "--author", "maintainer"],
+    ["sdd", "create", "--title", "Project Settings Independent", "--author", "maintainer"],
     process.env.PATH ?? "",
   );
 

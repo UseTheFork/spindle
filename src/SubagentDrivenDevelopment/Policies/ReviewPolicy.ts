@@ -1,9 +1,11 @@
+import { join } from "node:path";
+
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type { ReviewAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { ContentIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   DeliveryProgress,
@@ -23,7 +25,7 @@ export class ReviewPolicy extends Service {
     feature: FeaturePaths,
     progress: TicketProgress | DeliveryProgress,
     assignment: ReviewAssignment,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string | undefined {
     if (assignment.status !== "pending") {
       try {
@@ -35,8 +37,8 @@ export class ReviewPolicy extends Service {
         return `The registered review report for assignment ${assignment.id} is missing or unavailable.`;
       }
     }
-    const snapshotBlocker = this.reviewSnapshotBlocker(feature, progress, assignment, identity);
-    if (snapshotBlocker) return snapshotBlocker;
+    const commitBlocker = this.reviewCommitBlocker(feature, progress, assignment, identity);
+    if (commitBlocker) return commitBlocker;
     if (assignment.status === "pending") return undefined;
     if (assignment.result !== "passed") {
       return `Review assignment ${assignment.id} is ${assignment.result}.${assignment.details ? ` Details: ${assignment.details}` : ""}`;
@@ -47,39 +49,68 @@ export class ReviewPolicy extends Service {
     return undefined;
   }
 
-  public reviewSnapshotBlocker(
+  public reviewCommitBlocker(
     feature: FeaturePaths,
     progress: TicketProgress | DeliveryProgress,
     assignment: ReviewAssignment,
-    identity: ContentIdentity,
+    identity: CommitIdentity,
   ): string | undefined {
     if ("id" in progress && progress.worktree) {
       try {
         this.gitEvidence.assertTicketCodeCommitted(progress);
+        const ticket = {
+          id: progress.id,
+          path: join(feature.workspace, "tickets", `${progress.id}.md`),
+        };
+        const featureHead = this.gitEvidence.headSha(feature.workspace);
+        this.gitEvidence.assertCommittedRequirements(feature, [ticket], featureHead);
+        this.gitEvidence.assertTicketRequirementsCurrent(
+          feature,
+          ticket,
+          identity.headSha,
+          this.gitEvidence.ticketWorkspace(progress)!,
+        );
       } catch (error) {
         return `Ticket review workspace is invalid: ${error instanceof Error ? error.message : String(error)}`;
       }
     }
+    const workspace =
+      "id" in progress && progress.worktree
+        ? this.gitEvidence.ticketWorkspace(progress)
+        : this.app.workspaceRoot;
     const integratedEvidence =
       assignment.scope !== "delivery" &&
-      !("worktree" in progress && progress.worktree) &&
-      this.gitEvidence.integrationPreservesEvidence(progress, identity) &&
-      assignment.snapshot === progress.acceptedEvidence?.snapshot &&
-      assignment.codeSnapshot === progress.acceptedEvidence?.codeSnapshot &&
-      assignment.requirementsSnapshot === progress.acceptedEvidence?.requirementsSnapshot &&
-      JSON.stringify(assignment.inventory) === JSON.stringify(progress.acceptedEvidence?.files);
+      "id" in progress &&
+      !progress.worktree &&
+      !!progress.acceptedEvidence &&
+      assignment.headSha === progress.acceptedEvidence.commitSha &&
+      JSON.stringify(assignment.inventory) === JSON.stringify(progress.acceptedEvidence.files) &&
+      this.gitEvidence.commitPreservesInputs(
+        feature,
+        { id: progress.id, path: join(feature.workspace, "tickets", `${progress.id}.md`) },
+        assignment.headSha,
+        identity.headSha,
+        workspace!,
+      );
+    const deliveryEvidence =
+      assignment.scope === "delivery" &&
+      !("id" in progress) &&
+      this.gitEvidence.deliveryInputsPreserved(
+        feature,
+        assignment.headSha,
+        identity.headSha,
+        workspace!,
+      );
     if (
       !integratedEvidence &&
-      (assignment.snapshot !== identity.snapshot ||
-        assignment.codeSnapshot !== identity.codeSnapshot ||
-        assignment.requirementsSnapshot !== identity.requirementsSnapshot ||
-        ("worktree" in progress &&
+      !deliveryEvidence &&
+      (assignment.headSha !== identity.headSha ||
+        ("id" in progress &&
           !!progress.worktree &&
-          (assignment.headSha !== identity.headSha ||
-            assignment.workspace !== progress.worktree.workspace ||
+          (assignment.workspace !== progress.worktree.workspace ||
             assignment.branch !== progress.worktree.branch)))
     ) {
-      return `Review assignment ${assignment.id} is stale for the current ticket snapshot.`;
+      return `Review assignment ${assignment.id} is stale for the current commit.`;
     }
     if (!progress.baseSha) return "Review assignment has no recorded Git baseline.";
     let inventory: string[];

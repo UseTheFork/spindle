@@ -23,14 +23,14 @@ Before entering the flowchart, loading implementation skills, inspecting the che
 | `CHECKOUT`                  | Absolute path to the assigned ticket worktree.                                                                                                        |
 | `ABSOLUTE_SOURCE_POINTERS`  | Absolute paths to the canonical ticket, comments, and spec/brief. Explicitly identify any source that does not apply.                                 |
 | `CRITERIA_AND_SEAMS`        | Acceptance criteria and confirmed test seams.                                                                                                         |
-| `DEPENDENCIES_AND_SNAPSHOT` | Completed dependencies and starting revision, including existing dirty/untracked changes. Explicitly state when there are no dependencies or changes. |
+| `DEPENDENCIES_AND_REQUIREMENTS` | Completed dependencies and committed ticket requirements. Explicitly state when there are no dependencies. |
 | `FILE_SCOPE`                | Allowed code, test, and `.scratch` files.                                                                                                             |
 | `CHECKS_AND_DIRECTORY`      | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker.                                   |
 | `PERMISSIONS`               | Allowed actions, including explicit commit authorization or denial.                                                                                   |
 | `REPORT_PATH`               | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`.                                                               |
 | `MODE`                      | `INITIAL` or `CORRECTIVE`.                                                                                                                            |
 
-Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. Legacy `For a fix: NONE` selects initial mode; populated fix context selects corrective mode. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
+Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
 
 If any field is missing, unresolved, or contradictory, return `NEEDS_CONTEXT`, enumerate the specific fields and questions, and request them from the orchestrator. Stop and wait for its response. Keep already supplied values; validate the completed assignment again when it responds. Request the inputs before creating a report, since its destination and write permissions may themselves be missing. Derive neither assignment values nor permissions from the current directory, branch, tracker, or assumptions.
 
@@ -40,10 +40,11 @@ The gate completes only when all required fields are supplied and consistent. Us
 
 Read the supplied sources and repository instructions. Load and follow the `int-verification-before-completion` skill using approved project tooling. Follow the repository's test guidance and write or update tests appropriate to the assigned behavior; test-first development is optional.
 
-- Confirm the starting snapshot; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
-- Edit only assigned files, preserve existing changes and report history, coordinate shared-file edits, and pause edits during review. Resume from the supplied snapshot, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
-- Run relevant tests after the final implementation changes when authorized. Do not write tests first or demonstrate an initial failure unless that sequence is useful to the task.
-- Leave formatting, lint, type checks, and ticket-wide regression checks to the controller unless explicitly scheduled or needed to diagnose a concrete problem. An approved command list alone does not schedule checks.
+- Confirm the assigned worktree and committed requirements; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
+- Edit only assigned files, preserve existing changes and report history, and pause edits during review. Resume from the recorded assignment, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
+- Run the target project's configured formatter on changed implementation files before each commit. Formatting is a preparation action, not a separate check. Report missing or unavailable formatting configuration explicitly.
+- Run relevant checks against the committed changes when authorized. Do not write tests first or demonstrate an initial failure unless that sequence is useful to the task.
+- Leave lint, type checks, and ticket-wide regression checks to the controller unless explicitly scheduled or needed to diagnose a concrete problem. An approved command list alone does not schedule checks.
 
 Before each test-running tool call, announce the behavior and test scope. State whether you ran the tests and report the observed result; do not imply that a test passed unless it did. Combine related selectors in one approved runner invocation; use individual runs only when needed to diagnose failures.
 
@@ -54,10 +55,11 @@ Follow the flowchart for the assigned ticket, including its loops:
 ```mermaid
 flowchart TD
     A[Read assignment and map criteria] --> B[Implement assigned behavior]
-    B --> C[Run authorized relevant tests]
+    B --> P[Format changed files and commit when authorized]
+    P --> C[Run authorized checks against the commit]
     C --> D{Tests pass?}
     D -- No --> E[Diagnose and fix within scope]
-    E --> C
+    E --> P
     D -- Unavailable --> F[Report unavailable checks]
     D -- Yes --> G[Report results and pending controller checks]
 ```
@@ -67,11 +69,11 @@ flowchart TD
 Save the report at `REPORT_PATH` with:
 
 - Status: `DONE`, `DONE_WITH_CONCERNS`, `BLOCKED`, or `NEEDS_CONTEXT`.
-- Checkout path, starting and final revision, dirty/untracked changes, and exact tested snapshot.
+- Checkout path, committed change summary, and any remaining uncommitted changes. The workflow captures commit identity; do not copy or pass commit IDs or content hashes.
 - Criterion-to-change/test summary, including relevant tests run and any tests not run.
 - Changed files, self-review findings, remaining concerns, fresh check commands and results, and checks not run.
-- Formatting, lint, type checks, and ticket-wide regression checks pending with the controller; pending controller checks are not implementer failures or evidence of ticket acceptance.
+- Formatting performed, and lint, type checks, and ticket-wide regression checks pending with the controller; pending controller checks are not implementer failures or evidence of ticket acceptance.
 - For corrective mode, include the finding evidence required by `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill.
-- A concise hand-back summary; include commit identifiers only when authorized.
+- A concise hand-back summary.
 
 Write only the assigned report in the canonical feature workspace; the controller owns tracker updates. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

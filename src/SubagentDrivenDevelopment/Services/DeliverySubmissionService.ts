@@ -40,9 +40,6 @@ export class DeliverySubmissionService extends Service {
     reportSha256?: string;
     unavailable?: boolean;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (
@@ -87,7 +84,7 @@ export class DeliverySubmissionService extends Service {
       if (!attempt || attempt.assignmentId !== assignment.id) {
         throw new Error("Delivery correction assignment has no matching persisted attempt.");
       }
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
@@ -175,9 +172,6 @@ export class DeliverySubmissionService extends Service {
     report: string;
     reportSha256: string;
     idempotent?: boolean;
-    snapshot: string;
-    codeSnapshot: string;
-    requirementsSnapshot: string;
     headSha: string;
   } {
     if (options.role !== "review") {
@@ -226,27 +220,32 @@ export class DeliverySubmissionService extends Service {
       if (!assignment || assignment.scope !== "delivery") {
         throw new Error(`No delivery review assignment matches ID ${options.assignment}.`);
       }
-      const identity = this.gitEvidence.deliveryIdentity(
+      const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      const blockers = this.checkPolicy.deliveryCheckBlockers(delivery, identity);
+      const blockers = this.checkPolicy.deliveryCheckBlockers(
+        feature,
+        this.ticketRepository.readTickets(feature.workspace),
+        delivery,
+        identity,
+      );
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
-      const snapshotBlocker = this.reviewPolicy.reviewSnapshotBlocker(
+      const commitBlocker = this.reviewPolicy.reviewCommitBlocker(
         feature,
         delivery,
         assignment,
         identity,
       );
-      if (snapshotBlocker) throw new Error(snapshotBlocker);
+      if (commitBlocker) throw new Error(commitBlocker);
       const report = this.reportEvidence.submissionReportPath(feature, assignment, options.report);
       const reportSha256 = this.reportEvidence.readReportDigest(feature, report);
       const reported = (delivery.findings ?? [])
         .filter((finding) =>
           finding.provenance.some(
             (source) =>
-              source.report === assignment.report && source.snapshot === assignment.snapshot,
+              source.report === assignment.report && source.headSha === assignment.headSha,
           ),
         )
         .map((finding) => finding.id);
@@ -260,7 +259,7 @@ export class DeliverySubmissionService extends Service {
         const unknown = findingIds.filter((id) => !reported.includes(id));
         if (missing.length > 0 || unknown.length > 0) {
           throw new Error(
-            `--findings must exactly list canonical findings registered from this delivery report and snapshot; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
+            `--findings must exactly list canonical findings registered from this delivery report and commit; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
           );
         }
       }

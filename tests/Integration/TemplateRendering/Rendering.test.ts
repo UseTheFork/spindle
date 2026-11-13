@@ -69,7 +69,7 @@ test("supplied values are rendered as data rather than recursively parsed as tem
   );
 });
 
-test("shared context accepts caller inputs without Config or Blueprint defaults", () => {
+test("shared context accepts caller inputs without Project Settings or Blueprint defaults", () => {
   const resolved = resolveRenderContext(
     new Application({ basePath: "/project" }),
     { variables: { title: "Caller title" } },

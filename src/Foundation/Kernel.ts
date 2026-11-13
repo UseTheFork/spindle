@@ -2,9 +2,9 @@ import type { Application } from "@/Foundation/Application";
 import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
 import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
 import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { RequireProjectConfiguration } from "@/Foundation/Bootstrap/RequireProjectConfiguration";
+import { RequireProjectSettings } from "@/Foundation/Bootstrap/RequireProjectSettings";
 import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
 
 export class Kernel {
@@ -14,8 +14,8 @@ export class Kernel {
     return [
       LoadConsoleArgs,
       DiscoverGitRoot,
-      LoadProjectConfiguration,
-      RequireProjectConfiguration,
+      LoadProjectSettings,
+      RequireProjectSettings,
       RegisterProviders,
     ];
   }

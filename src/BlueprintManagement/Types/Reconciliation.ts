@@ -5,7 +5,7 @@ import type {
   PlannedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
 import type { Application } from "@/Foundation/Application";
-import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import type { ProjectSettingsData } from "@/Settings/Services/ProjectSettingsService";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintOutcome {
@@ -27,13 +27,14 @@ export type ReconcileOptions =
   | (ReconcileCommon & {
       mode: "init";
       context: RenderContext;
-      config: ProjectConfigurationData;
+      settings: ProjectSettingsData;
       conflictPolicy?: ConflictPolicy;
       chooseConflict?: (kind: string, name: string) => Promise<ConflictPolicy>;
     })
   | (ReconcileCommon & {
       mode: "update";
-      config?: ProjectConfigurationData;
+      settings?: ProjectSettingsData;
+      persistSettings?: boolean;
     });
 
 type WithoutApplicationRoots<T> = T extends unknown

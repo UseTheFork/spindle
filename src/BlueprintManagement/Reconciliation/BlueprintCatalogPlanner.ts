@@ -19,10 +19,13 @@ export interface BlueprintHandlerCatalogPlan {
   catalogDeletions: CatalogDeletion[];
   deletions: PlannedBlueprintDeletion[];
   membershipCleanup: PlannedBlueprintDeletion[];
-  managed: Set<string>;
 }
 
-async function scanManagedBlueprints(handler: BlueprintHandler, directory: string) {
+async function scanManagedBlueprints(
+  handler: BlueprintHandler,
+  directory: string,
+  selectedNames: Set<string>,
+) {
   const managed = new Set<string>();
   const visit = async (current: string) => {
     let entries;
@@ -39,6 +42,8 @@ async function scanManagedBlueprints(handler: BlueprintHandler, directory: strin
       }
       if (handler.catalogKind === "skills") {
         if (!entry.isDirectory()) continue;
+        const name = relative(directory, path).split(sep).join("/");
+        if (selectedNames.has(name)) continue;
         const entryFile = join(path, "SKILL.md");
         try {
           if ((await lstat(entryFile)).isSymbolicLink()) {
@@ -54,6 +59,7 @@ async function scanManagedBlueprints(handler: BlueprintHandler, directory: strin
       } else if (entry.isDirectory()) {
         await visit(path);
       } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+        if (selectedNames.has(relative(directory, path).split(sep).join("/"))) continue;
         if ((await readInstalledBlueprintMetadata(path)).managed) {
           managed.add(relative(directory, path).split(sep).join("/"));
         }
@@ -122,11 +128,11 @@ export async function planBlueprintCatalogReconciliation(
     );
     const destinationDirectory = handler.destinationDirectory(githubDirectory);
     await assertSafeInstallPaths(githubDirectory, [], destinationDirectory);
+    const selectedNames = new Set(expansion.selections.map((selection) => selection.name));
     const managed =
       mode === "update"
-        ? await scanManagedBlueprints(handler, destinationDirectory)
+        ? await scanManagedBlueprints(handler, destinationDirectory, selectedNames)
         : new Set<string>();
-    const selectedNames = new Set(expansion.selections.map((selection) => selection.name));
     const catalogDeletions = mode === "init" ? expansion.deletions : [];
     const deletions: PlannedBlueprintDeletion[] = catalogDeletions.map((deletion) => ({
       kind: handler.kind,
@@ -155,9 +161,6 @@ export async function planBlueprintCatalogReconciliation(
     }
     const membershipCleanup: PlannedBlueprintDeletion[] = [];
     for (const directory of expansion.directories) {
-      if (mode === "update" && handler.catalogKind === "skills" && !managed.has(directory.path)) {
-        continue;
-      }
       const directoryTarget =
         handler.targetPath?.(destinationDirectory, directory.path) ??
         join(destinationDirectory, directory.path);
@@ -193,7 +196,6 @@ export async function planBlueprintCatalogReconciliation(
       catalogDeletions,
       deletions,
       membershipCleanup,
-      managed,
     });
   }
   return handlerPlans;

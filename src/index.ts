@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
 import { dispatch } from "@/cli";
 import { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
+import { SettingsServiceProvider } from "@/Settings/SettingsServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
 import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
@@ -24,6 +22,7 @@ export async function runExecutable(
       TemplateRenderingServiceProvider,
       BlueprintManagementServiceProvider,
       ProjectServiceProvider,
+      SettingsServiceProvider,
       ToolingServiceProvider,
       SubagentDrivenDevelopmentServiceProvider,
     ],
@@ -31,12 +30,7 @@ export async function runExecutable(
   );
 }
 
-function isExecutable() {
-  const entrypoint = process.argv[1];
-  return entrypoint !== undefined && pathToFileURL(resolve(entrypoint)).href === import.meta.url;
-}
-
-if (isExecutable()) {
+if (import.meta.main) {
   const output = new ConsoleOutputService();
   runExecutable(process.argv.slice(2), process.cwd(), output).catch((error: unknown) => {
     output.error(error);

@@ -92,18 +92,13 @@ export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
 export function isAcceptedEvidence(value: unknown): value is AcceptedEvidence {
   return (
     isRecord(value) &&
-    typeof value.snapshot === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.snapshot) &&
-    typeof value.codeSnapshot === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.codeSnapshot) &&
-    typeof value.requirementsSnapshot === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.requirementsSnapshot) &&
+    typeof value.commitSha === "string" &&
+    /^[0-9a-f]{40,64}$/i.test(value.commitSha) &&
     Array.isArray(value.files) &&
     value.files.length > 0 &&
     value.files.every((path) => typeof path === "string" && isSafeCoveragePath(path)) &&
     new Set(value.files).size === value.files.length &&
-    typeof value.contentDigest === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.contentDigest)
+    Object.keys(value).every((key) => ["commitSha", "files"].includes(key))
   );
 }
 
@@ -123,7 +118,7 @@ export function isIntegrationRecord(value: unknown): value is IntegrationRecord 
         typeof value.mergeSha === "string" &&
         value.postMerge.mergeSha === value.mergeSha &&
         (!Object.hasOwn(value.postMerge, "checks") ||
-          isPostMergeChecks(value.postMerge.checks, value.mergeSha, value.postMerge.status)) &&
+          isPostMergeChecks(value.postMerge.checks, value.postMerge.status)) &&
         (value.postMerge.status !== "passed" || Object.hasOwn(value.postMerge, "checks")))) &&
     typeof value.integratedAt === "string" &&
     Number.isFinite(Date.parse(value.integratedAt)) &&
@@ -133,16 +128,13 @@ export function isIntegrationRecord(value: unknown): value is IntegrationRecord 
     value.files.length > 0 &&
     value.files.every((path) => typeof path === "string" && isSafeCoveragePath(path)) &&
     new Set(value.files).size === value.files.length &&
-    typeof value.contentDigest === "string" &&
-    /^[0-9a-f]{64}$/i.test(value.contentDigest)
+    Object.keys(value).every((key) =>
+      ["commitSha", "mergeSha", "postMerge", "integratedAt", "integratedBy", "files"].includes(key),
+    )
   );
 }
 
-function isPostMergeChecks(
-  value: unknown,
-  mergeSha: string,
-  status: "pending" | "passed",
-): boolean {
+function isPostMergeChecks(value: unknown, status: "pending" | "passed"): boolean {
   if (
     !isRecord(value) ||
     !Object.keys(value).every((key) => ["required", "records"].includes(key)) ||
@@ -165,22 +157,9 @@ function isPostMergeChecks(
     !value.records.every(isCheckRecord) ||
     value.records.some(
       (record) =>
-        record.headSha !== mergeSha ||
         !Object.keys(record).every((key) =>
-          [
-            "command",
-            "result",
-            "author",
-            "snapshot",
-            "codeSnapshot",
-            "requirementsSnapshot",
-            "headSha",
-            "recordedAt",
-            "details",
-          ].includes(key),
-        ) ||
-        record.coveredPaths !== undefined ||
-        record.coverageSnapshot !== undefined,
+          ["command", "result", "author", "headSha", "recordedAt", "details"].includes(key),
+        ) || record.coveredPaths !== undefined,
     )
   )
     return false;
@@ -192,11 +171,5 @@ function isPostMergeChecks(
   const latest = value.required.map((item) =>
     [...records].reverse().find((record) => record.command === item.command),
   );
-  return latest.every(
-    (record) =>
-      record?.result === "passed" &&
-      record.snapshot === latest[0]?.snapshot &&
-      record.codeSnapshot === latest[0]?.codeSnapshot &&
-      record.requirementsSnapshot === latest[0]?.requirementsSnapshot,
-  );
+  return latest.every((record) => record?.result === "passed");
 }

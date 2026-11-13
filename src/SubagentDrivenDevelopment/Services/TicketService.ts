@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import matter from "gray-matter";
 
@@ -31,8 +30,6 @@ import {
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
-
-const templates = fileURLToPath(new URL("../../Assets/Templates/", import.meta.url));
 
 export class TicketService extends Service {
   public constructor(
@@ -82,7 +79,7 @@ export class TicketService extends Service {
         },
       });
       const template = renderText(
-        readFileSync(join(templates, templateCatalog.sdd.ticket), "utf8"),
+        readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.ticket), "utf8"),
         context,
       );
       const document = matter.stringify(
