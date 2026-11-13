@@ -11,6 +11,8 @@ metadata:
 
 The controller coordinates a feature's tickets, workers, checks, reviews, and completion. The feature workspace and `sdd.json` are the source of truth for structured ticket and delivery state; each ticket Markdown file holds its requirements, acceptance criteria, and discussion.
 
+Once the first subagents are running, load [active subagent monitoring](./references/active-subagent-monitoring.md) once and follow it while any active subagents remain. This controller-wide policy applies to all roles and both ticket and aggregate work.
+
 Add `--json` to Spindle commands when consuming structured results. Read the
 success envelope's `data` field; stdout contains one result, while stderr
 contains JSON notices or errors. A nonzero exit indicates failure. Human output
