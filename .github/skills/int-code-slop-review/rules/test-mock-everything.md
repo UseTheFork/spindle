@@ -19,6 +19,7 @@ A real test verifies **outcome**, not **interaction**. Mocking a database to ass
 // ❌ Mock-everything test that asserts mock interactions
 
 import { describe, it, expect, vi } from "vitest";
+
 import { UserService } from "./UserService";
 
 describe("UserService", () => {
@@ -63,6 +64,7 @@ test('processOrder calls payment gateway', function () {
 ```typescript
 // ✅ Integration test against a real (in-memory) DB; assert what changed
 import { describe, it, expect, beforeEach } from "vitest";
+
 import { createTestDb } from "./testUtils";
 import { UserService } from "./UserService";
 

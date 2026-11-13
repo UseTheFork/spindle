@@ -3,7 +3,17 @@ name: shared-explore
 description: "Fast read-only codebase exploration and Q&A subagent. Prefer over manually chaining multiple search and file-reading operations to avoid cluttering the main conversation. Safe to call in parallel. Specify thoroughness: quick, medium, or thorough."
 argument-hint: "Describe WHAT you're looking for and desired thoroughness (quick/medium/thorough)"
 user-invocable: false
-tools: ["search","read","web", "github/issue_read", "github.vscode-pull-request-github/issue_fetch", "github.vscode-pull-request-github/activePullRequest", "execute/getTerminalOutput", "execute/testFailure"]
+tools:
+  [
+    "search",
+    "read",
+    "web",
+    "github/issue_read",
+    "github.vscode-pull-request-github/issue_fetch",
+    "github.vscode-pull-request-github/activePullRequest",
+    "execute/getTerminalOutput",
+    "execute/testFailure",
+  ]
 agents: []
 metadata:
   spindle:

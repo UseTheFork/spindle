@@ -18,7 +18,7 @@ Only when the **WHY** is non-obvious and a future reader would otherwise be conf
 - A hidden constraint (e.g. "API requires this header lowercased — server rejects mixed case").
 - A subtle invariant (e.g. "must run before X is mounted, otherwise the event listener attaches to the wrong target").
 - A workaround for a specific bug or spec quirk (e.g. "Safari 17 fires `focus` twice — debounce").
-- Focus on behavior that would surprise a competent reader of this code.
+- Focus on behavior that would surprise a competent reader.
 
 Keep it to **one line** wherever possible. Two lines max. Never a paragraph, never a multi-line block, never a docstring with sections.
 

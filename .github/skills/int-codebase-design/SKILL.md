@@ -1,10 +1,10 @@
 ---
 name: int-codebase-design
+description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+user-invocable: false
 metadata:
   spindle:
     version: 1.1.1
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
-user-invocable: false
 ---
 
 # Codebase Design

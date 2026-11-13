@@ -2,19 +2,18 @@
 name: General
 description: A general agent for answering questions and carrying out implementation tasks.
 user-invocable: true
-tools:
+tools: [execute, read, agent, edit, search, todo, read_skill, list_skills, skill]
+agents:
   [
-    execute,
-    read,
-    agent,
-    edit,
-    search,
-    todo,
-    read_skill,
-    list_skills,
-    skill
+    shared-r,
+    shared-rw,
+    shared-rwx,
+    shared-explore,
+    shared-codebase-analyzer,
+    shared-codebase-locator,
+    shared-web-search-researcher,
+    shared-codebase-pattern-finder,
   ]
-agents: [shared-r, shared-rw, shared-rwx, shared-explore, shared-codebase-analyzer, shared-codebase-locator, shared-web-search-researcher, shared-codebase-pattern-finder]
 metadata:
   spindle:
     version: 1.1.0

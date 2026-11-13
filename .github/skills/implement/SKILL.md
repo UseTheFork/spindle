@@ -9,7 +9,7 @@ metadata:
 
 # Implement
 
-Implement the user's task or supplied issue/spec, verify it, and obtain a clean code review before committing.
+Implement the user's task or supplied ticket/spec, verify it, and obtain a clean code review before committing.
 
 ## Workflow
 
@@ -32,7 +32,7 @@ flowchart TD
 
 ### A. Prepare task and checkout
 
-If the user supplies a ticket reference, read it and state its title; ask if the reference is ambiguous. Preserve the original task description and any supplied issue/spec paths for the review. Before changing files, check `git status --short`. If staged, unstaged, or untracked changes already exist, preserve them, ask the user to clean or separately preserve them, and stop. Once clean, record `git rev-parse HEAD` as the implementation base before making changes.
+If the user supplies a ticket reference, read it and state its title; ask if the reference is ambiguous. Preserve the original task description and any supplied ticket/spec paths for the review. Before changing files, check `git status --short`. If staged, unstaged, or untracked changes already exist, preserve them, ask the user to clean or separately preserve them, and stop. Once clean, record `git rev-parse HEAD` as the implementation base before making changes.
 
 **Complete when:** the task and requirements context are clear, the worktree is clean, and the starting base revision is recorded; otherwise stop without editing.
 
@@ -50,7 +50,7 @@ Run applicable project completion checks through the repository's Just recipes. 
 
 ### D. Freeze review snapshot
 
-Stop implementation edits while review runs. Prepare review inputs using the existing [review-input contract](../int-subagent-driven-dev/references/review-inputs.md): absolute workspace, recorded starting base, current head, exact snapshot identity, complete changed-file inventory and diff including staged, unstaged, and untracked changes, original task description and known issue/spec pointers, and verification evidence for the same snapshot. Use `just tool::git-detailed-diff` to capture staged, unstaged, and untracked content. Keep the implementation frozen until review returns.
+Stop implementation edits while review runs. Prepare review inputs using the existing [review-input contract](../int-subagent-driven-dev/references/review-inputs.md): absolute workspace, recorded starting base, current head, exact snapshot identity, complete changed-file inventory and diff including staged, unstaged, and untracked changes, original task description and known ticket/spec pointers, and verification evidence for the same snapshot. Use `just tool::git-detailed-diff` to capture staged, unstaged, and untracked content. Keep the implementation frozen until review returns.
 
 **Complete when:** the caller can supply a complete, internally consistent review snapshot and matching verification evidence; otherwise stop and identify the gap.
 
