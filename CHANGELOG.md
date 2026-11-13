@@ -1,5 +1,21 @@
 # @usethefork/spindle
 
+## 0.4.0
+
+### Minor Changes
+
+- [#10](https://github.com/UseTheFork/spindle/pull/10) [`7d9548e`](https://github.com/UseTheFork/spindle/commit/7d9548ea21f196c331babe046f9937f31ad0d22f) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Simplify subagent-driven development by binding checks and reviews to committed code and requirements instead of content snapshots. Format changes before committing, require fresh checks and focused review for rework, and integrate only the approved commit.
+
+  Remove obsolete snapshot fields, CLI arguments, and compatibility code, and update worker guidance and tests.
+
+- [#10](https://github.com/UseTheFork/spindle/pull/10) [`9b6c8dc`](https://github.com/UseTheFork/spindle/commit/9b6c8dc9a94f93d82c8d544f9b181635a47bd391) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Resolve project settings with Zod and publish a versioned JSON Schema for editor support.
+
+### Patch Changes
+
+- [#10](https://github.com/UseTheFork/spindle/pull/10) [`888504e`](https://github.com/UseTheFork/spindle/commit/888504ea57185864e5611da0e1467d73d8b29ac0) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Reference the versioned project settings schema from unpkg.
+
+- [#10](https://github.com/UseTheFork/spindle/pull/10) [`023b950`](https://github.com/UseTheFork/spindle/commit/023b950749607e4efcdd048db5114b7ce9df7e64) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Improve SDD spec and ticket authoring with a shared internal EARS reference skill. Prefer EARS for suitable behavior requirements and acceptance criteria while preserving existing document structures.
+
 ## 0.3.0
 
 ### Minor Changes
