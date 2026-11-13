@@ -33,8 +33,13 @@ function packagedCli(existingRoot?: string) {
 
   return {
     root: packageRoot,
-    run(project: string, args: readonly string[], env: Record<string, string> = {}) {
-      return spawnSync(process.execPath, [join(packageRoot, "build", "index.js"), ...args], {
+    run(
+      project: string,
+      args: readonly string[],
+      env: Record<string, string> = {},
+      entrypoint = join(packageRoot, "build", "index.js"),
+    ) {
+      return spawnSync(process.execPath, [entrypoint, ...args], {
         cwd: project,
         encoding: "utf8",
         env: {
@@ -311,6 +316,41 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(listed.stdout).toContain("- test-unit [Testing]: pnpm test -- --run");
   expect(listed.stderr).toBe("");
 });
+test("packaged CLI executes commands through a symlinked launcher", () => {
+  const cli = packagedCli();
+  const launcher = join(cli.root, "spindle");
+  symlinkSync(join(cli.root, "build", "index.js"), launcher, "file");
+  const project = tempDirectory("spindle-packaged-launcher-project-");
+  makeGitWorkspace(project);
+
+  const initialized = cli.run(project, [
+    "init",
+    "--stack",
+    "typescript",
+    "--spindle-package-manager",
+    "pnpm",
+    "--no-interactive",
+  ]);
+  expect(initialized.status, initialized.stderr).toBe(0);
+
+  const help = cli.run(project, ["--help"], {}, launcher);
+  expect(help.status, help.stderr).toBe(0);
+  expect(help.stdout).toContain("Usage: spindle");
+  expect(help.stdout).toMatch(/^\s*tool\b/m);
+  expect(help.stderr).toBe("");
+
+  const listed = cli.run(project, ["tool", "list"], {}, launcher);
+  expect(listed.status, listed.stderr).toBe(0);
+  expect(listed.stdout).toMatch(/^Tooling commands \(\d+\):/);
+  expect(listed.stdout).toMatch(/^- .+ \[.+\]: .+/m);
+  expect(listed.stderr).toBe("");
+
+  const invalid = cli.run(project, ["--unknown"], {}, launcher);
+  expect(invalid.status).not.toBe(0);
+  expect(invalid.stdout).toBe("");
+  expect(invalid.stderr).toContain("unknown option");
+});
+
 test("packaged command discovery and help remain intact", () => {
   const cli = packagedCli();
   const projectWorkspace = tempDirectory("spindle-packaged-help-project-");
