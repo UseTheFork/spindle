@@ -13,7 +13,7 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
 
 import { runCli } from "../../../Helpers/Cli.ts";
@@ -151,12 +151,12 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
   render.mockRestore();
 });
 
-test("ticket creation requires valid project Config", async () => {
-  const { repo, app, service, feature } = await ticketFixture("Invalid Project Config");
+test("ticket creation requires valid Project Settings", async () => {
+  const { repo, app, service, feature } = await ticketFixture("Invalid Project Settings");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
-  await LoadProjectConfiguration.refresh(app);
+  await ProjectSettingsService.refresh(app);
 
   expect(() =>
     service.ticketService.ticketCreate({

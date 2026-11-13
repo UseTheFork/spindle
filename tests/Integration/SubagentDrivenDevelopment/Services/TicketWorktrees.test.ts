@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { expect, test, vi } from "vitest";
 
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
@@ -1016,7 +1016,7 @@ test("pending-gate ticket startup resumes after worktree allocation without adva
   expect(integrated.status, integrated.stderr).toBe(0);
   const mergeSha = cliOutput(integrated).mergeCommit as string;
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const transaction = await app.make(WorkspaceTransaction);
   const assignments = await app.make(AssignmentService);
@@ -1300,7 +1300,7 @@ test("integration refuses dirty canonical state before creating a merge journal"
 test("integration recovers its journalled staged records but rejects unrelated staged data", async () => {
   const { root, spec } = await acceptedTicket();
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const feature = (await app.make(FeatureInspectionService)).resolveFeature(spec);
   const committer = new WorkflowRecordsCommitter(app, new InterruptedRecordGit(app));

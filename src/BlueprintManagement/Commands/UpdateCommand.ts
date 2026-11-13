@@ -6,13 +6,13 @@ import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
 import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
-import {
-  LoadProjectConfiguration,
-  type ProjectConfigurationData,
-} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
 import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import {
+  ProjectSettingsService,
+  type ProjectSettingsData,
+} from "@/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@/Support/Stacks";
 
 export interface UpdateResult {
@@ -73,29 +73,24 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(replacement?: ProjectConfigurationData): Promise<UpdateResult> {
+  public async run(replacement?: ProjectSettingsData): Promise<UpdateResult> {
     this.assertApplicationBooted();
-    const current = LoadProjectConfiguration.require(
-      await LoadProjectConfiguration.refresh(this.app),
-    );
+    const current = ProjectSettingsService.requireCurrent(this.app);
     const state =
       replacement === undefined
-        ? { status: "valid" as const, data: current.config }
-        : LoadProjectConfiguration.parse(JSON.stringify(replacement));
-    const resolved = LoadProjectConfiguration.require(state);
-    const config = {
-      ...resolved,
-      config: projectSettingsSchema.parse({
-        ...resolved.config,
-        $schema: ProjectSettingsSchema.schemaUrl(),
-      }),
-    };
-    if (config.stacks.length === 0) {
+        ? { status: "valid" as const, data: current.settings }
+        : ProjectSettingsService.parse(JSON.stringify(replacement));
+    const resolved = ProjectSettingsService.require(state);
+    const settings = projectSettingsSchema.parse({
+      ...resolved.settings,
+      $schema: ProjectSettingsSchema.schemaUrl(),
+    });
+    if (settings.stacks.length === 0) {
       throw new Error(
         `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
       );
     }
-    const spindlePackageManager = config.config.spindle_package_manager;
+    const spindlePackageManager = settings.spindle_package_manager;
     if (spindlePackageManager === undefined) {
       throw new Error(
         'Missing "spindle_package_manager" in .github/spindle.json; add the preferred Spindle package-manager command before running `spindle update`.',
@@ -103,13 +98,13 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
     }
 
     const project = await this.app.make(ProjectService);
-    const guidance = await project.prepare(config.config, "update");
+    const guidance = await project.prepare(settings, "update");
     const outcomes = await this.reconciliationService.reconcile(this.handlers, {
       mode: "update",
-      config: config.config,
-      persistConfig: true,
+      settings,
+      persistSettings: true,
       resolveContext: async () => ({
-        stacks: config.stacks,
+        stacks: settings.stacks,
         variables: {},
       }),
     });
@@ -127,7 +122,7 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
         { cause: error },
       );
     }
-    await LoadProjectConfiguration.refresh(this.app);
-    return { stacks: config.stacks, outcomes, guidanceInitialized: true };
+    await ProjectSettingsService.refresh(this.app);
+    return { stacks: settings.stacks, outcomes, guidanceInitialized: true };
   }
 }

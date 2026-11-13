@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
@@ -39,7 +39,7 @@ function git(root: string, ...args: string[]) {
 }
 async function appAt(root: string) {
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   return app;
 }

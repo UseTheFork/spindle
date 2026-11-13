@@ -3,10 +3,28 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
+import { SettingsService } from "@/Settings/Services/SettingsService";
+
 import { runCli, runCliInteractive } from "../../Helpers/Cli.ts";
+import { serviceFixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
 import { makeTempDir } from "../../Helpers/TemporaryDirectories.ts";
 
 vi.setConfig({ testTimeout: 30_000 });
+
+test("settings reads use the boot-bound snapshot", async () => {
+  const { app, repo } = await serviceFixture();
+  const service = new SettingsService(app);
+  await writeFile(
+    join(repo, ".github", "spindle.json"),
+    JSON.stringify({
+      stacks: ["python"],
+      spindle_package_manager: "pnpm",
+      commit: { allow_body: true },
+    }),
+  );
+
+  await expect(service.get("commit.allow_body")).resolves.toBe(false);
+});
 
 test("init persists defaults and settings changes regenerate commit guidance", async () => {
   const project = await makeTempDir("spindle-settings-");

@@ -1,20 +1,19 @@
 import { readFile } from "node:fs/promises";
 
 import type { Application } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
 import { projectSettingsSchema, type ProjectSettings } from "@/Settings/Models/ProjectSettings";
 import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
 
-export type ProjectConfigurationData = ProjectSettings;
+export type ProjectSettingsData = ProjectSettings;
 
-export type ProjectConfigurationState =
+export type ProjectSettingsState =
   | { status: "absent" }
-  | { status: "valid"; data: ProjectConfigurationData }
+  | { status: "valid"; data: ProjectSettingsData }
   | { status: "invalid"; data: unknown; error: Error; reason: string };
 
-export class LoadProjectConfiguration extends Bootstrapper {
-  public static parse(raw: string): ProjectConfigurationState {
+export class ProjectSettingsService {
+  public static parse(raw: string): ProjectSettingsState {
     let data: unknown;
     try {
       data = JSON.parse(raw);
@@ -42,7 +41,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
     const result = projectSettingsSchema.safeParse(data);
     if (!result.success) {
       const details = result.error.issues
-        .map((issue) => `${issue.path.join(".") || "configuration"}: ${issue.message}`)
+        .map((issue) => `${issue.path.join(".") || "settings"}: ${issue.message}`)
         .join("; ");
       const reason = `.github/spindle.json is malformed: ${details}.`;
       return { status: "invalid", data, error: result.error, reason };
@@ -50,7 +49,7 @@ export class LoadProjectConfiguration extends Bootstrapper {
     return { status: "valid", data: result.data };
   }
 
-  public static async load(path: string): Promise<ProjectConfigurationState> {
+  public static async load(path: string): Promise<ProjectSettingsState> {
     let raw: string;
     try {
       raw = await readFile(path, "utf8");
@@ -61,8 +60,8 @@ export class LoadProjectConfiguration extends Bootstrapper {
     return this.parse(raw);
   }
 
-  public static current(application: Application): ProjectConfigurationState {
-    const state = application.value("config.project");
+  public static current(application: Application): ProjectSettingsState {
+    const state = application.value("settings.project");
     if (Records.isRecord(state)) {
       if (state.status === "absent") return { status: "absent" };
       if (state.status === "valid") {
@@ -78,20 +77,20 @@ export class LoadProjectConfiguration extends Bootstrapper {
       }
     }
     throw new Error(
-      "Application binding 'config.project' must contain a project configuration state.",
+      "Application binding 'settings.project' must contain a Project Settings state.",
     );
   }
 
   public static async withTemporaryState<T>(
     application: Application,
-    state: ProjectConfigurationState,
+    state: ProjectSettingsState,
     operation: () => Promise<T>,
   ): Promise<T> {
     this.current(application);
-    const current = application.value("config.project");
+    const current = application.value("settings.project");
     if (!Records.isRecord(current)) {
       throw new Error(
-        "Application binding 'config.project' must contain a project configuration state.",
+        "Application binding 'settings.project' must contain a Project Settings state.",
       );
     }
     const previous = { ...current };
@@ -107,41 +106,37 @@ export class LoadProjectConfiguration extends Bootstrapper {
     }
   }
 
-  public static require(state: ProjectConfigurationState) {
+  public static require(state: ProjectSettingsState) {
     if (state.status === "absent") {
       throw new Error(
-        "This repository has no .github/spindle.json. Run `spindle init` to create .github/spindle.json.",
+        "This repository has no .github/spindle.json. Run `spindle init` to create Project Settings.",
       );
     }
     if (state.status === "invalid") {
       if (state.reason.startsWith("Invalid stack '")) throw state.error;
       throw new Error(`${state.reason} Fix .github/spindle.json before continuing.`);
     }
-    return { config: state.data, stacks: state.data.stacks };
+    return { settings: state.data, stacks: state.data.stacks };
   }
 
   public static requireCurrent(application: Application) {
     return this.require(this.current(application));
   }
 
-  public static async refresh(application: Application): Promise<ProjectConfigurationState> {
+  public static async refresh(application: Application): Promise<ProjectSettingsState> {
     const state = await this.load(application.workspacePath(".github/spindle.json"));
-    if (application.bound("config.project")) {
-      const current = application.value("config.project");
+    if (application.bound("settings.project")) {
+      const current = application.value("settings.project");
       if (!Records.isRecord(current)) {
         throw new Error(
-          "Application binding 'config.project' must contain a project configuration state.",
+          "Application binding 'settings.project' must contain a Project Settings state.",
         );
       }
       for (const key of Object.keys(current)) delete current[key];
       Object.assign(current, state);
     } else {
-      application.instance("config.project", state);
+      application.instance("settings.project", state);
     }
     return state;
-  }
-
-  public async bootstrap(application: Application): Promise<void> {
-    await LoadProjectConfiguration.refresh(application);
   }
 }

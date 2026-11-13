@@ -1,11 +1,11 @@
 import { cancel, confirm, isCancel, multiselect, select, text } from "@clack/prompts";
 
-import type { ProjectConfigurationData } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import {
   defaultCommitSettings,
   commitSettingsSchema,
   type CommitSettings,
 } from "@/Settings/Models/CommitSettings";
+import type { ProjectSettingsData } from "@/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@/Support/Stacks";
 import { isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
@@ -165,21 +165,21 @@ async function promptTooling(initial: ToolingEntry[]): Promise<ToolingEntry[]> {
 }
 
 export async function promptSettings(
-  config: ProjectConfigurationData,
+  settings: ProjectSettingsData,
 ): Promise<Record<string, unknown>> {
   const stacks = answer<string[]>(
     await multiselect({
       message: "Which stacks does this project use?",
       options: Stacks.supported.map((value) => ({ value, label: value })),
-      initialValues: config.stacks,
+      initialValues: settings.stacks,
       required: true,
     }),
   );
   const spindle_package_manager = await promptRequired(
     "Spindle package-manager command",
-    config.spindle_package_manager ?? "",
+    settings.spindle_package_manager ?? "",
   );
-  const tooling = await promptTooling(config.tooling);
-  const commit = await promptCommitSettings(config.commit);
-  return { ...config, stacks, spindle_package_manager, tooling, commit };
+  const tooling = await promptTooling(settings.tooling);
+  const commit = await promptCommitSettings(settings.commit);
+  return { ...settings, stacks, spindle_package_manager, tooling, commit };
 }

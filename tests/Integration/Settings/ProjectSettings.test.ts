@@ -6,7 +6,8 @@ import { expect, test } from "vitest";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
 import { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 
 import { serviceFixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
 
@@ -22,7 +23,7 @@ test("configuration commands require a booted application", async () => {
 
 test("configuration parsing preserves unknown data and resolves defaults", () => {
   const raw = '{"stacks":["python","python"],"variables":{"owner":""},"custom":{"enabled":true}}';
-  const state = LoadProjectConfiguration.parse(raw);
+  const state = ProjectSettingsService.parse(raw);
   expect(state.status).toBe("valid");
   if (state.status !== "valid") throw new Error("Expected valid state");
   expect(state.data).toMatchObject({
@@ -36,13 +37,13 @@ test("configuration parsing preserves unknown data and resolves defaults", () =>
       allow_breaking_changes: false,
     },
   });
-  const config = LoadProjectConfiguration.require(state);
-  expect(config.config).toBe(state.data);
-  expect(config.stacks).toBe(state.data.stacks);
+  const required = ProjectSettingsService.require(state);
+  expect(required.settings).toBe(state.data);
+  expect(required.stacks).toBe(state.data.stacks);
 });
 
 test("configuration accepts an empty stack list and an optional tooling registry", () => {
-  const state = LoadProjectConfiguration.parse(
+  const state = ProjectSettingsService.parse(
     JSON.stringify({
       stacks: [],
       variables: {},
@@ -60,7 +61,7 @@ test("configuration accepts an empty stack list and an optional tooling registry
 });
 
 test("partial commit settings resolve defaults and preserve unknown nested fields", () => {
-  const state = LoadProjectConfiguration.parse(
+  const state = ProjectSettingsService.parse(
     JSON.stringify({ stacks: [], commit: { allow_body: true, extension: "kept" } }),
   );
   expect(state.status).toBe("valid");
@@ -76,12 +77,12 @@ test("partial commit settings resolve defaults and preserve unknown nested field
 });
 
 test("invalid JSON retains its original text and SyntaxError separately from command messaging", () => {
-  const state = LoadProjectConfiguration.parse("{");
+  const state = ProjectSettingsService.parse("{");
   expect(state.status).toBe("invalid");
   if (state.status !== "invalid") throw new Error("Expected invalid state");
   expect(state.data).toBe("{");
   expect(state.error).toBeInstanceOf(SyntaxError);
-  expect(() => LoadProjectConfiguration.require(state)).toThrow(
+  expect(() => ProjectSettingsService.require(state)).toThrow(
     ".github/spindle.json is not valid JSON. Fix .github/spindle.json",
   );
 });
@@ -105,7 +106,7 @@ test.each([
     ],
   },
 ])("schema-invalid configuration remains inspectable without injecting defaults: %j", (data) => {
-  const state = LoadProjectConfiguration.parse(JSON.stringify(data));
+  const state = ProjectSettingsService.parse(JSON.stringify(data));
   expect(state.status).toBe("invalid");
   if (state.status !== "invalid") throw new Error("Expected invalid state");
   expect(state.data).toEqual(data);
@@ -114,27 +115,25 @@ test.each([
 
 test("unsupported and empty stack IDs retain the existing validation errors", () => {
   for (const stack of ["", "unsupported"]) {
-    const state = LoadProjectConfiguration.parse(
-      JSON.stringify({ stacks: [stack], variables: {} }),
-    );
-    expect(() => LoadProjectConfiguration.require(state)).toThrow(
+    const state = ProjectSettingsService.parse(JSON.stringify({ stacks: [stack], variables: {} }));
+    expect(() => ProjectSettingsService.require(state)).toThrow(
       `Invalid stack '${stack}'. Supported stacks: php-laravel, python, typescript.`,
     );
     if (state.status !== "invalid") throw new Error("Expected invalid state");
-    expect(() => LoadProjectConfiguration.require(state)).toThrow(state.error);
+    expect(() => ProjectSettingsService.require(state)).toThrow(state.error);
   }
 });
 
 test("missing configuration is absent while unexpected filesystem errors propagate", async () => {
   const { repo } = await serviceFixture();
   const path = join(repo, "spindle.json");
-  const absent = await LoadProjectConfiguration.load(path);
+  const absent = await ProjectSettingsService.load(path);
   expect(absent).toEqual({ status: "absent" });
-  expect(() => LoadProjectConfiguration.require(absent)).toThrow(
+  expect(() => ProjectSettingsService.require(absent)).toThrow(
     "This repository has no .github/spindle.json.",
   );
   mkdirSync(path);
-  await expect(LoadProjectConfiguration.load(path)).rejects.toMatchObject({ code: "EISDIR" });
+  await expect(ProjectSettingsService.load(path)).rejects.toMatchObject({ code: "EISDIR" });
 });
 
 test("bootstrap binds invalid project data independently from application configuration without rewriting", async () => {
@@ -144,8 +143,8 @@ test("bootstrap binds invalid project data independently from application config
   const app = new Application({ basePath: repo });
   app.instance("path.workspace", repo);
   app.config.set("owner", "application");
-  await new LoadProjectConfiguration().bootstrap(app);
-  expect(app.value("config.project")).toMatchObject({
+  await new LoadProjectSettings().bootstrap(app);
+  expect(app.value("settings.project")).toMatchObject({
     status: "invalid",
     data: { stacks: ["unsupported"] },
   });
@@ -157,7 +156,7 @@ test("bootstrap binds invalid project data independently from application config
 test("init still rejects an existing malformed file and update demands valid bootstrapped configuration", async () => {
   const { repo, app } = await serviceFixture();
   writeFileSync(join(repo, ".github", "spindle.json"), "{");
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await expect((await app.make(InitCommand)).run([], undefined, false, undefined)).rejects.toThrow(
     "not valid JSON",
   );

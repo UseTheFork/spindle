@@ -302,7 +302,7 @@ test("init renders computed package-manager and selected Stack values", async ()
   expect(await readFile(join(project, ".github/skills/demo/assets.bin"))).toEqual(binaryAsset);
 });
 
-test("init skip policy leaves existing Skills untouched and still writes Config", async () => {
+test("init skip policy leaves existing Skills untouched and still writes Project Settings", async () => {
   const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
   expect(initialResult.status, initialResult.stderr).toBe(0);
   await writeFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "preserve this");

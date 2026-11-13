@@ -103,7 +103,7 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
   }
 });
 
-test("init preparation failure leaves planned Config and target deletion untouched", async () => {
+test("init preparation failure leaves planned Project Settings and target deletion untouched", async () => {
   const blueprints = await makeTempDir("spindle-init-preparation-blueprints-");
   const project = await makeTempDir("spindle-init-preparation-project-");
   const github = join(project, ".github");
@@ -145,7 +145,7 @@ test("init preparation failure leaves planned Config and target deletion untouch
   }
 });
 
-test("application Config failure reports completed Blueprint installs", async () => {
+test("Project Settings failure reports completed Blueprint installs", async () => {
   const blueprints = await makeTempDir("spindle-config-progress-blueprints-");
   const project = await makeTempDir("spindle-config-progress-project-");
   const github = join(project, ".github");
@@ -174,13 +174,16 @@ test("application Config failure reports completed Blueprint installs", async ()
       process.env.PATH ?? "",
       {
         SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
-        SPINDLE_TEST_PRELOAD: join(repoRoot, "tests/Helpers/Preloads/fail-config-write.ts"),
+        SPINDLE_TEST_PRELOAD: join(
+          repoRoot,
+          "tests/Helpers/Preloads/fail-project-settings-write.ts",
+        ),
       },
     );
 
     expect(result.status, result.stdout).not.toBe(0);
-    expect(result.stderr).toMatch(/Failed to write Config/);
-    expect(result.stderr).toMatch(/forced Config write failure/);
+    expect(result.stderr).toMatch(/Failed to write Project Settings/);
+    expect(result.stderr).toMatch(/forced Project Settings write failure/);
     expect(result.stderr).toMatch(/Completed changes: installed Agent 'new\.agent\.md'/);
     expect(result.stderr).toMatch(/Application stopped; rollback was not attempted/);
     expect(await readFile(agentPath)).toEqual(agentBytes);

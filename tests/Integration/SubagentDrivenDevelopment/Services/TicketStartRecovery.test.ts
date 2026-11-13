@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
@@ -52,7 +52,7 @@ async function preparedDispatch() {
   );
   expect(ticket.status, ticket.stderr).toBe(0);
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const assignment = await app.make(AssignmentService);
   const options = {

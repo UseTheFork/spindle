@@ -1,7 +1,7 @@
 # Blueprint Management
 
 This context owns the catalog-driven lifecycle that installs and updates
-Blueprints. Shared Stack, Variable, and Config terms are defined in the
+Blueprints. Shared Stack, Variable, and Project Settings terms are defined in the
 [project glossary](../../GLOSSARY.md).
 Templates and Computed Variables belong to
 [Template Rendering](../TemplateRendering/GLOSSARY.md).
@@ -23,4 +23,4 @@ additions, are removed during reconciliation.
 
 **Blueprint reconciliation**:
 The coordinated planning and application of selected Blueprint installations,
-updates, Config writes, and removals.
+updates, Project Settings writes, and removals.

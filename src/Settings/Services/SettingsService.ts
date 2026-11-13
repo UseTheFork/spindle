@@ -1,11 +1,11 @@
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import {
-  LoadProjectConfiguration,
-  type ProjectConfigurationData,
-} from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { Service } from "@/Foundation/Service";
 import { commitSettingsSchema } from "@/Settings/Models/CommitSettings";
 import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import {
+  ProjectSettingsService,
+  type ProjectSettingsData,
+} from "@/Settings/Services/ProjectSettingsService";
 import { Records } from "@/Support/Records";
 
 const keys = new Set([
@@ -16,13 +16,11 @@ const keys = new Set([
 export class SettingsService extends Service {
   public async get(key?: string): Promise<unknown> {
     this.assertApplicationBooted();
-    const { config } = LoadProjectConfiguration.require(
-      await LoadProjectConfiguration.refresh(this.app),
-    );
-    if (key === undefined) return config;
+    const { settings } = ProjectSettingsService.requireCurrent(this.app);
+    if (key === undefined) return settings;
     if (!keys.has(key)) throw new Error(`Unknown setting '${key}'.`);
     const [group, field] = key.split(".");
-    const value = config[group!];
+    const value = settings[group!];
     if (field === undefined) {
       if (value === undefined) throw new Error(`Setting '${key}' is not configured.`);
       return value;
@@ -31,26 +29,24 @@ export class SettingsService extends Service {
     return value[field];
   }
 
-  public async set(key: string, value: unknown): Promise<ProjectConfigurationData> {
+  public async set(key: string, value: unknown): Promise<ProjectSettingsData> {
     if (!keys.has(key)) throw new Error(`Unknown setting '${key}'.`);
-    const { config } = LoadProjectConfiguration.require(
-      await LoadProjectConfiguration.refresh(this.app),
-    );
+    const { settings } = ProjectSettingsService.requireCurrent(this.app);
     const [group, field] = key.split(".");
     const updated =
       field === undefined
-        ? { ...config, [group!]: value }
-        : { ...config, commit: { ...config.commit, [field]: value } };
+        ? { ...settings, [group!]: value }
+        : { ...settings, commit: { ...settings.commit, [field]: value } };
     return this.save(updated);
   }
 
-  public async save(value: unknown): Promise<ProjectConfigurationData> {
+  public async save(value: unknown): Promise<ProjectSettingsData> {
     this.assertApplicationBooted();
-    LoadProjectConfiguration.require(await LoadProjectConfiguration.refresh(this.app));
-    const state = LoadProjectConfiguration.parse(JSON.stringify(value));
+    ProjectSettingsService.requireCurrent(this.app);
+    const state = ProjectSettingsService.parse(JSON.stringify(value));
     if (state.status !== "valid")
       throw new Error(state.status === "invalid" ? state.reason : "Invalid settings.");
     await (await this.app.make(UpdateCommand)).run(state.data);
-    return LoadProjectConfiguration.requireCurrent(this.app).config;
+    return ProjectSettingsService.requireCurrent(this.app).settings;
   }
 }

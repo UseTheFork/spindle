@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
 import { ProjectService } from "@/Project/Services/ProjectService";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
 
@@ -28,7 +29,7 @@ async function fixture() {
   app.instance("path.workspace", workspace);
   app.register(ProjectServiceProvider);
   app.register(ToolingServiceProvider);
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   return {
     app,
@@ -60,8 +61,8 @@ test("project operations require a booted application", async () => {
   );
 });
 
-test("tooling changes refuse configuration made invalid after bootstrap", async () => {
-  const { workspace, service, tooling } = await fixture();
+test("tooling changes use the Project Settings snapshot after the file changes", async () => {
+  const { app, workspace, service, tooling } = await fixture();
   await service.initialize();
   const path = join(workspace, ".github/spindle.json");
   const config = JSON.parse(readFileSync(path, "utf8"));
@@ -71,8 +72,9 @@ test("tooling changes refuse configuration made invalid after bootstrap", async 
 
   await expect(
     tooling.addTooling({ key: "check", section: "Testing", command: "pnpm test" }),
-  ).rejects.toThrow("commit.title_max_length");
-  expect(readFileSync(path, "utf8")).toBe(invalid);
+  ).resolves.toEqual({ key: "check", section: "Testing", command: "pnpm test" });
+  expect(readFileSync(path, "utf8")).not.toBe(invalid);
+  expect(ProjectSettingsService.requireCurrent(app).settings.commit.title_max_length).toBe(72);
 });
 
 test("project initialization creates the baseline, seeds Spindle commands, and renders the guide", async () => {
@@ -96,7 +98,7 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     updated: [".github/spindle.json"],
   });
   const config = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
-  expect(LoadProjectConfiguration.current(app)).toMatchObject({
+  expect(ProjectSettingsService.current(app)).toMatchObject({
     status: "valid",
     data: { stacks: ["typescript"], tooling: expect.any(Array) },
   });
@@ -166,7 +168,7 @@ test("project initialization replaces a bounded Copilot block while preserving s
   expect(result.updated).toContain(".github/copilot-instructions.md");
 });
 
-test("initialization seeds a registry in legacy Config and preserves existing entries on rerun", async () => {
+test("initialization seeds a registry in legacy Project Settings and preserves existing entries on rerun", async () => {
   const { app, workspace, service, tooling } = await fixture();
   writeFileSync(
     join(workspace, ".github/spindle.json"),
@@ -177,7 +179,7 @@ test("initialization seeds a registry in legacy Config and preserves existing en
       custom: true,
     }),
   );
-  await LoadProjectConfiguration.refresh(app);
+  await ProjectSettingsService.refresh(app);
   const first = await service.initialize();
   expect(first.updated).toEqual([".github/spindle.json"]);
   const original = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
@@ -222,7 +224,7 @@ test("tooling mutations list, group and regenerate the registry projection", asy
     command: "pnpm test unit",
     description: "Run unit tests.",
   });
-  expect(LoadProjectConfiguration.current(app)).toMatchObject({
+  expect(ProjectSettingsService.current(app)).toMatchObject({
     status: "valid",
     data: { tooling: expect.arrayContaining([first]) },
   });
@@ -324,10 +326,10 @@ test.each([
   );
 });
 
-test("project initialization rejects invalid Config and symlinked generated files", async () => {
+test("project initialization rejects invalid Project Settings and symlinked generated files", async () => {
   const invalid = await fixture();
   writeFileSync(join(invalid.workspace, ".github/spindle.json"), "{");
-  await LoadProjectConfiguration.refresh(invalid.app);
+  await ProjectSettingsService.refresh(invalid.app);
   await expect(invalid.service.initialize()).rejects.toThrow("not valid JSON");
   expect(readdirSync(invalid.workspace)).toEqual([".github"]);
 
@@ -348,7 +350,7 @@ test("project initialization requires an installed Blueprint stack", async () =>
     join(workspace, ".github/spindle.json"),
     JSON.stringify({ stacks: [], variables: {} }),
   );
-  await LoadProjectConfiguration.refresh(app);
+  await ProjectSettingsService.refresh(app);
 
   await expect(service.initialize()).rejects.toThrow(/Install at least one Blueprint stack/);
   expect(readdirSync(workspace)).toEqual([".github"]);

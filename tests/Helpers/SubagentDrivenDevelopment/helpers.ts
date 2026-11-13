@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 
 import { applicationFixture } from "../ApplicationFixture.ts";
 import { makeTempDirSync, repoRoot } from "../TemporaryDirectories.ts";
@@ -35,7 +35,7 @@ export function fixture() {
 export async function serviceFixture() {
   const workspace = fixture();
   const app = applicationFixture(workspace.repo, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const service = await workflowServices(app);
   return { ...workspace, service, app };
@@ -43,7 +43,7 @@ export async function serviceFixture() {
 
 export async function execute(repo: string, run: (service: WorkflowServices) => unknown) {
   const app = applicationFixture(repo, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const command = await workflowServices(app);
   try {

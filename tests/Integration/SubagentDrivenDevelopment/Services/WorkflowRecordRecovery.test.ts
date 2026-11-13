@@ -10,7 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { expect, test } from "vitest";
 
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
@@ -84,7 +84,7 @@ async function setup() {
     spec: string;
   };
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const feature = (await app.make(FeatureInspectionService)).resolveFeature(spec);
   const git = new InterruptingGitService(app);

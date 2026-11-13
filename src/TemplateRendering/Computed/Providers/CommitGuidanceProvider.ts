@@ -1,11 +1,11 @@
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
 import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
 
 export class CommitGuidanceProvider extends ComputedVariableProvider {
   public render(): string {
-    const state = LoadProjectConfiguration.current(this.app);
-    if (state.status === "invalid") throw state.error;
+    const state = ProjectSettingsService.current(this.app);
+    if (state.status === "invalid") throw new Error(state.reason, { cause: state.error });
     const settings = state.status === "valid" ? state.data.commit : defaultCommitSettings;
     const scope = settings.scopes_enabled ? `(${settings.allowed_scopes[0]})` : "";
     const example = (type: string, description: string) => {

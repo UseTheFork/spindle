@@ -11,8 +11,9 @@ import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/B
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
 import type { Application } from "@/Foundation/Application";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
 import { renderText } from "@/TemplateRendering/Rendering/RenderText";
@@ -155,7 +156,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
   }
 });
 
-test("update reuses computed output and leaves Config and version metadata intact", async () => {
+test("update reuses computed output and leaves Project Settings and version metadata intact", async () => {
   const blueprints = await makeTempDir("spindle-computed-update-blueprints-");
   const project = await makeTempDir("spindle-computed-update-project-");
   const configBytes = Buffer.from(
@@ -231,7 +232,7 @@ test("update reuses computed output and leaves Config and version metadata intac
   }
 });
 
-test("computed package-manager output comes from project Config, not render Variables", async () => {
+test("computed package-manager output comes from Project Settings, not render Variables", async () => {
   const app = applicationFixture("/project", "/blueprints", {
     status: "valid",
     data: projectSettingsSchema.parse({ stacks: [], spindle_package_manager: "pnpm" }),
@@ -245,15 +246,15 @@ test("computed package-manager output comes from project Config, not render Vari
   expect(context?.computed?.spindle_package_manager).toBe("pnpm");
 });
 
-test("computed package-manager output fails when project Config is unavailable", async () => {
+test("computed package-manager output fails when Project Settings are unavailable", async () => {
   const app = applicationFixture("/project", "/blueprints");
   const contextService = await app.make(ComputedContextService);
   const context = contextService.resolve(async () => ({ stacks: [], variables: {} }));
 
-  await expect(context).rejects.toThrow(/project Config|spindle_package_manager/i);
+  await expect(context).rejects.toThrow(/Project Settings|spindle_package_manager/i);
 });
 
-test("init restores the prior project Config state when Blueprint rendering fails", async () => {
+test("init restores the prior Project Settings state when Blueprint rendering fails", async () => {
   const blueprints = await makeTempDir("spindle-computed-init-failure-blueprints-");
   const project = await makeTempDir("spindle-computed-init-failure-project-");
   writeCatalogFixture(blueprints, {
@@ -268,13 +269,13 @@ test("init restores the prior project Config state when Blueprint rendering fail
     "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n{% if %}\n",
   );
   const app = applicationFixture(project, blueprints);
-  await new LoadProjectConfiguration().bootstrap(app);
+  await new LoadProjectSettings().bootstrap(app);
   await app.boot();
 
   const init = await app.make(InitCommand);
   await expect(init.run(["python"], "pnpm", false, "overwrite")).rejects.toThrow();
 
-  expect(LoadProjectConfiguration.current(app)).toEqual({ status: "absent" });
+  expect(ProjectSettingsService.current(app)).toEqual({ status: "absent" });
   await expect(readFile(join(project, ".github/spindle.json"))).rejects.toMatchObject({
     code: "ENOENT",
   });
@@ -344,7 +345,7 @@ test("update identifies a missing computed output and applies no planned changes
   }
 });
 
-test("repeated Updates through one App render fresh Config with computed outputs", async () => {
+test("repeated updates through one App render updated Project Settings with computed outputs", async () => {
   const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
   const project = await makeTempDir("spindle-computed-app-project-");
   const github = join(project, ".github");
@@ -380,10 +381,8 @@ test("repeated Updates through one App render fresh Config with computed outputs
       const current = matter(await readFile(sourcePath, "utf8"));
       current.data.metadata.spindle.version = version;
       await writeFile(sourcePath, matter.stringify(current.content, current.data));
-      const configPath = join(github, "spindle.json");
-      const config = JSON.parse(await readFile(configPath, "utf8"));
-      config.spindle_package_manager = manager;
-      await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+      const { settings } = ProjectSettingsService.requireCurrent(app);
+      await update.run({ ...settings, spindle_package_manager: manager });
     };
 
     await updateSource("900.0.0", "second-run");
@@ -408,8 +407,8 @@ test("providers receive Application once per run and refresh across runs", async
   class ConfigProvider extends ComputedVariableProvider {
     render() {
       providerApplication = this.app;
-      const { config } = LoadProjectConfiguration.requireCurrent(this.app);
-      return `${config.stacks.join(",")}:${config.spindle_package_manager}`;
+      const { settings } = ProjectSettingsService.requireCurrent(this.app);
+      return `${settings.stacks.join(",")}:${settings.spindle_package_manager}`;
     }
   }
   let evaluations = 0;
@@ -450,7 +449,7 @@ test("providers receive Application once per run and refresh across runs", async
   expect(firstContext).toBeTruthy();
   if (!firstContext?.computed) throw new Error("Missing resolved computed context.");
   expect(repeatedContext).toBe(firstContext);
-  expect(inputResolutions, "a run resolves its base Config once").toBe(1);
+  expect(inputResolutions, "a run resolves its base Project Settings once").toBe(1);
   expect(firstContext.computed.config_summary).toBe("python,typescript:pnpm");
   expect(firstContext.computed.count).toBe("evaluation-1");
   expect(providerApplication).toBe(app);

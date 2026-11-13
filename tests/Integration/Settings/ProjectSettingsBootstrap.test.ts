@@ -5,7 +5,7 @@ import { expect, test } from "vitest";
 
 import { Application } from "@/Foundation/Application";
 import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
-import { LoadProjectConfiguration } from "@/Foundation/Bootstrap/LoadProjectConfiguration";
+import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
 import { ServiceProvider } from "@/Foundation/ServiceProvider";
 
@@ -22,18 +22,18 @@ test("external providers observe malformed configuration after discovery without
   class ConfigurationObserver extends ServiceProvider {
     public constructor(application: Application) {
       super(application);
-      observations.push(application.value("config.project"));
+      observations.push(application.value("settings.project"));
     }
     public register(): void {
       expect(this.app.workspaceRoot).toBe(repo);
-      observations.push(this.app.value("config.project"));
+      observations.push(this.app.value("settings.project"));
     }
     public async boot(): Promise<void> {
-      observations.push(this.app.value("config.project"));
+      observations.push(this.app.value("settings.project"));
     }
   }
   app.selectBootstrapProviders([ConfigurationObserver]);
-  await app.bootstrapWith([DiscoverGitRoot, LoadProjectConfiguration, RegisterProviders]);
+  await app.bootstrapWith([DiscoverGitRoot, LoadProjectSettings, RegisterProviders]);
   await app.boot();
   expect(app.hasBeenBootstrapped).toBe(true);
   expect(observations).toHaveLength(3);

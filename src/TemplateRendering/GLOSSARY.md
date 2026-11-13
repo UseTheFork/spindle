@@ -21,5 +21,5 @@ _Avoid_: Setting, parameter
 
 **Computed Variable**:
 A named text value derived from context available to a workflow for use in
-Templates. It may be derived from Config values but is not independently
+Templates. It may be derived from Project Settings values but is not independently
 supplied, stored, or directly overridden.

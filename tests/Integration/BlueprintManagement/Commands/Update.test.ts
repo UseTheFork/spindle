@@ -448,7 +448,7 @@ test(
 );
 
 test(
-  "legacy Variables are ignored while the configured package manager renders without rewriting Config",
+  "legacy Variables are ignored while the configured package manager renders without rewriting Project Settings",
   { skip: process.platform !== "linux" },
   async () => {
     const variableStubs = await makeTempDir("spindle-update-variable-stubs-");
@@ -573,7 +573,7 @@ test(
 );
 
 test(
-  "update reports Config write failures and preserves the original Config",
+  "update reports Project Settings write failures and preserves the original settings",
   { skip: process.platform !== "linux" },
   async () => {
     const originalConfig = {
@@ -590,13 +590,13 @@ test(
       missing: skill("1.0.0"),
       bad: skill("1.0.0"),
     };
-    const failureHook = join(repoRoot, "tests/Helpers/Preloads/fail-config-write.ts");
+    const failureHook = join(repoRoot, "tests/Helpers/Preloads/fail-project-settings-write.ts");
     await withProject(
       { config: originalConfig, skills: currentSkills },
       [],
       async (project, result) => {
         expect(result.status).not.toBe(0);
-        expect(result.stdout + result.stderr).toMatch(/forced Config write failure/);
+        expect(result.stdout + result.stderr).toMatch(/forced Project Settings write failure/);
         expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
           originalConfig,
         );
@@ -625,7 +625,7 @@ test("a hand-edited package-manager command is re-resolved on each run", async (
   );
 });
 
-test("update rejects Config without a Spindle package-manager command", async () => {
+test("update rejects Project Settings without a Spindle package-manager command", async () => {
   await withProject(
     {
       config: '{"stacks":["python"],"variables":{"owner":"legacy"}}',
