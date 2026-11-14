@@ -214,7 +214,7 @@ export class TicketIntegrationService extends Service {
       if (!alreadyIntegrated) {
         this.assertNoOperation(root);
         this.assertNoHooks(root);
-        this.workflowRecordsCommitter.commit(feature, options.confirmRecords === true);
+        this.workflowRecordsCommitter.commit(feature);
       }
       const common = realpathSync(
         this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),

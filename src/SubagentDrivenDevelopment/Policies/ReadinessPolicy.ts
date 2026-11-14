@@ -33,7 +33,13 @@ export class ReadinessPolicy extends Service {
 
   public evaluate(tickets: TicketDocument[], ledger: FeatureLedger) {
     this.ticketRepository.validateDependencyGraph(tickets);
-    const eligible = tickets.filter((item) => item.status === "open" && !item.blocker);
+    const progressById = new Map(ledger.tickets.map((item) => [item.id, item]));
+    const eligible = tickets.filter(
+      (item) =>
+        item.status === "open" &&
+        !item.blocker &&
+        progressById.get(item.id)?.execution === "unstarted",
+    );
     const ready: string[] = [];
     const unready: { ticket: string; blockedBy: string[] }[] = [];
     for (const item of eligible) {

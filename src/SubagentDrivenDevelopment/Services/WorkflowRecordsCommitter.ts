@@ -13,12 +13,12 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
-import type { FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import { FEATURE_DIRECTORY, type FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { Records } from "@/Support/Records";
 
@@ -41,7 +41,7 @@ export class WorkflowRecordsCommitter extends Service {
     super(app);
   }
 
-  public commit(feature: FeaturePaths, confirmed: boolean): string | undefined {
+  public commit(feature: FeaturePaths): string | undefined {
     for (const variable of [
       "GIT_DIR",
       "GIT_WORK_TREE",
@@ -141,11 +141,6 @@ export class WorkflowRecordsCommitter extends Service {
           `Unrelated or non-canonical changes were preserved; resolve them before continuing:\n${invalid.join("\n")}`,
         );
       }
-      if (!confirmed) {
-        throw new Error(
-          `Inspect these canonical records, then retry with --confirm-records; nothing was staged or committed:\n${changed.join("\n")}`,
-        );
-      }
       state = {
         version: 1,
         feature: feature.feature,
@@ -167,11 +162,6 @@ export class WorkflowRecordsCommitter extends Service {
       this.writeState(journal, state, true);
     }
 
-    if (!confirmed) {
-      throw new Error(
-        `Inspect the journalled records and retry with --confirm-records: ${journal}.`,
-      );
-    }
     try {
       const head = this.run(root, ["rev-parse", "--verify", "HEAD"]);
       if (head !== state.parent) {
@@ -244,6 +234,26 @@ export class WorkflowRecordsCommitter extends Service {
         `Canonical record batching stopped; preserve ${journal}, the index, and the worktree. ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  public commitWorkspace(workspace: string): string | undefined {
+    const root = realpathSync(this.app.workspaceRoot);
+    const featureWorkspace = realpathSync(workspace);
+    const feature = basename(featureWorkspace);
+    if (
+      !FEATURE_DIRECTORY.test(feature) ||
+      featureWorkspace !== realpathSync(join(root, ".scratch", feature))
+    ) {
+      return undefined;
+    }
+    const branch = this.run(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    if (branch !== `features/${feature}`) return undefined;
+    return this.commit({
+      feature,
+      workspace: featureWorkspace,
+      spec: join(featureWorkspace, "spec.md"),
+      ledger: join(featureWorkspace, "sdd.json"),
+    });
   }
 
   private digest(root: string, paths: string[]): string {

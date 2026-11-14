@@ -197,7 +197,6 @@ export async function prepareReadyTicket(
   mkdirSync(worktreeParent);
 
   for (let index = 1; index <= (options.ticketCount ?? 1); index++) {
-    const ticketId = `T-${String(index).padStart(4, "0")}`;
     const ticket = await execute(repo, (service) =>
       service.ticketService.ticketCreate({
         spec,
@@ -208,17 +207,7 @@ export async function prepareReadyTicket(
       }),
     );
     expect(ticket.status, ticket.stderr).toBe(0);
-    const updated = await execute(repo, (service) =>
-      service.ticketService.ticketUpdate({
-        spec,
-        ticket: ticketId,
-        status: "open",
-        author: "maintainer",
-      }),
-    );
-    expect(updated.status, updated.stderr).toBe(0);
   }
-  commitAll(repo, git, "prepare ticket");
   const baseSha = git("rev-parse", "HEAD");
   return { repo, git, spec, baseSha, originalRepo, worktreeParent };
 }
@@ -239,15 +228,12 @@ export async function prepareImplementationForReview(
     service.checksService.checksRequire({ spec, ticket: ticketId, command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(repo, git, "declare required check");
-
   const implemented = await execute(repo, (service) =>
     service.assignmentService.implement({
       spec,
       ticket: ticketId,
       author: "controller",
       workspace: worktreeParent,
-      confirmRecords: true,
     }),
   );
   expect(implemented.status, implemented.stderr).toBe(0);
@@ -431,7 +417,6 @@ export async function integrateReviewedTicket(
       spec: prepared.spec,
       ticket: prepared.ticketId,
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -531,7 +516,6 @@ export async function beginDeliveryFinalization(
     service.deliveryService.finish({
       spec: prepared.spec,
       author: "controller",
-      confirmRecords: true,
       ...(options.report ? { report: options.report } : {}),
     }),
   );

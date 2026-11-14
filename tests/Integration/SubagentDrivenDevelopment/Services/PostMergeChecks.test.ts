@@ -58,8 +58,6 @@ async function setup() {
     );
     expect(ticket.status, ticket.stderr).toBe(0);
   }
-  git(root, "add", ".scratch");
-  git(root, "commit", "-qm", "prepare");
   const sha = git(root, "rev-parse", "HEAD");
   const ledgerPath = join(dirname(spec), "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -69,7 +67,7 @@ async function setup() {
     files: ["source.ts"],
   };
   Object.assign(first, {
-    status: "in-progress",
+    status: "open",
     execution: "integrated",
     owner: "controller",
     baseSha: sha,
@@ -136,7 +134,7 @@ test("post-merge results freeze the complete list, preserve failures and close o
   const passed = await cli(root, spec, "record", ["--command", "test one", "--result", "passed"]);
   expect(passed.status, passed.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   const last = await cli(root, spec, "record", ["--command", "test two", "--result", "passed"]);
   expect(last.status, last.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -260,7 +258,7 @@ test("pending unavailable results survive interruption and changed feature state
   const second = await cli(root, spec, "record", ["--command", "second", "--result", "passed"]);
   expect(second.status, second.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   const first = await cli(root, spec, "record", ["--command", "first", "--result", "passed"]);
   expect(first.status, first.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));

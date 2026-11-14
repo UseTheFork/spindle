@@ -12,7 +12,7 @@ export class TicketUpdateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     group(root, "ticket")
       .command("update")
-      .description("Update ticket fields, status, blocker, or dependencies.")
+      .description("Update ticket fields, blockers, or dependencies.")
       .requiredOption(
         "--feature <directory>",
         "Feature workspace directory",
@@ -22,7 +22,6 @@ export class TicketUpdateCommand extends Command {
       .option("--title <title>", "Updated ticket title", CommandOptions.once("--title"))
       .option("--reporter <reporter>", "Updated ticket reporter", CommandOptions.once("--reporter"))
       .option("--category <category>", "Ticket category: bug or enhancement")
-      .option("--status <status>", "Ticket status: open, in-progress, or closed")
       .option("--blocker <reason>", "Explicit reason the ticket cannot proceed")
       .option("--clear-blocker", "Remove the explicit ticket blocker")
       .option("--blocked-by <tickets...>", "Authoritative dependency ticket IDs")

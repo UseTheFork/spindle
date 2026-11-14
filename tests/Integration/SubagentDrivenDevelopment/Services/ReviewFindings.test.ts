@@ -8,7 +8,6 @@ import {
   commitTicketWorkspace,
   execute,
   invokeAsync,
-  commitAll,
   prepareReadyTicket,
   prepareImplementationForReview,
   recordReviewCheck,
@@ -52,7 +51,7 @@ test("implement records the ticket baseline and controller while creating an iso
     baseSha,
     assignment: output.assignment,
   });
-  expect(git("rev-parse", "HEAD")).toBe(baseSha);
+  expect(git("merge-base", "--is-ancestor", baseSha, "HEAD")).toBe("");
 });
 
 test("review requires current passing checks, derives inventory, and reuses its assignment", async () => {
@@ -178,7 +177,6 @@ test("rework requires fresh checks and a new review with the prior committed com
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integration.status).not.toBe(0);
@@ -334,7 +332,6 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(incompleteIntegration.status).not.toBe(0);
@@ -347,7 +344,6 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -524,7 +520,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
 });
 
 test("finding IDs restart per ticket and require provenance from that ticket's review", async () => {
-  const { repo, git, spec, assignment, worktreeParent } = await prepareReviewAssignment();
+  const { repo, spec, assignment, worktreeParent } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# First ticket review\n\nFinding from the first ticket.\n");
   const firstFinding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -562,22 +558,11 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     }),
   );
   expect(created.status, created.stderr).toBe(0);
-  const updated = await execute(repo, (service) =>
-    service.ticketService.ticketUpdate({
-      spec,
-      ticket: "T-0002",
-      status: "open",
-      author: "controller",
-    }),
-  );
-  expect(updated.status, updated.stderr).toBe(0);
   const command = "just test::test tests/feature-two.test.ts";
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({ spec, ticket: "T-0002", command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(repo, git, "prepare second ticket");
-
   const dispatched = await execute(repo, (service) =>
     service.assignmentService.implement({
       spec,
@@ -732,7 +717,6 @@ test("review submission requires canonical findings or exclusive no-findings and
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(accepted.status).not.toBe(0);
@@ -1168,7 +1152,6 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(beforeFreshVerification.status).not.toBe(0);
@@ -1182,7 +1165,6 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(blockedAccept.status).not.toBe(0);

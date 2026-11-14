@@ -27,6 +27,7 @@ import {
   LOCK_TIMEOUT_MS,
 } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
@@ -38,7 +39,7 @@ export class WorkspaceTransaction extends Service {
     const release = this.acquireTicketLock(workspace);
     this.activeWorkspaces.add(workspace);
     try {
-      this.recoverWrites(workspace);
+      if (this.recoverWrites(workspace)) this.commitFeatureRecords(workspace);
       return operation();
     } finally {
       this.activeWorkspaces.delete(workspace);
@@ -49,6 +50,7 @@ export class WorkspaceTransaction extends Service {
   public constructor(
     app: Application,
     private readonly pathSafety: PathSafety,
+    private readonly workflowRecordsCommitter: WorkflowRecordsCommitter,
   ) {
     super(app);
   }
@@ -106,10 +108,10 @@ export class WorkspaceTransaction extends Service {
     }
   }
 
-  private recoverWrites(workspace: string): void {
+  private recoverWrites(workspace: string): boolean {
     const journalPath = join(workspace, ".sdd-write-recovery.json");
     const entry = lstatIfPresent(journalPath);
-    if (!entry) return;
+    if (!entry) return false;
     if (!entry.isFile() || entry.isSymbolicLink())
       throw new Error("Ticket recovery journal is not a regular file.");
     const value = JSON.parse(readFileSync(journalPath, "utf8")) as unknown;
@@ -154,6 +156,7 @@ export class WorkspaceTransaction extends Service {
     }
     for (const write of pending) this.atomicWrite(write.target, write.after);
     unlinkSync(journalPath);
+    return true;
   }
 
   public applyWrites(workspace: string, writes: RecoveryWrite[]): void {
@@ -182,6 +185,11 @@ export class WorkspaceTransaction extends Service {
     }
     this.atomicWrite(journalPath, `${JSON.stringify({ version: 1, writes }, null, 2)}\n`);
     this.recoverWrites(workspace);
+    this.commitFeatureRecords(workspace);
+  }
+
+  private commitFeatureRecords(workspace: string): void {
+    this.workflowRecordsCommitter.commitWorkspace(workspace);
   }
 
   private atomicWrite(path: string, contents: string): void {

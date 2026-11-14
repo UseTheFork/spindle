@@ -86,7 +86,6 @@ export interface FeatureFinishOptions {
   spec: string;
   author: string;
   report?: string;
-  confirmRecords?: boolean;
 }
 
 export class FeatureFinalizationService extends Service {
@@ -111,8 +110,6 @@ export class FeatureFinalizationService extends Service {
     return this.locked(feature.feature, (common, path) => {
       let journal = this.read<Journal>(path);
       if (!journal) {
-        if (!options.confirmRecords)
-          throw new Error("Inspect canonical records and pass --confirm-records.");
         const startupPath = join(common, "spindle-feature-start", `${feature.feature}.json`);
         this.real(startupPath, "file");
         const startupBytes = readFileSync(startupPath);

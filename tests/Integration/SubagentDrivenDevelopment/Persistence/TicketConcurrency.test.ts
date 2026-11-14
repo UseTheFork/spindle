@@ -20,18 +20,20 @@ async function waitForFile(path: string, timeoutMs: number) {
   expect(existsSync(path), `Timed out waiting for ${path}`).toBe(true);
 }
 
-test("ready does not combine tracker states from interleaved serialized updates", async () => {
+test("ready reflects ticket blockers and dependencies changed during its read", async () => {
   const { repo, service, feature } = await ticketFixture("Coherent Ready Queue");
   createTicket(service, feature.spec, "Ticket A");
   createTicket(service, feature.spec, "Ticket B");
-  const updateStatus = (ticket: string, status: string) =>
+  const updateTicket = (
+    ticket: string,
+    fields: { blocker?: string; blockedBy?: string[] },
+  ) =>
     service.ticketService.ticketUpdate({
       spec: feature.spec,
       ticket,
-      status,
+      ...fields,
       author: "maintainer",
     });
-  updateStatus("T-0001", "open");
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
   const preloadPath = join(repoRoot, "tests/Helpers/Preloads/ready-pause.ts");
@@ -45,13 +47,16 @@ test("ready does not combine tracker states from interleaved serialized updates"
   });
   try {
     await waitForFile(pausePath, 10_000);
-    updateStatus("T-0001", "in-progress");
-    updateStatus("T-0002", "open");
+    updateTicket("T-0001", { blocker: "Waiting for a decision." });
+    updateTicket("T-0002", { blockedBy: ["T-0001"] });
     const afterTriage = workspaceSnapshot(feature.workspace);
     writeFileSync(resumePath, "resume");
     const result = await ready;
     expect(result.status, result.stderr).toBe(0);
-    expect(cliOutput(result)).toEqual({ ready: ["T-0002"], unready: [] });
+    expect(cliOutput(result)).toEqual({
+      ready: [],
+      unready: [{ ticket: "T-0002", blockedBy: ["T-0001"] }],
+    });
     expect(workspaceSnapshot(feature.workspace)).toEqual(afterTriage);
   } finally {
     writeFileSync(resumePath, "resume");

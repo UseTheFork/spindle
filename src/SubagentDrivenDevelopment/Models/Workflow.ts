@@ -23,7 +23,7 @@ export const TICKET_ID = /^T-(\d{4,})$/;
 
 export const TICKET_CATEGORIES = ["bug", "enhancement"] as const;
 
-export const TRACKER_STATUSES = ["open", "in-progress", "closed"] as const;
+export const TRACKER_STATUSES = ["open", "closed"] as const;
 
 export type TrackerStatus = (typeof TRACKER_STATUSES)[number];
 

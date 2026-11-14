@@ -107,8 +107,21 @@ export class LedgerRepository extends Service {
   }
 
   public validateLedger(value: unknown, feature: string): FeatureLedger {
-    this.assertLedger(value, feature);
-    return value;
+    const normalized = this.normalizeLegacyStatuses(value);
+    this.assertLedger(normalized, feature);
+    return normalized;
+  }
+
+  private normalizeLegacyStatuses(value: unknown): unknown {
+    if (!isRecord(value) || !Array.isArray(value.tickets)) return value;
+    return {
+      ...value,
+      tickets: value.tickets.map((ticket) =>
+        isRecord(ticket) && ticket.status === "in-progress"
+          ? { ...ticket, status: "open" }
+          : ticket,
+      ),
+    };
   }
 
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {

@@ -81,6 +81,23 @@ export class GitEvidence extends Service {
         for (const provenance of finding.provenance) addReport(provenance.report);
       }
     }
+    const delivery = ledger.delivery;
+    addReport(delivery.assignment?.report);
+    for (const assignment of [
+      ...(delivery.reviewAssignments ?? []),
+      ...(delivery.reviewHistory ?? []),
+    ]) {
+      addReport(assignment.report);
+    }
+    for (const attempt of delivery.correctionAttempts ?? []) {
+      addReport(attempt.assignment.report);
+      addReport(attempt.priorAssignment?.report);
+      for (const assignment of attempt.reviewAssignments ?? []) addReport(assignment.report);
+    }
+    for (const finding of delivery.findings ?? []) {
+      for (const provenance of finding.provenance) addReport(provenance.report);
+    }
+    addReport(delivery.finished?.report);
     return paths;
   }
 
@@ -130,9 +147,17 @@ export class GitEvidence extends Service {
       .map((ticket) => ticket.integration ?? ticket.integrationHistory?.at(-1))
       .filter((integration) => integration?.postMerge?.status === "pending");
     const head = this.headSha(root);
-    if (!pending.length || pending.some((integration) => integration?.mergeSha !== head)) {
+    const mergeSha = pending[0]?.mergeSha;
+    if (!mergeSha || pending.some((integration) => integration?.mergeSha !== mergeSha)) {
       throw new Error("Pending post-merge validation does not match the exact feature HEAD.");
     }
+    this.assertOnlyWorkflowRecordsSince(
+      root,
+      mergeSha,
+      head,
+      this.workflowDeliveryRecordPaths(feature, ledger),
+      "Feature code changed after the recorded merge; post-merge checks are stale.",
+    );
     const gitPath = (name: string) =>
       resolve(
         root,
@@ -198,6 +223,31 @@ export class GitEvidence extends Service {
     return head;
   }
 
+  private assertOnlyWorkflowRecordsSince(
+    root: string,
+    baseSha: string,
+    headSha: string,
+    allowed: Set<string>,
+    message: string,
+  ): void {
+    if (headSha === baseSha) return;
+    const ancestry = this.git.run(["merge-base", "--is-ancestor", baseSha, headSha], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    if (ancestry.error) throw ancestry.error;
+    if (ancestry.status !== 0) throw new Error(message);
+    const changed = this.gitBuffer(
+      ["diff", "--name-only", "-z", "--no-renames", baseSha, headSha, "--", "."],
+      root,
+    )
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    if (changed.some((path) => !allowed.has(path))) throw new Error(message);
+  }
+
   public commitIdentity(
     feature: FeaturePaths,
     ticket: TicketDocument,
@@ -234,9 +284,11 @@ export class GitEvidence extends Service {
     }
     const root = realpathSync(this.app.workspaceRoot);
     this.assertCommittedCode(root);
-    const headSha = this.headSha(root);
-    this.assertCommittedRequirements(feature, tickets, headSha);
-    return { headSha };
+    const currentHead = this.headSha(root);
+    this.assertCommittedRequirements(feature, tickets, currentHead);
+    return {
+      headSha: this.headBeforeDeliveryRecordCommits(feature, ledger, currentHead),
+    };
   }
 
   public assertCommittedRequirements(
@@ -625,6 +677,100 @@ export class GitEvidence extends Service {
       throw new Error(`Unable to identify current Git revision: ${revision.stderr.trim()}`);
     }
     return revision.stdout.trim();
+  }
+
+  public headBeforeWorkflowRecords(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    headSha = this.headSha(),
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    return this.headBeforeCommitsChangingOnly(
+      root,
+      headSha,
+      this.workflowDeliveryRecordPaths(feature, ledger),
+    );
+  }
+
+  public headBeforeDeliveryRecordCommits(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    headSha = this.headSha(),
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const records = this.workflowDeliveryRecordPaths(feature, ledger);
+    records.delete(relative(root, feature.spec));
+    for (const ticket of ledger.tickets) {
+      records.delete(`.scratch/${feature.feature}/tickets/${ticket.id}.md`);
+    }
+    return this.headBeforeCommitsChangingOnly(
+      root,
+      headSha,
+      records,
+    );
+  }
+
+  public headBeforePostMergeRecordCommits(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    ticket: string,
+    headSha: string,
+    mergeSha: string,
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const records = this.workflowDeliveryRecordPaths(feature, ledger);
+    records.delete(relative(root, feature.spec));
+    const ticketPath = `.scratch/${feature.feature}/tickets/${ticket}.md`;
+    return this.headBeforeCommitsChangingOnly(
+      root,
+      headSha,
+      records,
+      (parent, commit, path) => {
+        if (path !== ticketPath) return true;
+        const requirementsAt = (revision: string) => {
+          const result = this.git.run(["show", `${revision}:${path}`], {
+            cwd: root,
+            encoding: "utf8",
+          });
+          if (result.error) throw result.error;
+          return result.status === 0 ? this.ticketRequirements(result.stdout) : undefined;
+        };
+        const before = requirementsAt(parent);
+        const after = requirementsAt(commit);
+        return before !== undefined && after !== undefined && before === after;
+      },
+      mergeSha,
+    );
+  }
+
+  private headBeforeCommitsChangingOnly(
+    root: string,
+    headSha: string,
+    allowed: Set<string>,
+    isWorkflowRecord: (parent: string, commit: string, path: string) => boolean = () => true,
+    stopAt?: string,
+  ): string {
+    let current = headSha;
+    while (true) {
+      if (current === stopAt) return current;
+      const commit = this.gitBuffer(["rev-list", "--parents", "-n", "1", current], root)
+        .toString("utf8")
+        .trim()
+        .split(/\s+/);
+      const parent = commit[1];
+      if (!parent) return current;
+      const changed = this.gitBuffer(
+        ["diff", "--name-only", "-z", "--no-renames", parent, current, "--", "."],
+        root,
+      )
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+      if (changed.some((path) => !allowed.has(path) || !isWorkflowRecord(parent, current, path))) {
+        return current;
+      }
+      current = parent;
+    }
   }
 
   public gitBuffer(args: string[], workspace?: string): Buffer {

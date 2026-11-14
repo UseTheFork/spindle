@@ -2,7 +2,6 @@ import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import {
   TICKET_ID,
   TICKET_CATEGORIES,
-  TRACKER_STATUSES,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
@@ -17,12 +16,6 @@ export function validateTicketId(ticket: string): void {
 export function validateCategory(category: string): asserts category is TicketDocument["category"] {
   if (!TICKET_CATEGORIES.includes(category as TicketDocument["category"])) {
     throw new Error(`Invalid ticket category: ${category}.`);
-  }
-}
-
-export function validateTriageStatus(status: string): asserts status is TicketDocument["status"] {
-  if (!TRACKER_STATUSES.includes(status as TicketDocument["status"])) {
-    throw new Error(`Invalid ticket status: ${status}.`);
   }
 }
 

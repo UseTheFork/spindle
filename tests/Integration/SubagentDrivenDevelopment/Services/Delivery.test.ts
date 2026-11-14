@@ -10,7 +10,6 @@ import {
   claimDelivery,
   commitTicketWorkspace,
   execute,
-  commitAll,
   commitRequirement,
   invokeAsync,
   integrateReviewedTicket,
@@ -809,7 +808,6 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
     service.deliveryService.finish({
       spec: required.spec,
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(missingRetrospective.status).not.toBe(0);
@@ -821,7 +819,6 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
       spec: required.spec,
       report: outsideReport,
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(unsafeReport.status).not.toBe(0);
@@ -867,7 +864,6 @@ test("aggregate review covers every closed ticket and stale requirements block f
     }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(first.repo, first.git, "declare second ticket check");
   const dispatched = await execute(first.repo, (service) =>
     service.assignmentService.implement({
       spec: first.spec,
@@ -1016,7 +1012,6 @@ test("aggregate review covers every closed ticket and stale requirements block f
     service.deliveryService.finish({
       spec: first.spec,
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(staleFinish.status).not.toBe(0);

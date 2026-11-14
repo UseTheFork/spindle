@@ -35,7 +35,7 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
     branch: "tickets/0001-ticket-flow/T-0001",
     status: "pending",
   });
-  expect(git("rev-parse", "HEAD")).toBe(baseSha);
+  expect(git("merge-base", "--is-ancestor", baseSha, "HEAD")).toBe("");
   expect(git("-C", first.assignment.workspace, "rev-parse", "HEAD")).toBe(baseSha);
 
   const repeat = await execute(repo, (service) =>
@@ -295,7 +295,6 @@ test("next prints named steps and submits a report only after it exists", async 
       ticket: "T-0001",
       author: "controller",
       workspace: worktreeParent,
-      confirmRecords: true,
     }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);

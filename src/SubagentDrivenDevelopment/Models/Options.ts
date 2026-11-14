@@ -40,7 +40,6 @@ export interface TicketUpdateOptions extends TicketSelection {
   title?: string;
   reporter?: string;
   category?: string;
-  status?: string;
   blocker?: string;
   clearBlocker?: boolean;
   blockedBy?: string[];
@@ -57,7 +56,6 @@ export interface ReadyOptions {
 
 export interface ImplementOptions extends TicketSelection {
   workspace: string;
-  confirmRecords?: boolean;
 }
 
 export interface CorrectOptions extends TicketSelection {
@@ -129,9 +127,7 @@ export interface ClaimOptions {
   author: string;
 }
 
-export interface IntegrateOptions extends TicketSelection {
-  confirmRecords?: boolean;
-}
+export type IntegrateOptions = TicketSelection;
 
 export interface FinishOptions {
   spec: string;

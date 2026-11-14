@@ -6,7 +6,10 @@ import matter from "gray-matter";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type { TicketCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import {
+  TRACKER_STATUSES,
+  type TicketDocument,
+} from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import {
@@ -64,7 +67,7 @@ export class TicketRepository extends Service {
       if (typeof reporter !== "string" || !reporter.trim())
         throw new Error(`Ticket ${id} reporter is invalid.`);
       validateCategory(category);
-      if (status !== "open" && status !== "in-progress" && status !== "closed") {
+      if (!TRACKER_STATUSES.includes(status)) {
         throw new Error(`Ticket ${id} status is invalid.`);
       }
       if (!Array.isArray(blockedBy) || !blockedBy.every((blocked) => typeof blocked === "string")) {

@@ -650,7 +650,6 @@ test("a verified corrective review permits ticket integration while retaining in
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -825,7 +824,6 @@ test("requirements decisions require fresh review before deferring a blocking fi
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -965,7 +963,6 @@ test("failed review without a no-findings attestation requires details and block
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status).not.toBe(0);
@@ -1009,7 +1006,6 @@ test("unavailable review without a no-findings attestation requires details and 
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status).not.toBe(0);
@@ -1038,7 +1034,6 @@ test("integration requires current checks and complete passing finding-free revi
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -1061,7 +1056,6 @@ test("integration requires current checks and complete passing finding-free revi
       spec,
       ticket: "T-0001",
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(repeated.status, repeated.stderr).toBe(0);

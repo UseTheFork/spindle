@@ -383,7 +383,12 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     );
     this.app.singleton(
       WorkspaceTransaction,
-      async (app) => new WorkspaceTransaction(app, await app.make(PathSafety)),
+      async (app) =>
+        new WorkspaceTransaction(
+          app,
+          await app.make(PathSafety),
+          await app.make(WorkflowRecordsCommitter),
+        ),
     );
     this.app.singleton(PathSafety, async (app) => new PathSafety(app, await app.make(GitService)));
     this.app.singleton(

@@ -212,7 +212,8 @@ export class ChecksService extends Service {
       .allGitChangePaths()
       .filter((path) => path !== lock && !allowed.has(path));
     if (dirty.length) throw new Error(`Feature code must be clean: ${dirty.join(", ")}.`);
-    const base = this.gitEvidence.headSha(root);
+    const rootHead = this.gitEvidence.headSha(root);
+    const base = this.gitEvidence.headBeforeWorkflowRecords(feature, ledger, rootHead);
     const head = this.gitEvidence.headSha(workspace);
     if (head === base) throw new Error("Ticket must contain a distinct reviewed code commit.");
     git(["merge-base", "--is-ancestor", base, head], workspace);
@@ -247,7 +248,7 @@ export class ChecksService extends Service {
     });
     progress.baseSha = base;
     progress.worktree.baseSha = base;
-    if (this.gitEvidence.headSha(root) !== base || this.gitEvidence.headSha(workspace) !== head)
+    if (this.gitEvidence.headSha(root) !== rootHead || this.gitEvidence.headSha(workspace) !== head)
       throw new Error("A Git HEAD changed while adopting the baseline; retry.");
     return true;
   }
@@ -561,7 +562,13 @@ export class ChecksService extends Service {
         );
       }
     }
-    const headSha = currentHead;
+    const headSha = this.gitEvidence.headBeforePostMergeRecordCommits(
+      feature,
+      ledger,
+      progress.id,
+      currentHead,
+      mergeSha,
+    );
     for (const operation of [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",

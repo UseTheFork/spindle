@@ -107,8 +107,7 @@ async function setup() {
     );
     expect(check.status, check.stderr).toBe(0);
   }
-  gitAt(root, "add", ".scratch");
-  gitAt(root, "commit", "-qm", "prepare tickets");
+  expect(gitAt(root, "status", "--short")).toBe("");
   return { root, spec, parent };
 }
 
@@ -119,7 +118,6 @@ async function dispatch(root: string, spec: string, parent: string, ticket: stri
       ticket,
       author: "controller",
       workspace: parent,
-      confirmRecords: true,
     }),
   );
   expect(result.status, result.stderr).toBe(0);
@@ -189,15 +187,12 @@ function integrate(root: string, spec: string) {
     "T-0001",
     "--actor",
     "controller",
-    "--confirm-records",
   ]);
 }
 
 test("independent tickets get distinct persisted branches and isolated evidence", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
-  gitAt(root, "add", ".scratch");
-  gitAt(root, "commit", "-qm", "record first assignment");
   const second = await dispatch(root, spec, parent, "T-0002");
   expect(first.assignment.workspace).not.toBe(second.assignment.workspace);
   expect(first.assignment.branch).toBe("tickets/0001-ticket-isolation/T-0001");
@@ -285,47 +280,40 @@ test("implement reserves a ready ticket and creates its worktree and assignment 
   expect(gitAt(output.assignment.workspace, "rev-parse", "HEAD")).toBe(baseSha);
 });
 
-test("dispatch requires explicit inspection confirmation before committing canonical records", async () => {
+test("dispatch automatically commits pending canonical records", async () => {
   const { root, spec, parent } = await setup();
   const report = join(dirname(spec), "reports", "T-0001-review.md");
   writeFileSync(report, "# Reviewed record\n\nNo sensitive values.\n");
   expect(gitAt(root, "ls-files", "--others", "--exclude-standard")).toContain("T-0001-review.md");
   const before = gitAt(root, "rev-parse", "HEAD");
-  const rejected = await execute(root, (services) =>
+  const dispatched = await execute(root, (services) =>
     services.assignmentService.implement({
       spec,
       ticket: "T-0001",
       author: "controller",
       workspace: parent,
-      confirmRecords: false,
     }),
   );
-  expect(rejected.status).not.toBe(0);
-  expect(rejected.stderr).toMatch(/inspect.*--confirm-records/i);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(before);
+  expect(dispatched.status, dispatched.stderr).toBe(0);
   expect(gitAt(root, "diff", "--cached", "--name-only")).toBe("");
-  expect(existsSync(join(parent, "0001-ticket-isolation-T-0001"))).toBe(false);
+  expect(gitAt(root, "rev-parse", "HEAD")).not.toBe(before);
   expect(readFileSync(report, "utf8")).toContain("No sensitive values");
 
-  const confirmed = await invokeAsync(root, [
-    "implement",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0001",
-    "--actor",
-    "controller",
-    "--workspace",
-    parent,
-    "--confirm-records",
+  const reportCommitPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD~1")
+    .split("\n")
+    .filter(Boolean);
+  expect(reportCommitPaths).toEqual([
+    ".scratch/0001-ticket-isolation/reports/T-0001-review.md",
   ]);
-  expect(confirmed.status, confirmed.stderr).toBe(0);
   const committedPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD")
     .split("\n")
     .filter(Boolean);
-  expect(committedPaths).toEqual([".scratch/0001-ticket-isolation/reports/T-0001-review.md"]);
+  expect(committedPaths).toEqual([
+    ".scratch/0001-ticket-isolation/sdd.json",
+    ".scratch/0001-ticket-isolation/tickets/T-0001.md",
+  ]);
   expect(gitAt(root, "rev-parse", "HEAD")).not.toBe(before);
-  expect(cliOutput(confirmed).assignment.workspace).toBe(
+  expect(JSON.parse(dispatched.stdout).assignment.workspace).toBe(
     join(parent, "0001-ticket-isolation-T-0001"),
   );
 });
@@ -340,7 +328,6 @@ test("dispatch refuses staged or unrelated changes even with canonical-record co
       ticket: "T-0001",
       author: "controller",
       workspace: parent,
-      confirmRecords: true,
     }),
   );
   expect(unrelated.status).not.toBe(0);
@@ -356,7 +343,6 @@ test("dispatch refuses staged or unrelated changes even with canonical-record co
       ticket: "T-0001",
       author: "controller",
       workspace: parent,
-      confirmRecords: true,
     }),
   );
   expect(staged.status).not.toBe(0);
@@ -497,7 +483,6 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     "T-0001",
     "--actor",
     "controller",
-    "--confirm-records",
   ]);
   expect(integrated.status, integrated.stderr).toBe(0);
   const output = cliOutput(integrated) as {
@@ -510,15 +495,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
   const mergeParents = gitAt(root, "rev-list", "--parents", "-n", "1", output.mergeCommit).split(
     " ",
   );
-  expect(mergeParents).toEqual([output.mergeCommit, mergeParents[1], output.ticketCommit]);
-  expect(mergeParents[1]).not.toBe(before);
-  expect(gitAt(root, "show", "-s", "--format=%s", mergeParents[1])).toBe(
-    "spindle: record 0001-ticket-isolation workflow",
-  );
-  expect(gitAt(root, "rev-list", "--parents", "-n", "1", mergeParents[1]).split(" ")).toEqual([
-    mergeParents[1],
-    before,
-  ]);
+  expect(mergeParents).toEqual([output.mergeCommit, before, output.ticketCommit]);
   expect(readFileSync(join(root, "first.ts"), "utf8")).toBe("export const first = 1;\n");
   expect(existsSync(workspace)).toBe(true);
   const repeated = await invokeAsync(root, [
@@ -730,7 +707,7 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   ]);
   expect(require.status, require.stderr).toBe(0);
   const requiredHeadSha = cliOutput(require).headSha as string;
-  expect(requiredHeadSha).toBe(gitAt(root, "rev-parse", "HEAD"));
+  expect(requiredHeadSha).toBe(cliOutput(firstMerge).mergeCommit);
   const failed = await invokeAsync(root, [
     "checks",
     "record",
@@ -792,7 +769,6 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
     ticket: "T-0002",
     author: "controller",
     workspace: parent,
-    confirmRecords: true,
   };
   writeFileSync(join(root, "private.txt"), "preserve user work\n");
   const dirty = await execute(root, (services) =>
@@ -809,6 +785,8 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
   gitAt(root, "reset", "-q", "HEAD", "--", "private.txt");
   rmSync(join(root, "private.txt"));
   const ledgerPath = join(dirname(spec), "sdd.json");
+  const ledgerContents = readFileSync(ledgerPath, "utf8");
+  writeFileSync(ledgerPath, `${ledgerContents}\n`);
   gitAt(root, "add", ledgerPath);
   const stagedRecords = await execute(root, (services) =>
     services.assignmentService.implement(dispatchOptions),
@@ -816,6 +794,7 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
   expect(stagedRecords.status).not.toBe(0);
   expect(stagedRecords.stderr).toMatch(/staged/i);
   gitAt(root, "reset", "-q", "HEAD", "--", ledgerPath);
+  writeFileSync(ledgerPath, ledgerContents);
   const unrelatedReport = join(dirname(spec), "reports", "T-9999-unregistered.md");
   writeFileSync(unrelatedReport, "unregistered data\n");
   const unregistered = await execute(root, (services) =>
@@ -836,15 +815,16 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
   expect(journalled.stderr).toMatch(/journal/i);
   expect(readFileSync(journal, "utf8")).toBe("preserve interrupted journal\n");
   rmSync(journal);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(gitAt(root, "merge-base", "--is-ancestor", mergeSha, "HEAD")).toBe("");
 
+  const dispatchHead = gitAt(root, "rev-parse", "HEAD");
   const independent = await execute(root, (services) =>
     services.assignmentService.implement(dispatchOptions),
   );
   expect(independent.status, independent.stderr).toBe(0);
   const assignment = JSON.parse(independent.stdout).assignment as { workspace: string };
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
-  expect(gitAt(assignment.workspace, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(gitAt(root, "merge-base", "--is-ancestor", dispatchHead, "HEAD")).toBe("");
+  expect(gitAt(assignment.workspace, "rev-parse", "HEAD")).toBe(dispatchHead);
   const declared = await execute(root, (services) =>
     services.checksService.checksRequire({
       spec,
@@ -866,11 +846,11 @@ test("independent dispatch preserves the exact pending merge for post-merge chec
     }),
   );
   expect(result.status, result.stderr).toBe(0);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(gitAt(root, "merge-base", "--is-ancestor", mergeSha, "HEAD")).toBe("");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.checks.records[0].headSha).toBe(mergeSha);
-  expect(ledger.tickets[1].worktree.baseSha).toBe(mergeSha);
+  expect(ledger.tickets[1].worktree.baseSha).toBe(dispatchHead);
 });
 
 test("pending post-merge checks preserve evidence until blockers and dependencies are resolved", async () => {
@@ -989,7 +969,7 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.status).toBe("passed");
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(gitAt(root, "merge-base", "--is-ancestor", mergeSha, "HEAD")).toBe("");
   const readyAfter = await invokeAsync(root, [
     "ready",
     "--feature",
@@ -1003,7 +983,7 @@ test("pending-gate ticket startup resumes after worktree allocation without adva
   const { root, spec, parent } = await acceptedTicket();
   const integrated = await integrate(root, spec);
   expect(integrated.status, integrated.stderr).toBe(0);
-  const mergeSha = cliOutput(integrated).mergeCommit as string;
+  const featureHead = gitAt(root, "rev-parse", "HEAD");
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectSettings().bootstrap(app);
   await app.boot();
@@ -1014,19 +994,18 @@ test("pending-gate ticket startup resumes after worktree allocation without adva
     ticket: "T-0002",
     workspace: parent,
     author: "controller",
-    confirmRecords: true,
   };
   vi.spyOn(transaction, "writeWorkflowState").mockImplementationOnce(() => {
     throw new Error("assignment write interrupted");
   });
   expect(() => assignments.implement(options)).toThrow("assignment write interrupted");
   const workspace = join(parent, "0001-ticket-isolation-T-0002");
-  expect(gitAt(workspace, "rev-parse", "HEAD")).toBe(mergeSha);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(gitAt(workspace, "rev-parse", "HEAD")).toBe(featureHead);
+  expect(gitAt(root, "rev-parse", "HEAD")).toBe(featureHead);
   const resumed = assignments.implement(options);
   expect(resumed.assignment.workspace).toBe(workspace);
-  expect(resumed.headSha).toBe(mergeSha);
-  expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
+  expect(resumed.headSha).toBe(featureHead);
+  expect(gitAt(root, "merge-base", "--is-ancestor", featureHead, "HEAD")).toBe("");
 });
 
 test("a reviewed post-merge correction preserves failures and requires fresh checks on its new merge", async () => {
@@ -1140,7 +1119,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     "T-0002",
     "--actor",
     "controller",
-    "--confirm-records",
   ]);
   expect(blocked.status).not.toBe(0);
   expect(blocked.stderr).toMatch(/post-merge validation.*T-0001/i);
@@ -1191,7 +1169,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   const newMerge = cliOutput(merged).mergeCommit as string;
   expect(newMerge).not.toBe(oldMerge);
   ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   expect(ledger.tickets[0].integrationHistory[0].postMerge.checks.records[0].headSha).toBe(
     oldMerge,
   );
@@ -1245,7 +1223,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   );
   expect(passed.status, passed.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   const smoke = await execute(root, (services) =>
     services.checksService.checksRecord({
       spec,
@@ -1277,12 +1255,13 @@ test("integration refuses dirty canonical state before creating a merge journal"
 
 test("integration recovers its journalled staged records but rejects unrelated staged data", async () => {
   const { root, spec } = await acceptedTicket();
+  writeFileSync(join(dirname(spec), "reports", "pending.md"), "# Pending report\n");
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectSettings().bootstrap(app);
   await app.boot();
   const feature = (await app.make(FeatureInspectionService)).resolveFeature(spec);
   const committer = new WorkflowRecordsCommitter(app, new InterruptedRecordGit(app));
-  expect(() => committer.commit(feature, true)).toThrow("record stage interrupted");
+  expect(() => committer.commit(feature)).toThrow("record stage interrupted");
   expect(gitAt(root, "diff", "--cached", "--name-only")).not.toBe("");
   const resumed = await integrate(root, spec);
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -1308,10 +1287,7 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/conflicts.*ticket worktree/i);
   const preservedHead = gitAt(root, "rev-parse", "HEAD");
-  expect(preservedHead).not.toBe(featureHead);
-  expect(gitAt(root, "log", "-1", "--format=%s")).toBe(
-    "spindle: record 0001-ticket-isolation workflow",
-  );
+  expect(preservedHead).toBe(featureHead);
   expect(
     existsSync(gitAt(root, "rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD")),
   ).toBe(false);
@@ -1429,10 +1405,7 @@ test("an automatic merge cannot silently change reviewed file content", async ()
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/differs from the reviewed ticket commit/i);
   const preservedHead = gitAt(root, "rev-parse", "HEAD");
-  expect(preservedHead).not.toBe(before);
-  expect(gitAt(root, "log", "-1", "--format=%s")).toBe(
-    "spindle: record 0001-ticket-isolation workflow",
-  );
+  expect(preservedHead).toBe(before);
   expect(
     existsSync(gitAt(root, "rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD")),
   ).toBe(false);
@@ -1451,7 +1424,6 @@ test("integration resumes after interrupted canonical merge record persistence",
     "T-0001",
     "--actor",
     "controller",
-    "--confirm-records",
   ];
   const interrupted = await invokeAsync(root, args, {
     preload: join(repoRoot, "tests/Helpers/Preloads/interrupt-after-ticket-replacement.ts"),
@@ -1479,7 +1451,6 @@ test("integration recovers a journaled merge after interruption before record wr
     "T-0001",
     "--actor",
     "controller",
-    "--confirm-records",
   ];
   const interrupted = await invokeAsync(root, args, {
     preload: join(repoRoot, "tests/Helpers/Preloads/interrupt-after-git-merge-commit.ts"),
@@ -1602,8 +1573,6 @@ test("competing dispatches reuse one ticket assignment and worktree", async () =
 test("an unavailable ticket worktree does not hide another ticket's evidence", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
-  gitAt(root, "add", ".scratch");
-  gitAt(root, "commit", "-qm", "record first assignment");
   const second = await dispatch(root, spec, parent, "T-0002");
   writeFileSync(join(first.assignment.workspace, "preserve.txt"), "preserve\n");
   const moved = `${first.assignment.workspace}-moved`;
@@ -1635,8 +1604,6 @@ test("dependent dispatch waits for closed and post-merge-validated prerequisites
     }),
   );
   expect(blocked.status, blocked.stderr).toBe(0);
-  gitAt(root, "add", ".scratch");
-  gitAt(root, "commit", "-qm", "record dependency");
   const dispatch = await execute(root, (services) =>
     services.assignmentService.implement({
       spec,

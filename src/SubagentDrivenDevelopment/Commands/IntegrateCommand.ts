@@ -20,10 +20,6 @@ export class IntegrateCommand extends Command {
       )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
-      .option(
-        "--confirm-records",
-        "Confirm that current canonical feature records were inspected before batching",
-      )
       .allowExcessArguments(false)
       .action(async (options: IntegrateOptions) => {
         const app = await createApp();

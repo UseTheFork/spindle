@@ -77,7 +77,6 @@ test("empty feature and premature final declarations cannot commit records or re
     started.spec.replace(/\/spec\.md$/, ""),
     "--actor",
     "controller",
-    "--confirm-records",
   ]);
   expect(finished.status).not.toBe(0);
   expect(finished.stderr).toContain("at least one ticket");
@@ -131,7 +130,6 @@ test("finalization refuses active hooks without executing or disabling them", as
     started.spec.replace(/\/spec\.md$/, ""),
     "--actor",
     "controller",
-    "--confirm-records",
   ]);
   expect(finished.status).not.toBe(0);
   expect(finished.stderr).toContain("Active Git hook");
@@ -196,7 +194,6 @@ async function readyFeature(codeFile = "feature.ts") {
         ticket: "T-0001",
         author: "controller",
         workspace: parent,
-        confirmRecords: true,
       }),
     ),
   );
@@ -262,7 +259,6 @@ async function readyFeature(codeFile = "feature.ts") {
       "T-0001",
       "--actor",
       "controller",
-      "--confirm-records",
     ]),
   );
   cliOutput(
@@ -367,7 +363,6 @@ async function readyFeature(codeFile = "feature.ts") {
       report,
       "--actor",
       "controller",
-      "--confirm-records",
     ]);
   return {
     root,
@@ -687,7 +682,6 @@ test.each([
           f.spec.replace(/\/spec\.md$/, ""),
           "--actor",
           "controller",
-          "--confirm-records",
         ])
       : await f.finish();
   expect(result.status).not.toBe(0);
@@ -779,7 +773,6 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
         spec: root === f.root ? f.spec : f.originalSpec,
         author: "controller",
         report: f.report,
-        confirmRecords: true,
       }),
     ).toThrow("fixture interruption");
     for (const file of artifacts) expect(readFileSync(file.path, "utf8")).toBe(file.content);

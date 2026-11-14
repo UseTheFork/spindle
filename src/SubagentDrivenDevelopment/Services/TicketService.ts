@@ -14,7 +14,6 @@ import type {
 import {
   TICKET_CATEGORIES,
   TICKET_ID,
-  TRACKER_STATUSES,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -109,13 +108,12 @@ export class TicketService extends Service {
       options.title === undefined &&
       options.reporter === undefined &&
       options.category === undefined &&
-      options.status === undefined &&
       options.blocker === undefined &&
       !options.clearBlocker &&
       options.blockedBy === undefined &&
       !options.clearBlockedBy
     ) {
-      throw new Error("Provide ticket fields, status, blocker, or dependency options to update.");
+      throw new Error("Provide ticket fields, blocker, or dependency options to update.");
     }
     if (options.clearBlockedBy && options.blockedBy !== undefined) {
       throw new Error("--clear-blocked-by cannot be combined with --blocked-by.");
@@ -129,15 +127,6 @@ export class TicketService extends Service {
       throw new Error("Reporter must not be empty.");
     }
     if (options.category !== undefined) validateCategory(options.category);
-    if (
-      options.status !== undefined &&
-      !TRACKER_STATUSES.some((status) => status === options.status)
-    ) {
-      throw new Error(`Ticket status must be one of: ${TRACKER_STATUSES.join(", ")}.`);
-    }
-    if (options.status === "closed") {
-      throw new Error("Tickets close automatically after passing post-merge checks.");
-    }
     if (options.blocker !== undefined && !options.blocker.trim()) {
       throw new Error("Blocker reason must not be empty.");
     }
@@ -156,10 +145,6 @@ export class TicketService extends Service {
       if (options.category !== undefined) {
         structured.category = options.category as (typeof TICKET_CATEGORIES)[number];
         updated.category = structured.category;
-      }
-      if (options.status !== undefined) {
-        structured.status = options.status as (typeof TRACKER_STATUSES)[number];
-        updated.status = structured.status;
       }
       if (options.blocker !== undefined) {
         structured.blocker = options.blocker.trim();

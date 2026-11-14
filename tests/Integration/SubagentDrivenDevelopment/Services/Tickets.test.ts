@@ -264,43 +264,44 @@ test("ticket update stores structured fields in the ledger and preserves local m
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[1].blockedBy).toEqual([]);
 });
 
-test("ticket tracker preserves blockers and forbids manual closure", async () => {
-  const { service, feature } = await ticketFixture("Ticket Tracker");
+test("ticket status is workflow-owned while ticket updates preserve blockers", async () => {
+  const { repo, service, feature } = await ticketFixture("Ticket Tracker");
   createTicket(service, feature.spec, "Track work");
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  const beforeStatusChange = readFileSync(ledgerPath, "utf8");
+  const statusChange = runCli(
+    repo,
+    [
+      "sdd",
+      "ticket",
+      "update",
+      "--feature",
+      feature.spec.replace(/\/spec\.md$/, ""),
+      "--ticket",
+      "T-0001",
+      "--status",
+      "in-progress",
+      "--actor",
+      "worker",
+    ],
+    process.env.PATH ?? "",
+  );
+  expect(statusChange.status).not.toBe(0);
+  expect(statusChange.stderr).toMatch(/unknown option.*--status/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeStatusChange);
+  const legacyLedger = JSON.parse(beforeStatusChange);
+  legacyLedger.tickets[0].status = "in-progress";
+  writeFileSync(ledgerPath, `${JSON.stringify(legacyLedger, null, 2)}\n`);
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",
-    status: "in-progress",
-    author: "worker",
-  });
-  service.ticketService.ticketUpdate({
-    spec: feature.spec,
-    ticket: "T-0001",
-    status: "open",
     blocker: "Waiting for a decision.",
     author: "worker",
   });
-  const ledgerPath = join(feature.workspace, "sdd.json");
-  const beforeClose = readFileSync(ledgerPath, "utf8");
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      author: "worker",
-    }),
-  ).toThrow(/automatically after passing post-merge checks/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      clearBlocker: true,
-      author: "worker",
-    }),
-  ).toThrow(/automatically after passing post-merge checks/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0]).toMatchObject({
+    status: "open",
+    blocker: "Waiting for a decision.",
+  });
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",

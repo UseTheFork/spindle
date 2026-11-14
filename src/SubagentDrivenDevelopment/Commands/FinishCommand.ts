@@ -27,7 +27,6 @@ export class FinishCommand extends Command {
         CommandOptions.once("--report"),
       )
       .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
-      .option("--confirm-records", "Confirm inspected canonical records may be committed")
       .allowExcessArguments(false)
       .action(async (options: FeatureFinishOptions) => {
         const app = await createApp();

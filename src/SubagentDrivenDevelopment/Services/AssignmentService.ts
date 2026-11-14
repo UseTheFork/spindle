@@ -175,11 +175,8 @@ export class AssignmentService extends Service {
           (candidate.integration ?? candidate.integrationHistory?.at(-1))?.postMerge?.status ===
           "pending",
       );
-      if (!pendingPostMerge) {
-        this.workflowRecordsCommitter.commit(feature, options.confirmRecords === true);
-      }
+      if (!pendingPostMerge) this.workflowRecordsCommitter.commit(feature);
       const baseSha = this.gitEvidence.cleanDispatchBaseline(feature, pendingPostMerge);
-      progress.status = "in-progress";
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
       ledger.delivery.baseSha ??= baseSha;
