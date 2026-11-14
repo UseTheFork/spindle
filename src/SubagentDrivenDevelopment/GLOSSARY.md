@@ -23,7 +23,7 @@ The working tree in which a feature's ticket changes are integrated and its work
 The working tree in which a single ticket's changes are developed and reviewed.
 
 **Ticket status**:
-A ticket's tracker lifecycle: open, in progress, or closed.
+A ticket's tracker lifecycle: open or closed.
 
 **Dependency**:
 A relationship in which one ticket must be closed before another can become ready.
@@ -36,8 +36,12 @@ An open ticket with no unresolved dependencies or explicit blockers.
 
 ## Review and completion
 
+**Delivery**:
+The feature-wide phase after all tickets are integrated, covering the feature's checks, its Feature review, and its merge into the originating branch.
+
 **Feature review**:
-A review of the completed feature changes before the feature is declared complete.
+A review of the completed feature changes before the feature is declared complete. It is the review gate within Delivery.
+_Avoid_: aggregate review, delivery review
 
 **Review requirement**:
 A required review role for a feature, including the default comprehensive reviewer and any optional specialist reviewers.
