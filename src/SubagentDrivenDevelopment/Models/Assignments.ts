@@ -79,7 +79,6 @@ export interface ReviewAssignment {
   requestedAt: string;
   status: "pending" | "submitted";
   result?: ReviewResult;
-  noFindings?: true;
   findingIds?: string[];
   reportSha256?: string;
   submittedAt?: string;

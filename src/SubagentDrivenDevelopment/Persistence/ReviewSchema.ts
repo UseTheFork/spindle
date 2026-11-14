@@ -47,16 +47,13 @@ export function isReviewAssignment(value: unknown): value is ReviewAssignment {
   ) {
     return false;
   }
-  if (value.status === "pending") return true;
+  if (Object.hasOwn(value, "noFindings")) return false;
+  if (value.status === "pending") return !Object.hasOwn(value, "findingIds");
   return (
     ["passed", "failed", "unavailable"].includes(String(value.result)) &&
-    (value.noFindings === true
-      ? value.findingIds === undefined
-      : value.noFindings === undefined &&
-        Array.isArray(value.findingIds) &&
-        value.findingIds.length > 0 &&
-        value.findingIds.every((id) => typeof id === "string" && /^F-\d{4,}$/.test(id)) &&
-        new Set(value.findingIds).size === value.findingIds.length) &&
+    Array.isArray(value.findingIds) &&
+    value.findingIds.every((id) => typeof id === "string" && /^F-\d{4,}$/.test(id)) &&
+    new Set(value.findingIds).size === value.findingIds.length &&
     typeof value.reportSha256 === "string" &&
     /^[0-9a-f]{64}$/i.test(value.reportSha256) &&
     typeof value.submittedAt === "string" &&

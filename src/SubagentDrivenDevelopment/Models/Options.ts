@@ -68,16 +68,10 @@ export interface CorrectOptions extends TicketSelection {
   reason?: string;
 }
 
-export interface SubmitOptions extends TicketSelection {
+export interface SubmitOptions extends ScopedSelection {
   scope?: string;
-  role: string;
-  report?: string;
-  assignment?: string;
+  assignment: string;
   result?: string;
-  noFindings?: boolean;
-  findingIds?: string[];
-  findings?: string[] | boolean;
-  unavailable?: boolean;
   details?: string;
 }
 

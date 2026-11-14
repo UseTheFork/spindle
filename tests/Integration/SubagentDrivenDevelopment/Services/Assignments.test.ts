@@ -179,7 +179,8 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
-  const report = JSON.parse(dispatched.stdout).assignment.report as string;
+  const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
+  const { id: assignmentId, report } = assignment;
   const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
   const outside = join(repo, "outside.md");
   writeFileSync(outside, "Do not follow this link.\n");
@@ -190,7 +191,7 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: assignmentId,
       author: "controller",
     }),
   );
@@ -204,7 +205,7 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: assignmentId,
       author: "controller",
     }),
   );
@@ -212,18 +213,57 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
   expect(missing.stderr).toMatch(/missing or unavailable/);
   expect(readFileSync(ledger, "utf8")).toBe(before);
 
-  const misdirected = await execute(repo, (service) =>
+});
+
+test("submission derives implementation role and report from the assignment", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
+  const unavailable = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: outside,
+      assignment: assignment.id,
+      result: "unavailable",
+      details: "The worker could not return a report.",
       author: "controller",
     }),
   );
-  expect(misdirected.status).not.toBe(0);
-  expect(misdirected.stderr).toMatch(/does not match the assigned destination/);
-  expect(readFileSync(ledger, "utf8")).toBe(before);
+  expect(unavailable.status, unavailable.stderr).toBe(0);
+  expect(JSON.parse(unavailable.stdout).assignment.status).toBe("unavailable");
+
+  writeFileSync(assignment.report, "# Implementation report\n\nCompleted the work.\n");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+  expect(JSON.parse(submitted.stdout)).toMatchObject({
+    assignment: { id: assignment.id, report: assignment.report, status: "submitted" },
+    report: assignment.report,
+  });
+  const repeated = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
 });
 
 test("next and status guide unstarted work to implement without changing workflow state", async () => {

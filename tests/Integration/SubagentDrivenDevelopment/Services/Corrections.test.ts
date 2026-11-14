@@ -41,11 +41,8 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The implementation must be corrected.",
       author: "controller",
     }),
@@ -114,11 +111,8 @@ test("corrective implementation reports submit through the implementation eviden
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The implementation must be corrected.",
       author: "controller",
     }),
@@ -136,6 +130,7 @@ test("corrective implementation reports submit through the implementation eviden
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const fix = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
     action: string;
     report: string;
   };
@@ -147,8 +142,7 @@ test("corrective implementation reports submit through the implementation eviden
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: fix.report,
+      assignment: fix.id,
       author: "controller",
     }),
   );
@@ -206,6 +200,7 @@ test("explicit progress assessments permit productive continuation beyond five a
 
   for (let nextAttempt = 1; nextAttempt <= 6; nextAttempt += 1) {
     const assigned = JSON.parse(correction.stdout).assignment as {
+      id: string;
       report: string;
       attempt: number;
     };
@@ -217,8 +212,7 @@ test("explicit progress assessments permit productive continuation beyond five a
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "implementation",
-        report: assigned.report,
+        assignment: assigned.id,
         author: "controller",
       }),
     );
@@ -343,11 +337,8 @@ test("corrective review findings retain assignment provenance for the next progr
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The implementation must be corrected.",
       author: "controller",
     }),
@@ -364,7 +355,7 @@ test("corrective review findings retain assignment provenance for the next progr
     }),
   );
   expect(corrected.status, corrected.stderr).toBe(0);
-  const fix = JSON.parse(corrected.stdout).assignment as { report: string };
+  const fix = JSON.parse(corrected.stdout).assignment as { id: string; report: string };
   writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
   commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
@@ -372,8 +363,7 @@ test("corrective review findings retain assignment provenance for the next progr
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: fix.report,
+      assignment: fix.id,
       author: "controller",
     }),
   );
@@ -418,11 +408,8 @@ test("corrective review findings retain assignment provenance for the next progr
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: correctiveReview.id,
-      report: JSON.parse(dispatched.stdout).assignments[0].report,
       result: "failed",
-      findingIds: ["F-0002"],
       details: "The new blocker requires another assessed correction.",
       author: "controller",
     }),
@@ -460,11 +447,8 @@ test("resume returns pending corrective reviews after initial review coverage is
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The implementation must be corrected.",
       author: "controller",
     }),
@@ -481,7 +465,7 @@ test("resume returns pending corrective reviews after initial review coverage is
     }),
   );
   expect(correction.status, correction.stderr).toBe(0);
-  const implementation = JSON.parse(correction.stdout).assignment as { report: string };
+  const implementation = JSON.parse(correction.stdout).assignment as { id: string; report: string };
   writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
   commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(implementation.report, "# Correction report\n\nCorrected F-0001.\n");
@@ -489,8 +473,7 @@ test("resume returns pending corrective reviews after initial review coverage is
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: implementation.report,
+      assignment: implementation.id,
       author: "controller",
     }),
   );
@@ -562,11 +545,8 @@ test("a verified corrective review permits ticket integration while retaining in
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The implementation must be corrected.",
       author: "controller",
     }),
@@ -583,7 +563,7 @@ test("a verified corrective review permits ticket integration while retaining in
     }),
   );
   expect(correction.status, correction.stderr).toBe(0);
-  const fix = JSON.parse(correction.stdout).assignment as { report: string };
+  const fix = JSON.parse(correction.stdout).assignment as { id: string; report: string };
   writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'fixed';\n");
   commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
   writeFileSync(fix.report, "# Correction report\n\nCorrected F-0001.\n");
@@ -591,8 +571,7 @@ test("a verified corrective review permits ticket integration while retaining in
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: fix.report,
+      assignment: fix.id,
       author: "controller",
     }),
   );
@@ -629,11 +608,8 @@ test("a verified corrective review permits ticket integration while retaining in
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: review.id,
-      report: review.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -676,11 +652,8 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      findingIds: ["F-0001"],
       author: "controller",
     }),
   );
@@ -796,11 +769,8 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: freshAssignment.id,
-      report: freshAssignment.report,
       result: "passed",
-      findingIds: ["F-0001"],
       author: "controller",
     }),
   );
@@ -822,54 +792,29 @@ test("requirements decisions require fresh review before deferring a blocking fi
   expect(JSON.parse(integrated.stdout).postMerge).toBe("pending");
 });
 
-test("review submission requires exact provenance, result, and explicit no-findings and is idempotent", async () => {
+test("review submission derives an empty findings list from assignment provenance and is idempotent", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nNo defects found.\n");
-  const submit = async (
-    extra: Partial<Parameters<WorkflowServices["submissionService"]["submit"]>[0]>,
-  ) =>
+  const submit = async (assignmentId: string, result?: string) =>
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "review",
-        ...extra,
+        assignment: assignmentId,
+        ...(result ? { result } : {}),
         author: "controller",
       }),
     );
 
-  const omittedNoFindings = await submit({
-    assignment: assignment.id,
-    report: assignment.report,
-    result: "passed",
-  });
-  expect(omittedNoFindings.status).not.toBe(0);
-  expect(omittedNoFindings.stderr).toMatch(/--no-findings/);
-
-  const wrongAssignment = await submit({
-    assignment: `${assignment.id}-other`,
-    report: assignment.report,
-    result: "passed",
-    noFindings: true,
-  });
+  const wrongAssignment = await submit(`${assignment.id}-other`, "passed");
   expect(wrongAssignment.status).not.toBe(0);
   expect(wrongAssignment.stderr).toMatch(/assignment/i);
 
-  const wrongReport = await submit({
-    assignment: assignment.id,
-    report: join(repo, ".scratch", "other-report.md"),
-    result: "passed",
-    noFindings: true,
-  });
-  expect(wrongReport.status).not.toBe(0);
-  expect(wrongReport.stderr).toMatch(/assigned destination/);
+  const missingResult = await submit(assignment.id);
+  expect(missingResult.status).not.toBe(0);
+  expect(missingResult.stderr).toMatch(/explicit --result/);
 
-  const registered = await submit({
-    assignment: assignment.id,
-    report: assignment.report,
-    result: "passed",
-    noFindings: true,
-  });
+  const registered = await submit(assignment.id, "passed");
   expect(registered.status, registered.stderr).toBe(0);
   const result = JSON.parse(registered.stdout) as {
     execution: string;
@@ -877,7 +822,7 @@ test("review submission requires exact provenance, result, and explicit no-findi
       id: string;
       status: string;
       result: string;
-      noFindings: boolean;
+      findingIds: string[];
       headSha: string;
       reportSha256: string;
     };
@@ -886,16 +831,11 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(result.assignment.id).toBe(assignment.id);
   expect(result.assignment.status).toBe("submitted");
   expect(result.assignment.result).toBe("passed");
-  expect(result.assignment.noFindings).toBe(true);
+  expect(result.assignment.findingIds).toEqual([]);
   expect(result.assignment.headSha).toBe(assignment.headSha);
   expect(result.assignment.reportSha256).toMatch(/^[0-9a-f]{64}$/);
 
-  const repeated = await submit({
-    assignment: assignment.id,
-    report: assignment.report,
-    result: "passed",
-    noFindings: true,
-  });
+  const repeated = await submit(assignment.id, "passed");
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const ticketText = readFileSync(
@@ -905,29 +845,21 @@ test("review submission requires exact provenance, result, and explicit no-findi
   expect(ticketText.match(/Review report submitted for assignment/g)?.length).toBe(1);
 
   writeFileSync(assignment.report, "# Changed review report\n");
-  const altered = await submit({
-    assignment: assignment.id,
-    report: assignment.report,
-    result: "passed",
-    noFindings: true,
-  });
+  const altered = await submit(assignment.id, "passed");
   expect(altered.status).not.toBe(0);
   expect(altered.stderr).toMatch(/changed after submission/);
 });
 
-test("failed review without a no-findings attestation requires details and blocks integration", async () => {
+test("failed review requires details and blocks integration", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking defect was found.\n");
-  const submit = async (details?: string, declareFindings = true) =>
+  const submit = async (details?: string) =>
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "review",
         assignment: assignment.id,
-        report: assignment.report,
         result: "failed",
-        ...(declareFindings ? { noFindings: true } : {}),
         ...(details ? { details } : {}),
         author: "controller",
       }),
@@ -936,14 +868,11 @@ test("failed review without a no-findings attestation requires details and block
   const missingDetails = await submit();
   expect(missingDetails.status).not.toBe(0);
   expect(missingDetails.stderr).toMatch(/--details/);
-  const missingDeclaration = await submit("A blocking defect was found.", false);
-  expect(missingDeclaration.status).not.toBe(0);
-  expect(missingDeclaration.stderr).toMatch(/--findings or exclusive --no-findings/);
   const recordedFailure = await submit("A blocking defect was found in the implementation.");
   expect(recordedFailure.status, recordedFailure.stderr).toBe(0);
   const submitted = JSON.parse(recordedFailure.stdout).assignment;
   expect(submitted.result).toBe("failed");
-  expect(submitted.noFindings).toBe(true);
+  expect(submitted.findingIds).toEqual([]);
   expect(submitted.details).toBe("A blocking defect was found in the implementation.");
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
@@ -961,7 +890,7 @@ test("failed review without a no-findings attestation requires details and block
   expect(integrated.stderr).toMatch(/failed/);
 });
 
-test("unavailable review without a no-findings attestation requires details and blocks integration", async () => {
+test("unavailable review requires details and blocks integration", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nReview could not be completed.\n");
   const submit = async (details?: string) =>
@@ -969,11 +898,8 @@ test("unavailable review without a no-findings attestation requires details and 
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "review",
         assignment: assignment.id,
-        report: assignment.report,
         result: "unavailable",
-        noFindings: true,
         ...(details ? { details } : {}),
         author: "controller",
       }),
@@ -986,7 +912,7 @@ test("unavailable review without a no-findings attestation requires details and 
   expect(recordedUnavailable.status, recordedUnavailable.stderr).toBe(0);
   const submitted = JSON.parse(recordedUnavailable.stdout).assignment;
   expect(submitted.result).toBe("unavailable");
-  expect(submitted.noFindings).toBe(true);
+  expect(submitted.findingIds).toEqual([]);
   expect(submitted.details).toBe("The reviewer could not assess whether findings exist.");
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
@@ -1011,11 +937,8 @@ test("integration requires current checks and complete passing finding-free revi
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );

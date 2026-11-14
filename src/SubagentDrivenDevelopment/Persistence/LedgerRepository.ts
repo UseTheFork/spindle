@@ -127,26 +127,82 @@ export class LedgerRepository extends Service {
       });
       return changed ? { value: normalized, changed: true } : { value: findings, changed: false };
     };
+    const normalizeReviewAssignments = (
+      assignments: unknown,
+    ): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(assignments)) return { value: assignments, changed: false };
+      let changed = false;
+      const normalized = assignments.map((assignment) => {
+        if (!isRecord(assignment) || !Object.hasOwn(assignment, "noFindings")) return assignment;
+        const migrated = { ...assignment };
+        if (migrated.status === "submitted" && migrated.noFindings === true) {
+          if (!Object.hasOwn(migrated, "findingIds")) migrated.findingIds = [];
+        }
+        delete migrated.noFindings;
+        changed = true;
+        return migrated;
+      });
+      return changed
+        ? { value: normalized, changed: true }
+        : { value: assignments, changed: false };
+    };
+    const normalizeCorrectionAttempts = (
+      attempts: unknown,
+    ): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(attempts)) return { value: attempts, changed: false };
+      let changed = false;
+      const normalized = attempts.map((attempt) => {
+        if (!isRecord(attempt)) return attempt;
+        const reviews = normalizeReviewAssignments(attempt.reviewAssignments);
+        if (!reviews.changed) return attempt;
+        changed = true;
+        return { ...attempt, reviewAssignments: reviews.value };
+      });
+      return changed
+        ? { value: normalized, changed: true }
+        : { value: attempts, changed: false };
+    };
     if (Array.isArray(value.tickets)) {
       let changed = false;
       updates.tickets = value.tickets.map((ticket) => {
         if (!isRecord(ticket)) return ticket;
         const findings = normalizeFindings(ticket.findings);
+        const reviews = normalizeReviewAssignments(ticket.reviewAssignments);
+        const reviewHistory = normalizeReviewAssignments(ticket.reviewHistory);
+        const attempts = normalizeCorrectionAttempts(ticket.correctionAttempts);
         const normalizeStatus = ticket.status === "in-progress";
-        if (!normalizeStatus && !findings.changed) return ticket;
+        if (
+          !normalizeStatus &&
+          !findings.changed &&
+          !reviews.changed &&
+          !reviewHistory.changed &&
+          !attempts.changed
+        ) return ticket;
         changed = true;
         return {
           ...ticket,
           ...(normalizeStatus ? { status: "open" } : {}),
           ...(findings.changed ? { findings: findings.value } : {}),
+          ...(reviews.changed ? { reviewAssignments: reviews.value } : {}),
+          ...(reviewHistory.changed ? { reviewHistory: reviewHistory.value } : {}),
+          ...(attempts.changed ? { correctionAttempts: attempts.value } : {}),
         };
       });
       if (!changed) delete updates.tickets;
     }
     if (isRecord(value.delivery)) {
       const findings = normalizeFindings(value.delivery.findings);
-      if (findings.changed) {
-        updates.delivery = { ...value.delivery, findings: findings.value };
+      const reviews = normalizeReviewAssignments(value.delivery.reviewAssignments);
+      const reviewHistory = normalizeReviewAssignments(value.delivery.reviewHistory);
+      const attempts = normalizeCorrectionAttempts(value.delivery.correctionAttempts);
+      if (findings.changed || reviews.changed || reviewHistory.changed || attempts.changed) {
+        updates.delivery = {
+          ...value.delivery,
+          ...(findings.changed ? { findings: findings.value } : {}),
+          ...(reviews.changed ? { reviewAssignments: reviews.value } : {}),
+          ...(reviewHistory.changed ? { reviewHistory: reviewHistory.value } : {}),
+          ...(attempts.changed ? { correctionAttempts: attempts.value } : {}),
+        };
       }
     }
     return Object.keys(updates).length > 0 ? { ...value, ...updates } : value;
@@ -430,11 +486,6 @@ export class LedgerRepository extends Service {
               source.report === assignment.report && source.headSha === assignment.headSha,
           ),
         );
-        if (assignment.noFindings === true && reported.length > 0) {
-          throw new Error(
-            `Review assignment ${assignment.id} declares no findings despite registered provenance.`,
-          );
-        }
         for (const id of assignment.findingIds ?? []) {
           const finding = (ticket.findings ?? []).find((candidate) => candidate.id === id);
           if (
@@ -451,9 +502,8 @@ export class LedgerRepository extends Service {
         }
         if (
           assignment.status === "submitted" &&
-          assignment.findingIds &&
-          (reported.length !== assignment.findingIds.length ||
-            reported.some((finding) => !assignment.findingIds!.includes(finding.id)))
+          (reported.length !== (assignment.findingIds?.length ?? 0) ||
+            reported.some((finding) => !assignment.findingIds?.includes(finding.id)))
         ) {
           throw new Error(
             `Review assignment ${assignment.id} does not list the complete canonical findings set.`,

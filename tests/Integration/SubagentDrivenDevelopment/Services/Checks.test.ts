@@ -28,7 +28,6 @@ test("required checks are declared before implementation and accept only explici
   expect(
     JSON.parse(required.stdout).checks.required.map((item: { command: string }) => item.command),
   ).toEqual([command]);
-  commitAll(repo, git, "declare required check");
 
   const dispatched = await execute(repo, (service) =>
     service.assignmentService.implement({
@@ -42,22 +41,27 @@ test("required checks are declared before implementation and accept only explici
   const dispatch = JSON.parse(dispatched.stdout) as {
     headSha: string;
     assignment: {
+      id: string;
       report: string;
+      workspace: string;
     };
   };
   const assignment = dispatch.assignment;
+  writeFileSync(join(assignment.workspace, "feature.ts"), "export const feature = true;\n");
+  commitTicketWorkspace(assignment.workspace, "implement feature");
   writeFileSync(assignment.report, "# Implementation report\n\nCompleted.\n");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: assignment.report,
+      assignment: assignment.id,
       author: "controller",
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  expect(JSON.parse(submitted.stdout).headSha).toBe(dispatch.headSha);
+  expect(JSON.parse(submitted.stdout).headSha).toBe(
+    git("-C", assignment.workspace, "rev-parse", "HEAD"),
+  );
   const missing = await execute(repo, (service) =>
     service.reviewService.review({
       spec,

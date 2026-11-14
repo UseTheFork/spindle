@@ -297,31 +297,13 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
   writeFileSync(defaultReviewer.report, "# Comprehensive review\n\nNo defects found.\n");
   writeFileSync(specialist.report, "# Specialist review\n\nNo API defects found.\n");
 
-  const substitutedSource = await execute(repo, (service) =>
-    service.submissionService.submit({
-      spec,
-      ticket: "T-0001",
-      role: "review",
-      assignment: specialist.id,
-      report: defaultReviewer.report,
-      result: "passed",
-      noFindings: true,
-      author: "controller",
-    }),
-  );
-  expect(substitutedSource.status).not.toBe(0);
-  expect(substitutedSource.stderr).toMatch(/assigned destination|assignment/i);
-
   const submit = async (assignment: (typeof assignments)[number]) =>
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "review",
         assignment: assignment.id,
-        report: assignment.report,
         result: "passed",
-        noFindings: true,
         author: "controller",
       }),
     );
@@ -389,11 +371,8 @@ test("unavailable specialist submissions preserve the pinned objective separatel
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "unavailable",
-      noFindings: true,
       details: failureDetails,
       author: "controller",
     }),
@@ -588,6 +567,46 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   ).toBe(2);
 });
 
+test("review submission derives the report and canonical findings from its assignment", async () => {
+  const { repo, spec, assignment } = await prepareReviewAssignment();
+  writeFileSync(assignment.report, "# Review report\n\nA blocking issue was found.\n");
+  const finding = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      blocking: true,
+      summary: "Acceptance regression",
+      details: "The behavior violates an acceptance requirement.",
+      author: "controller",
+    }),
+  );
+  expect(finding.status, finding.stderr).toBe(0);
+
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      result: "failed",
+      details: "The registered blocker needs correction.",
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+  expect(JSON.parse(submitted.stdout)).toMatchObject({
+    assignment: {
+      id: assignment.id,
+      report: assignment.report,
+      result: "failed",
+      findingIds: ["F-0001"],
+    },
+    report: assignment.report,
+    execution: "changes-requested",
+  });
+  expect(JSON.parse(submitted.stdout).assignment).not.toHaveProperty("noFindings");
+});
+
 test("finding IDs restart per ticket and require provenance from that ticket's review", async () => {
   const { repo, spec, assignment, worktreeParent } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# First ticket review\n\nFinding from the first ticket.\n");
@@ -651,14 +670,16 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
   const secondWorktree = JSON.parse(dispatched.stdout).assignment.workspace as string;
   writeFileSync(join(secondWorktree, "feature-two.ts"), "export const second = true;\n");
   commitTicketWorkspace(secondWorktree, "implement second ticket");
-  const implementationReport = JSON.parse(implementation.stdout).assignment.report as string;
-  writeFileSync(implementationReport, "# Second implementation\n\nCompleted.\n");
+  const implementationAssignment = JSON.parse(implementation.stdout).assignment as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(implementationAssignment.report, "# Second implementation\n\nCompleted.\n");
   const submittedImplementation = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
       ticket: "T-0002",
-      role: "implementation",
-      report: implementationReport,
+      assignment: implementationAssignment.id,
       author: "controller",
     }),
   );
@@ -718,7 +739,7 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
   expect(JSON.parse(secondFinding.stdout).finding.blocking).toBe(true);
 });
 
-test("review submission requires canonical findings or exclusive no-findings and cannot bypass blockers", async () => {
+test("review submission derives canonical findings and cannot bypass unresolved blockers", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking ticket was found.\n");
   const createFinding = async (assignmentId = assignment.id) =>
@@ -735,37 +756,16 @@ test("review submission requires canonical findings or exclusive no-findings and
     );
   const created = await createFinding();
   expect(created.status, created.stderr).toBe(0);
-  const submit = async (
-    extra: Partial<Parameters<WorkflowServices["submissionService"]["submit"]>[0]>,
-  ) =>
+  const submit = async () =>
     await execute(repo, (service) =>
       service.submissionService.submit({
         spec,
         ticket: "T-0001",
-        role: "review",
         assignment: assignment.id,
-        report: assignment.report,
         result: "passed",
-        ...extra,
         author: "controller",
       }),
     );
-
-  const undeclared = await submit({});
-  expect(undeclared.status).not.toBe(0);
-  expect(undeclared.stderr).toMatch(/--findings or exclusive --no-findings/);
-
-  const contradictory = await submit({ findingIds: ["F-0001"], noFindings: true });
-  expect(contradictory.status).not.toBe(0);
-  expect(contradictory.stderr).toMatch(/cannot (?:be combined|declare)|mutually exclusive/i);
-
-  const unknownFinding = await submit({ findingIds: ["F-9999"] });
-  expect(unknownFinding.status).not.toBe(0);
-  expect(unknownFinding.stderr).toMatch(/finding F-9999|provenance/i);
-
-  const falseNoFindings = await submit({ noFindings: true });
-  expect(falseNoFindings.status).not.toBe(0);
-  expect(falseNoFindings.stderr).toMatch(/registered findings|cannot declare --no-findings/i);
 
   const wrongAssignment = await createFinding(
     join(repo, ".scratch", "0001-ticket-flow", "reports", "T-0001-implementation.md"),
@@ -773,18 +773,16 @@ test("review submission requires canonical findings or exclusive no-findings and
   expect(wrongAssignment.status).not.toBe(0);
   expect(wrongAssignment.stderr).toMatch(/review assignment not found for ticket T-0001/i);
 
-  const registered = await submit({ findingIds: ["F-0001"] });
+  const registered = await submit();
   expect(registered.status, registered.stderr).toBe(0);
   const result = JSON.parse(registered.stdout).assignment as {
     result: string;
-    noFindings?: boolean;
     findingIds?: string[];
   };
   expect(JSON.parse(registered.stdout).execution).toBe("changes-requested");
   expect(result.result).toBe("passed");
-  expect(result.noFindings).toBe(undefined);
   expect(result.findingIds).toEqual(["F-0001"]);
-  const repeatedSubmission = await submit({ findingIds: ["F-0001"] });
+  const repeatedSubmission = await submit();
   expect(repeatedSubmission.status, repeatedSubmission.stderr).toBe(0);
   expect(JSON.parse(repeatedSubmission.stdout).idempotent).toBe(true);
 
@@ -816,31 +814,31 @@ test("review submission requires canonical findings or exclusive no-findings and
   expect(JSON.parse(status.stdout).findings[0].finding.id).toBe("F-0001");
 });
 
-test("review submission rejects equals-form declaration conflicts without registered findings", async () => {
+test("submit rejects removed role, report, and finding declaration flags", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nNo findings were registered.\n");
-  const submitted = await invokeAsync(repo, [
-    "submit",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0001",
-    "--role",
-    "review",
-    "--assignment",
-    assignment.id,
-    "--report",
-    assignment.report,
-    "--result",
-    "passed",
-    "--findings=F-0001",
-    "--no-findings",
-    "--actor",
-    "controller",
-  ]);
-
-  expect(submitted.status).not.toBe(0);
-  expect(submitted.stderr).toMatch(/cannot (?:be combined|declare)|mutually exclusive/i);
+  for (const [flag, value] of [
+    ["--role", "review"],
+    ["--report", assignment.report],
+    ["--findings", "F-0001"],
+    ["--no-findings", undefined],
+  ] as const) {
+    const submitted = await invokeAsync(repo, [
+      "submit",
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
+      "--ticket",
+      "T-0001",
+      "--assignment",
+      assignment.id,
+      flag,
+      ...(value ? [value] : []),
+      "--actor",
+      "controller",
+    ]);
+    expect(submitted.status).not.toBe(0);
+    expect(submitted.stderr).toMatch(/unknown option/i);
+  }
 });
 
 test("review submission permits flag-like text in a parsed option value", async () => {
@@ -853,15 +851,10 @@ test("review submission permits flag-like text in a parsed option value", async 
     spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--role",
-    "review",
     "--assignment",
     assignment.id,
-    "--report",
-    assignment.report,
     "--result",
     "failed",
-    "--no-findings",
     "--details",
     details,
     "--actor",
@@ -871,10 +864,10 @@ test("review submission permits flag-like text in a parsed option value", async 
   expect(submitted.status, submitted.stderr).toBe(0);
   const result = cliOutput(submitted) as {
     execution: string;
-    assignment: { noFindings?: boolean; details?: string };
+    assignment: { findingIds?: string[]; details?: string };
   };
   expect(result.execution).toBe("changes-requested");
-  expect(result.assignment.noFindings).toBe(true);
+  expect(result.assignment.findingIds).toEqual([]);
   expect(result.assignment.details).toBe(details);
 });
 
@@ -1120,11 +1113,8 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001", "F-0002"],
       details: "The blocking defect requires correction.",
       author: "controller",
     }),
@@ -1211,11 +1201,8 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: freshAssignment.id,
-      report: freshAssignment.report,
       result: "passed",
-      findingIds: ["F-0001", "F-0002"],
       author: "controller",
     }),
   );

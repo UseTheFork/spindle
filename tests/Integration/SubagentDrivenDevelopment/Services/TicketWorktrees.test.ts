@@ -145,7 +145,7 @@ async function acceptedTicket(file = "first.ts", content = "ticket\n", baseline?
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: first.assignment.id,
       author: "controller",
     }),
   );
@@ -166,11 +166,8 @@ async function acceptedTicket(file = "first.ts", content = "ticket\n", baseline?
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: review.id,
-      report: review.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -373,7 +370,7 @@ test("review assignments become stale when the committed ticket HEAD changes", a
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: first.assignment.id,
       author: "controller",
     }),
   );
@@ -417,11 +414,8 @@ test("review assignments become stale when the committed ticket HEAD changes", a
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -441,7 +435,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: first.assignment.id,
       author: "controller",
     }),
   );
@@ -465,11 +459,8 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: review.id,
-      report: review.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -738,7 +729,7 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
     services.submissionService.submit({
       spec,
       ticket: "T-0002",
-      role: "implementation",
+      assignment: second.assignment.id,
       author: "controller",
     }),
   );
@@ -1044,7 +1035,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.submissionService.submit({
       spec,
       ticket: "T-0002",
-      role: "implementation",
+      assignment: second.assignment.id,
       author: "controller",
     }),
   );
@@ -1122,7 +1113,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   ]);
   expect(blocked.status).not.toBe(0);
   expect(blocked.stderr).toMatch(/post-merge validation.*T-0001/i);
-  const assignment = JSON.parse(dispatched.stdout).assignment as { report: string };
+  const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
   let ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].integration).toBeUndefined();
   expect(ledger.tickets[0].integrationHistory[0].postMerge.checks.records[0].result).toBe("failed");
@@ -1134,7 +1125,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: assignment.id,
       author: "controller",
     }),
   );
@@ -1155,11 +1146,8 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: reviewer.id,
-      report: reviewer.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -1377,11 +1365,8 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "review",
       assignment: reviewer.id,
-      report: reviewer.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -1630,7 +1615,7 @@ test("ticket review rejects committed changes to requirements that differ from c
     services.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: first.assignment.id,
       author: "controller",
     }),
   );

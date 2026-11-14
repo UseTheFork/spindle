@@ -43,7 +43,7 @@ export class ReviewPolicy extends Service {
     if (assignment.result !== "passed") {
       return `Review assignment ${assignment.id} is ${assignment.result}.${assignment.details ? ` Details: ${assignment.details}` : ""}`;
     }
-    if (assignment.noFindings !== true && (assignment.findingIds?.length ?? 0) === 0) {
+    if (!Array.isArray(assignment.findingIds)) {
       return `Review assignment ${assignment.id} has no explicit findings declaration.`;
     }
     return undefined;

@@ -216,11 +216,8 @@ test("blocking delivery findings reopen their related ticket after all required 
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: comprehensive.id,
-      report: comprehensive.report,
       result: "passed",
-      findingIds: ["F-0001"],
       author: "controller",
     }),
   );
@@ -230,11 +227,8 @@ test("blocking delivery findings reopen their related ticket after all required 
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: comprehensive.id,
-      report: comprehensive.report,
       result: "passed",
-      findingIds: ["F-0001"],
       author: "controller",
     }),
   );
@@ -246,11 +240,8 @@ test("blocking delivery findings reopen their related ticket after all required 
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: specialist.id,
-      report: specialist.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -369,11 +360,8 @@ test("delivery correction attempts resume independently with the same assignment
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "failed",
-      findingIds: ["F-0001"],
       details: "The aggregate finding must be corrected.",
       author: "controller",
     }),
@@ -442,8 +430,7 @@ test("delivery correction attempts resume independently with the same assignment
       ticket: "",
       spec,
       scope: "delivery",
-      role: "implementation",
-      report: output.assignment.report,
+      assignment: output.assignment.id,
       author: "controller",
     }),
   );
@@ -472,11 +459,8 @@ test("delivery correction attempts resume independently with the same assignment
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: correctiveAssignment.id,
-      report: correctiveAssignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -603,11 +587,8 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: initialAssignment.id,
-      report: initialAssignment.report,
       result: "passed",
-      findingIds: [findingId],
       author: "controller",
     }),
   );
@@ -729,11 +710,8 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
       ticket: "",
       spec,
       scope: "delivery",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -880,6 +858,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
   );
   expect(implementation.status, implementation.stderr).toBe(0);
   const implementationAssignment = JSON.parse(implementation.stdout).assignment as {
+    id: string;
     report: string;
     workspace: string;
   };
@@ -893,8 +872,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
     service.submissionService.submit({
       spec: first.spec,
       ticket: secondId,
-      role: "implementation",
-      report: implementationAssignment.report,
+      assignment: implementationAssignment.id,
       author: "controller",
     }),
   );
@@ -918,11 +896,8 @@ test("aggregate review covers every closed ticket and stale requirements block f
     service.submissionService.submit({
       spec: first.spec,
       ticket: secondId,
-      role: "review",
       assignment: ticketAssignment.id,
-      report: ticketAssignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -975,11 +950,8 @@ test("aggregate review covers every closed ticket and stale requirements block f
       ticket: "",
       spec: first.spec,
       scope: "delivery",
-      role: "review",
       assignment: aggregateAssignment.id,
-      report: aggregateAssignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );

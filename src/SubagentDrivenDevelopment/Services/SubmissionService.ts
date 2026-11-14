@@ -9,7 +9,6 @@ import type {
   ReviewResult,
   ReviewAssignment,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { ReviewFinding } from "@/SubagentDrivenDevelopment/Models/Findings";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
@@ -55,46 +54,57 @@ export class SubmissionService extends Service {
   } {
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
-      if (options.role === "implementation")
+      validateAuthor(options.author);
+      if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
+      const feature = this.featureInspectionService.resolveFeature(options.spec);
+      const delivery = this.ledgerRepository.readLedger(feature).delivery;
+      if (delivery.assignment?.id === options.assignment) {
         return this.deliverySubmissionService.submitDeliveryImplementation(options);
-      return this.deliverySubmissionService.submitDeliveryReview(options);
+      }
+      if (delivery.reviewAssignments?.some((assignment) => assignment.id === options.assignment)) {
+        return this.deliverySubmissionService.submitDeliveryReview(options);
+      }
+      throw new Error(`No delivery assignment matches ID ${options.assignment}.`);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
-    if (!options.ticket) throw new Error("Submit requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    const ticketId = options.ticket;
+    if (!ticketId) throw new Error("Submit requires --ticket or --scope delivery.");
+    validateTicketId(ticketId);
     validateAuthor(options.author);
-    if (options.role === "review") return this.submitReview(options);
-    if (options.role !== "implementation") {
-      throw new Error("Submit role must be implementation or review.");
+    if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
+    const feature = this.featureInspectionService.resolveFeature(options.spec);
+    const ledger = this.ledgerRepository.readLedger(feature);
+    const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
+    const reviewAssignments = [
+      ...(progress.reviewAssignments ?? []),
+      ...(progress.correctionAttempts ?? []).flatMap((attempt) => attempt.reviewAssignments ?? []),
+    ];
+    if (reviewAssignments.some((assignment) => assignment.id === options.assignment)) {
+      return this.submitReview(options);
     }
-    if (
-      options.assignment !== undefined ||
-      options.result !== undefined ||
-      options.noFindings ||
-      options.findings !== undefined
-    ) {
-      throw new Error("Review assignment, result, and no-findings options require role review.");
+    if (progress.assignment?.id !== options.assignment) {
+      throw new Error(`No assignment matches ID ${options.assignment} for ticket ${ticketId}.`);
     }
-    if (options.unavailable && !options.details?.trim()) {
+    if (options.result !== undefined && options.result !== "unavailable") {
+      throw new Error("Implementation submission only accepts --result unavailable.");
+    }
+    const unavailable = options.result === "unavailable";
+    if (unavailable && !options.details?.trim()) {
       throw new Error("--details is required when the implementation report is unavailable.");
     }
-    if (options.unavailable && options.report !== undefined) {
-      throw new Error("--report cannot be combined with --unavailable.");
+    if (!unavailable && options.details !== undefined) {
+      throw new Error("--details is only valid with --result unavailable.");
     }
-    if (!options.unavailable && options.details !== undefined) {
-      throw new Error("--details is only valid with --unavailable.");
-    }
-    const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const assignment = progress.assignment;
-      if (!assignment || assignment.role !== options.role) {
+      if (!assignment || assignment.id !== options.assignment) {
         throw new Error("No matching implementation assignment is pending for this ticket.");
       }
       if (
@@ -103,11 +113,11 @@ export class SubmissionService extends Service {
       ) {
         throw new Error("Only the current controller may submit this implementation report.");
       }
-      if (options.unavailable) {
+      if (unavailable) {
         const details = options.details!.trim();
         if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
           return {
-            ticket: options.ticket,
+            ticket: ticketId,
             execution: progress.execution,
             assignment,
             unavailable: true,
@@ -130,7 +140,7 @@ export class SubmissionService extends Service {
         );
         this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           execution: progress.execution,
           assignment,
           unavailable: true,
@@ -138,17 +148,13 @@ export class SubmissionService extends Service {
         };
       }
       if (assignment.status === "submitted") {
-        const currentPath = this.reportEvidence.submissionReportPath(
-          feature,
-          assignment,
-          options.report,
-        );
+        const currentPath = this.reportEvidence.submissionReportPath(feature, assignment);
         const digest = this.reportEvidence.readReportDigest(feature, currentPath);
         if (digest !== assignment.reportSha256) {
           throw new Error("The registered implementation report changed after submission.");
         }
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           execution: progress.execution,
           assignment,
           report: assignment.report,
@@ -163,11 +169,7 @@ export class SubmissionService extends Service {
       ) {
         throw new Error("The implementation assignment is not awaiting a report.");
       }
-      const reportPath = this.reportEvidence.submissionReportPath(
-        feature,
-        assignment,
-        options.report,
-      );
+      const reportPath = this.reportEvidence.submissionReportPath(feature, assignment);
       let reportSha256: string;
       try {
         reportSha256 = this.reportEvidence.readReportDigest(feature, reportPath);
@@ -209,7 +211,7 @@ export class SubmissionService extends Service {
       );
       this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        ticket: options.ticket,
+        ticket: ticketId,
         execution: progress.execution,
         assignment,
         report: assignment.report,
@@ -228,31 +230,13 @@ export class SubmissionService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    if (!options.assignment?.trim()) {
-      throw new Error("Review submission requires --assignment.");
-    }
-    if (!options.report) throw new Error("Review submission requires --report.");
+    const ticketId = options.ticket;
+    if (!ticketId) throw new Error("Review submission requires --ticket.");
+    const assignmentId = options.assignment.trim();
+    if (!assignmentId) throw new Error("--assignment must not be empty.");
     if (!options.result) throw new Error("Review submission requires explicit --result.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
       throw new Error(`Invalid review result: ${options.result}.`);
-    }
-    const findingIds = options.findingIds?.map((id) => id.trim());
-    if (options.noFindings === true && findingIds !== undefined) {
-      throw new Error("--findings and --no-findings cannot be combined.");
-    }
-    if (
-      findingIds !== undefined &&
-      (findingIds.length === 0 ||
-        findingIds.some((id) => !/^F-\d{4,}$/.test(id)) ||
-        new Set(findingIds).size !== findingIds.length)
-    ) {
-      throw new Error("--findings must contain unique canonical finding IDs.");
-    }
-    if (options.noFindings !== true && findingIds === undefined) {
-      throw new Error("Review submission requires either --findings or exclusive --no-findings.");
-    }
-    if (options.unavailable) {
-      throw new Error("Use --result unavailable, not --unavailable, for review submissions.");
     }
     if (options.result === "passed" && options.details !== undefined) {
       throw new Error("--details is only valid for failed or unavailable review results.");
@@ -266,27 +250,27 @@ export class SubmissionService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       if (!["reviewing", "changes-requested"].includes(progress.execution) || !progress.owner) {
-        throw new Error(`Ticket ${options.ticket} is not awaiting review submission.`);
+        throw new Error(`Ticket ${ticketId} is not awaiting review submission.`);
       }
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the current controller may submit a review result.");
       }
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
-        attempt.reviewAssignments?.some((candidate) => candidate.id === options.assignment),
+        attempt.reviewAssignments?.some((candidate) => candidate.id === assignmentId),
       );
       const assignment =
         correctionAttempt?.reviewAssignments?.find(
-          (candidate) => candidate.id === options.assignment,
-        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
+          (candidate) => candidate.id === assignmentId,
+        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === assignmentId);
       if (!assignment || assignment.role !== "review") {
-        throw new Error(`No review assignment matches ID ${options.assignment}.`);
+        throw new Error(`No review assignment matches ID ${assignmentId}.`);
       }
       if (progress.execution === "changes-requested" && assignment.status !== "submitted") {
-        throw new Error(`Ticket ${options.ticket} is awaiting a controller correction decision.`);
+        throw new Error(`Ticket ${ticketId} is awaiting a controller correction decision.`);
       }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       this.gitEvidence.assertTicketCodeCommitted(progress);
@@ -305,11 +289,7 @@ export class SubmissionService extends Service {
         identity,
       );
       if (commitBlocker) throw new Error(commitBlocker);
-      const reportPath = this.reportEvidence.submissionReportPath(
-        feature,
-        assignment,
-        options.report,
-      );
+      const reportPath = this.reportEvidence.submissionReportPath(feature, assignment);
       const reportSha256 = this.reportEvidence.readReportDigest(feature, reportPath);
       const registeredFromReport = (progress.findings ?? [])
         .filter((finding) =>
@@ -319,31 +299,15 @@ export class SubmissionService extends Service {
           ),
         )
         .map((finding) => finding.id);
-      if (options.noFindings === true && registeredFromReport.length > 0) {
-        throw new Error(
-          `Review report has registered findings and cannot declare --no-findings: ${registeredFromReport.join(", ")}.`,
-        );
-      }
-      if (findingIds !== undefined) {
-        const missing = registeredFromReport.filter((id) => !findingIds.includes(id));
-        const unknown = findingIds.filter((id) => !registeredFromReport.includes(id));
-        if (missing.length > 0 || unknown.length > 0) {
-          throw new Error(
-            `--findings must exactly list canonical findings registered from this report and commit; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
-          );
-        }
-      }
-
       if (assignment.status === "submitted") {
         if (
           assignment.result === options.result &&
-          assignment.noFindings === (options.noFindings === true ? true : undefined) &&
-          JSON.stringify(assignment.findingIds) === JSON.stringify(findingIds) &&
+          JSON.stringify(assignment.findingIds ?? []) === JSON.stringify(registeredFromReport) &&
           assignment.submittedBy === options.author.trim() &&
           assignment.details === options.details?.trim()
         ) {
           return {
-            ticket: options.ticket,
+            ticket: ticketId,
             execution: progress.execution,
             assignment,
             report: assignment.report,
@@ -357,7 +321,7 @@ export class SubmissionService extends Service {
 
       const confirmedTicket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
+        ticketId,
       );
       const confirmedIdentity = this.gitEvidence.commitIdentity(
         feature,
@@ -383,17 +347,14 @@ export class SubmissionService extends Service {
 
       assignment.status = "submitted";
       assignment.result = options.result as ReviewResult;
-      if (options.noFindings === true) assignment.noFindings = true;
-      else delete assignment.noFindings;
-      if (findingIds !== undefined) assignment.findingIds = findingIds;
-      else delete assignment.findingIds;
+      assignment.findingIds = registeredFromReport;
       assignment.reportSha256 = reportSha256;
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
-      const submittedFindings = (assignment.findingIds ?? [])
-        .map((id) => progress.findings?.find((finding) => finding.id === id))
-        .filter((finding): finding is ReviewFinding => finding !== undefined);
+      const submittedFindings = (progress.findings ?? []).filter((finding) =>
+        registeredFromReport.includes(finding.id),
+      );
       if (
         assignment.result !== "passed" ||
         submittedFindings.some(
@@ -407,13 +368,13 @@ export class SubmissionService extends Service {
         this.ticketRepository.appendAudit(
           ticket.body,
           options.author,
-          `Review report submitted for assignment ${assignment.id}: result=${assignment.result}${assignment.noFindings === true ? "; no-findings explicitly declared" : `; findings=${(assignment.findingIds ?? []).join(",")}`}; report=${assignment.report} (sha256 ${reportSha256}).`,
+          `Review report submitted for assignment ${assignment.id}: result=${assignment.result}; findings=${registeredFromReport.join(",") || "none"}; report=${assignment.report} (sha256 ${reportSha256}).`,
         ),
         this.ticketRepository.metadata(ticket),
       );
       this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        ticket: options.ticket,
+        ticket: ticketId,
         execution: progress.execution,
         assignment,
         report: assignment.report,

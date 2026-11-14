@@ -238,7 +238,7 @@ export async function prepareImplementationForReview(
   );
   expect(implemented.status, implemented.stderr).toBe(0);
   const implementation = JSON.parse(implemented.stdout) as {
-    assignment: { report: string; workspace: string };
+    assignment: { id: string; report: string; workspace: string };
   };
   writeFileSync(
     join(implementation.assignment.workspace, file),
@@ -250,8 +250,7 @@ export async function prepareImplementationForReview(
     service.submissionService.submit({
       spec,
       ticket: ticketId,
-      role: "implementation",
-      report: implementation.assignment.report,
+      assignment: implementation.assignment.id,
       author: "controller",
     }),
   );
@@ -388,11 +387,8 @@ export async function prepareReviewedTicket(
     service.submissionService.submit({
       spec: prepared.spec,
       ticket: prepared.ticketId,
-      role: "review",
       assignment: prepared.assignment.id,
-      report: prepared.assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -486,11 +482,8 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
       ticket: "",
       spec: prepared.spec,
       scope: "delivery",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
