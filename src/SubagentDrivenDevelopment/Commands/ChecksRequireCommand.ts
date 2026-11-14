@@ -28,10 +28,6 @@ export class ChecksRequireCommand extends Command {
         [],
       )
       .option("--remove", "Remove the requirement; requires --details rationale")
-      .option(
-        "--rebase-baseline",
-        "Adopt current feature HEAD after manually rebasing the ticket worktree",
-      )
       .option("--details <details>", "Removal rationale")
       .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
@@ -80,10 +76,8 @@ export class ChecksRequireCommand extends Command {
   ) {
     this.assertApplicationBooted();
     if (options.scope === "final") {
-      if (options.ticket || options.remove || options.details || options.rebaseBaseline) {
-        throw new Error(
-          "Final declarations do not accept ticket, removal, rebase or coverage options.",
-        );
+      if (options.ticket || options.remove || options.details) {
+        throw new Error("Final declarations do not accept ticket, removal or coverage options.");
       }
       return (await this.app.make(FeatureFinalizationService)).declare({
         spec: options.spec,

@@ -21,6 +21,7 @@ import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/Revie
 import { StartCommand } from "@/SubagentDrivenDevelopment/Commands/StartCommand";
 import { StatusCommand } from "@/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@/SubagentDrivenDevelopment/Commands/SubmitCommand";
+import { SyncCommand } from "@/SubagentDrivenDevelopment/Commands/SyncCommand";
 import { TicketCommentCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
 import { TicketCreateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
 import { TicketUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
@@ -57,6 +58,7 @@ import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewServic
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
 import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import { TicketSyncService } from "@/SubagentDrivenDevelopment/Services/TicketSyncService";
 import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
@@ -86,6 +88,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       ResumeCommand,
       NextCommand,
       StatusCommand,
+      SyncCommand,
     ];
   }
   public register(): void {
@@ -102,6 +105,20 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       TicketWorktreeService,
       async (app) =>
         new TicketWorktreeService(app, await app.make(GitService), await app.make(GitEvidence)),
+    );
+    this.app.singleton(
+      TicketSyncService,
+      async (app) =>
+        new TicketSyncService(
+          app,
+          await app.make(GitService),
+          await app.make(GitEvidence),
+          await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
+          await app.make(WorkflowPolicy),
+          await app.make(ChecksService),
+          await app.make(FeatureInspectionService),
+        ),
     );
     this.app.singleton(
       FeatureWorktreeService,

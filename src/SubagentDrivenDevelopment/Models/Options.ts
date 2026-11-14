@@ -131,7 +131,6 @@ export interface FinishOptions {
 export interface ChecksRequireOptions extends TicketSelection {
   scope?: string;
   command: string;
-  rebaseBaseline?: boolean;
   remove?: boolean;
   details?: string;
 }

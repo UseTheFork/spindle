@@ -223,7 +223,7 @@ export class CorrectionService extends Service {
         const mergeSha = failedIntegration.mergeSha;
         if (!workspace || !mergeSha || this.gitEvidence.headSha(workspace) !== mergeSha) {
           throw new Error(
-            "Fast-forward the clean ticket worktree to the failed feature merge before dispatching correction.",
+            "Run sdd sync before dispatching post-merge correction; the ticket worktree must be at the failed feature merge.",
           );
         }
         const status = this.gitEvidence
@@ -255,18 +255,18 @@ export class CorrectionService extends Service {
         }
         if (!progress.worktree)
           throw new Error("Post-merge correction requires an isolated ticket worktree.");
-        if (!progress.baseSha) throw new Error("Ticket baseline is missing.");
-        this.gitEvidence.gitBuffer(["merge-base", "--is-ancestor", progress.baseSha, mergeSha]);
+        const lastBaseline = progress.baselineHistory?.at(-1);
+        if (
+          progress.baseSha !== mergeSha ||
+          progress.worktree.baseSha !== mergeSha ||
+          lastBaseline?.to !== mergeSha ||
+          lastBaseline?.ticketHead !== mergeSha
+        ) {
+          throw new Error(
+            "Run sdd sync to record the failed feature merge as the ticket baseline.",
+          );
+        }
         this.checksService.assertPrerequisiteBaseline(ledger, progress, mergeSha);
-        (progress.baselineHistory ??= []).push({
-          from: progress.baseSha,
-          to: mergeSha,
-          ticketHead: mergeSha,
-          at: new Date().toISOString(),
-          author: options.author.trim(),
-        });
-        progress.baseSha = mergeSha;
-        progress.worktree.baseSha = mergeSha;
         this.gitEvidence.assertTicketCodeCommitted(progress);
         failedPostMergeRecord = latest;
       }

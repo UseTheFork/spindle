@@ -500,7 +500,7 @@ export class TicketIntegrationService extends Service {
     if (result.error) throw result.error;
     if (result.status === 1) {
       throw new Error(
-        `Merge conflicts require resolution in ticket worktree ${workspace}; rebase it onto the current feature branch, resolve and commit conflicts, adopt the baseline with checks require --rebase-baseline, then obtain fresh checks and review. Feature checkout was preserved.\n${result.stdout.trim()}`,
+        `Merge conflicts require resolution in ticket worktree ${workspace}; rebase it onto the current feature branch, resolve and commit conflicts, then run sdd sync from the feature worktree to adopt the updated baseline. Obtain fresh checks and review before retrying integration. Feature checkout was preserved.\n${result.stdout.trim()}`,
       );
     }
     if (result.status !== 0)

@@ -54,6 +54,20 @@ mode never prompts.
 5. Integrate tickets serially. Run and record their post-merge checks before
    treating them as complete or unblocking dependents. Do not merge around a
    failed check.
+
+   If a post-merge check fails, keep other merges blocked. From the feature
+   worktree, run `pnpm spindle sdd sync --feature <feature-workspace> --ticket
+   <ticket-id> --actor <acting-agent>` before dispatching correction. Sync
+   fast-forwards only a clean, non-divergent ticket worktree to the recorded
+   failed merge. Then run `pnpm spindle sdd next --feature
+   <feature-workspace>` and follow its exact correction command.
+
+   If integration reports a conflict, rebase the ticket worktree onto the
+   current feature branch, resolve and commit the conflict, then run the same
+   `sdd sync` command to adopt the updated comparison baseline. Run fresh
+   checks and obtain focused rework review before retrying integration. Follow
+   `sdd next` for the exact commands.
+
 6. Preserve work when a command, handoff, or Git operation is interrupted. Use
    the recovery steps printed by the CLI. Never reset state, delete a worktree,
    or reassign a worker automatically.

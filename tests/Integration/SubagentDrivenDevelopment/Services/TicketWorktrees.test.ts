@@ -12,6 +12,7 @@ import { expect, test, vi } from "vitest";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -299,9 +300,7 @@ test("dispatch automatically commits pending canonical records", async () => {
   const reportCommitPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD~1")
     .split("\n")
     .filter(Boolean);
-  expect(reportCommitPaths).toEqual([
-    ".scratch/0001-ticket-isolation/reports/T-0001-review.md",
-  ]);
+  expect(reportCommitPaths).toEqual([".scratch/0001-ticket-isolation/reports/T-0001-review.md"]);
   const committedPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD")
     .split("\n")
     .filter(Boolean);
@@ -999,6 +998,118 @@ test("pending-gate ticket startup resumes after worktree allocation without adva
   expect(gitAt(root, "merge-base", "--is-ancestor", featureHead, "HEAD")).toBe("");
 });
 
+test("sync refuses a divergent ticket branch without moving it", async () => {
+  const { root, spec, workspace } = await acceptedTicket();
+  const integrated = await integrate(root, spec);
+  expect(integrated.status, integrated.stderr).toBe(0);
+  const args = [
+    "checks",
+    "require",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--scope",
+    "post-merge",
+    "--command",
+    "post-merge test",
+    "--actor",
+    "controller",
+  ];
+  const required = await invokeAsync(root, args);
+  expect(required.status, required.stderr).toBe(0);
+  const failed = await invokeAsync(root, [
+    "checks",
+    "record",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--scope",
+    "post-merge",
+    "--command",
+    "post-merge test",
+    "--result",
+    "failed",
+    "--details",
+    "Post-merge validation found a defect.",
+    "--actor",
+    "controller",
+  ]);
+  expect(failed.status, failed.stderr).toBe(0);
+  gitAt(workspace, "commit", "--allow-empty", "-qm", "diverge after integration");
+  const divergentHead = gitAt(workspace, "rev-parse", "HEAD");
+
+  const synced = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(synced.status).not.toBe(0);
+  expect(synced.stderr).toMatch(/diverg|fast-forward/i);
+  expect(gitAt(workspace, "rev-parse", "HEAD")).toBe(divergentHead);
+});
+
+test("sync adopts a manually rebased review baseline and archives submitted reviews", async () => {
+  const { root, spec, workspace } = await acceptedTicket();
+  const ledgerPath = join(dirname(spec), "sdd.json");
+  const before = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const oldBase = before.tickets[0].baseSha as string;
+  const oldReview = before.tickets[0].reviewAssignments[0];
+  writeFileSync(join(root, "independent.ts"), "export const independent = true;\n");
+  gitAt(root, "add", "independent.ts");
+  gitAt(root, "commit", "-qm", "advance feature baseline");
+  const currentBase = gitAt(root, "rev-parse", "HEAD");
+  gitAt(workspace, "rebase", currentBase);
+  const ticketHead = gitAt(workspace, "rev-parse", "HEAD");
+
+  const synced = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(synced.status, synced.stderr).toBe(0);
+  expect(cliOutput(synced)).toMatchObject({
+    mode: "review-baseline",
+    baseSha: currentBase,
+    headSha: ticketHead,
+  });
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  expect(ledger.tickets[0]).toMatchObject({
+    baseSha: currentBase,
+    worktree: { baseSha: currentBase },
+    baselineHistory: [
+      {
+        from: oldBase,
+        to: currentBase,
+        ticketHead,
+        author: "controller",
+      },
+    ],
+    reviewHistory: [{ id: oldReview.id, status: "submitted" }],
+  });
+  expect(ledger.tickets[0].reviewAssignments).toBeUndefined();
+  const repeated = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(cliOutput(repeated).idempotent).toBe(true);
+});
+
 test("a reviewed post-merge correction preserves failures and requires fresh checks on its new merge", async () => {
   const { root, spec, workspace, parent } = await acceptedTicket();
   const initial = await integrate(root, spec);
@@ -1026,6 +1137,14 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(failed.status, failed.stderr).toBe(0);
+  const nextBeforeSync = await invokeAsync(root, [
+    "next",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
+  expect(nextBeforeSync.status, nextBeforeSync.stderr).toBe(0);
+  expect(nextSummary(cliOutput(nextBeforeSync)).join("\n")).toContain("step ticket:sync (ready)");
+  expect(nextSummary(cliOutput(nextBeforeSync)).join("\n")).toContain("sdd sync --feature");
   const second = await dispatch(root, spec, parent, "T-0002");
   writeFileSync(join(second.assignment.workspace, "second.ts"), "second ticket\n");
   gitAt(second.assignment.workspace, "add", "second.ts");
@@ -1047,12 +1166,57 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     details: "Fix the integration defect.",
     author: "controller",
   };
-  const beforeFastForward = await execute(root, (services) =>
+  const beforeSync = await execute(root, (services) =>
     services.correctionService.correct(correctionOptions),
   );
-  expect(beforeFastForward.status).not.toBe(0);
-  expect(beforeFastForward.stderr).toMatch(/fast-forward/i);
-  gitAt(workspace, "merge", "--ff-only", oldMerge);
+  expect(beforeSync.status).not.toBe(0);
+  expect(beforeSync.stderr).toMatch(/sdd sync/i);
+  writeFileSync(join(workspace, "private.txt"), "preserve user work\n");
+  const dirtySync = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(dirtySync.status).not.toBe(0);
+  expect(dirtySync.stderr).toMatch(/clean/i);
+  expect(readFileSync(join(workspace, "private.txt"), "utf8")).toBe("preserve user work\n");
+  rmSync(join(workspace, "private.txt"));
+  const synced = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(synced.status, synced.stderr).toBe(0);
+  expect(cliOutput(synced).mergeCommit).toBe(oldMerge);
+  expect(gitAt(workspace, "rev-parse", "HEAD")).toBe(oldMerge);
+  const repeatedSync = await invokeAsync(root, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ]);
+  expect(repeatedSync.status, repeatedSync.stderr).toBe(0);
+  expect(cliOutput(repeatedSync).idempotent).toBe(true);
+  const nextAfterSync = await invokeAsync(root, [
+    "next",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
+  expect(nextAfterSync.status, nextAfterSync.stderr).toBe(0);
+  const nextAfterSyncSummary = nextSummary(cliOutput(nextAfterSync)).join("\n");
+  expect(nextAfterSyncSummary).toContain("step ticket:correct (ready)");
+  expect(nextAfterSyncSummary).toContain("--check-failure 'integration test'");
   const unauthorized = await execute(root, (services) =>
     services.correctionService.correct({
       ...correctionOptions,
@@ -1274,6 +1438,7 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
   const result = await integrate(root, spec);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/conflicts.*ticket worktree/i);
+  expect(result.stderr).toMatch(/sdd sync/i);
   const preservedHead = gitAt(root, "rev-parse", "HEAD");
   expect(preservedHead).toBe(featureHead);
   expect(
@@ -1287,15 +1452,16 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
   expect(gitAt(root, "rev-parse", "HEAD")).toBe(preservedHead);
   expect(() => gitAt(workspace, "rebase", "features/0001-ticket-isolation")).toThrow();
   expect(gitAt(workspace, "ls-files", "--unmerged")).not.toBe("");
-  const interrupted = await execute(root, (services) =>
-    services.checksService.checksRequire({
-      spec,
-      ticket: "T-0001",
-      command: "test ticket",
-      rebaseBaseline: true,
-      author: "controller",
-    }),
-  );
+  const syncArgs = [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--actor",
+    "controller",
+  ];
+  const interrupted = await invokeAsync(root, syncArgs);
   expect(interrupted.status).not.toBe(0);
   expect(gitAt(workspace, "ls-files", "--unmerged")).not.toBe("");
   writeFileSync(join(workspace, "tracked.txt"), "resolved feature and ticket change\n");
@@ -1312,15 +1478,7 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     }),
   );
   expect(prerequisite.status, prerequisite.stderr).toBe(0);
-  const dependencyBlocked = await execute(root, (services) =>
-    services.checksService.checksRequire({
-      spec,
-      ticket: "T-0001",
-      command: "test ticket",
-      rebaseBaseline: true,
-      author: "controller",
-    }),
-  );
+  const dependencyBlocked = await invokeAsync(root, syncArgs);
   expect(dependencyBlocked.status).not.toBe(0);
   expect(dependencyBlocked.stderr).toMatch(/T-0002.*not closed/i);
   const cleared = await execute(root, (services) =>
@@ -1332,16 +1490,10 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     }),
   );
   expect(cleared.status, cleared.stderr).toBe(0);
-  const adopted = await execute(root, (services) =>
-    services.checksService.checksRequire({
-      spec,
-      ticket: "T-0001",
-      command: "test ticket",
-      rebaseBaseline: true,
-      author: "controller",
-    }),
-  );
+  const adopted = await invokeAsync(root, syncArgs);
   expect(adopted.status, adopted.stderr).toBe(0);
+  const adoptedBaseline = cliOutput(adopted).baseSha as string;
+  expect(adoptedBaseline).not.toBe(reviewedHead);
   const rechecked = await recordReviewCheck(root, spec, "test ticket", "passed");
   expect(rechecked.status, rechecked.stderr).toBe(0);
   const reviewed = await execute(root, (services) =>

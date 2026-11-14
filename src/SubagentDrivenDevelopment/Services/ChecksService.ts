@@ -59,10 +59,6 @@ export class ChecksService extends Service {
     retry?: string;
     headSha: string;
   } {
-    if (options.rebaseBaseline && options.scope !== undefined)
-      throw new Error("--rebase-baseline requires ticket review scope.");
-    if (options.rebaseBaseline && (options.remove || options.details !== undefined))
-      throw new Error("--rebase-baseline cannot change check requirements.");
     if (options.scope === "post-merge") return this.postMergeRequire(options);
     if (typeof options.command !== "string") throw new Error("Exactly one command is required.");
     const single = { ...options, command: options.command };
@@ -88,14 +84,7 @@ export class ChecksService extends Service {
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "integrated")
         throw new Error("Integrated tickets use --scope post-merge for validation.");
-      const rebased = options.rebaseBaseline
-        ? this.adoptRebasedTicket(feature, ledger, progress, options.author, command)
-        : false;
-      if (
-        !rebased &&
-        progress.execution === "reviewing" &&
-        (progress.reviewAssignments?.length ?? 0) > 0
-      ) {
+      if (progress.execution === "reviewing" && (progress.reviewAssignments?.length ?? 0) > 0) {
         throw new Error(
           "The reviewed commit is frozen; required checks cannot change while review assignments are active.",
         );
@@ -118,9 +107,7 @@ export class ChecksService extends Service {
               options.ticket,
             ),
             progress.baseSha,
-            rebased ? progress.worktree?.workspace : undefined,
           );
-          if (rebased) this.workspaceTransaction.writeLedger(feature, ledger);
           return {
             ticket: options.ticket,
             checks,
@@ -147,110 +134,6 @@ export class ChecksService extends Service {
         ...identity,
       };
     });
-  }
-
-  private adoptRebasedTicket(
-    feature: FeaturePaths,
-    ledger: FeatureLedger,
-    progress: TicketProgress,
-    author: string,
-    command: string,
-  ): boolean {
-    if (progress.owner !== author.trim())
-      throw new Error("Only the ticket controller may adopt a rebased baseline.");
-    if (
-      progress.execution !== "reviewing" ||
-      progress.assignment?.status !== "submitted" ||
-      !progress.worktree
-    )
-      throw new Error("Rebasing requires a submitted ticket in review with an isolated worktree.");
-    if (!progress.checks?.required.some((item) => item.command === command && !item.removedAt))
-      throw new Error("--rebase-baseline requires an existing required command.");
-    for (const variable of [
-      "GIT_DIR",
-      "GIT_WORK_TREE",
-      "GIT_COMMON_DIR",
-      "GIT_INDEX_FILE",
-      "GIT_OBJECT_DIRECTORY",
-      "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-      "GIT_NAMESPACE",
-    ]) {
-      if (process.env[variable])
-        throw new Error(`Unset ${variable} before adopting a rebased ticket.`);
-    }
-    const root = realpathSync(this.app.workspaceRoot);
-    const git = (args: string[], cwd = root) =>
-      this.gitEvidence.gitBuffer(args, cwd).toString("utf8").trim();
-    if (
-      git(["symbolic-ref", "--quiet", "--short", "HEAD"]) !== `features/${feature.feature}` ||
-      realpathSync(feature.workspace) !== realpathSync(join(root, ".scratch", feature.feature))
-    )
-      throw new Error("The canonical feature worktree and branch are required.");
-    const workspace = this.gitEvidence.ticketWorkspace(progress);
-    if (!workspace) throw new Error("Ticket worktree is missing.");
-    for (const cwd of [root, workspace]) {
-      for (const operation of [
-        "MERGE_HEAD",
-        "CHERRY_PICK_HEAD",
-        "REVERT_HEAD",
-        "rebase-merge",
-        "rebase-apply",
-        "sequencer",
-      ]) {
-        if (existsSync(resolve(cwd, git(["rev-parse", "--git-path", operation], cwd))))
-          throw new Error(`Resolve Git operation ${operation} before adopting the baseline.`);
-      }
-    }
-    const status = git(
-      ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"],
-      workspace,
-    );
-    if (status) throw new Error("Ticket worktree must be clean; user changes were preserved.");
-    const allowed = this.gitEvidence.workflowDeliveryRecordPaths(feature, ledger);
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
-    const dirty = this.gitEvidence
-      .allGitChangePaths()
-      .filter((path) => path !== lock && !allowed.has(path));
-    if (dirty.length) throw new Error(`Feature code must be clean: ${dirty.join(", ")}.`);
-    const rootHead = this.gitEvidence.headSha(root);
-    const base = this.gitEvidence.headBeforeWorkflowRecords(feature, ledger, rootHead);
-    const head = this.gitEvidence.headSha(workspace);
-    if (head === base) throw new Error("Ticket must contain a distinct reviewed code commit.");
-    git(["merge-base", "--is-ancestor", base, head], workspace);
-    if (!progress.baseSha) throw new Error("Ticket baseline is missing.");
-    git(["merge-base", "--is-ancestor", progress.baseSha, base], root);
-    this.assertPrerequisiteBaseline(ledger, progress, base);
-    if (git(["diff", "--name-only", base, head, "--", ".scratch"], workspace))
-      throw new Error("Rebased ticket commits must not change canonical workflow records.");
-    if (progress.baseSha === base) return false;
-    const attempt =
-      progress.assignment.action === "correct"
-        ? progress.correctionAttempts?.find((item) => item.number === progress.assignment?.attempt)
-        : undefined;
-    if (progress.assignment.action === "correct" && !attempt)
-      throw new Error("Correction attempt is missing.");
-    const previous = attempt
-      ? (attempt.reviewAssignments ?? [])
-      : (progress.reviewAssignments ?? []);
-    if (previous.some((item) => item.status !== "submitted"))
-      throw new Error("Pending reviews must finish before rebasing; assignments were preserved.");
-    if (previous.length) {
-      (progress.reviewHistory ??= []).push(...previous);
-      if (attempt) delete attempt.reviewAssignments;
-      else delete progress.reviewAssignments;
-    }
-    (progress.baselineHistory ??= []).push({
-      from: progress.baseSha,
-      to: base,
-      ticketHead: head,
-      at: new Date().toISOString(),
-      author: author.trim(),
-    });
-    progress.baseSha = base;
-    progress.worktree.baseSha = base;
-    if (this.gitEvidence.headSha(root) !== rootHead || this.gitEvidence.headSha(workspace) !== head)
-      throw new Error("A Git HEAD changed while adopting the baseline; retry.");
-    return true;
   }
 
   public assertPrerequisiteBaseline(

@@ -98,7 +98,12 @@ export function nextSummary(data: unknown): string[] {
     const ticketStep = ticketActionStep(name);
     const state = ticketActionState(name);
     lines.push(`${ticket}: step ${ticketStep} (${state})`);
-    const command = ticketActionCommand(name, featureDirectory, ticket);
+    const command = ticketActionCommand(
+      name,
+      featureDirectory,
+      ticket,
+      asText(action.checkFailure),
+    );
     if (command) lines.push(`  Next: ${command}`);
   }
 
@@ -203,6 +208,10 @@ function ticketActionStep(action: string): string {
       return "ticket:integrate";
     case "post-merge-checks":
       return "ticket:post-merge";
+    case "post-merge-sync":
+      return "ticket:sync";
+    case "post-merge-correct":
+      return "ticket:correct";
     case "adjudicate":
     case "adjudicate-findings":
     case "controller-correction-decision":
@@ -222,7 +231,12 @@ function ticketActionState(action: string): string {
   return "ready";
 }
 
-function ticketActionCommand(action: string, feature: string, ticket: string): string | undefined {
+function ticketActionCommand(
+  action: string,
+  feature: string,
+  ticket: string,
+  checkFailure?: string,
+): string | undefined {
   switch (action) {
     case "implement":
       return `pnpm spindle sdd implement --feature ${feature} --ticket ${ticket} --workspace <absolute-authorized-directory> --actor <acting-agent>`;
@@ -232,12 +246,22 @@ function ticketActionCommand(action: string, feature: string, ticket: string): s
       return `pnpm spindle sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
     case "post-merge-checks":
       return `pnpm spindle sdd checks require --feature ${feature} --ticket ${ticket} --scope post-merge --command <check> --actor <acting-agent>`;
+    case "post-merge-sync":
+      return `pnpm spindle sdd sync --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+    case "post-merge-correct":
+      if (!checkFailure)
+        throw new Error("Post-merge correction action is missing its failed check.");
+      return `pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --check-failure ${quoteShellArgument(checkFailure)} --details <correction-objective> --actor <acting-agent>`;
     case "correct":
     case "resolve-findings":
       return `pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --findings <finding-id> --details <correction-objective> --actor <acting-agent>`;
     default:
       return undefined;
   }
+}
+
+function quoteShellArgument(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): string {

@@ -54,9 +54,9 @@ flowchart TD
 
    If closure is blocked by a ticket blocker or unmet dependency, resolve it and repeat `checks require --scope post-merge` with the same complete list. Workflow-record-only changes do not invalidate evidence; code or committed requirement changes require fresh checks.
 
-   If a post-merge check fails, keep other merges blocked. Fast-forward the clean ticket worktree to the recorded failed merge commit, then use `sdd correct --check-failure <command>` to dispatch a fix. Commit, check, and review the fix before merging it and rerunning the frozen post-merge check list.
+   If a post-merge check fails, keep other merges blocked. From the feature worktree, run `pnpm spindle sdd sync --feature <feature-workspace> --ticket <ticket-id> --actor <acting-agent>` before dispatching correction. Sync fast-forwards only a clean, non-divergent ticket worktree to the recorded failed merge. Then run `pnpm spindle sdd next --feature <feature-workspace>` and follow its exact correction command. Commit, check, and review the fix before merging it and rerunning the frozen post-merge check list.
 
-   If integration reports a conflict, rebase the ticket worktree onto the current feature branch, resolve the conflict, format changed implementation files, and commit the rework there. Adopt the updated comparison base with `sdd checks require --rebase-baseline` and an existing required command. Run fresh checks and obtain focused rework review before retrying integration. Preserve all uncommitted changes and stop if recovery is unsafe.
+   If integration reports a conflict, rebase the ticket worktree onto the current feature branch, resolve the conflict, format changed implementation files, and commit the rework there. From the feature worktree, run `sdd sync --feature <feature-workspace> --ticket <ticket-id> --actor <acting-agent>` to adopt the updated comparison baseline. Run `sdd next --feature <feature-workspace>` for the exact fresh-check and focused-review commands before retrying integration. Preserve all uncommitted changes and stop if recovery is unsafe.
 
 If work is interrupted, inspect `pnpm spindle sdd status` and use `pnpm spindle sdd resume` to restore the recorded assignment. Preserve existing reports, findings, and evidence. Do not invent missing results or reset progress.
 

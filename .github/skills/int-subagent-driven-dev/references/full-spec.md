@@ -7,7 +7,7 @@ checks, review assignments, findings, and corrections.
 
 ## Checks and review
 
-Inspect `pnpm spindle sdd status --spec <spec>` and `pnpm spindle sdd next --spec <spec>`. Establish
+Inspect `pnpm spindle sdd status --feature <feature-workspace>` and `pnpm spindle sdd next --feature <feature-workspace>`. Establish
 required final checks with `pnpm spindle sdd checks require --scope delivery`, run them, and
 record actual results against the current committed feature inputs. Commit any
 feature spec or ticket requirement updates before checks or review. Then dispatch the
@@ -72,20 +72,26 @@ attach a Markdown report with `--report`; otherwise it is optional. Any report
 must remain inside that feature's `reports/` directory.
 
 Inspect canonical records for sensitive content, then run
-`pnpm spindle sdd finish --spec <feature-spec> --author <agent-name> --confirm-records`
+`pnpm spindle sdd finish --feature <feature-workspace> --actor <acting-agent> --confirm-records`
 from the feature worktree, adding `--report <absolute-report-path>` when needed.
 This merges into the recorded original branch and returns a pending final
 validation, merge commit, and original spec path; it does not yet complete the
 feature.
 
 In the original checkout, declare the entire non-empty final list with
-`pnpm spindle sdd checks require --spec <original-spec> --scope final --command <command> --author <agent-name>`,
+`pnpm spindle sdd checks require --feature <original-feature> --scope final --command <command> --actor <acting-agent>`,
 repeating `--command` for each check. Run each command there, then record each
-actual result with `pnpm spindle sdd checks record --spec <original-spec> --scope final --merge <merge-sha> --command <command> --result <result> --author <agent-name>`.
+actual result with `pnpm spindle sdd checks record --feature <original-feature> --scope final --command <command> --result <result> --actor <acting-agent>`.
 Failed or unavailable results require `--details` and block cleanup until the
 latest result for each command passes. The list is frozen once declared.
 
-Run `pnpm spindle sdd finish --spec <original-spec> --author <agent-name>`
+If a final check fails or is unavailable, fix it on the original branch. Run
+`pnpm spindle sdd checks revalidate --feature <original-feature> --scope final --actor <acting-agent>`,
+rerun the complete declared list, and record fresh results without a merge
+argument. Revalidation requires a clean original checkout and a fix commit
+descended from the feature merge; it invalidates prior results.
+
+Run `pnpm spindle sdd finish --feature <original-feature> --actor <acting-agent>`
 again to preflight and clean up the recorded worktrees and branches. The final
 merge is the checked commit; the subsequent ledger-only relocation commit is
 reported separately and is not itself checked. Preserve any dirty or unexpected

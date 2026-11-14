@@ -43,10 +43,19 @@ work is unproductive, failures recur, or requirements are disputed. Preserve
 assignments, attempts, evidence, and adjudication.
 
 Each correction requires fresh checks and focused review of the fix and prior
-findings. For a post-merge correction, synchronize the ticket worktree to the
-recorded merge before making changes. Resolve conflicts without discarding
-work, then establish a fresh comparison baseline and obtain fresh checks and
-review before retrying integration.
+findings. For a failed post-merge check, keep other merges blocked and run
+`pnpm spindle sdd sync --feature <feature-workspace> --ticket <ticket-id>
+--actor <acting-agent>` from the feature worktree before dispatching correction.
+Sync fast-forwards only a clean, non-divergent ticket worktree to the recorded
+failed merge. Then run `pnpm spindle sdd next --feature <feature-workspace>`
+and follow its exact correction command.
+
+For an integration conflict, resolve and commit the rebase in the ticket
+worktree, then run `sdd sync` from the feature worktree to adopt the updated
+comparison baseline. Run fresh checks and obtain focused rework review before
+retrying integration. Follow `pnpm spindle sdd next --feature
+<feature-workspace>` for the exact commands. Preserve work when a Git operation
+cannot proceed.
 
 ## Finish and final validation
 
@@ -72,10 +81,11 @@ for removal also block cleanup; do not discard them without authorization.
 Use the state reported by the CLI to restore interrupted work. For a post-merge
 failure, synchronize the clean ticket worktree to the recorded merge before
 dispatching a correction. For a final-check failure, fix on the original
-branch, revalidate the target, rerun the complete final-check list, and record
-fresh results. Revalidation requires a clean checkout on the recorded original
-branch at a commit descended from the feature merge; it invalidates prior
-results.
+branch, run `pnpm spindle sdd checks revalidate --feature <original-feature>
+--scope final --actor <acting-agent>`, rerun the complete final-check list, and
+record fresh results. Revalidation requires a clean checkout on the recorded
+original branch at a commit descended from the feature merge; it invalidates
+prior results.
 
 Never reset workflow state, force cleanup, or infer that a worker is active
 because an assignment is pending. Preserve reports, findings, commits, and

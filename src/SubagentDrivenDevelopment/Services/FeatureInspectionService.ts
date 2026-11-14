@@ -61,7 +61,7 @@ export class FeatureInspectionService extends Service {
     commits: ({ ticket: string } & CommitIdentity)[];
     findings: { ticket: string; finding: ReviewFinding }[];
     requirementsDecisions: { ticket: string; decision: RequirementsDecision }[];
-    actions: { ticket: string; action: string }[];
+    actions: { ticket: string; action: string; checkFailure?: string }[];
     pendingAssignments: {
       ticket: string;
       id: string;
@@ -101,7 +101,7 @@ export class FeatureInspectionService extends Service {
     this.ticketRepository.validateDependencyGraph(tickets);
     const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]));
     const progressById = new Map(feature.state.tickets.map((item) => [item.id, item]));
-    const actions: { ticket: string; action: string }[] = [];
+    const actions: { ticket: string; action: string; checkFailure?: string }[] = [];
     const commits: ({ ticket: string } & CommitIdentity)[] = [];
     const findings: { ticket: string; finding: ReviewFinding }[] = [];
     const requirementsDecisions: { ticket: string; decision: RequirementsDecision }[] = [];
@@ -336,7 +336,44 @@ export class FeatureInspectionService extends Service {
         blockers.push({ ticket: progress.id, reason: "Ticket execution is blocked." });
       } else if (progress.execution === "integrated") {
         if (progress.integration?.postMerge?.status !== "passed") {
-          actions.push({ ticket: progress.id, action: "post-merge-checks" });
+          const mergeSha = progress.integration?.mergeSha;
+          const checks = progress.integration?.postMerge?.checks;
+          const currentFeatureBase = this.gitEvidence.headBeforeWorkflowRecords(
+            feature,
+            feature.state,
+          );
+          const failedCommands =
+            mergeSha && currentFeatureBase === mergeSha
+              ? (checks?.required ?? []).flatMap((requirement) => {
+                  const latest = [...(checks?.records ?? [])]
+                    .reverse()
+                    .find((record) => record.command === requirement.command);
+                  return latest?.result === "failed" && latest.headSha === mergeSha
+                    ? [requirement.command]
+                    : [];
+                })
+              : [];
+          if (failedCommands.length > 0) {
+            const lastBaseline = progress.baselineHistory?.at(-1);
+            const synchronized =
+              progress.baseSha === mergeSha &&
+              progress.worktree?.baseSha === mergeSha &&
+              lastBaseline?.to === mergeSha &&
+              lastBaseline?.ticketHead === mergeSha;
+            if (synchronized) {
+              actions.push(
+                ...failedCommands.map((checkFailure) => ({
+                  ticket: progress.id,
+                  action: "post-merge-correct",
+                  checkFailure,
+                })),
+              );
+            } else {
+              actions.push({ ticket: progress.id, action: "post-merge-sync" });
+            }
+          } else {
+            actions.push({ ticket: progress.id, action: "post-merge-checks" });
+          }
         } else {
           blockers.push({
             ticket: progress.id,
