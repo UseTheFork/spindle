@@ -13,6 +13,10 @@ export function statusSummary(data: unknown, spec: string, heading: string): str
   addValue(lines, "Final validation", status.finalValidation);
   addValue(lines, "Cleanup", status.cleanup);
   addValue(lines, "Merge commit", status.mergeCommit);
+  if (status.phase === "validation") {
+    addValue(lines, "Validation target", status.headSha);
+    addValue(lines, "Revalidation candidate", status.revalidationCandidateSha);
+  }
   addValue(lines, "Journal", status.journal);
 
   const delivery = asRecord(status.delivery);
@@ -256,9 +260,29 @@ function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): st
 
 function addFinalValidationCommands(lines: string[], status: SummaryRecord, feature: string): void {
   const required = records(status.required);
+  const recorded = records(status.records);
+  const headSha = asText(status.headSha);
+  const failed = required.find((check) => {
+    const command = asText(check.command);
+    if (!command || !headSha) return false;
+    const latest = recorded.filter((item) => item.command === command).at(-1);
+    return latest?.result === "failed" && latest.headSha === headSha;
+  });
+  if (failed) {
+    const command = asText(failed.command)!;
+    lines.push(`Final check failed on ${headSha}: ${command}.`);
+    lines.push("Fix the failure on the original branch and commit the fix.");
+    lines.push(
+      `Next: pnpm spindle sdd checks revalidate --feature ${feature} --scope final --actor <acting-agent>`,
+    );
+    return;
+  }
+
   for (const check of required) {
     const command = asText(check.command);
-    if (!command) continue;
+    if (!command || !headSha) continue;
+    const latest = recorded.filter((item) => item.command === command).at(-1);
+    if (latest?.result === "passed" && latest.headSha === headSha) continue;
     lines.push(
       `Next: pnpm spindle sdd checks record --feature ${feature} --scope final --command "${command}" --result <passed|failed|unavailable> --actor <acting-agent>`,
     );

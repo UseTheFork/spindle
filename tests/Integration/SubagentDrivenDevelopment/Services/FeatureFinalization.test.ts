@@ -16,6 +16,7 @@ import { expect, test, vi } from "vitest";
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -375,7 +376,6 @@ async function readyFeature(codeFile = "feature.ts") {
 
 async function recordFinal(
   f: Awaited<ReturnType<typeof readyFeature>>,
-  merged: any,
   result = "passed",
 ) {
   cliOutput(
@@ -401,8 +401,6 @@ async function recordFinal(
     f.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
-    "--merge",
-    merged.mergeCommit,
     "--command",
     "test final",
     "--result",
@@ -420,8 +418,6 @@ async function recordFinal(
         f.originalSpec.replace(/\/spec\.md$/, ""),
         "--scope",
         "final",
-        "--merge",
-        merged.mergeCommit,
         "--command",
         "lint final",
         "--result",
@@ -455,7 +451,7 @@ test("original ignored node_modules and build artifacts survive the real complet
   const files = originalIgnoredArtifacts(f);
   const merged = cliOutput(await f.finish());
   expect(merged.finalValidation).toBe("pending");
-  cliOutput(await recordFinal(f, merged));
+  cliOutput(await recordFinal(f));
   const complete = cliOutput(
     await invokeAsync(f.original, [
       "finish",
@@ -499,9 +495,9 @@ test.each(["file", "directory", "parent-file", "empty-directory"])(
     // Simulate the user's safe resolution, preserving rather than deleting data.
     const preserved = join(f.original, "node_modules", "preserved-feature.ts");
     renameSync(collision, preserved);
-    const merged = cliOutput(await f.finish());
+    cliOutput(await f.finish());
     expect(git(f.root, "rev-parse", "HEAD")).toBe(recordsCommit);
-    cliOutput(await recordFinal(f, merged));
+    cliOutput(await recordFinal(f));
     expect(
       cliOutput(
         await invokeAsync(f.original, [
@@ -577,7 +573,7 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
   expect(premature.finalValidation).toBe("pending");
   expect(existsSync(f.root)).toBe(true);
   expect(existsSync(f.ticketRoot)).toBe(true);
-  cliOutput(await recordFinal(f, pending, "failed"));
+  cliOutput(await recordFinal(f, "failed"));
   const blocked = cliOutput(
     await invokeAsync(f.original, [
       "finish",
@@ -588,7 +584,7 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
     ]),
   );
   expect(blocked.finalValidation).toBe("pending");
-  cliOutput(await recordFinal(f, pending));
+  cliOutput(await recordFinal(f));
   const complete = cliOutput(
     await invokeAsync(f.original, [
       "finish",
@@ -644,6 +640,106 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
   ).toBe(true);
 });
 
+test("final checks revalidate only after a clean fix commit and bind completion to the new commit", async () => {
+  const f = await readyFeature();
+  const merged = cliOutput(await f.finish());
+  cliOutput(await recordFinal(f, "failed"));
+  cliOutput(await recordFinal(f));
+  const supersededFailure = await invokeAsync(f.original, [
+    "checks",
+    "revalidate",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    "--actor",
+    "controller",
+  ]);
+  expect(supersededFailure.status).not.toBe(0);
+  expect(supersededFailure.stderr).toMatch(/requires a failed check/i);
+  cliOutput(await recordFinal(f, "failed"));
+
+  const unchanged = await invokeAsync(f.original, [
+    "checks",
+    "revalidate",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    "--actor",
+    "controller",
+  ]);
+  expect(unchanged.status).not.toBe(0);
+  expect(unchanged.stderr).toMatch(/commit and fix/i);
+
+  writeFileSync(join(f.original, "final-fix.txt"), "final validation fix\n");
+  const dirty = await invokeAsync(f.original, [
+    "checks",
+    "revalidate",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    "--actor",
+    "controller",
+  ]);
+  expect(dirty.status).not.toBe(0);
+  expect(dirty.stderr).toMatch(/dirty checkout/i);
+
+  git(f.original, "add", "final-fix.txt");
+  git(f.original, "commit", "-m", "fix final validation");
+  const fixedHead = git(f.original, "rev-parse", "HEAD");
+  const next = await invokeAsync(f.original, [
+    "next",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+  ]);
+  expect(next.status, next.stderr).toBe(0);
+  expect(cliOutput(next)).toMatchObject({
+    revalidationAvailable: true,
+    revalidationCandidateSha: fixedHead,
+  });
+  expect(nextSummary(cliOutput(next)).join("\n")).toMatch(/checks revalidate/);
+
+  const revalidated = cliOutput(
+    await invokeAsync(f.original, [
+      "checks",
+      "revalidate",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--scope",
+      "final",
+      "--actor",
+      "controller",
+    ]),
+  );
+  expect(revalidated).toMatchObject({
+    finalValidation: "pending",
+    mergeCommit: merged.mergeCommit,
+    headSha: fixedHead,
+    records: [],
+  });
+
+  cliOutput(await recordFinal(f));
+  const complete = cliOutput(
+    await invokeAsync(f.original, [
+      "finish",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--actor",
+      "controller",
+    ]),
+  );
+  expect(complete).toMatchObject({
+    finished: true,
+    mergeCommit: merged.mergeCommit,
+    checkedCommit: fixedHead,
+  });
+  expect(git(f.original, "rev-list", "--parents", "-n", "1", complete.metadataCommit)).toBe(
+    `${complete.metadataCommit} ${fixedHead}`,
+  );
+});
+
 test.each([
   "dirty-original",
   "moved-original",
@@ -693,8 +789,8 @@ test.each([
   "wrong-final-merge",
 ])("cleanup preflights all targets and rejects %s while preserving worktrees", async (guard) => {
   const f = await readyFeature();
-  const merged = cliOutput(await f.finish());
-  cliOutput(await recordFinal(f, merged));
+  cliOutput(await f.finish());
+  cliOutput(await recordFinal(f));
   if (guard === "symlink-ticket") {
     renameSync(f.ticketRoot, `${f.ticketRoot}.preserved`);
     symlinkSync(`${f.ticketRoot}.preserved`, f.ticketRoot);
@@ -731,10 +827,9 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
     const f = await readyFeature();
     const artifacts = originalIgnoredArtifacts(f);
     let root = f.root;
-    let merged: any;
     if (where === "metadata-commit" || where === "remove" || where === "delete") {
-      merged = cliOutput(await f.finish());
-      cliOutput(await recordFinal(f, merged));
+      cliOutput(await f.finish());
+      cliOutput(await recordFinal(f));
       root = f.original;
     }
     const app = await appAt(root);
@@ -789,20 +884,36 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
   },
 );
 
-test("wrong merge, undeclared command and unavailable result cannot authorize cleanup", async () => {
+test("obsolete merge selectors, undeclared commands and unavailable results cannot authorize cleanup", async () => {
   const f = await readyFeature();
-  const merged = cliOutput(await f.finish());
+  cliOutput(await f.finish());
   const app = await appAt(f.original);
   const finalization = await app.make(FeatureFinalizationService);
   finalization.declare({ spec: f.originalSpec, command: ["test final"], author: "controller" });
   const valid = {
     feature: f.feature,
-    merge: merged.mergeCommit,
     command: "test final",
     result: "passed",
     author: "controller",
   };
-  expect(() => finalization.record({ ...valid, merge: f.featureRevision })).toThrow();
+  const obsoleteMerge = await invokeAsync(f.original, [
+    "checks",
+    "record",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    "--merge",
+    f.featureRevision,
+    "--command",
+    "test final",
+    "--result",
+    "passed",
+    "--actor",
+    "controller",
+  ]);
+  expect(obsoleteMerge.status).not.toBe(0);
+  expect(obsoleteMerge.stderr).toMatch(/unknown option '--merge'/);
   finalization.record(valid);
   expect(() => finalization.record({ ...valid, command: "undeclared" })).toThrow();
   finalization.record({ ...valid, result: "unavailable", details: "environment unavailable" });

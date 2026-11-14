@@ -553,8 +553,6 @@ export async function recordFinalDeliveryCheck(
     pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
-    "--merge",
-    pending.mergeCommit,
     "--command",
     command,
     "--result",

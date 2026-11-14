@@ -21,11 +21,6 @@ export class ChecksRecordCommand extends Command {
       )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery, post-merge or final")
-      .option(
-        "--merge <sha>",
-        "Exact feature merge commit; required for scope final",
-        CommandOptions.once("--merge"),
-      )
       .requiredOption(
         "--command <command>",
         "Exact required command",
@@ -40,7 +35,7 @@ export class ChecksRecordCommand extends Command {
       .option("--paths <paths...>", "Paths whose content this check explicitly covers")
       .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
-      .action(async (options: ChecksRecordOptions & { merge?: string }) => {
+      .action(async (options: ChecksRecordOptions) => {
         if (
           options.scope !== undefined &&
           !["delivery", "post-merge", "final"].includes(options.scope)
@@ -66,24 +61,22 @@ export class ChecksRecordCommand extends Command {
       });
   }
 
-  public async run(options: ChecksRecordOptions & { merge?: string }) {
+  public async run(options: ChecksRecordOptions) {
     this.assertApplicationBooted();
     if (options.scope === "final") {
-      if (options.ticket || options.paths || !options.merge)
-        throw new Error("Final records require --merge and do not accept ticket/path coverage.");
+      if (options.ticket || options.paths)
+        throw new Error("Final records do not accept ticket or path coverage.");
       const finalization = await this.app.make(FeatureFinalizationService);
       const feature = finalization.recordedFeature(options.spec);
       if (!feature) throw new Error("Final records require a recorded feature merge.");
       return finalization.record({
         feature: feature.feature,
-        merge: options.merge,
         command: options.command,
         result: options.result,
         author: options.author,
         ...(options.details ? { details: options.details } : {}),
       });
     }
-    if (options.merge) throw new Error("--merge is only valid with --scope final.");
     return (await this.app.make(ChecksService)).checksRecord(options);
   }
 }

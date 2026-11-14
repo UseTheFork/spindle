@@ -14,7 +14,7 @@ export class FinishCommand extends Command {
     group(root)
       .command("finish")
       .description(
-        "Merge approved feature delivery, then clean up only after exact final-merge checks pass.",
+        "Merge approved feature delivery, then clean up only after final checks pass for the validation target.",
       )
       .requiredOption(
         "--feature <directory>",

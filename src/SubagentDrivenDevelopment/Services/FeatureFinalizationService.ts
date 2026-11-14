@@ -447,7 +447,7 @@ export class FeatureFinalizationService extends Service {
         originalWorkspace: state.originalWorkspace,
         spec: join(state.originalWorkspace, `.scratch/${state.feature}/spec.md`),
         cleanup: "complete",
-        checkedCommit: journal.mergeCommit,
+        checkedCommit: journal.finalIdentity?.headSha,
         metadataCommit: journal.metadataCommit,
         metadataCommitChecked: false,
         journal: path,
@@ -461,14 +461,28 @@ export class FeatureFinalizationService extends Service {
       const journal = this.read<Journal>(path);
       if (!journal) throw new Error("Feature has no finalization journal.");
       this.verifyJournal(journal, common, feature);
-      if (journal.mergeCommit && journal.phase !== "metadata") this.finalCheckout(journal);
+      if (journal.phase === "validation" && journal.mergeCommit) {
+        const root = journal.startup.originalWorkspace;
+        this.workspace(root, journal.startup.originalBranch, undefined, common);
+        if (this.head(root) !== journal.finalIdentity?.headSha) {
+          const candidateHead = this.revalidationHead(journal);
+          return {
+            ...this.pending(journal, path),
+            revalidationAvailable: true,
+            revalidationCandidateSha: candidateHead,
+          };
+        }
+        this.finalCheckout(journal);
+      } else if (journal.mergeCommit && journal.phase !== "metadata") {
+        this.finalCheckout(journal);
+      }
       return journal.phase === "complete"
         ? {
             feature,
             finished: true,
             mergeCommit: journal.mergeCommit,
             metadataCommit: journal.metadataCommit,
-            checkedCommit: journal.mergeCommit,
+            checkedCommit: journal.finalIdentity?.headSha,
             metadataCommitChecked: false,
             cleanup: "complete",
             journal: path,
@@ -506,7 +520,6 @@ export class FeatureFinalizationService extends Service {
 
   public record(options: {
     feature: string;
-    merge: string;
     command: string;
     result: string;
     author: string;
@@ -526,11 +539,10 @@ export class FeatureFinalizationService extends Service {
       this.finalCheckout(journal);
       if (
         options.author.trim() !== journal.author ||
-        options.merge !== journal.mergeCommit ||
         !journal.required.some((item) => item.command === options.command)
       ) {
         throw new Error(
-          "Final check controller, declared command, or exact merge identity does not match.",
+          "Final check controller or declared command does not match.",
         );
       }
 
@@ -550,6 +562,26 @@ export class FeatureFinalizationService extends Service {
       journal.records.push(record);
       this.persist(path, journal);
       return { record, ...this.pending(journal, path), checksPassing: this.passing(journal) };
+    });
+  }
+
+  public revalidate(options: { feature: string; author: string }): unknown {
+    validateAuthor(options.author);
+    return this.locked(options.feature, (common, path) => {
+      const journal = this.read<Journal>(path);
+      if (!journal) throw new Error("No feature merge to validate.");
+      this.verifyJournal(journal, common, options.feature);
+      if (journal.phase !== "validation")
+        throw new Error("Final checks may only be revalidated during final validation.");
+      if (!journal.finalDeclared)
+        throw new Error("Declare the complete final check list before revalidating.");
+      if (options.author.trim() !== journal.author)
+        throw new Error("Only the recorded controller may revalidate final checks.");
+      const head = this.revalidationHead(journal);
+      journal.finalIdentity = { headSha: head };
+      journal.records = [];
+      this.persist(path, journal);
+      return this.pending(journal, path);
     });
   }
 
@@ -700,16 +732,52 @@ export class FeatureFinalizationService extends Service {
   }
 
   private passing(journal: Journal): boolean {
+    const target = journal.finalIdentity?.headSha;
     return (
+      Boolean(target) &&
       journal.finalDeclared &&
       journal.required.length > 0 &&
       journal.required.every((requirement) => {
         const record = journal.records
           .filter((item) => item.command === requirement.command)
           .at(-1);
-        return record?.result === "passed" && record.headSha === journal.mergeCommit;
+        return record?.result === "passed" && record.headSha === target;
       })
     );
+  }
+  private revalidationHead(journal: Journal): string {
+    const previousHead = journal.finalIdentity?.headSha;
+    if (!previousHead || !journal.mergeCommit || !journal.featureCommit)
+      throw new Error("Final validation is missing its recorded commit identity.");
+    if (
+      !journal.required.some((requirement) => {
+        const record = journal.records
+          .filter(
+            (item) => item.command === requirement.command && item.headSha === previousHead,
+          )
+          .at(-1);
+        return record?.result === "failed";
+      })
+    )
+      throw new Error("Final-check revalidation requires a failed check on the current target.");
+
+    const root = journal.startup.originalWorkspace;
+    this.workspace(root, journal.startup.originalBranch, undefined, journal.common);
+    this.noOperation(root);
+    this.clean(root, false);
+    this.commitShape(
+      root,
+      journal.mergeCommit,
+      [journal.startup.featureRevision, journal.featureCommit],
+      this.tree(root, journal.featureCommit),
+    );
+    const head = this.head(root);
+    if (head === previousHead)
+      throw new Error("Commit and fix final-check failures before revalidating.");
+    this.ancestor(root, previousHead, head);
+    this.ancestor(root, journal.mergeCommit, head);
+    this.verifyFiles(journal, root);
+    return head;
   }
   private pending(journal: Journal, path: string) {
     return {
@@ -732,10 +800,13 @@ export class FeatureFinalizationService extends Service {
   }
   private finalCheckout(journal: Journal): void {
     const state = journal.startup;
+    const validationHead = journal.finalIdentity?.headSha;
+    if (!validationHead || !journal.mergeCommit || !journal.featureCommit)
+      throw new Error("Final validation is missing its recorded commit identity.");
     this.workspace(
       state.originalWorkspace,
       state.originalBranch,
-      journal.metadataCommit ?? journal.mergeCommit,
+      journal.metadataCommit ?? validationHead,
       journal.common,
     );
     this.clean(state.originalWorkspace, false);
@@ -746,6 +817,9 @@ export class FeatureFinalizationService extends Service {
       [state.featureRevision, journal.featureCommit!],
       this.tree(state.originalWorkspace, journal.featureCommit!),
     );
+    this.ancestor(state.originalWorkspace, journal.mergeCommit, validationHead);
+    if (journal.metadataCommit)
+      this.ancestor(state.originalWorkspace, validationHead, journal.metadataCommit);
     if (journal.metadataCommit) this.metadataShape(journal, journal.metadataCommit);
     this.verifyFiles(journal, state.originalWorkspace);
     for (const mapping of journal.mappings) {
@@ -757,7 +831,7 @@ export class FeatureFinalizationService extends Service {
   }
   private metadata(journal: Journal, path: string): void {
     if (!this.passing(journal))
-      throw new Error("Declared final-merge checks must pass before metadata relocation.");
+      throw new Error("Declared final checks must pass for the current validation target.");
     const state = journal.startup;
     const root = state.originalWorkspace;
     if (this.app.workspaceRoot !== root)
@@ -777,7 +851,7 @@ export class FeatureFinalizationService extends Service {
       ledger.delivery.history.push({
         at,
         author: journal.author,
-        action: `feature-final-validation-passed:${journal.mergeCommit};journal:${journal.id}`,
+        action: `feature-final-validation-passed:${journal.finalIdentity!.headSha};merge:${journal.mergeCommit};journal:${journal.id}`,
       });
       journal.ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
     }
@@ -790,8 +864,9 @@ export class FeatureFinalizationService extends Service {
       this.persist(path, journal);
     }
     this.workspace(root, state.originalBranch, undefined, journal.common);
+    const validationHead = journal.finalIdentity!.headSha;
     const head = this.head(root);
-    if (head !== journal.mergeCommit) {
+    if (head !== validationHead) {
       if (!journal.metadataTree)
         throw new Error("Original branch moved outside the journalled metadata commit.");
       this.metadataShape(journal, head);
@@ -821,7 +896,7 @@ export class FeatureFinalizationService extends Service {
         journal.metadataTree = this.run(root, ["write-tree"]);
         this.persist(path, journal);
       }
-      this.workspace(root, state.originalBranch, journal.mergeCommit, journal.common);
+      this.workspace(root, state.originalBranch, validationHead, journal.common);
       if (
         this.run(root, ["write-tree"]) !== journal.metadataTree ||
         readFileSync(absoluteLedger, "utf8") !== journal.ledgerAfter ||
@@ -849,13 +924,14 @@ export class FeatureFinalizationService extends Service {
 
   private metadataShape(journal: Journal, commit: string): void {
     const root = journal.startup.originalWorkspace;
-    this.commitShape(root, commit, [journal.mergeCommit!], journal.metadataTree!);
+    const validationHead = journal.finalIdentity!.headSha;
+    this.commitShape(root, commit, [validationHead], journal.metadataTree!);
     const changed = this.run(root, [
       "diff",
       "--name-only",
       "--no-renames",
       "-z",
-      journal.mergeCommit!,
+      validationHead,
       commit,
     ])
       .split("\0")
@@ -877,7 +953,7 @@ export class FeatureFinalizationService extends Service {
 
   private cleanup(journal: Journal, path: string): void {
     if (!this.passing(journal))
-      throw new Error("Exact merge-bound declared checks have not all passed.");
+      throw new Error("Declared checks have not all passed for the current validation target.");
     this.preflight(journal);
     if (journal.phase === "metadata") {
       journal.phase = "cleanup";
