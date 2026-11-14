@@ -1,5 +1,3 @@
-export type FindingSeverity = "high" | "medium" | "low";
-
 export type FindingStatus = "open" | "confirmed" | "fixed" | "dismissed" | "deferred";
 
 export interface FindingProvenance {
@@ -30,7 +28,6 @@ export interface RequirementsDecision {
 export interface ReviewFinding {
   id: string;
   relatedTicket?: string;
-  severity: FindingSeverity;
   blocking: boolean;
   status: FindingStatus;
   summary: string;

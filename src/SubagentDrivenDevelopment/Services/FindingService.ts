@@ -1,5 +1,3 @@
-import { isAbsolute, resolve } from "node:path";
-
 import matter from "gray-matter";
 
 import type { Application } from "@/Foundation/Application";
@@ -7,7 +5,6 @@ import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
-  FindingSeverity,
   FindingStatus,
   FindingProvenance,
   RequirementsDecision,
@@ -65,12 +62,11 @@ export class FindingService extends Service {
     if (options.relatedTicket !== undefined) {
       throw new Error("--related-ticket is only valid for a delivery finding.");
     }
-    if (!options.ticket) throw new Error("Finding creation requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    const ticketId = options.ticket;
+    if (!ticketId) throw new Error("Finding creation requires --ticket or --scope delivery.");
+    validateTicketId(ticketId);
     validateAuthor(options.author);
-    if (!["high", "medium", "low"].includes(options.severity)) {
-      throw new Error(`Invalid finding severity: ${options.severity}.`);
-    }
+    if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     if (options.blocking === options.nonBlocking) {
       throw new Error("Choose exactly one of --blocking or --non-blocking.");
     }
@@ -81,28 +77,26 @@ export class FindingService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
       if (progress.owner !== options.author.trim()) {
         throw new Error("Only the current ticket controller may register findings.");
       }
-      const report = options.source
-        ? isAbsolute(options.source)
-          ? resolve(options.source)
-          : resolve(feature.workspace, options.source)
-        : "";
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
-        attempt.reviewAssignments?.some((candidate) => candidate.report === report),
+        attempt.reviewAssignments?.some((candidate) => candidate.id === options.assignment),
       );
       const assignment =
-        correctionAttempt?.reviewAssignments?.find((candidate) => candidate.report === report) ??
-        progress.reviewAssignments?.find((candidate) => candidate.report === report);
+        correctionAttempt?.reviewAssignments?.find(
+          (candidate) => candidate.id === options.assignment,
+        ) ??
+        progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
       if (!assignment) {
         throw new Error(
-          "Finding source report must match a frozen review assignment for this ticket.",
+          `Review assignment not found for ticket ${ticketId}: ${options.assignment}.`,
         );
       }
+      const report = assignment.report;
       if (assignment.status === "submitted") {
         throw new Error("Findings must be registered before submitting the review assignment.");
       }
@@ -144,7 +138,7 @@ export class FindingService extends Service {
             throw new Error("This report and commit are already linked with different details.");
           }
           return {
-            ticket: options.ticket,
+            ticket: ticketId,
             finding: canonical,
             idempotent: true,
             headSha: identity.headSha,
@@ -180,7 +174,7 @@ export class FindingService extends Service {
         );
         this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           finding: canonical,
           headSha: identity.headSha,
         };
@@ -188,7 +182,6 @@ export class FindingService extends Service {
       const existing = findings.find(
         (finding) =>
           finding.author === options.author.trim() &&
-          finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
           finding.details === options.details.trim() &&
@@ -203,7 +196,7 @@ export class FindingService extends Service {
       );
       if (existing) {
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           finding: existing,
           idempotent: true,
           headSha: identity.headSha,
@@ -219,7 +212,6 @@ export class FindingService extends Service {
       progress.findings = findings;
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
-        severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",
         summary: options.summary.trim(),
@@ -247,7 +239,7 @@ export class FindingService extends Service {
       );
       this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        ticket: options.ticket,
+        ticket: ticketId,
         finding,
         headSha: identity.headSha,
       };

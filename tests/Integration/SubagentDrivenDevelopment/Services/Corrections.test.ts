@@ -19,8 +19,7 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Incorrect empty-input behavior",
       details: "The implementation rejects an input that the requirements allow.",
@@ -93,8 +92,7 @@ test("corrective implementation reports submit through the implementation eviden
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Incorrect empty-input behavior",
       details: "The implementation rejects an input that the requirements allow.",
@@ -323,8 +321,7 @@ test("corrective review findings retain assignment provenance for the next progr
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Incorrect empty-input behavior",
       details: "The implementation rejects an input that the requirements allow.",
@@ -408,8 +405,7 @@ test("corrective review findings retain assignment provenance for the next progr
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: JSON.parse(dispatched.stdout).assignments[0].report,
-      severity: "medium",
+      assignment: correctiveReview.id,
       blocking: true,
       summary: "A new regression remains",
       details: "The correction introduced a second ticket that needs a separate fix.",
@@ -442,8 +438,7 @@ test("resume returns pending corrective reviews after initial review coverage is
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Incorrect empty-input behavior",
       details: "The implementation rejects an input that the requirements allow.",
@@ -545,8 +540,7 @@ test("a verified corrective review permits ticket integration while retaining in
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Incorrect empty-input behavior",
       details: "The implementation rejects an input that the requirements allow.",
@@ -670,8 +664,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       blocking: true,
       summary: "Scope no longer includes this behavior",
       details: "The current acceptance criteria require this behavior.",
@@ -790,8 +783,7 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: freshAssignment.report,
-      severity: "high",
+      assignment: freshAssignment.id,
       blocking: true,
       summary: "Scope no longer includes this behavior",
       details: "The current acceptance criteria require this behavior.",

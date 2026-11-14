@@ -107,21 +107,49 @@ export class LedgerRepository extends Service {
   }
 
   public validateLedger(value: unknown, feature: string): FeatureLedger {
-    const normalized = this.normalizeLegacyStatuses(value);
+    const normalized = this.normalizeLegacyFields(value);
     this.assertLedger(normalized, feature);
     return normalized;
   }
 
-  private normalizeLegacyStatuses(value: unknown): unknown {
-    if (!isRecord(value) || !Array.isArray(value.tickets)) return value;
-    return {
-      ...value,
-      tickets: value.tickets.map((ticket) =>
-        isRecord(ticket) && ticket.status === "in-progress"
-          ? { ...ticket, status: "open" }
-          : ticket,
-      ),
+  private normalizeLegacyFields(value: unknown): unknown {
+    if (!isRecord(value)) return value;
+    const updates: Record<string, unknown> = {};
+    const normalizeFindings = (findings: unknown): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(findings)) return { value: findings, changed: false };
+      let changed = false;
+      const normalized = findings.map((finding) => {
+        if (!isRecord(finding) || !Object.hasOwn(finding, "severity")) return finding;
+        const withoutSeverity = { ...finding };
+        delete withoutSeverity.severity;
+        changed = true;
+        return withoutSeverity;
+      });
+      return changed ? { value: normalized, changed: true } : { value: findings, changed: false };
     };
+    if (Array.isArray(value.tickets)) {
+      let changed = false;
+      updates.tickets = value.tickets.map((ticket) => {
+        if (!isRecord(ticket)) return ticket;
+        const findings = normalizeFindings(ticket.findings);
+        const normalizeStatus = ticket.status === "in-progress";
+        if (!normalizeStatus && !findings.changed) return ticket;
+        changed = true;
+        return {
+          ...ticket,
+          ...(normalizeStatus ? { status: "open" } : {}),
+          ...(findings.changed ? { findings: findings.value } : {}),
+        };
+      });
+      if (!changed) delete updates.tickets;
+    }
+    if (isRecord(value.delivery)) {
+      const findings = normalizeFindings(value.delivery.findings);
+      if (findings.changed) {
+        updates.delivery = { ...value.delivery, findings: findings.value };
+      }
+    }
+    return Object.keys(updates).length > 0 ? { ...value, ...updates } : value;
   }
 
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {

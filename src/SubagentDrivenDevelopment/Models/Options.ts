@@ -81,11 +81,10 @@ export interface SubmitOptions extends TicketSelection {
   details?: string;
 }
 
-export interface FindingCreateOptions extends TicketSelection {
+export interface FindingCreateOptions extends ScopedSelection {
   scope?: string;
   relatedTicket?: string;
-  source: string;
-  severity: string;
+  assignment: string;
   blocking?: boolean;
   nonBlocking?: boolean;
   summary: string;

@@ -1,11 +1,8 @@
-import { isAbsolute, resolve } from "node:path";
-
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
-  FindingSeverity,
   FindingStatus,
   FindingProvenance,
   RequirementsDecision,
@@ -50,9 +47,7 @@ export class DeliveryFindingService extends Service {
     headSha: string;
   } {
     validateAuthor(options.author);
-    if (!["high", "medium", "low"].includes(options.severity)) {
-      throw new Error(`Invalid finding severity: ${options.severity}.`);
-    }
+    if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     if (options.blocking === options.nonBlocking) {
       throw new Error("Choose exactly one of --blocking or --non-blocking.");
     }
@@ -67,17 +62,15 @@ export class DeliveryFindingService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       assertDeliveryOwner(delivery.owner, options.author, feature.feature);
-      const report = options.source
-        ? isAbsolute(options.source)
-          ? resolve(options.source)
-          : resolve(feature.workspace, options.source)
-        : "";
       const assignment = delivery.reviewAssignments?.find(
-        (candidate) => candidate.report === report && candidate.scope === "delivery",
+        (candidate) =>
+          candidate.id === options.assignment &&
+          candidate.scope === "delivery",
       );
       if (!assignment) {
-        throw new Error("Finding source report must match a frozen delivery review assignment.");
+        throw new Error(`Delivery review assignment not found: ${options.assignment}.`);
       }
+      const report = assignment.report;
       if (assignment.status === "submitted") {
         throw new Error("Findings must be registered before submitting the delivery assignment.");
       }
@@ -133,7 +126,6 @@ export class DeliveryFindingService extends Service {
         (finding) =>
           finding.author === options.author.trim() &&
           finding.relatedTicket === options.relatedTicket &&
-          finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
           finding.details === options.details.trim() &&
@@ -156,7 +148,6 @@ export class DeliveryFindingService extends Service {
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
         ...(options.relatedTicket ? { relatedTicket: options.relatedTicket } : {}),
-        severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",
         summary: options.summary.trim(),

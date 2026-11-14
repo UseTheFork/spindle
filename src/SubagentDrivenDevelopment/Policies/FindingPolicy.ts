@@ -60,7 +60,7 @@ export class FindingPolicy extends Service {
       )
       .map(
         (finding) =>
-          `Finding ${finding.id} is unresolved and blocking acceptance (severity=${finding.severity}, status=${finding.status}).`,
+          `Finding ${finding.id} is unresolved and blocking acceptance (status=${finding.status}).`,
       );
   }
 

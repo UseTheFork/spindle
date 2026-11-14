@@ -22,14 +22,9 @@ export class FindingCreateCommand extends Command {
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--related-ticket <id>", "Ticket to reopen for a blocking feature finding")
       .requiredOption(
-        "--source <directory>",
-        "Assigned review report containing the finding",
-        CommandOptions.once("--source"),
-      )
-      .requiredOption(
-        "--severity <severity>",
-        "Finding severity: high, medium, low",
-        CommandOptions.once("--severity"),
+        "--assignment <id>",
+        "Exact review assignment ID",
+        CommandOptions.once("--assignment"),
       )
       .option("--blocking", "Mark the finding as blocking")
       .option("--non-blocking", "Mark the finding as non-blocking")

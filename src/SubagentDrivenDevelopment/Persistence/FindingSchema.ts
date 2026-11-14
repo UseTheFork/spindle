@@ -15,7 +15,7 @@ export function isReviewFinding(value: unknown): value is ReviewFinding {
     /^F-\d{4,}$/.test(value.id) &&
     (!Object.hasOwn(value, "relatedTicket") ||
       (typeof value.relatedTicket === "string" && /^T-\d{4,}$/.test(value.relatedTicket))) &&
-    ["high", "medium", "low"].includes(String(value.severity)) &&
+    !Object.hasOwn(value, "severity") &&
     typeof value.blocking === "boolean" &&
     ["open", "confirmed", "fixed", "dismissed", "deferred"].includes(String(value.status)) &&
     typeof value.summary === "string" &&

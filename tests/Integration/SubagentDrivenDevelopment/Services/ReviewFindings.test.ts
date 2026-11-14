@@ -443,8 +443,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source: assignment.report,
-        severity: "high",
+        assignment: assignment.id,
         blocking: true,
         summary: "Incorrect result for empty input",
         details: "The implementation returns a success result for empty input.",
@@ -458,7 +457,6 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   const output = JSON.parse(registered.stdout) as {
     finding: {
       id: string;
-      severity: string;
       blocking: boolean;
       status: string;
       summary: string;
@@ -468,7 +466,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
     };
   };
   expect(output.finding.id).toBe("F-0001");
-  expect(output.finding.severity).toBe("high");
+  expect(output.finding).not.toHaveProperty("severity");
   expect(output.finding.blocking).toBe(true);
   expect(output.finding.status).toBe("open");
   expect(output.finding.summary).toBe("Incorrect result for empty input");
@@ -489,10 +487,82 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(JSON.parse(repeated.stdout).finding.id).toBe("F-0001");
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
 
+  const cliRegistered = await invokeAsync(repo, [
+    "finding",
+    "create",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--assignment",
+    assignment.id,
+    "--non-blocking",
+    "--summary",
+    "A CLI-registered observation",
+    "--details",
+    "The orchestrator registered this from the assigned review.",
+    "--actor",
+    "controller",
+  ]);
+  expect(cliRegistered.status, cliRegistered.stderr).toBe(0);
+  expect(cliOutput(cliRegistered).finding.provenance[0].report).toBe(assignment.report);
+
+  const beforeLegacyOptions = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const legacyOptions = await invokeAsync(repo, [
+    "finding",
+    "create",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--assignment",
+    assignment.id,
+    "--source",
+    assignment.report,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Legacy options",
+    "--details",
+    "This command must be rejected.",
+    "--actor",
+    "controller",
+  ]);
+  expect(legacyOptions.status).not.toBe(0);
+  expect(legacyOptions.stderr).toMatch(/unknown option.*--source/i);
+  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
+    beforeLegacyOptions,
+  );
+  const legacySeverity = await invokeAsync(repo, [
+    "finding",
+    "create",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    "T-0001",
+    "--assignment",
+    assignment.id,
+    "--severity",
+    "high",
+    "--blocking",
+    "--summary",
+    "Legacy severity",
+    "--details",
+    "Severity is no longer an input.",
+    "--actor",
+    "controller",
+  ]);
+  expect(legacySeverity.status).not.toBe(0);
+  expect(legacySeverity.stderr).toMatch(/unknown option.*--severity/i);
+  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
+    beforeLegacyOptions,
+  );
+
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.tickets[0].findings.length).toBe(1);
+  expect(ledger.tickets[0].findings.length).toBe(2);
   expect(ledger.tickets[0].findings[0].id).toBe("F-0001");
   const ticketText = readFileSync(
     join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md"),
@@ -504,8 +574,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "medium",
+      assignment: assignment.id,
       summary: "Missing blocking choice",
       details: "The blocking policy was omitted.",
       author: "controller",
@@ -516,7 +585,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
       .tickets[0].findings.length,
-  ).toBe(1);
+  ).toBe(2);
 });
 
 test("finding IDs restart per ticket and require provenance from that ticket's review", async () => {
@@ -526,8 +595,7 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     service.findingService.findingCreate({
       spec,
       ticket: "T-0001",
-      source: assignment.report,
-      severity: "high",
+      assignment: assignment.id,
       nonBlocking: true,
       summary: "First ticket observation",
       details: "This observation belongs to ticket one.",
@@ -540,7 +608,6 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     service.featureInspectionService.status({ spec }),
   );
   expect(firstStatus.status, firstStatus.stderr).toBe(0);
-  expect(JSON.parse(firstStatus.stdout).findings[0].finding.severity).toBe("high");
   expect(JSON.parse(firstStatus.stdout).findings[0].finding.blocking).toBe(false);
   expect(
     JSON.parse(firstStatus.stdout).blockers.some((blocker: { reason: string }) =>
@@ -618,15 +685,28 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
   );
   expect(review.status, review.stderr).toBe(0);
   const secondAssignment = JSON.parse(review.stdout).assignments[0] as {
+    id: string;
     report: string;
   };
   writeFileSync(secondAssignment.report, "# Second ticket review\n\nFinding from ticket two.\n");
+  const wrongTicketAssignment = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      spec,
+      ticket: "T-0002",
+      assignment: assignment.id,
+      blocking: true,
+      summary: "Wrong ticket assignment",
+      details: "This review assignment belongs to T-0001.",
+      author: "controller",
+    }),
+  );
+  expect(wrongTicketAssignment.status).not.toBe(0);
+  expect(wrongTicketAssignment.stderr).toMatch(/review assignment not found for ticket T-0002/i);
   const secondFinding = await execute(repo, (service) =>
     service.findingService.findingCreate({
       spec,
       ticket: "T-0002",
-      source: secondAssignment.report,
-      severity: "low",
+      assignment: secondAssignment.id,
       blocking: true,
       summary: "Second ticket observation",
       details: "This observation belongs to ticket two.",
@@ -641,13 +721,12 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
 test("review submission requires canonical findings or exclusive no-findings and cannot bypass blockers", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nA blocking ticket was found.\n");
-  const createFinding = async (source = assignment.report) =>
+  const createFinding = async (assignmentId = assignment.id) =>
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source,
-        severity: "low",
+        assignment: assignmentId,
         blocking: true,
         summary: "Acceptance regression",
         details: "The behavior violates an acceptance requirement.",
@@ -688,11 +767,11 @@ test("review submission requires canonical findings or exclusive no-findings and
   expect(falseNoFindings.status).not.toBe(0);
   expect(falseNoFindings.stderr).toMatch(/registered findings|cannot declare --no-findings/i);
 
-  const wrongSource = await createFinding(
+  const wrongAssignment = await createFinding(
     join(repo, ".scratch", "0001-ticket-flow", "reports", "T-0001-implementation.md"),
   );
-  expect(wrongSource.status).not.toBe(0);
-  expect(wrongSource.stderr).toMatch(/source report.*frozen review assignment/i);
+  expect(wrongAssignment.status).not.toBe(0);
+  expect(wrongAssignment.stderr).toMatch(/review assignment not found for ticket T-0001/i);
 
   const registered = await submit({ findingIds: ["F-0001"] });
   expect(registered.status, registered.stderr).toBe(0);
@@ -807,8 +886,7 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source: assignment.report,
-        severity: "medium",
+        assignment: assignment.id,
         blocking,
         nonBlocking: !blocking,
         summary,
@@ -959,15 +1037,14 @@ test("finding duplicates link explicitly while preserving every source report pr
   writeFileSync(thirdReport, "# Third review\n\nThe same defect is observed.\n");
 
   const create = async (
-    source: string,
+    assignmentId: string,
     extra: Partial<Parameters<WorkflowServices["findingService"]["findingCreate"]>[0]> = {},
   ) =>
     await execute(repo, (service) =>
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source,
-        severity: "medium",
+        assignment: assignmentId,
         nonBlocking: true,
         summary: "Same underlying observation",
         details: "Both reports identify the same behavior.",
@@ -976,11 +1053,11 @@ test("finding duplicates link explicitly while preserving every source report pr
       }),
     );
 
-  const first = await create(assignment.report);
+  const first = await create(assignment.id);
   expect(first.status, first.stderr).toBe(0);
   expect(JSON.parse(first.stdout).finding.id).toBe("F-0001");
 
-  const linked = await create(secondReport, { link: "F-0001" });
+  const linked = await create(secondId, { link: "F-0001" });
   expect(linked.status, linked.stderr).toBe(0);
   expect(JSON.parse(linked.stdout).finding.id).toBe("F-0001");
   expect(JSON.parse(linked.stdout).finding.provenance).toEqual([
@@ -1001,11 +1078,11 @@ test("finding duplicates link explicitly while preserving every source report pr
   ]);
   expect(JSON.parse(linked.stdout).idempotent).toBe(undefined);
 
-  const repeatedLink = await create(secondReport, { link: "F-0001" });
+  const repeatedLink = await create(secondId, { link: "F-0001" });
   expect(repeatedLink.status, repeatedLink.stderr).toBe(0);
   expect(JSON.parse(repeatedLink.stdout).idempotent).toBe(true);
 
-  const independent = await create(thirdReport);
+  const independent = await create(thirdId);
   expect(independent.status, independent.stderr).toBe(0);
   expect(JSON.parse(independent.stdout).finding.id).toBe("F-0002");
   const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -1022,8 +1099,7 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source: assignment.report,
-        severity: "high",
+        assignment: assignment.id,
         blocking,
         nonBlocking: !blocking,
         summary,
@@ -1104,8 +1180,7 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
       service.findingService.findingCreate({
         spec,
         ticket: "T-0001",
-        source: freshAssignment.report,
-        severity: "high",
+        assignment: freshAssignment.id,
         blocking,
         nonBlocking: !blocking,
         summary,
