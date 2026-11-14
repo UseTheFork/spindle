@@ -148,6 +148,42 @@ test("next waits for delivery review reports instead of dispatching another revi
   expect(summary).not.toContain("sdd review --feature");
 });
 
+test("next allows a no-finding review result while guiding finding registration before submission", () => {
+  const assignment = {
+    ticket: "delivery",
+    id: "review-0001",
+    role: "review",
+    status: "pending",
+    scope: "delivery",
+    requestedAt: new Date().toISOString(),
+    report: "/repo/.scratch/0001-export/reports/review-0001.md",
+    reportPresent: true,
+  };
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [],
+    pendingAssignments: [assignment],
+    findings: [],
+    blockers: [],
+    delivery: { action: "await-review-report", findings: [] },
+  }).join("\n");
+
+  expect(summary).toContain(
+    "register each accepted finding against this assignment before submission",
+  );
+  expect(summary).toContain("Findings already registered from this report: none.");
+  expect(summary).toContain(
+    "If none are accepted, submit the authoritative result without creating a finding.",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd finding create --feature .scratch/0001-export --scope delivery --assignment review-0001 --blocking --summary <summary> --details <impact> --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result <passed|failed|unavailable> --actor <acting-agent>",
+  );
+  expect(summary.indexOf("finding create")).toBeLessThan(summary.indexOf("sdd submit"));
+});
+
 test("next asks for an explicit finding disposition before dispatching correction", () => {
   const summary = nextSummary({
     feature: "0001-export",
@@ -178,7 +214,7 @@ test("next asks for an explicit finding disposition before dispatching correctio
   expect(summary).not.toContain("sdd correct");
 });
 
-test("next identifies failed review reports that need canonical finding registration", () => {
+test("next does not offer finding creation for an already-submitted review assignment", () => {
   const summary = nextSummary({
     feature: "0001-export",
     actions: [
@@ -202,11 +238,9 @@ test("next identifies failed review reports that need canonical finding registra
 
   expect(summary).toContain("review-0001: /repo/.scratch/0001-export/reports/review-0001.md");
   expect(summary).toContain(
-    "pnpm spindle sdd finding create --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --blocking --summary <summary> --details <impact> --actor <acting-agent>",
+    "No findings were registered before submission; this submitted assignment cannot accept findings.",
   );
-  expect(summary).toContain(
-    "pnpm spindle sdd finding create --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --non-blocking --summary <summary> --details <impact> --actor <acting-agent>",
-  );
+  expect(summary).not.toContain("sdd finding create");
   expect(summary).not.toContain("sdd correct");
 });
 
@@ -271,4 +305,25 @@ test("next prints each pending final check before its record command", () => {
   expect(summary).toContain(
     "pnpm spindle sdd checks record --feature .scratch/0001-export --scope final --command 'pnpm run build' --result <passed|failed|unavailable> --actor <acting-agent>",
   );
+});
+
+test("next declares final checks before offering feature finish", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [],
+    pendingAssignments: [],
+    blockers: [],
+    delivery: {
+      action: "require-final-checks",
+      finalChecks: [],
+      requiredChecks: [{ command: "pnpm run test:feature" }],
+    },
+  }).join("\n");
+
+  expect(summary).toContain("Feature 0001-export: step delivery:checks");
+  expect(summary).toContain("Declare the complete final-check list before finishing");
+  expect(summary).toContain(
+    "pnpm spindle sdd checks require --feature .scratch/0001-export --scope final --command <check> [--command <check> ...] --actor <acting-agent>",
+  );
+  expect(summary).not.toContain("sdd finish --feature");
 });

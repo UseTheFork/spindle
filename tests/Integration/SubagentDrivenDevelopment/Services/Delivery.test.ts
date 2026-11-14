@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+
 import { runCli } from "../../../Helpers/Cli";
 import {
   cliOutput,
@@ -341,6 +343,69 @@ test("delivery checks use their own current commit and stale aggregate checks bl
   );
   expect(ledger.delivery.checks.records.length).toBe(2);
   expect(ledger.delivery.reviewAssignments).toBe(undefined);
+});
+
+test("pending delivery review waits for its report and guides finding registration before submission", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await recordDeliveryCheck(repo, spec);
+  const dispatched = await execute(repo, (service) =>
+    service.reviewService.review({
+      spec,
+      scope: "delivery",
+      author: "controller",
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignments[0] as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Whole-feature review\n\nA blocking issue.\n");
+
+  const pending = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(pending.status, pending.stderr).toBe(0);
+  const status = JSON.parse(pending.stdout);
+  expect(status.delivery.action).toBe("await-review-report");
+  expect(status.pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      id: assignment.id,
+      reportPresent: true,
+      scope: "delivery",
+    }),
+  );
+  const summary = nextSummary(status).join("\n");
+  expect(summary).toContain(
+    "register each accepted finding against this assignment before submission",
+  );
+  expect(summary).toContain(
+    `pnpm spindle sdd finding create --feature .scratch/0001-ticket-flow --scope delivery --assignment ${assignment.id} --blocking --summary <summary> --details <impact> --actor <acting-agent>`,
+  );
+  expect(summary).toContain(
+    `pnpm spindle sdd finding create --feature .scratch/0001-ticket-flow --scope delivery --assignment ${assignment.id} --non-blocking --summary <summary> --details <impact> --actor <acting-agent>`,
+  );
+  expect(summary.indexOf("finding create")).toBeLessThan(summary.indexOf("sdd submit"));
+  expect(summary).not.toContain("sdd review --feature");
+
+  const created = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      spec,
+      ticket: "",
+      scope: "delivery",
+      assignment: assignment.id,
+      blocking: true,
+      summary: "Integrated behavior is inconsistent",
+      details: "The feature-level report identifies a cross-ticket behavior mismatch.",
+      author: "controller",
+    }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+  const afterRegistration = await execute(repo, (service) =>
+    service.deliveryService.next({ spec }),
+  );
+  expect(afterRegistration.status, afterRegistration.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(afterRegistration.stdout)).join("\n")).toContain(
+    "Findings already registered from this report: F-0001.",
+  );
 });
 
 test("delivery correction attempts resume independently with the same assignment and finding history", async () => {
@@ -1038,30 +1103,35 @@ test("status and next expose delivery assignments, blockers, and finish action w
     retrospectiveRequired: boolean;
     finished: boolean;
     findings: unknown[];
+    finalChecks: { command: string }[];
     reviewAssignments: { agent: string; status: string; report: string }[];
     blockers: string[];
   };
   const nextDelivery = JSON.parse(next.stdout).delivery as typeof statusDelivery;
   expect(statusDelivery.scope).toBe("delivery");
   expect(statusDelivery.execution).toBe("reviewing");
-  expect(statusDelivery.action).toBe("finish");
+  expect(statusDelivery.action).toBe("require-final-checks");
   expect(statusDelivery.headSha).toMatch(/^[0-9a-f]{40,64}$/);
   expect(statusDelivery.retrospectiveRequired).toBe(false);
   expect(statusDelivery.finished).toBe(false);
   expect(statusDelivery.findings).toEqual([]);
+  expect(statusDelivery.finalChecks).toEqual([]);
   expect(statusDelivery.reviewAssignments.map(({ agent, status }) => ({ agent, status }))).toEqual([
     { agent: "sdd-reviewer", status: "submitted" },
   ]);
   expect(statusDelivery.blockers).toEqual([]);
   expect(nextDelivery).toEqual(statusDelivery);
+  expect(nextSummary(JSON.parse(next.stdout)).join("\n")).toContain(
+    "checks require --feature .scratch/0001-ticket-flow --scope final --command <check>",
+  );
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
   expect(git("status", "--porcelain")).toBe(gitStatusBefore);
 });
 
 test("failed final-merge checks preserve worktrees until passing evidence is recorded", async () => {
   const prepared = await prepareDeliveryReady();
-  const pending = await beginDeliveryFinalization(prepared);
   const command = "fixture final check";
+  const pending = await beginDeliveryFinalization(prepared, { finalChecks: [command] });
   await declareFinalDeliveryChecks(pending, [command]);
 
   const failed = await recordFinalDeliveryCheck(
@@ -1097,8 +1167,8 @@ test("failed final-merge checks preserve worktrees until passing evidence is rec
 
 test("final-merge check requirements are frozen after their initial declaration", async () => {
   const prepared = await prepareDeliveryReady();
-  const pending = await beginDeliveryFinalization(prepared);
   const command = "fixture final check";
+  const pending = await beginDeliveryFinalization(prepared, { finalChecks: [command] });
   await declareFinalDeliveryChecks(pending, [command]);
   const journalBefore = readFileSync(pending.journal, "utf8");
 
@@ -1152,7 +1222,11 @@ test("finalization status and next expose pending checks and completed cleanup",
   const prepared = await prepareDeliveryReady();
   const report = join(prepared.repo, ".scratch", "0001-ticket-flow", "reports", "retrospective.md");
   writeFileSync(report, "# Retrospective\n\nCompletion evidence.\n");
-  const pending = await beginDeliveryFinalization(prepared, { report });
+  const command = "fixture final check";
+  const pending = await beginDeliveryFinalization(prepared, {
+    report,
+    finalChecks: [command],
+  });
   const statusPending = await invokeAsync(pending.originalWorkspace, [
     "status",
     "--feature",
@@ -1171,7 +1245,6 @@ test("finalization status and next expose pending checks and completed cleanup",
   });
   expect(cliOutput(nextPending)).toEqual(cliOutput(statusPending));
 
-  const command = "fixture final check";
   await declareFinalDeliveryChecks(pending, [command]);
   const recorded = await recordFinalDeliveryCheck(pending, command);
   expect(recorded.status, recorded.stderr).toBe(0);

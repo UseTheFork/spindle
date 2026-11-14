@@ -1,106 +1,89 @@
 # Feature delivery
 
 Feature delivery is the completion gate for one feature workspace. It begins
-after every ticket is closed; it does not replace ticket-level implementation or
-acceptance criteria. Use `--scope delivery` instead of `--ticket` for feature
-checks, review assignments, findings, and corrections.
+after every ticket is closed. It does not replace ticket-level implementation,
+checks, or review. Follow `sdd next` for the current delivery step and its exact
+command or choices.
 
 ## Checks and review
 
-Inspect `pnpm spindle sdd status --feature <feature-workspace>` and `pnpm spindle sdd next --feature <feature-workspace>`. Establish
-required final checks with `pnpm spindle sdd checks require --scope delivery`, run them, and
-record actual results against the current committed feature inputs. Commit any
-feature spec or ticket requirement updates before checks or review. Then dispatch the
-comprehensive review with
-`pnpm spindle sdd review --scope delivery --inventory <json-array>`. Its inventory must
-cover the feature's current Git-derived changes.
+The controller claims delivery ownership after ticket work is complete. Establish
+current feature-level check evidence before requesting the comprehensive review.
+Commit feature requirements before checks or review, and do not silently
+substitute the current `HEAD` for the recorded baseline.
 
-The `sdd-reviewer` is the default comprehensive reviewer. Before dispatch,
-record any justified specialist with
-`pnpm spindle sdd review require --scope delivery --type <agent-name> --details <objective>`.
-Only catalog agents with `canReview: true` are eligible. Confirm that the
-controller can actually dispatch each selected agent; catalog eligibility does
-not guarantee harness access.
+The default feature reviewer is required. Add a specialist only when its
+objective is justified, the catalog approves the role, and the runtime can
+dispatch it. Every reviewer receives the same committed target and the
+appropriate scope. A missing, pending, failed, unavailable, stale, or mismatched
+review blocks completion.
 
-Preserve each assignment's ID, objective, committed target, inventory, and report
-path. Submit every report against its exact assignment. A missing, pending,
-failed, unavailable, stale, or mismatched review blocks completion.
+Keep each assignment's ID, objective, committed target, and absolute report path
+inside the feature's `reports/` directory. Submit a report against its exact
+assignment. The controller reads the report and supplies the authoritative
+result; the CLI does not infer a verdict from report prose.
 
 ## Findings and correction
 
-Register findings from their assigned reports and commit provenance with
-`pnpm spindle sdd finding create --scope delivery`. Delivery findings have feature-scoped
-IDs, provenance, ruling history, and status. Use `--related-ticket <id>` for a
-finding that should return work to a specific ticket. A blocking linked finding
-reopens its ticket after the complete review batch is submitted; dependent
-tickets remain blocked until that ticket is closed again.
+Reviewers report findings with impact and whether each finding blocks
+acceptance. Do not assign canonical finding IDs or severity. The controller
+explicitly registers each accepted finding against its review assignment before
+submitting the review. Submission links the findings already registered to
+that assignment.
 
-Use `pnpm spindle sdd finding update --scope delivery` for explicit rulings. Deferring a
-blocker requires rationale, a follow-up reference, and an approved delivery
-requirements decision. Record that decision with
-`pnpm spindle sdd requirements decide --scope delivery` only after a requirements change
-and completed prior review. Approval invalidates earlier aggregate assignments.
+A finding is blocking or non-blocking. Use the linked ticket when a finding
+returns work to a specific ticket. A blocking linked finding reopens its ticket
+after the complete review batch is submitted; dependent tickets remain blocked
+until that ticket is complete again.
 
-For actionable feature findings, follow [feature correction](./corrective-rounds.md)
-and use `pnpm spindle sdd correct --scope delivery` to record
-each independent correction attempt. Format changed implementation files with
-the configured formatter before committing. Each new commit requires fresh
-checks and a focused rework review that covers the fix and prior findings.
-Pause unproductive work, recurring failures, or requirements
-disagreement for adjudication. Resume with `pnpm spindle sdd resume --scope delivery`;
-preserve existing assignments, attempts, evidence, and adjudication.
+The controller chooses each correction. `sdd next` lists every eligible
+finding and failed check; do not assume that one candidate is the intended
+choice, and do not combine independent corrections. Pause for adjudication when
+work is unproductive, failures recur, or requirements are disputed. Preserve
+assignments, attempts, evidence, and adjudication.
 
-## Finish
+Each correction requires fresh checks and focused review of the fix and prior
+findings. For a failed post-merge check, keep other merges blocked and follow
+the sync step and exact command returned by `sdd next` from the feature
+worktree before dispatching correction. Sync fast-forwards only a clean,
+non-divergent ticket worktree to the recorded failed merge. Then follow the
+next correction step returned by `sdd next`.
 
-Review each committed ticket before merging that exact approved commit into the
-feature worktree, then record post-merge checks before unblocking dependents.
-Workflow-record-only commits do not invalidate evidence. Code or committed
-requirements changes require fresh checks and review.
+For an integration conflict, resolve and commit the rebase in the ticket
+worktree, then follow the sync step from `sdd next` in the feature worktree to
+adopt the updated comparison baseline. Run fresh checks and obtain focused
+rework review before retrying integration. Preserve work when a Git operation
+cannot proceed.
 
-When requirements change after ticket dispatch, commit the canonical feature
-records and update the ticket worktree from that feature HEAD before review or
-integration. Never approve a ticket branch with stale or uncommitted canonical
-requirements.
+## Finish and final validation
 
-Do not silently substitute the current `HEAD` for the recorded Git baseline;
-that could omit completed feature work from review.
+Integrate a ticket only after its committed implementation and review are
+current and passing. Record post-merge checks before unblocking dependent work.
+Workflow-record-only commits do not invalidate evidence; code or committed
+requirements changes do.
 
-Completion requires at least one ticket, every ticket integrated and validated,
-current passing required feature checks and reviews, and no unresolved delivery
-blockers. The retrospective policy is stored at feature creation: when required,
-attach a Markdown report with `--report`; otherwise it is optional. Any report
-must remain inside that feature's `reports/` directory.
+Declare the complete, non-empty final-check list before finishing. The finish
+step merges the feature into the recorded original branch and returns pending
+final validation. It does not mean the feature is complete. Run each declared
+check in the original checkout against the feature merge, then record its actual
+result. Failed or unavailable checks block cleanup until current passing
+evidence is recorded.
 
-Inspect canonical records for sensitive content, then run
-`pnpm spindle sdd finish --feature <feature-workspace> --actor <acting-agent> --confirm-records`
-from the feature worktree, adding `--report <absolute-report-path>` when needed.
-This merges into the recorded original branch and returns a pending final
-validation, merge commit, and original spec path; it does not yet complete the
-feature.
+After all final checks pass, follow the CLI's cleanup step. The feature merge is
+the checked commit; a later ledger-only relocation commit is reported
+separately. Preserve dirty or unexpected work. Ignored files in worktrees slated
+for removal also block cleanup; do not discard them without authorization.
 
-In the original checkout, declare the entire non-empty final list with
-`pnpm spindle sdd checks require --feature <original-feature> --scope final --command <command> --actor <acting-agent>`,
-repeating `--command` for each check. Run each command there, then record each
-actual result with `pnpm spindle sdd checks record --feature <original-feature> --scope final --command <command> --result <result> --actor <acting-agent>`.
-Failed or unavailable results require `--details` and block cleanup until the
-latest result for each command passes. The list is frozen once declared.
+## Recovery
 
-If a final check fails or is unavailable, fix it on the original branch. Run
-`pnpm spindle sdd checks revalidate --feature <original-feature> --scope final --actor <acting-agent>`,
-rerun the complete declared list, and record fresh results without a merge
-argument. Revalidation requires a clean original checkout and a fix commit
-descended from the feature merge; it invalidates prior results.
+Use the state reported by the CLI to restore interrupted work. For a post-merge
+failure, synchronize the clean ticket worktree to the recorded merge before
+dispatching a correction. For a final-check failure, fix on the original
+branch, follow the final-check revalidation step returned by `sdd next`, rerun
+the complete final-check list, and record fresh results. Revalidation requires
+a clean checkout on the recorded original branch at a commit descended from
+the feature merge; it invalidates prior results.
 
-Run `pnpm spindle sdd finish --feature <original-feature> --actor <acting-agent>`
-again to preflight and clean up the recorded worktrees and branches. The final
-merge is the checked commit; the subsequent ledger-only relocation commit is
-reported separately and is not itself checked. Preserve any dirty or unexpected
-work and follow the reported journal for recovery rather than forcing cleanup.
-Ignored files in worktrees slated for removal also block cleanup; do not discard
-them without authorization. After a crash, remove a reported finalization lock
-only after verifying its recorded owner has stopped.
-
-Use `pnpm spindle sdd status`, `pnpm spindle sdd next`, and
-`pnpm spindle sdd resume --scope delivery` to inspect blockers and
-restore interrupted feature-level work. These commands do not close tickets or
-publish changes.
+Never reset workflow state, force cleanup, or infer that a worker is active
+because an assignment is pending. Preserve reports, findings, commits, and
+check evidence during recovery.

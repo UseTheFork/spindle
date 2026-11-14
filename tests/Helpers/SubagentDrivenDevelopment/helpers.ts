@@ -503,8 +503,21 @@ type PendingFeatureFinalization = {
 
 export async function beginDeliveryFinalization(
   prepared: { repo: string; spec: string },
-  options: { report?: string } = {},
+  options: { report?: string; finalChecks?: string[] } = {},
 ): Promise<PendingFeatureFinalization> {
+  const commands = options.finalChecks ?? ["fixture final delivery validation"];
+  const required = await invokeAsync(prepared.repo, [
+    "checks",
+    "require",
+    "--feature",
+    prepared.spec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    ...commands.flatMap((command) => ["--command", command]),
+    "--actor",
+    "controller",
+  ]);
+  expect(required.status, required.stderr).toBe(0);
   const started = await execute(prepared.repo, (service) =>
     service.deliveryService.finish({
       spec: prepared.spec,
@@ -580,7 +593,6 @@ export async function finalizeDelivery(
 ) {
   const pending = await beginDeliveryFinalization(prepared, options);
   const commands = options.finalChecks ?? ["fixture final delivery validation"];
-  await declareFinalDeliveryChecks(pending, commands);
   for (const command of commands) {
     const recorded = await recordFinalDeliveryCheck(pending, command);
     expect(recorded.status, recorded.stderr).toBe(0);

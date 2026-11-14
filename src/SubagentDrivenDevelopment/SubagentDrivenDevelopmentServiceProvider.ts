@@ -99,6 +99,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitService),
           await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
         ),
     );
     this.app.singleton(

@@ -4,7 +4,7 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.8.0
+    version: 1.9.0
 ---
 
 # Subagent-Driven Development
@@ -14,9 +14,10 @@ completion. The feature workspace and `sdd.json` are the source of truth for
 structured ticket and delivery state. Each ticket Markdown file holds its
 requirements, acceptance criteria, and discussion.
 
-The SDD CLI owns workflow procedure and deterministic state. Blueprints define
-roles and judgment; do not copy CLI command sequences into workflow guidance.
-Use the commands and choices printed by `sdd next`.
+The SDD CLI owns workflow sequencing and exact transition commands. Blueprints
+define roles, judgment, and safety invariants; do not copy action command
+sequences into workflow guidance. Use the commands and choices printed by
+`sdd next`.
 
 Add JSON output when consuming structured results. Read the success envelope's
 `data` field; stdout contains one result, while stderr contains JSON notices or
@@ -55,18 +56,15 @@ mode never prompts.
    treating them as complete or unblocking dependents. Do not merge around a
    failed check.
 
-   If a post-merge check fails, keep other merges blocked. From the feature
-   worktree, run `pnpm spindle sdd sync --feature <feature-workspace> --ticket
-   <ticket-id> --actor <acting-agent>` before dispatching correction. Sync
+   If a post-merge check fails, keep other merges blocked. Use the sync step
+   and exact command printed by `sdd next` before dispatching correction. Sync
    fast-forwards only a clean, non-divergent ticket worktree to the recorded
-   failed merge. Then run `pnpm spindle sdd next --feature
-   <feature-workspace>` and follow its exact correction command.
+   failed merge. Then follow `sdd next` for the exact correction command.
 
    If integration reports a conflict, rebase the ticket worktree onto the
-   current feature branch, resolve and commit the conflict, then run the same
-   `sdd sync` command to adopt the updated comparison baseline. Run fresh
-   checks and obtain focused rework review before retrying integration. Follow
-   `sdd next` for the exact commands.
+   current feature branch, resolve and commit the conflict, then use the sync
+   step printed by `sdd next` to adopt the updated comparison baseline. Run
+   fresh checks and obtain focused rework review before retrying integration.
 
 6. Preserve work when a command, handoff, or Git operation is interrupted. Use
    the recovery steps printed by the CLI. Never reset state, delete a worktree,

@@ -15,8 +15,8 @@ import { expect, test, vi } from "vitest";
 
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -94,7 +94,7 @@ test("empty feature and premature final declarations cannot commit records or re
     "controller",
   ]);
   expect(required.status).not.toBe(0);
-  expect(required.stderr).toContain("recorded feature merge");
+  expect(required.stderr).toMatch(/delivery.*owner/i);
   expect(git(started.featureWorkspace, "rev-parse", "HEAD")).toBe(before);
   expect(existsSync(started.featureWorkspace)).toBe(true);
 });
@@ -138,9 +138,11 @@ test("finalization refuses active hooks without executing or disabling them", as
   expect(readFileSync(hook, "utf8")).toBe("#!/bin/sh\nexit 1\n");
 });
 
-/** Real CLI/service flow: creation, start, isolated dispatch, implementation,
- * checks, ticket review, merge, declared post-merge checks, aggregate review. */
-async function readyFeature(codeFile = "feature.ts") {
+/** Real CLI/service flow through committed feature-review and final-check state. */
+async function readyFeature(
+  codeFile = "feature.ts",
+  options: { declareFinalChecks?: boolean } = {},
+) {
   const { repo: original } = fixture();
   const originalRevision = git(original, "rev-parse", "HEAD");
   const created = output(
@@ -345,6 +347,24 @@ async function readyFeature(codeFile = "feature.ts") {
       ),
     );
   }
+  if (options.declareFinalChecks !== false) {
+    cliOutput(
+      await invokeAsync(root, [
+        "checks",
+        "require",
+        "--feature",
+        spec.replace(/\/spec\.md$/, ""),
+        "--scope",
+        "final",
+        "--command",
+        "test final",
+        "--command",
+        "lint final",
+        "--actor",
+        "controller",
+      ]),
+    );
+  }
   const report = join(dirname(spec), "reports", "retrospective.md");
   writeFileSync(report, "# Retrospective\nReviewed implementation and tests.\n");
   const originalSpec = join(original, ".scratch", feature, "spec.md");
@@ -374,10 +394,79 @@ async function readyFeature(codeFile = "feature.ts") {
   };
 }
 
-async function recordFinal(
-  f: Awaited<ReturnType<typeof readyFeature>>,
-  result = "passed",
-) {
+test("final checks are declared before finish and frozen when finalization begins", async () => {
+  const f = await readyFeature("feature.ts", { declareFinalChecks: false });
+  const featureDirectory = f.spec.replace(/\/spec\.md$/, "");
+  const missing = await f.finish();
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toMatch(/declare the complete final-check list/i);
+
+  const before = git(f.root, "rev-parse", "HEAD");
+  const firstDeclaration = await invokeAsync(f.root, [
+    "checks",
+    "require",
+    "--feature",
+    featureDirectory,
+    "--scope",
+    "final",
+    "--command",
+    "test final",
+    "--actor",
+    "controller",
+  ]);
+  cliOutput(firstDeclaration);
+  const firstDeclarationHead = git(f.root, "rev-parse", "HEAD");
+  expect(firstDeclarationHead).not.toBe(before);
+
+  const declared = await invokeAsync(f.root, [
+    "checks",
+    "require",
+    "--feature",
+    featureDirectory,
+    "--scope",
+    "final",
+    "--command",
+    "test final",
+    "--command",
+    "lint final",
+    "--actor",
+    "controller",
+  ]);
+  cliOutput(declared);
+  expect(git(f.root, "rev-parse", "HEAD")).not.toBe(firstDeclarationHead);
+  const ledger = JSON.parse(readFileSync(join(dirname(f.spec), "sdd.json"), "utf8"));
+  expect(ledger.delivery.finalChecks.map((item: { command: string }) => item.command)).toEqual([
+    "test final",
+    "lint final",
+  ]);
+
+  cliOutput(await f.finish());
+  const journal = JSON.parse(readFileSync(f.journal, "utf8"));
+  expect(journal.finalDeclared).toBe(true);
+  expect(journal.required.map((item: { command: string }) => item.command)).toEqual([
+    "test final",
+    "lint final",
+  ]);
+
+  const changedList = await invokeAsync(f.original, [
+    "checks",
+    "require",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    "--command",
+    "test final",
+    "--command",
+    "late check",
+    "--actor",
+    "controller",
+  ]);
+  expect(changedList.status).not.toBe(0);
+  expect(changedList.stderr).toMatch(/final declared check list is frozen/i);
+});
+
+async function recordFinal(f: Awaited<ReturnType<typeof readyFeature>>, result = "passed") {
   cliOutput(
     await invokeAsync(f.original, [
       "checks",
@@ -889,7 +978,11 @@ test("obsolete merge selectors, undeclared commands and unavailable results cann
   cliOutput(await f.finish());
   const app = await appAt(f.original);
   const finalization = await app.make(FeatureFinalizationService);
-  finalization.declare({ spec: f.originalSpec, command: ["test final"], author: "controller" });
+  finalization.declare({
+    spec: f.originalSpec,
+    command: ["test final", "lint final"],
+    author: "controller",
+  });
   const valid = {
     feature: f.feature,
     command: "test final",

@@ -7,6 +7,7 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   AcceptedEvidence,
+  CheckRequirement,
   IntegrationRecord,
   TicketChecks,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
@@ -106,6 +107,7 @@ export interface DeliveryProgress {
   assignment?: ImplementationAssignment;
   requirementsDecisions?: RequirementsDecision[];
   checks?: TicketChecks;
+  finalChecks?: CheckRequirement[];
   findings?: ReviewFinding[];
   correctionAttempts?: CorrectionAttempt[];
   adjudication?: CorrectionAdjudication;

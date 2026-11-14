@@ -26,7 +26,9 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 interface Startup {
   version: 1;
@@ -93,6 +95,7 @@ export class FeatureFinalizationService extends Service {
     app: Application,
     private readonly git: GitService,
     private readonly ledgers: LedgerRepository,
+    private readonly workspaceTransaction: WorkspaceTransaction,
   ) {
     super(app);
   }
@@ -138,13 +141,12 @@ export class FeatureFinalizationService extends Service {
         this.noHooks(startup.featureWorkspace);
         this.recordsOnly(startup.featureWorkspace, feature.feature);
         const approval = assertReady();
-        const required =
-          approval.ledger.delivery.checks?.required.filter((item) => !item.removedAt) ?? [];
+        const required = approval.ledger.delivery.finalChecks ?? [];
         if (
           !required.length ||
           new Set(required.map((item) => item.command)).size !== required.length
         ) {
-          throw new Error("Declare a nonempty unique final delivery check list before finishing.");
+          throw new Error("Declare the complete final-check list before finishing.");
         }
         const head = this.head(startup.featureWorkspace);
         this.ancestor(startup.originalWorkspace, startup.featureRevision, head);
@@ -277,9 +279,9 @@ export class FeatureFinalizationService extends Service {
           author: options.author.trim(),
           approved: approval.identity,
           approvedLedger: approval.ledger,
-          required: [],
+          required,
           records: [],
-          finalDeclared: false,
+          finalDeclared: true,
           ledgerBefore,
           ledgerAfter: `${JSON.stringify(relocated.ledger, null, 2)}\n`,
           mappings: relocated.mappings,
@@ -500,7 +502,7 @@ export class FeatureFinalizationService extends Service {
       "--git-common-dir",
     ]);
     this.real(common, "directory");
-    const path = join(common, "spindle-feature-finalization", `${feature}.json`);
+    const path = join(common, "spindle-feature-start", `${feature}.json`);
     if (!this.exists(path)) return false;
     this.real(path, "file");
     return true;
@@ -508,14 +510,40 @@ export class FeatureFinalizationService extends Service {
 
   // The merged ledger may still contain feature-worktree paths during recovery.
   public recordedFeature(spec: string): FeaturePaths | undefined {
+    return this.featurePaths(spec, (feature) => this.hasFinalizationJournal(feature));
+  }
+
+  public startedFeature(spec: string): FeaturePaths | undefined {
+    return this.featurePaths(spec, (feature) => this.hasStarted(feature));
+  }
+
+  private featurePaths(
+    spec: string,
+    isAvailable: (feature: string) => boolean,
+  ): FeaturePaths | undefined {
     const absolute = isAbsolute(spec) ? resolve(spec) : resolve(this.app.workspaceRoot, spec);
     const path = relative(this.app.workspaceRoot, absolute);
     const match = /^\.scratch\/(\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md$/.exec(path);
-    if (!match || !this.hasStarted(match[1]!)) return undefined;
+    if (!match || !isAvailable(match[1]!)) return undefined;
     this.real(absolute, "file");
     const workspace = dirname(absolute);
     this.real(join(workspace, "sdd.json"), "file");
     return { feature: match[1]!, workspace, spec: absolute, ledger: join(workspace, "sdd.json") };
+  }
+
+  private hasFinalizationJournal(feature: string): boolean {
+    if (!/^\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(feature))
+      throw new Error("Invalid feature identifier.");
+    const common = this.run(this.app.workspaceRoot, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-common-dir",
+    ]);
+    this.real(common, "directory");
+    const path = join(common, "spindle-feature-finalization", `${feature}.json`);
+    if (!this.exists(path)) return false;
+    this.real(path, "file");
+    return true;
   }
 
   public record(options: {
@@ -541,9 +569,7 @@ export class FeatureFinalizationService extends Service {
         options.author.trim() !== journal.author ||
         !journal.required.some((item) => item.command === options.command)
       ) {
-        throw new Error(
-          "Final check controller or declared command does not match.",
-        );
+        throw new Error("Final check controller or declared command does not match.");
       }
 
       if (
@@ -587,42 +613,79 @@ export class FeatureFinalizationService extends Service {
 
   public declare(options: { spec: string; command: string[]; author: string }): unknown {
     validateAuthor(options.author);
-    const feature = this.recordedFeature(options.spec);
-    if (!feature) throw new Error("Final checks require a recorded feature merge.");
+    const feature = this.startedFeature(options.spec);
+    if (!feature) throw new Error("Final checks require a started feature.");
+    const commands = options.command.map((command) => command.trim());
+    if (
+      !commands.length ||
+      commands.some((command) => !command) ||
+      new Set(commands).size !== commands.length
+    ) {
+      throw new Error("A nonempty unique complete final-check command list is required.");
+    }
     return this.locked(feature.feature, (common, path) => {
       const journal = this.read<Journal>(path);
-      if (!journal) throw new Error("No finalization journal.");
-      this.verifyJournal(journal, common, feature.feature);
-      if (journal.phase !== "validation")
-        throw new Error("Final checks may only be declared after the feature merge.");
-      this.finalCheckout(journal);
-      const commands = options.command.map((command) => command.trim());
-      if (
-        options.author.trim() !== journal.author ||
-        !commands.length ||
-        commands.some((command) => !command) ||
-        new Set(commands).size !== commands.length
-      )
-        throw new Error(
-          "A nonempty unique complete command list from the recorded controller is required.",
-        );
-      if (journal.finalDeclared) {
-        if (
-          JSON.stringify(commands) !==
-          JSON.stringify(journal.required.map((requirement) => requirement.command))
-        ) {
-          throw new Error("The final declared check list is frozen.");
+      if (journal) {
+        this.verifyJournal(journal, common, feature.feature);
+        if (journal.phase !== "validation")
+          throw new Error("Final checks may only be declared during final validation.");
+        this.finalCheckout(journal);
+        if (options.author.trim() !== journal.author)
+          throw new Error("Only the recorded controller may declare final checks.");
+        if (journal.finalDeclared) {
+          if (
+            JSON.stringify(commands) !==
+            JSON.stringify(journal.required.map((requirement) => requirement.command))
+          ) {
+            throw new Error("The final declared check list is frozen.");
+          }
+        } else {
+          journal.required = commands.map((command) => ({
+            command,
+            addedAt: new Date().toISOString(),
+            addedBy: journal.author,
+          }));
+          journal.finalDeclared = true;
+          this.persist(path, journal);
         }
-      } else {
-        journal.required = commands.map((command) => ({
+        return this.pending(journal, path);
+      }
+
+      const startupPath = join(common, "spindle-feature-start", `${feature.feature}.json`);
+      this.real(startupPath, "file");
+      const startup = JSON.parse(readFileSync(startupPath, "utf8")) as Startup;
+      this.validateStartup(startup, feature.feature);
+      if (
+        this.app.workspaceRoot !== startup.featureWorkspace ||
+        feature.workspace !== join(startup.featureWorkspace, `.scratch/${feature.feature}`)
+      ) {
+        throw new Error(
+          "Declare final checks from the recorded feature worktree before finishing.",
+        );
+      }
+      return this.workspaceTransaction.run(feature.workspace, () => {
+        const ledger = this.ledgers.readLedger(feature);
+        assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
+        if (ledger.delivery.finished)
+          throw new Error("Final checks must be declared before feature delivery is finished.");
+        const existing = ledger.delivery.finalChecks ?? [];
+        if (JSON.stringify(commands) === JSON.stringify(existing.map((item) => item.command))) {
+          return { feature: feature.feature, required: existing, finalDeclared: true };
+        }
+        const required = commands.map((command) => ({
           command,
           addedAt: new Date().toISOString(),
-          addedBy: journal.author,
+          addedBy: options.author.trim(),
         }));
-        journal.finalDeclared = true;
-        this.persist(path, journal);
-      }
-      return this.pending(journal, path);
+        ledger.delivery.finalChecks = required;
+        ledger.delivery.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: existing.length > 0 ? "final-checks-updated" : "final-checks-declared",
+        });
+        this.workspaceTransaction.writeLedger(feature, ledger);
+        return { feature: feature.feature, required, finalDeclared: true };
+      });
     });
   }
 
@@ -752,9 +815,7 @@ export class FeatureFinalizationService extends Service {
     if (
       !journal.required.some((requirement) => {
         const record = journal.records
-          .filter(
-            (item) => item.command === requirement.command && item.headSha === previousHead,
-          )
+          .filter((item) => item.command === requirement.command && item.headSha === previousHead)
           .at(-1);
         return record?.result === "failed";
       })

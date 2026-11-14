@@ -139,6 +139,9 @@ export function nextSummary(data: unknown): string[] {
     const reportState = assignment.reportPresent === true ? "present, not submitted" : "missing";
     lines.push(`${ticket} ${role} ${id}  dispatched ${age}  report: ${reportState}`);
     if (assignment.reportPresent === true) {
+      if (role === "review") {
+        addPendingReviewGuidance(lines, status, assignment, featureDirectory);
+      }
       lines.push(`  Next: ${assignmentSubmitCommand(assignment, featureDirectory)}`);
     }
   }
@@ -178,7 +181,13 @@ export function nextSummary(data: unknown): string[] {
       `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
     );
   }
-  if (step === "delivery:checks") addDeliveryCheckCommands(lines, delivery, featureDirectory);
+  if (step === "delivery:checks") {
+    if (delivery?.action === "require-final-checks") {
+      addFinalCheckDeclarationCommand(lines, featureDirectory);
+    } else {
+      addDeliveryCheckCommands(lines, delivery, featureDirectory);
+    }
+  }
   if (
     step === "delivery:adjudicate" &&
     ["correct", "adjudicate", "adjudicate-findings", "controller-correction-decision"].includes(
@@ -203,6 +212,7 @@ function deliveryStep(
     case "claim":
       return "delivery:claim";
     case "record-final-checks":
+    case "require-final-checks":
       return "delivery:checks";
     case "review":
       return "delivery:review";
@@ -383,13 +393,15 @@ function addTicketCorrectionGuidance(
       if (!id || !report) continue;
       lines.push(`  ${id}: ${report}`);
       if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
-        addFindingCreateCommands(lines, feature, `--ticket ${ticket}`, id);
+        lines.push(
+          "No findings were registered before submission; this submitted assignment cannot accept findings.",
+        );
       }
     }
   }
   if (!hasCandidates && unresolved.length === 0 && uniqueFailedReviews.length === 0) {
     lines.push(
-      `Judgment required for ${ticket}: inspect the failed review evidence and register actionable findings before dispatching corrective work.`,
+      `Judgment required for ${ticket}: inspect the failed review evidence and choose an available correction or adjudication action.`,
     );
   }
 }
@@ -443,6 +455,56 @@ function addDeliveryCheckCommands(
       `Next: pnpm spindle sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
     );
   }
+}
+
+function addFinalCheckDeclarationCommand(lines: string[], feature: string): void {
+  lines.push(
+    "Declare the complete final-check list before finishing; repeat --command for each check.",
+  );
+  lines.push(
+    `Next: pnpm spindle sdd checks require --feature ${feature} --scope final --command <check> [--command <check> ...] --actor <acting-agent>`,
+  );
+}
+
+function addPendingReviewGuidance(
+  lines: string[],
+  status: SummaryRecord,
+  assignment: SummaryRecord,
+  feature: string,
+): void {
+  const id = asText(assignment.id);
+  const report = asText(assignment.report);
+  if (!id || !report) return;
+
+  lines.push(
+    "Inspect the report and register each accepted finding against this assignment before submission. If none are accepted, submit the authoritative result without creating a finding.",
+  );
+  const registered = registeredFindingsForAssignment(status, assignment);
+  lines.push(
+    registered.length > 0
+      ? `Findings already registered from this report: ${registered
+          .map((finding) => asText(finding.id))
+          .filter((value): value is string => value !== undefined)
+          .join(", ")}.`
+      : "Findings already registered from this report: none.",
+  );
+  addFindingCreateCommands(lines, feature, assignmentSelection(assignment), id);
+}
+
+function registeredFindingsForAssignment(
+  status: SummaryRecord,
+  assignment: SummaryRecord,
+): SummaryRecord[] {
+  const report = asText(assignment.report);
+  if (!report) return [];
+  const delivery = asRecord(status.delivery);
+  const findings = [
+    ...records(status.findings).map((entry) => asRecord(entry.finding)),
+    ...records(delivery?.findings),
+  ].filter((finding): finding is SummaryRecord => finding !== undefined);
+  return findings.filter((finding) =>
+    records(finding.provenance).some((source) => source.report === report),
+  );
 }
 
 function addDeliveryCorrectionGuidance(
@@ -508,13 +570,15 @@ function addDeliveryCorrectionGuidance(
       if (!id || !report) continue;
       lines.push(`  ${id}: ${report}`);
       if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
-        addFindingCreateCommands(lines, feature, "--scope delivery", id);
+        lines.push(
+          "No findings were registered before submission; this submitted assignment cannot accept findings.",
+        );
       }
     }
   }
   if (!hasCandidates && unresolved.length === 0 && failedReviews.length === 0)
     lines.push(
-      "Judgment required: inspect failed feature-review reports and register actionable findings before dispatching corrective work.",
+      "Judgment required: inspect failed feature-review reports and choose an available correction or adjudication action.",
     );
 }
 
@@ -544,21 +608,22 @@ function quoteShellArgument(value: string): string {
 }
 
 function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): string {
-  const ticket = asText(assignment.ticket);
   const id = asText(assignment.id);
   const role = asText(assignment.role);
-  const scope = asText(assignment.scope);
   if (!id || !role) throw new Error("Pending assignment is missing its identity or role.");
-  const selection =
-    scope === "delivery" || ticket === "delivery"
-      ? "--scope delivery"
-      : ticket
-        ? `--ticket ${ticket}`
-        : "";
+  const selection = assignmentSelection(assignment);
   const result = role === "review" ? " --result <passed|failed|unavailable>" : "";
   return `pnpm spindle sdd submit --feature ${feature} ${selection} --assignment ${id}${result} --actor <acting-agent>`
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function assignmentSelection(assignment: SummaryRecord): string {
+  const ticket = asText(assignment.ticket);
+  const scope = asText(assignment.scope);
+  if (scope === "delivery" || ticket === "delivery") return "--scope delivery";
+  if (ticket) return `--ticket ${ticket}`;
+  throw new Error("Pending assignment is missing its ticket or delivery scope.");
 }
 
 function addFinalValidationCommands(lines: string[], status: SummaryRecord, feature: string): void {

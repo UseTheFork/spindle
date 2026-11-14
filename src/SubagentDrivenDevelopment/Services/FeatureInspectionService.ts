@@ -105,6 +105,7 @@ export class FeatureInspectionService extends Service {
       assignment?: ImplementationAssignment;
       adjudication?: CorrectionAdjudication;
       requiredChecks: CheckRequirement[];
+      finalChecks: CheckRequirement[];
       checkRecords: CheckRecord[];
       blockers: string[];
     };
@@ -650,6 +651,7 @@ export class FeatureInspectionService extends Service {
     assignment?: ImplementationAssignment;
     adjudication?: CorrectionAdjudication;
     requiredChecks: CheckRequirement[];
+    finalChecks: CheckRequirement[];
     checkRecords: CheckRecord[];
     blockers: string[];
   } {
@@ -764,14 +766,14 @@ export class FeatureInspectionService extends Service {
     ) {
       action = "record-final-checks";
     } else if (
+      (delivery.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
+    ) {
+      action = "await-review-report";
+    } else if (
       !(delivery.reviewAssignments ?? []).length ||
       blockers.some((reason) => /aggregate review|reviewer|Review assignment/i.test(reason))
     ) {
       action = "review";
-    } else if (
-      (delivery.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
-    ) {
-      action = "await-review-report";
     } else if (
       this.findingPolicy.deliveryFindingBlockers(
         feature,
@@ -782,6 +784,7 @@ export class FeatureInspectionService extends Service {
     ) {
       action = "correct";
     } else if (blockers.length > 0) action = "review";
+    else if (!(delivery.finalChecks ?? []).length) action = "require-final-checks";
     else action = "finish";
     return {
       scope: "delivery",
@@ -799,6 +802,7 @@ export class FeatureInspectionService extends Service {
       ...(delivery.assignment ? { assignment: delivery.assignment } : {}),
       ...(delivery.adjudication ? { adjudication: delivery.adjudication } : {}),
       requiredChecks: (delivery.checks?.required ?? []).filter((check) => !check.removedAt),
+      finalChecks: delivery.finalChecks ?? [],
       checkRecords: delivery.checks?.records ?? [],
       blockers,
     };

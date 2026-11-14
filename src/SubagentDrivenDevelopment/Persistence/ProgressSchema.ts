@@ -2,6 +2,7 @@ import { isAbsolute } from "node:path";
 
 import type {
   AcceptedEvidence,
+  CheckRequirement,
   IntegrationRecord,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import { EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -68,6 +69,7 @@ export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
         Array.isArray(value.checks.records) &&
         value.checks.records.every(isCheckRecord) &&
         !Object.hasOwn(value.checks, "invalidations"))) &&
+    (!Object.hasOwn(value, "finalChecks") || isFinalCheckRequirements(value.finalChecks)) &&
     (!Object.hasOwn(value, "findings") ||
       (Array.isArray(value.findings) && value.findings.every(isReviewFinding))) &&
     (!Object.hasOwn(value, "correctionAttempts") ||
@@ -86,6 +88,24 @@ export function isDeliveryProgress(value: unknown): value is DeliveryProgress {
         (!Object.hasOwn(value.finished, "reportSha256") ||
           (typeof value.finished.reportSha256 === "string" &&
             /^[0-9a-f]{64}$/i.test(value.finished.reportSha256)))))
+  );
+}
+
+function isFinalCheckRequirements(value: unknown): value is CheckRequirement[] {
+  if (!Array.isArray(value) || value.length === 0 || !value.every(isFinalCheckRequirement)) {
+    return false;
+  }
+  return new Set(value.map((item) => item.command)).size === value.length;
+}
+
+function isFinalCheckRequirement(value: unknown): value is CheckRequirement {
+  return (
+    isCheckRequirement(value) &&
+    value.command === value.command.trim() &&
+    value.removedAt === undefined &&
+    value.removedBy === undefined &&
+    value.removalDetails === undefined &&
+    Object.keys(value).every((key) => ["command", "addedAt", "addedBy"].includes(key))
   );
 }
 
