@@ -13,9 +13,13 @@ export class ImplementCommand extends Command {
     group(root)
       .command("implement")
       .description("Persist and return an implementation assignment.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .requiredOption(
         "--workspace <directory>",
         "Existing absolute external directory for the ticket worktree",

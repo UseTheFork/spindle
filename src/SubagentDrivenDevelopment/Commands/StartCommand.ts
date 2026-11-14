@@ -13,7 +13,11 @@ export class StartCommand extends Command {
     group(root)
       .command("start")
       .description("Commit feature records and create a feature branch and worktree.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption(
         "--workspace <directory>",
         "Existing absolute external directory for the new worktree",

@@ -4,72 +4,91 @@ description: "This is an internal skill do not load it unless explicitly require
 user-invocable: false
 metadata:
   spindle:
-    version: 1.7.0
+    version: 1.8.0
 ---
 
 # Subagent-Driven Development
 
-The controller coordinates a feature's tickets, workers, checks, reviews, and completion. The feature workspace and `sdd.json` are the source of truth for structured ticket and delivery state; each ticket Markdown file holds its requirements, acceptance criteria, and discussion.
+The controller coordinates a feature's tickets, workers, checks, reviews, and
+completion. The feature workspace and `sdd.json` are the source of truth for
+structured ticket and delivery state. Each ticket Markdown file holds its
+requirements, acceptance criteria, and discussion.
 
-Once the first subagents are running, load [active subagent monitoring](./references/active-subagent-monitoring.md) once and follow it while any active subagents remain. This controller-wide policy applies to all roles and both ticket and aggregate work.
+The SDD CLI owns workflow procedure and deterministic state. Blueprints define
+roles and judgment; do not copy CLI command sequences into workflow guidance.
+Use the commands and choices printed by `sdd next`.
 
-Add `--json` to Spindle commands when consuming structured results. Read the
-success envelope's `data` field; stdout contains one result, while stderr
-contains JSON notices or errors. A nonzero exit indicates failure. Human output
-is the default, and JSON mode never prompts.
+Add JSON output when consuming structured results. Read the success envelope's
+`data` field; stdout contains one result, while stderr contains JSON notices or
+errors. A nonzero exit indicates failure. Human output is the default, and JSON
+mode never prompts.
 
-## Workflow map
+## Workflow
 
-Before acting on each chart node, announce `Step <node ID> - <node label>`, including initial entries, resumed steps, and loop re-entries. After each decision, state its result and selected branch before entering the target node.
-
-```mermaid
-flowchart TD
-    A[Restore feature state and readiness] --> B{Ready ticket available?}
-    B -- Yes --> C[Implement, review, integrate, and validate tickets]
-    C --> A
-    B -- No --> D{All tickets closed?}
-    D -- No --> E[Resolve prerequisites or record blocker]
-    E --> A
-    D -- Yes --> F[Run feature checks]
-    F --> G{Checks current and passing?}
-    G -- No --> K[Correct feature-level work]
-    G -- Yes --> H[Request comprehensive feature review]
-    H --> I{Blocking finding?}
-    I -- Linked ticket --> J[Resume ticket work after review batch]
-    J --> A
-    I -- Feature-level --> K
-    K --> L
-    I -- No --> L{Finish gates pass?}
-    L -- No --> A
-    L -- Yes --> M[Finish feature]
-```
+1. Run `sdd next` at the start, after a handoff, and after each completed
+   command or decision.
+2. Announce the named step that `next` reports. Follow its exact command or
+   choices. Do not infer the next step from this skill or from status labels.
+3. If `next` lists choices, make the judgment and report the decision. The CLI
+   does not choose a branch.
+4. If `next` reports open assignments, follow [active subagent
+   monitoring](./references/active-subagent-monitoring.md).
 
 ## Ticket workflow
 
-1. Read the feature spec, tickets, applicable instructions, glossary, and ADRs. Inspect `{{ computed.spindle_package_manager }} spindle sdd status --spec <path>` and `{{ computed.spindle_package_manager }} spindle sdd ready --spec <path>` to understand blockers, dependencies, and available work. Inspect feature records for secrets and start the feature worktree with `{{ computed.spindle_package_manager }} spindle sdd start --spec <path> --workspace <external-directory> --confirm-records`. Handle unrelated changes before starting. Run subsequent controller commands in the feature worktree using its returned spec path.
-2. Create a ticket for independently actionable work with `{{ computed.spindle_package_manager }} spindle sdd ticket create`. Fill its `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Use `{{ computed.spindle_package_manager }} spindle sdd ticket update` for tracker status, explicit blockers, and dependencies; the supported lifecycle is `open`, `in-progress`, and `closed`. Readiness is derived from status, blockers, and dependencies rather than stored as a separate triage state.
-3. Choose a safe concurrency limit. Use `{{ computed.spindle_package_manager }} spindle sdd implement --workspace <external-directory>` for each ready ticket and dispatch the returned assignment until capacity is full. As workers finish, dispatch other ready independent tickets without waiting for unrelated work. Inspect changed canonical records for secrets and pass `--confirm-records` before any automatic record commit. Each worker uses its own worktree. Give workers the canonical source and report paths; submit each implementation report with `{{ computed.spindle_package_manager }} spindle sdd submit --role implementation`.
-4. Have each implementer format changed implementation files with the target project's configured formatter, then commit the completed changes. Formatting is a preparation step, not a separate check gate. Checks and reviews apply to the exact committed ticket code and the committed feature spec and ticket requirements. If canonical requirements change after dispatch, commit them in the feature worktree and rebase the ticket worktree onto the updated feature HEAD before checks, review, or integration. Reject uncommitted or stale requirements. Keep the ticket worktree frozen during review; every rework commit needs fresh checks and focused rework review.
-5. Use `{{ computed.spindle_package_manager }} spindle sdd integrate` to merge reviewed work, inspecting changed canonical records and passing `--confirm-records` before any automatic record commit. Serialize merges and their post-merge checks. Declare the full non-empty check list with `checks require --scope post-merge`, run it in the feature worktree, and record results with `checks record --scope post-merge`. Passing checks close the ticket automatically and unblock eligible dependents.
-
-   If closure is blocked by a ticket blocker or unmet dependency, resolve it and repeat `checks require --scope post-merge` with the same complete list. Workflow-record-only changes do not invalidate evidence; code or committed requirement changes require fresh checks.
-
-   If a post-merge check fails, keep other merges blocked. Fast-forward the clean ticket worktree to the recorded failed merge commit, then use `sdd correct --check-failure <command>` to dispatch a fix. Commit, check, and review the fix before merging it and rerunning the frozen post-merge check list.
-
-   If integration reports a conflict, rebase the ticket worktree onto the current feature branch, resolve the conflict, format changed implementation files, and commit the rework there. Adopt the updated comparison base with `sdd checks require --rebase-baseline` and an existing required command. Run fresh checks and obtain focused rework review before retrying integration. Preserve all uncommitted changes and stop if recovery is unsafe.
-
-If work is interrupted, inspect `{{ computed.spindle_package_manager }} spindle sdd status` and use `{{ computed.spindle_package_manager }} spindle sdd resume` to restore the recorded assignment. Preserve existing reports, findings, and evidence. Do not invent missing results or reset progress.
+1. Read the feature spec, tickets, applicable instructions, glossary, and ADRs.
+   Inspect canonical records for sensitive content before starting the feature
+   worktree. Handle unrelated changes before the start.
+2. Create tickets for independently actionable work. Fill each ticket's
+   requirements and acceptance criteria before implementation. Use the CLI to
+   change canonical workflow state; do not edit the ledger or set ticket status
+   by hand.
+3. Choose a safe concurrency limit. Dispatch ready tickets to separate
+   worktrees, up to that limit. Give each worker its assignment, canonical
+   sources, and assigned absolute report path. The controller alone changes
+   workflow state; workers commit code and return reports.
+4. Keep requirements committed and current. If canonical requirements change
+   after dispatch, update the ticket worktree from the feature baseline before
+   checks, review, or integration. Keep a ticket worktree frozen during review.
+   Rework needs fresh checks and focused review.
+5. Integrate tickets serially. Run and record their post-merge checks before
+   treating them as complete or unblocking dependents. Do not merge around a
+   failed check.
+6. Preserve work when a command, handoff, or Git operation is interrupted. Use
+   the recovery steps printed by the CLI. Never reset state, delete a worktree,
+   or reassign a worker automatically.
 
 ## Feature review and completion
 
-After every ticket is closed, establish current feature-level checks and request the comprehensive review with `{{ computed.spindle_package_manager }} spindle sdd review --scope delivery --inventory <json-array>`. The `sdd-reviewer` is the default reviewer. Add specialists only for justified objectives with `{{ computed.spindle_package_manager }} spindle sdd review require --scope delivery --type <agent-name>`; eligible names must be marked `canReview: true` in the Blueprint Catalog, and actual agent access must be confirmed before dispatch.
+After all tickets are complete, follow the feature-level steps from `sdd next`.
+Delivery ownership is explicit. The required ticket and feature reviewers are
+independent roles; optional specialists must be catalog-approved and available
+in the runtime.
 
-Submit every assigned review report against its exact assignment and committed target. Register findings from their reports and commit provenance. A blocking finding can name `--related-ticket`; once the complete review batch is submitted, that ticket is reopened so work can resume. Resolve blocking findings through ticket work and repeat any invalidated checks and reviews.
+Reviewers assess the assigned committed target and write only to their assigned
+report. The controller reads the report, supplies the authoritative review
+result, and explicitly registers accepted findings before submission. A report
+may be malformed, so do not rely on the CLI to infer a verdict or findings from
+report text.
 
-For detailed review, findings, correction, final merge, checks, and cleanup, read [feature delivery](./references/full-spec.md). For feature-level corrective work, follow [corrective rounds](./references/corrective-rounds.md). Feature completion requires all tickets integrated, current passing required checks and reviews, no unresolved delivery blockers, and passing checks on the final merge. Do not modify the affected checkout concurrently with a Git transition. Never stash, discard, force-delete, push, or publish without authorization.
+Findings are blocking or non-blocking. The controller chooses corrections and
+adjudication outcomes; the CLI lists eligible choices but never selects or
+combines them. For post-merge recovery, synchronize the ticket worktree to the
+recorded merge before correction. For final-check recovery, revalidate the
+target, rerun checks, and record fresh results.
+
+Declare the complete final-check list before finishing. Run and record those
+checks after the feature merge in the original checkout. Completion and cleanup
+must preserve the merge and all evidence. Never stash, discard, force-delete,
+push, or publish without authorization.
 
 ## Reports and verification
 
-Keep worker reports at their assigned absolute paths inside the feature's `reports/` directory. Preserve earlier reports as history and distinguish inspected evidence from checks actually run. Record failures, unavailable checks, and limitations explicitly. A passing test run is not a substitute for review or for the acceptance criteria.
+Keep worker reports at their assigned absolute paths inside the feature's
+`reports/` directory. Preserve earlier reports as history. Distinguish inspected
+evidence from checks actually run. Record failures, unavailable checks, and
+limitations explicitly. A passing test run is not a substitute for review or
+for the acceptance criteria.
 
-See [verification evidence](./references/verification-evidence.md) for the worker handoff contract.
+See [verification evidence](./references/verification-evidence.md) for the
+worker handoff contract.

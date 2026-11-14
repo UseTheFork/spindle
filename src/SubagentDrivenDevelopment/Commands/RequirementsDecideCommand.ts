@@ -13,7 +13,11 @@ export class RequirementsDecideCommand extends Command {
     group(root, "requirements")
       .command("decide")
       .description("Approve or reject a requirements change and invalidate prior review.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
@@ -23,7 +27,7 @@ export class RequirementsDecideCommand extends Command {
       )
       .requiredOption("--decision <decision>", "Decision: approved or rejected")
       .requiredOption("--details <details>", "Decision rationale", CommandOptions.once("--details"))
-      .requiredOption("--author <author>", "Decision author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Decision author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: RequirementsDecideOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

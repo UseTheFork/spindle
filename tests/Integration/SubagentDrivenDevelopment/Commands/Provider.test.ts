@@ -44,11 +44,10 @@ test("schema-only registration reuses groups and preserves positional review req
   expect(review.registeredArguments.map((argument) => argument.name())).toEqual(["action"]);
   expect(review.commands).toHaveLength(0);
   expect(review.options.map((option) => option.long)).toEqual([
-    "--spec",
+    "--feature",
     "--ticket",
     "--scope",
-    "--inventory",
-    "--author",
+    "--actor",
     "--type",
     "--agent",
     "--details",

@@ -100,7 +100,7 @@ test("published tarball supplies assets for initialization and SDD documents", (
     "create",
     "--title",
     "Tarball feature",
-    "--author",
+    "--actor",
     "maintainer",
     "--with-design",
   ]);
@@ -110,15 +110,15 @@ test("published tarball supplies assets for initialization and SDD documents", (
     "sdd",
     "ticket",
     "create",
-    "--spec",
-    join(feature, "spec.md"),
+    "--feature",
+    feature,
     "--title",
     "Tarball ticket",
     "--reporter",
     "maintainer",
     "--category",
     "enhancement",
-    "--author",
+    "--actor",
     "maintainer",
   ]);
   expect(ticket.status, ticket.stderr).toBe(0);
@@ -155,7 +155,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "create",
     "--title",
     "Packaged Feature",
-    "--author",
+    "--actor",
     "maintainer",
     "--with-design",
   ]);
@@ -197,7 +197,13 @@ test("packaged sdd create and status expose feature state outside the checkout",
   });
   expect(ledger.tickets).toEqual([]);
   const statusBefore = git("status", "--porcelain=v1");
-  const inspected = cli.run(gitWorkspace, ["--json", "sdd", "status", "--spec", expected.spec]);
+  const inspected = cli.run(gitWorkspace, [
+    "--json",
+    "sdd",
+    "status",
+    "--feature",
+    featureDirectory,
+  ]);
   expect(inspected.status, inspected.stderr).toBe(0);
   expect(inspected.stderr).toBe("");
   const expectedStatus = {
@@ -241,15 +247,15 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "sdd",
     "ticket",
     "create",
-    "--spec",
-    expected.spec,
+    "--feature",
+    featureDirectory,
     "--title",
     "Packaged ticket",
     "--reporter",
     "maintainer",
     "--category",
     "enhancement",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(createdTicket.status, createdTicket.stderr).toBe(0);
@@ -372,9 +378,9 @@ test("packaged command discovery and help remain intact", () => {
   for (const [args, expectedContent] of [
     [
       ["sdd", "create", "--help"],
-      ["--title <title>", "--author <author>", "--require-retrospective"],
+      ["--title <title>", "--actor <acting-agent>", "--require-retrospective"],
     ],
-    [["sdd", "status", "--help"], ["--spec <path>"]],
+    [["sdd", "status", "--help"], ["--feature <directory>"]],
     [["init", "--help"], ["Usage: spindle init [options]"]],
     [
       ["tool", "add", "--help"],
@@ -505,15 +511,15 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
       ["sdd", "create"],
       ["sdd", "create", "--title"],
       ["sdd", "create", "--title", "Feature"],
-      ["sdd", "create", "--title", "Feature", "--author"],
-      ["sdd", "create", "--title", "Feature", "--author", "one", "--author", "two"],
-      ["sdd", "create", "--title", "Feature", "--author", "maintainer", "--unknown"],
-      ["sdd", "create", "--title", "Feature", "--author", "maintainer", "nested"],
+      ["sdd", "create", "--title", "Feature", "--actor"],
+      ["sdd", "create", "--title", "Feature", "--actor", "one", "--actor", "two"],
+      ["sdd", "create", "--title", "Feature", "--actor", "maintainer", "--unknown"],
+      ["sdd", "create", "--title", "Feature", "--actor", "maintainer", "nested"],
       ["sdd", "status"],
-      ["sdd", "status", "--spec"],
-      ["sdd", "status", "--spec", "missing.md", "--spec", "another.md"],
-      ["sdd", "status", "--spec", "missing.md", "--unknown"],
-      ["sdd", "status", "--spec", "missing.md", "nested"],
+      ["sdd", "status", "--feature"],
+      ["sdd", "status", "--feature", "missing.md", "--feature", "another.md"],
+      ["sdd", "status", "--feature", "missing.md", "--unknown"],
+      ["sdd", "status", "--feature", "missing.md", "nested"],
       ["sdd", "unknown"],
     ].map((args) => [args, gitWorkspace] as const),
     ...[

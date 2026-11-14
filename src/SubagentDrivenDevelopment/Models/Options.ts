@@ -110,9 +110,7 @@ export interface RequirementsDecideOptions extends ScopedSelection {
   details: string;
 }
 
-export interface ReviewOptions extends ScopedSelection {
-  inventory: string;
-}
+export type ReviewOptions = ScopedSelection;
 
 export interface ReviewRequireOptions extends ScopedSelection {
   type?: string;

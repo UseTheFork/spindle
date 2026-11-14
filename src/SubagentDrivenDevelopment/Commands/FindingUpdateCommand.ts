@@ -13,7 +13,11 @@ export class FindingUpdateCommand extends Command {
     group(root, "finding")
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--finding <id>", "Canonical finding ID", CommandOptions.once("--finding"))
@@ -27,7 +31,7 @@ export class FindingUpdateCommand extends Command {
         "--requirements-decision <id>",
         "Approved requirements decision covering a scope change",
       )
-      .requiredOption("--author <author>", "Ruling author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Ruling author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: FindingUpdateOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

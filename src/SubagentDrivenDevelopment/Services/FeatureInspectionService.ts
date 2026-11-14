@@ -68,6 +68,8 @@ export class FeatureInspectionService extends Service {
       role: "implementation" | "review";
       action: "implement" | "correct" | "review";
       report: string;
+      requestedAt: string;
+      reportPresent: boolean;
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
       scope?: ReviewAssignment["scope"];
@@ -109,6 +111,8 @@ export class FeatureInspectionService extends Service {
       role: "implementation" | "review";
       action: "implement" | "correct" | "review";
       report: string;
+      requestedAt: string;
+      reportPresent: boolean;
       status: ImplementationAssignment["status"] | ReviewAssignment["status"];
       agent?: string;
       scope?: ReviewAssignment["scope"];
@@ -206,14 +210,18 @@ export class FeatureInspectionService extends Service {
         actions.push({ ticket: progress.id, action: "implement" });
       } else if (progress.execution === "implementing") {
         if (progress.assignment) {
-          pendingAssignments.push({
-            ticket: progress.id,
-            id: progress.assignment.id,
-            role: progress.assignment.role,
-            action: progress.assignment.action,
-            report: progress.assignment.report,
-            status: progress.assignment.status,
-          });
+          if (progress.assignment.status === "pending") {
+            pendingAssignments.push({
+              ticket: progress.id,
+              id: progress.assignment.id,
+              role: progress.assignment.role,
+              action: progress.assignment.action,
+              report: progress.assignment.report,
+              requestedAt: progress.assignment.requestedAt,
+              reportPresent: this.reportEvidence.reportExists(feature, progress.assignment.report),
+              status: progress.assignment.status,
+            });
+          }
           if (progress.assignment.status === "submitted") {
             const reason = this.assignmentPolicy.implementationReportBlocker(
               feature,
@@ -261,6 +269,8 @@ export class FeatureInspectionService extends Service {
               role: assignment.role,
               action: "review",
               report: assignment.report,
+              requestedAt: assignment.requestedAt,
+              reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
               status: assignment.status,
               agent: assignment.agent,
               scope: assignment.scope,
@@ -341,6 +351,36 @@ export class FeatureInspectionService extends Service {
       }
     }
     const delivery = this.deliveryStatus(feature, feature.state, tickets);
+    if (feature.state.delivery.assignment?.status === "pending") {
+      const assignment = feature.state.delivery.assignment;
+      pendingAssignments.push({
+        ticket: "delivery",
+        id: assignment.id,
+        role: assignment.role,
+        action: assignment.action,
+        report: assignment.report,
+        requestedAt: assignment.requestedAt,
+        reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
+        status: assignment.status,
+        scope: "delivery",
+      });
+    }
+    for (const assignment of feature.state.delivery.reviewAssignments ?? []) {
+      if (assignment.status !== "pending") continue;
+      pendingAssignments.push({
+        ticket: "delivery",
+        id: assignment.id,
+        role: assignment.role,
+        action: "review",
+        report: assignment.report,
+        requestedAt: assignment.requestedAt,
+        reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
+        status: assignment.status,
+        agent: assignment.agent,
+        scope: assignment.scope,
+        ...(assignment.objective ? { objective: assignment.objective } : {}),
+      });
+    }
 
     return {
       ...feature,

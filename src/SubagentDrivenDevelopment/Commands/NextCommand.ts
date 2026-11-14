@@ -5,7 +5,7 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { statusSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import type { NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 
@@ -14,7 +14,11 @@ export class NextCommand extends Command {
     group(root)
       .command("next")
       .description("Show permitted ticket and whole-spec delivery actions without changing state.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .allowExcessArguments(false)
       .action(async (options: NextOptions) => {
         const app = await createApp();
@@ -23,7 +27,7 @@ export class NextCommand extends Command {
         const output = await app.make(ConsoleOutputService);
         output.result({
           level: "info",
-          human: statusSummary(data, options.spec, "Delivery status and permitted actions"),
+          human: nextSummary(data),
           data,
         });
       });

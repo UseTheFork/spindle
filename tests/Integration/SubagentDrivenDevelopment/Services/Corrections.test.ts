@@ -388,7 +388,6 @@ test("corrective review findings retain assignment provenance for the next progr
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -510,7 +509,6 @@ test("resume returns pending corrective reviews after initial review coverage is
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -622,7 +620,6 @@ test("a verified corrective review permits ticket integration while retaining in
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -780,7 +777,6 @@ test("requirements decisions require fresh review before deferring a blocking fi
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );

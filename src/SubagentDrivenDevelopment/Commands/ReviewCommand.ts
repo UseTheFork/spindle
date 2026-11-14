@@ -30,9 +30,8 @@ export class ReviewCommand extends Command {
           }
           const reviewType = options.type ?? options.agent;
           if (!options.spec || !reviewType || !options.details || !options.author) {
-            throw new Error("review require needs --spec, --type, --details, and --author.");
+            throw new Error("review require needs --feature, --type, --details, and --actor.");
           }
-          if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
           const app = await createApp();
           const command = await app.make(ReviewRequireCommand);
           const data = await command.run({
@@ -54,20 +53,19 @@ export class ReviewCommand extends Command {
         if (options.type || options.agent || options.details) {
           throw new Error("--type, --agent, and --details are only valid with 'review require'.");
         }
-        if (!options.spec || !options.inventory || !options.author) {
-          throw new Error("review requires --spec, --inventory, and --author.");
+        if (!options.spec || !options.author) {
+          throw new Error("review requires --feature and --actor.");
         }
         const app = await createApp();
         const command = await app.make(ReviewCommand);
         const data = await command.run({
           ...options,
           spec: options.spec,
-          inventory: options.inventory,
           author: options.author,
         });
         const output = await app.make(ConsoleOutputService);
         const human = [
-          `Review completed for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+          `Dispatched review for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
           ...data.assignments.flatMap((assignment) => [
             `Review assignment ${assignment.id} (${assignment.agent}, ${assignment.status}).`,
             `Report: ${assignment.report}`,

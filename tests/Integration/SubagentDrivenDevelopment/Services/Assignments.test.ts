@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
+import { runCli } from "../../../Helpers/Cli.ts";
 import { execute, prepareReadyTicket } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 
 test("implement reserves a ready ticket, creates its worktree, and resumes the same assignment", async () => {
@@ -237,4 +238,82 @@ test("next and status guide unstarted work to implement without changing workflo
   expect(JSON.parse(next.stdout).actions).toEqual([{ ticket: "T-0001", action: "implement" }]);
   expect(JSON.parse(status.stdout).actions).toEqual(JSON.parse(next.stdout).actions);
   expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(before);
+});
+
+test("next reports assignment dispatch time and whether its report is ready to submit", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    requestedAt: string;
+  };
+
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  expect(JSON.parse(missing.stdout).pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      ticket: "T-0001",
+      id: assignment.id,
+      requestedAt: assignment.requestedAt,
+      reportPresent: false,
+    }),
+  );
+
+  writeFileSync(assignment.report, "# Implementation report\n\nReady for submission.\n");
+  const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(present.status, present.stderr).toBe(0);
+  expect(JSON.parse(present.stdout).pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      ticket: "T-0001",
+      id: assignment.id,
+      reportPresent: true,
+    }),
+  );
+});
+
+test("next prints named steps and submits a report only after it exists", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const feature = spec.replace(/\/spec\.md$/, "");
+  const ready = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(ready.status, ready.stderr).toBe(0);
+  expect(ready.stdout).toContain("Feature 0001-ticket-flow: step tickets-in-progress");
+  expect(ready.stdout).toContain("T-0001: step ticket:implement (ready)");
+  expect(ready.stdout).toContain("pnpm spindle sdd implement --feature .scratch/0001-ticket-flow");
+
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+      confirmRecords: true,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+  };
+
+  const waiting = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(waiting.status, waiting.stderr).toBe(0);
+  expect(waiting.stdout).toMatch(/T-0001 implementation .* dispatched .+ ago  report: missing/);
+  expect(waiting.stdout).toContain("No ready tickets. Wait for the open assignments.");
+
+  writeFileSync(assignment.report, "# Implementation report\n\nCompleted.\n");
+  const reportReady = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(reportReady.status, reportReady.stderr).toBe(0);
+  expect(reportReady.stdout).toMatch(/report: present, not submitted/);
+  expect(reportReady.stdout).toContain(
+    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+  );
 });

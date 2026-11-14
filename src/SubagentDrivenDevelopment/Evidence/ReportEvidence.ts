@@ -72,6 +72,11 @@ export class ReportEvidence extends Service {
     return createHash("sha256").update(readFileSync(report)).digest("hex");
   }
 
+  public reportExists(feature: FeaturePaths, report: string): boolean {
+    this.assertReportPath(feature, report, false);
+    return lstatIfPresent(report) !== undefined;
+  }
+
   public assertAcceptedReportsCurrent(feature: FeaturePaths, progress: TicketProgress): void {
     const implementationReports = [
       progress.assignment,

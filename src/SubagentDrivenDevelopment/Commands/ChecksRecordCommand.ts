@@ -14,7 +14,11 @@ export class ChecksRecordCommand extends Command {
     group(root, "checks")
       .command("record")
       .description("Record an externally executed check against the current commit.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery, post-merge or final")
       .option(
@@ -34,7 +38,7 @@ export class ChecksRecordCommand extends Command {
       )
       .option("--details <details>", "Failure or unavailability details")
       .option("--paths <paths...>", "Paths whose content this check explicitly covers")
-      .requiredOption("--author <author>", "Acting controller", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRecordOptions & { merge?: string }) => {
         if (

@@ -127,7 +127,7 @@ test("init and SDD status fail without Git discovery", async () => {
 
     const sdd = runCliRaw(
       invocation,
-      ["sdd", "status", "--spec", join(workspace, ".scratch/feature/spec.md")],
+      ["sdd", "status", "--feature", join(workspace, ".scratch/feature")],
       searchPath,
     );
     expect(sdd.status).not.toBe(0);

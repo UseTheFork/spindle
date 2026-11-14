@@ -74,8 +74,8 @@ async function setup() {
   mkdirSync(parent);
   const started = await invokeAsync(repo, [
     "start",
-    "--spec",
-    originalSpec,
+    "--feature",
+    originalSpec.replace(/\/spec\.md$/, ""),
     "--workspace",
     parent,
     "--confirm-records",
@@ -158,7 +158,6 @@ async function acceptedTicket(file = "first.ts", content = "ticket\n", baseline?
     services.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify([file]),
       author: "controller",
     }),
   );
@@ -184,11 +183,11 @@ async function acceptedTicket(file = "first.ts", content = "ticket\n", baseline?
 function integrate(root: string, spec: string) {
   return invokeAsync(root, [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--confirm-records",
   ]);
@@ -247,11 +246,11 @@ test("implement reserves a ready ticket and creates its worktree and assignment 
   const baseSha = gitAt(root, "rev-parse", "HEAD");
   const result = await invokeAsync(root, [
     "implement",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--workspace",
     parent,
@@ -310,11 +309,11 @@ test("dispatch requires explicit inspection confirmation before committing canon
 
   const confirmed = await invokeAsync(root, [
     "implement",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--workspace",
     parent,
@@ -401,7 +400,6 @@ test("review assignments become stale when the committed ticket HEAD changes", a
       services.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify(["first.ts"]),
         author: "controller",
       }),
     );
@@ -468,7 +466,6 @@ test("review survives feature advancement and merges the exact reviewed ticket c
     services.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["first.ts"]),
       author: "controller",
     }),
   );
@@ -494,11 +491,11 @@ test("review survives feature advancement and merges the exact reviewed ticket c
   const before = gitAt(root, "rev-parse", "HEAD");
   const integrated = await invokeAsync(root, [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--confirm-records",
   ]);
@@ -526,11 +523,11 @@ test("review survives feature advancement and merges the exact reviewed ticket c
   expect(existsSync(workspace)).toBe(true);
   const repeated = await invokeAsync(root, [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(repeated.status, repeated.stderr).toBe(0);
@@ -720,15 +717,15 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   const require = await invokeAsync(root, [
     "checks",
     "require",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--scope",
     "post-merge",
     "--command",
     "post-merge test",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(require.status, require.stderr).toBe(0);
@@ -737,8 +734,8 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   const failed = await invokeAsync(root, [
     "checks",
     "record",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--scope",
@@ -749,7 +746,7 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
     "failed",
     "--details",
     "Post-merge validation found a defect.",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(failed.status, failed.stderr).toBe(0);
@@ -772,11 +769,11 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   const headBefore = gitAt(root, "rev-parse", "HEAD");
   const unrelatedMerge = await invokeAsync(root, [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0002",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(unrelatedMerge.status).not.toBe(0);
@@ -950,7 +947,11 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   expect(ledger.tickets[0].status).not.toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.status).toBe("pending");
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
-  const readyBefore = await invokeAsync(root, ["ready", "--spec", spec]);
+  const readyBefore = await invokeAsync(root, [
+    "ready",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
   expect(readyBefore.status, readyBefore.stderr).toBe(0);
   expect(cliOutput(readyBefore).ready).not.toContain("T-0002");
   const cleared = await execute(root, (services) =>
@@ -989,7 +990,11 @@ test("pending post-merge checks preserve evidence until blockers and dependencie
   expect(ledger.tickets[0].integration.postMerge.status).toBe("passed");
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
   expect(gitAt(root, "rev-parse", "HEAD")).toBe(mergeSha);
-  const readyAfter = await invokeAsync(root, ["ready", "--spec", spec]);
+  const readyAfter = await invokeAsync(root, [
+    "ready",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
   expect(readyAfter.status, readyAfter.stderr).toBe(0);
   expect(cliOutput(readyAfter).ready).toContain("T-0002");
 });
@@ -1129,11 +1134,11 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const blocked = await invokeAsync(root, [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0002",
-    "--author",
+    "--actor",
     "controller",
     "--confirm-records",
   ]);
@@ -1162,7 +1167,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["first.ts"]),
       author: "controller",
     }),
   );
@@ -1380,7 +1384,6 @@ test("conflicts are resolved in the ticket worktree and require fresh checks and
     services.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["tracked.txt"]),
       author: "controller",
     }),
   );
@@ -1442,11 +1445,11 @@ test("integration resumes after interrupted canonical merge record persistence",
   const marker = "INTERRUPTED_TICKET_INTEGRATION";
   const args = [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--confirm-records",
   ];
@@ -1470,11 +1473,11 @@ test("integration recovers a journaled merge after interruption before record wr
   const { root, spec } = await acceptedTicket();
   const args = [
     "integrate",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--confirm-records",
   ];
@@ -1528,11 +1531,11 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
   const { root, spec, parent } = await setup();
   const missing = await invokeAsync(root, [
     "implement",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(missing.status).not.toBe(0);
@@ -1540,11 +1543,11 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
   const baseSha = gitAt(root, "rev-parse", "HEAD");
   const args = [
     "implement",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--workspace",
     parent,
@@ -1562,11 +1565,11 @@ test("CLI dispatch resumes the same assignment and requires the ticket workspace
   expect(cliOutput(repeated).assignment).toEqual(assignment);
   const resumed = await invokeAsync(root, [
     "resume",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(resumed.status, resumed.stderr).toBe(0);
@@ -1577,11 +1580,11 @@ test("competing dispatches reuse one ticket assignment and worktree", async () =
   const { root, spec, parent } = await setup();
   const args = [
     "implement",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
     "--workspace",
     parent,
@@ -1690,11 +1693,11 @@ test("resume recovers a dispatch interrupted while persisting its assignment", a
     root,
     [
       "implement",
-      "--spec",
-      spec,
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
       "--ticket",
       "T-0001",
-      "--author",
+      "--actor",
       "controller",
       "--workspace",
       parent,
@@ -1709,11 +1712,11 @@ test("resume recovers a dispatch interrupted while persisting its assignment", a
   expect(existsSync(join(dirname(spec), ".sdd-write-recovery.json"))).toBe(true);
   const resumed = await invokeAsync(root, [
     "resume",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(resumed.status, resumed.stderr).toBe(0);

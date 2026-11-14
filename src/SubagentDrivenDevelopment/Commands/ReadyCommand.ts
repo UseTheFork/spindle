@@ -13,7 +13,11 @@ export class ReadyCommand extends Command {
     group(root)
       .command("ready")
       .description("List ready tickets and tickets waiting on dependencies.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .allowExcessArguments(false)
       .action(async (options: ReadyOptions) => {
         const app = await createApp();

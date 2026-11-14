@@ -13,10 +13,14 @@ export class TicketCommentCommand extends Command {
     group(root, "ticket")
       .command("comment")
       .description("Append an attributed ticket comment.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--details <details>", "Comment text", CommandOptions.once("--details"))
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketCommentOptions) => {
         const app = await createApp();

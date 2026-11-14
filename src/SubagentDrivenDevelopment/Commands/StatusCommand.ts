@@ -15,16 +15,23 @@ export class StatusCommand extends Command {
     group(root)
       .command("status")
       .description("Inspect state, permitted actions, assignments, and blockers.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .allowExcessArguments(false)
-      .action(async (options: StatusOptions) => {
+      .action(async (options: { feature: string }) => {
         const app = await createApp();
         const command = await app.make(StatusCommand);
-        const data = await command.run(options);
+        const serviceOptions: StatusOptions = {
+          spec: CommandOptions.featureSpec(options.feature),
+        };
+        const data = await command.run(serviceOptions);
         const output = await app.make(ConsoleOutputService);
         output.result({
           level: "info",
-          human: statusSummary(data, options.spec, "Feature status"),
+          human: statusSummary(data, serviceOptions.spec, "Feature status"),
           data,
         });
       });

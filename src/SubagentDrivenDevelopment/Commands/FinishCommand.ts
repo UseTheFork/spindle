@@ -5,6 +5,7 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { finishSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import type { FeatureFinishOptions } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 
@@ -15,13 +16,17 @@ export class FinishCommand extends Command {
       .description(
         "Merge approved feature delivery, then clean up only after exact final-merge checks pass.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option(
         "--report <path>",
         "Optional or policy-required Markdown report inside feature reports/",
         CommandOptions.once("--report"),
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .option("--confirm-records", "Confirm inspected canonical records may be committed")
       .allowExcessArguments(false)
       .action(async (options: FeatureFinishOptions) => {
@@ -31,7 +36,7 @@ export class FinishCommand extends Command {
         const output = await app.make(ConsoleOutputService);
         output.result({
           level: "success",
-          human: `Finished feature delivery for ${options.spec}.`,
+          human: finishSummary(data),
           data,
         });
       });

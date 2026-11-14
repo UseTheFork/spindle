@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.3.1
+    version: 1.4.0
 ---
 
 # SDD specialist code reviewer
@@ -59,7 +59,10 @@ harness access before dispatch.
 
 ## Report and hand-back
 
-Save only to `REPORT_PATH`. Include the assignment ID, role, objective,
-assigned committed target, inventory, focused findings (or an explicit finding-free result),
-evidence, checks and results, limitations, and a concise assessment. Return
-the report path and summary, then stop.
+Save only to `REPORT_PATH`. Use the shared review report contract: one verdict
+(`passed`, `failed`, or `unavailable`), a concise summary, evidence and
+limitations, and zero or more findings. Each finding states its impact,
+evidence location, and whether it blocks acceptance. Do not assign severity or
+canonical finding IDs. Include the assignment ID, role, objective, assigned
+committed target, inventory, checks and results. Write `NONE` when there are no
+findings. Return the report path and summary, then stop.

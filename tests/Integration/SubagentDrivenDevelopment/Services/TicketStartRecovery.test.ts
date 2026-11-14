@@ -30,8 +30,8 @@ async function preparedDispatch() {
   mkdirSync(parent);
   const started = await invokeAsync(repo, [
     "start",
-    "--spec",
-    JSON.parse(created.stdout).spec,
+    "--feature",
+    JSON.parse(created.stdout).workspace,
     "--workspace",
     parent,
     "--confirm-records",

@@ -15,7 +15,11 @@ export class CorrectCommand extends Command {
       .description(
         "Persist a ticket-scoped or delivery-scoped correction attempt and return its fix assignment.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
@@ -31,7 +35,7 @@ export class CorrectCommand extends Command {
         "--reason <reason>",
         "Pause reason: no-progress, repeated-failure, recurring-blocker, requirements-disagreement, worker-blocked",
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: CorrectOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

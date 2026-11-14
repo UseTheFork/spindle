@@ -55,37 +55,33 @@ test("implement records the ticket baseline and controller while creating an iso
   expect(git("rev-parse", "HEAD")).toBe(baseSha);
 });
 
-test("review requires current passing checks and confirmed inventory and reuses its assignment", async () => {
+test("review requires current passing checks, derives inventory, and reuses its assignment", async () => {
   const { repo, spec, command, submission } = await prepareImplementationForReview();
-  const review = async (inventory: string[]) =>
+  const review = async () =>
     await execute(repo, (service) =>
       service.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify(inventory),
         author: "controller",
       }),
     );
 
-  const missingCheck = await review(["feature.ts"]);
+  const missingCheck = await review();
   expect(missingCheck.status).not.toBe(0);
   expect(missingCheck.stderr).toMatch(/Required check .* is missing/);
 
   const failedCheck = await recordReviewCheck(repo, spec, command, "failed");
   expect(failedCheck.status, failedCheck.stderr).toBe(0);
-  const failedReview = await review(["feature.ts"]);
+  const failedReview = await review();
   expect(failedReview.status).not.toBe(0);
   expect(failedReview.stderr).toMatch(/Required check .* is failed/);
 
   const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
-  const wrongInventory = await review([]);
-  expect(wrongInventory.status).not.toBe(0);
-  expect(wrongInventory.stderr).toMatch(/inventory/i);
   const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].reviewAssignments).toBe(undefined);
 
-  const dispatched = await review(["feature.ts"]);
+  const dispatched = await review();
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const result = JSON.parse(dispatched.stdout) as {
     ticket: string;
@@ -119,19 +115,21 @@ test("review requires current passing checks and confirmed inventory and reuses 
   );
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(status.stdout).pendingAssignments).toEqual([
-    {
+    expect.objectContaining({
       ticket: "T-0001",
       id: assignment.id,
       role: "review",
       action: "review",
       report: assignment.report,
+      requestedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+      reportPresent: false,
       status: "pending",
       agent: "sdd-task-reviewer",
       scope: "initial",
-    },
+    }),
   ]);
 
-  const repeated = await review(["feature.ts"]);
+  const repeated = await review();
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).assignments[0].id).toBe(assignment.id);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
@@ -153,7 +151,6 @@ test("rework requires fresh checks and a new review with the prior committed com
       service.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify(["feature.ts"]),
         author: "controller",
       }),
     );
@@ -252,7 +249,6 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -384,7 +380,6 @@ test("unavailable specialist submissions preserve the pinned objective separatel
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -418,7 +413,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   expect(stored.details).toBe(failureDetails);
 });
 
-test("review accepts a Git-derived mixed-case inventory in its supplied order", async () => {
+test("review freezes the Git-derived mixed-case inventory", async () => {
   const { repo, spec, command, ticketWorkspace } = await prepareImplementationForReview();
   writeFileSync(join(ticketWorkspace, "B.ts"), "export const upper = true;\n");
   writeFileSync(join(ticketWorkspace, "a.ts"), "export const lower = true;\n");
@@ -430,7 +425,6 @@ test("review accepts a Git-derived mixed-case inventory in its supplied order", 
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["B.ts", "a.ts", "feature.ts"]),
       author: "controller",
     }),
   );
@@ -634,7 +628,6 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     service.reviewService.review({
       spec,
       ticket: "T-0002",
-      inventory: JSON.stringify(["feature-two.ts"]),
       author: "controller",
     }),
   );
@@ -765,8 +758,8 @@ test("review submission rejects equals-form declaration conflicts without regist
   writeFileSync(assignment.report, "# Review report\n\nNo findings were registered.\n");
   const submitted = await invokeAsync(repo, [
     "submit",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--role",
@@ -779,7 +772,7 @@ test("review submission rejects equals-form declaration conflicts without regist
     "passed",
     "--findings=F-0001",
     "--no-findings",
-    "--author",
+    "--actor",
     "controller",
   ]);
 
@@ -793,8 +786,8 @@ test("review submission permits flag-like text in a parsed option value", async 
   const details = "--findings";
   const submitted = await invokeAsync(repo, [
     "submit",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--role",
@@ -808,7 +801,7 @@ test("review submission permits flag-like text in a parsed option value", async 
     "--no-findings",
     "--details",
     details,
-    "--author",
+    "--actor",
     "controller",
   ]);
 
@@ -1109,7 +1102,6 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );

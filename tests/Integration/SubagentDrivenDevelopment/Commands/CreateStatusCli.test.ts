@@ -6,16 +6,16 @@ import { expect, test } from "vitest";
 import { runCli } from "../../../Helpers/Cli.ts";
 import { invokeAsync, serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 
-test("sdd create requires named non-empty title and author options", async () => {
+test("sdd create requires named non-empty title and actor options", async () => {
   const { repo } = await serviceFixture();
   const invalidArguments = [
     ["sdd", "create"],
     ["sdd", "create", "--title", "Feature"],
-    ["sdd", "create", "--author", "maintainer"],
-    ["sdd", "create", "--title", " ", "--author", "maintainer"],
-    ["sdd", "create", "--title", "Feature", "--author", " "],
-    ["sdd", "create", "--title", "Feature", "--author", "first", "--author", "second"],
-    ["sdd", "create", "--title", "Feature", "--author", "maintainer", "unexpected"],
+    ["sdd", "create", "--actor", "maintainer"],
+    ["sdd", "create", "--title", " ", "--actor", "maintainer"],
+    ["sdd", "create", "--title", "Feature", "--actor", " "],
+    ["sdd", "create", "--title", "Feature", "--actor", "first", "--actor", "second"],
+    ["sdd", "create", "--title", "Feature", "--actor", "maintainer", "unexpected"],
     ["sdd", "status"],
   ];
 
@@ -28,12 +28,41 @@ test("sdd create requires named non-empty title and author options", async () =>
   }
 });
 
+test("SDD commands select a feature directory and attribute actions with --actor", async () => {
+  const { repo } = await serviceFixture();
+  const created = await invokeAsync(repo, [
+    "create",
+    "--title",
+    "Feature Directory CLI",
+    "--actor",
+    "controller",
+  ]);
+  expect(created.status, created.stderr).toBe(0);
+  const feature = join(repo, ".scratch", "0001-feature-directory-cli");
+
+  const status = await invokeAsync(repo, ["status", "--feature", feature]);
+  expect(status.status, status.stderr).toBe(0);
+  expect(JSON.parse(status.stdout).data.feature).toBe("0001-feature-directory-cli");
+
+  const legacyCreate = await invokeAsync(repo, [
+    "create",
+    "--title",
+    "Legacy Author",
+    "--author",
+    "controller",
+  ]);
+  expect(legacyCreate.status).not.toBe(0);
+
+  const legacyStatus = await invokeAsync(repo, ["status", "--spec", join(feature, "spec.md")]);
+  expect(legacyStatus.status).not.toBe(0);
+});
+
 test("SDD creation requires valid Project Settings", async () => {
   const { repo } = await serviceFixture();
   writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
   const result = runCli(
     repo,
-    ["sdd", "create", "--title", "Project Settings Independent", "--author", "maintainer"],
+    ["sdd", "create", "--title", "Project Settings Independent", "--actor", "maintainer"],
     process.env.PATH ?? "",
   );
 
@@ -46,7 +75,7 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
   const { repo } = await serviceFixture();
   const results = await Promise.all(
     ["First", "Second", "Third", "Fourth", "Fifth", "Sixth"].map((title) =>
-      invokeAsync(repo, ["create", "--title", `${title} Concurrent`, "--author", "maintainer"]),
+      invokeAsync(repo, ["create", "--title", `${title} Concurrent`, "--actor", "maintainer"]),
     ),
   );
   for (const result of results) {
@@ -83,7 +112,7 @@ test("sdd review require accepts a catalog reviewer through --type", async () =>
     "create",
     "--title",
     "Review Feature",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(created.status, created.stderr).toBe(0);
@@ -93,15 +122,15 @@ test("sdd review require accepts a catalog reviewer through --type", async () =>
   const required = await invokeAsync(repo, [
     "review",
     "require",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--scope",
     "delivery",
     "--type",
     "sdd-code-reviewer",
     "--details",
     "Review the feature for security risks.",
-    "--author",
+    "--actor",
     "controller",
   ]);
 
@@ -134,7 +163,7 @@ test("sdd help advertises guarded workflow commands", async () => {
   const createHelp = runCli(repo, ["sdd", "create", "--help"], searchPath);
   expect(createHelp.status, createHelp.stderr).toBe(0);
   expect(createHelp.stdout).toMatch(/--title <title>/);
-  expect(createHelp.stdout).toMatch(/--author <author>/);
+  expect(createHelp.stdout).toMatch(/--actor <acting-agent>/);
   expect(createHelp.stdout).toMatch(/--require-retrospective/);
   expect(createHelp.stdout).toMatch(/--with-design/);
   const submitHelp = runCli(repo, ["sdd", "submit", "--help"], searchPath);
@@ -146,7 +175,7 @@ test("sdd help advertises guarded workflow commands", async () => {
   expect(submitHelp.stderr).toBe("");
   const statusHelp = runCli(repo, ["sdd", "status", "--help"], searchPath);
   expect(statusHelp.status, statusHelp.stderr).toBe(0);
-  expect(statusHelp.stdout).toMatch(/--spec <path>/);
+  expect(statusHelp.stdout).toMatch(/--feature <directory>/);
 });
 
 test("sdd create and status expose JSON results and report path errors through the CLI", async () => {
@@ -160,7 +189,7 @@ test("sdd create and status expose JSON results and report path errors through t
       "create",
       "--title",
       "CLI Feature",
-      "--author",
+      "--actor",
       "maintainer",
       "--require-retrospective",
       "--with-design",
@@ -181,7 +210,11 @@ test("sdd create and status expose JSON results and report path errors through t
   expect(createdEnvelope.data).toEqual(expected);
   expect(readFileSync(expected.spec, "utf8")).toContain("# CLI Feature");
   expect(existsSync(join(repo, ".scratch", "0001-cli-feature", "design.md"))).toBe(true);
-  const status = runCli(repo, ["--json", "sdd", "status", "--spec", expected.spec], searchPath);
+  const status = runCli(
+    repo,
+    ["--json", "sdd", "status", "--feature", expected.workspace],
+    searchPath,
+  );
   expect(status.status, status.stderr).toBe(0);
   expect(status.stderr).toBe("");
   const statusEnvelope = JSON.parse(status.stdout);
@@ -190,24 +223,24 @@ test("sdd create and status expose JSON results and report path errors through t
     service.featureInspectionService.status({ spec: expected.spec }),
   );
   expect(statusEnvelope.data.state.retrospectiveRequired).toBe(true);
-  const humanStatus = runCli(repo, ["sdd", "status", "--spec", expected.spec], searchPath);
+  const humanStatus = runCli(repo, ["sdd", "status", "--feature", expected.workspace], searchPath);
   expect(humanStatus.status, humanStatus.stderr).toBe(0);
   expect(humanStatus.stdout).toContain("Feature status for feature 0001-cli-feature.");
-  expect(humanStatus.stdout).toContain("Delivery: active; unstarted; close-tickets.");
+  expect(humanStatus.stdout).not.toContain("close-tickets");
+  expect(humanStatus.stdout).not.toContain("Permitted actions:");
+  expect(humanStatus.stdout).toContain("Feature 0001-cli-feature: step tickets-in-progress");
   expect(humanStatus.stdout).toContain(
     "Delivery blockers: Tickets are not closed: feature has no tickets.",
   );
-  const humanNext = runCli(repo, ["sdd", "next", "--spec", expected.spec], searchPath);
+  const humanNext = runCli(repo, ["sdd", "next", "--feature", expected.workspace], searchPath);
   expect(humanNext.status, humanNext.stderr).toBe(0);
+  expect(humanNext.stdout).toContain("Feature 0001-cli-feature: step tickets-in-progress");
   expect(humanNext.stdout).toContain(
-    "Delivery status and permitted actions for feature 0001-cli-feature.",
-  );
-  expect(humanNext.stdout).toContain(
-    "Delivery blockers: Tickets are not closed: feature has no tickets.",
+    "Delivery blocker: Tickets are not closed: feature has no tickets.",
   );
   const invalid = runCli(
     repo,
-    ["sdd", "status", "--spec", `${repo}/.scratch/../.scratch/0001-cli-feature/spec.md`],
+    ["sdd", "status", "--feature", `${repo}/.scratch/../.scratch/0001-cli-feature`],
     searchPath,
   );
   expect(invalid.status).not.toBe(0);
@@ -219,7 +252,7 @@ test("sdd create uses human-readable output by default", async () => {
   const { repo } = await serviceFixture();
   const result = runCli(
     repo,
-    ["sdd", "create", "--title", "Human Output", "--author", "maintainer"],
+    ["sdd", "create", "--title", "Human Output", "--actor", "maintainer"],
     process.env.PATH ?? "",
   );
 
@@ -234,7 +267,7 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
     "create",
     "--title",
     "Ticket Feature",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(feature.status, feature.stderr).toBe(0);
@@ -243,15 +276,15 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   const created = await invokeAsync(repo, [
     "ticket",
     "create",
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--title",
     "Add export",
     "--reporter",
     "maintainer",
     "--category",
     "enhancement",
-    "--author",
+    "--actor",
     "controller",
   ]);
 

@@ -62,7 +62,6 @@ test("required checks are declared before implementation and accept only explici
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -75,7 +74,6 @@ test("required checks are declared before implementation and accept only explici
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify([]),
       author: "controller",
     }),
   );
@@ -199,7 +197,6 @@ test("a new code commit requires fresh checks even outside a check's declared pa
       service.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify(["feature.ts", "unrelated.ts"]),
         author: "controller",
       }),
     );
@@ -273,7 +270,6 @@ test("committed requirements must reach the ticket branch before review", async 
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -286,7 +282,6 @@ test("committed requirements must reach the ticket branch before review", async 
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );

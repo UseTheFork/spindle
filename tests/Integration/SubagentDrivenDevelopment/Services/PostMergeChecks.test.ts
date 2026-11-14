@@ -35,8 +35,8 @@ async function setup() {
   mkdirSync(parent);
   const started = await invokeAsync(repo, [
     "start",
-    "--spec",
-    JSON.parse(created.stdout).spec,
+    "--feature",
+    JSON.parse(created.stdout).workspace,
     "--workspace",
     parent,
     "--confirm-records",
@@ -92,14 +92,14 @@ function cli(root: string, spec: string, action: string, args: string[], author 
   return invokeAsync(root, [
     "checks",
     action,
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--scope",
     "post-merge",
     ...args,
-    "--author",
+    "--actor",
     author,
   ]);
 }
@@ -114,7 +114,11 @@ test("post-merge results freeze the complete list, preserve failures and close o
   ]);
   expect(require.status, require.stderr).toBe(0);
   expect(cliOutput(require).headSha).toMatch(/^[0-9a-f]{40,64}$/);
-  const pendingReady = await invokeAsync(root, ["ready", "--spec", spec]);
+  const pendingReady = await invokeAsync(root, [
+    "ready",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
   expect(pendingReady.status, pendingReady.stderr).toBe(0);
   expect(cliOutput(pendingReady).ready).not.toContain("T-0002");
   const failed = await cli(root, spec, "record", [
@@ -146,7 +150,7 @@ test("post-merge results freeze the complete list, preserve failures and close o
       (r: { headSha: string }) => r.headSha === sha,
     ),
   ).toBe(true);
-  const ready = await invokeAsync(root, ["ready", "--spec", spec]);
+  const ready = await invokeAsync(root, ["ready", "--feature", spec.replace(/\/spec\.md$/, "")]);
   expect(ready.status, ready.stderr).toBe(0);
   expect(cliOutput(ready).ready).toContain("T-0002");
 });

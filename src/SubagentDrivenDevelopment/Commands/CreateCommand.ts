@@ -15,15 +15,16 @@ export class CreateCommand extends Command {
       .command("create")
       .description("Create a numbered SDD feature workspace with spec template and initial ledger.")
       .requiredOption("--title <title>", "Feature title", CommandOptions.once("--title"))
-      .requiredOption("--author <author>", "Creation author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting agent", CommandOptions.once("--actor"))
       .option("--require-retrospective", "Require a retrospective when finishing this feature")
       .option("--with-design", "Copy the design template into the feature workspace")
       .allowExcessArguments(false)
-      .action(async (options: CreateOptions) => {
-        validateCreateOptions(options);
+      .action(async (options: Omit<CreateOptions, "author"> & { actor: string }) => {
+        const serviceOptions: CreateOptions = { ...options, author: options.actor };
+        validateCreateOptions(serviceOptions);
         const app = await createApp();
         const command = await app.make(CreateCommand);
-        const data = await command.run(options);
+        const data = await command.run(serviceOptions);
         const output = await app.make(ConsoleOutputService);
         output.result({
           level: "success",

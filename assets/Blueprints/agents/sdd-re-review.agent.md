@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.3
+    version: 1.3.0
 ---
 
 # SDD re-review
@@ -45,13 +45,23 @@ Preserve this role's report-only response: perform the bounded review without pr
 
 ## Report and hand-back
 
-Save `REPORT_PATH` with these sections in order: Finding Verdicts, New Breakage in the Fix Diff, Updated Spec and Quality, Out-of-Scope Observations, Verdict, and Checks and Target.
+Save `REPORT_PATH` with these sections in order: Verdict, Summary, Evidence and
+Limitations, Findings, and Observations.
 
-- Give every supplied finding an `ADDRESSED`, `NOT ADDRESSED`, or `UNVERIFIED` verdict in supplied order, with stable ID, summary, file:line evidence, and current covering-test evidence. Keep `NOT ADDRESSED` and `UNVERIFIED` findings open.
-- List fix-induced breakage with Critical/Important/Minor severity, file:line, and impact, or `None`.
-- Give separate Spec and Quality `PASS`, `FAIL`, or `UNVERIFIED` verdicts; update code-review readiness for the supplied findings or mark it not applicable. Preserve unaffected evidence, identify pending initial task review, and record any expanded-review request.
-- List out-of-scope observations for the final review ledger, or `None`.
-- Call the round complete only when every finding is `ADDRESSED`, no new Critical/Important breakage remains, and Spec and Quality both `PASS`. Otherwise use `Findings remain open` and list every `NOT ADDRESSED` and `UNVERIFIED` finding.
-- Reference the assigned committed target, reported commands/results inspected, reviewer-run checks/results, and limitations.
+- Use one overall verdict: `passed`, `failed`, or `unavailable`.
+- Give every supplied finding an `ADDRESSED`, `NOT ADDRESSED`, or `UNVERIFIED`
+  disposition in supplied order, with its stable input ID, summary,
+  file:line evidence, and current covering-check evidence. Keep findings that
+  are not addressed or unverified open.
+- Report any new fix-induced finding with its impact, evidence location, and
+  blocking status. Do not assign severity or canonical IDs.
+- Preserve unaffected evidence, identify pending initial review coverage, and
+  record any expanded-review request.
+- Reference the assigned committed target, reported commands/results
+  inspected, reviewer-run checks/results, and limitations.
+- Use `passed` only when all supplied findings are addressed, no blocking
+  fix-induced finding remains, and the fresh covering evidence is sufficient.
 
-Return the report beginning directly with the first finding's verdict, without a preamble or closing summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.
+Return the report beginning directly with the Verdict, without a preamble or
+closing summary, then stop. If the assignment gate is incomplete, return the
+context request instead of writing a report.

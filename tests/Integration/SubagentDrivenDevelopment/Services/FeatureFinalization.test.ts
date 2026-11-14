@@ -63,8 +63,8 @@ test("empty feature and premature final declarations cannot commit records or re
   const started = cliOutput(
     await invokeAsync(repo, [
       "start",
-      "--spec",
-      created.spec,
+      "--feature",
+      created.spec.replace(/\/spec\.md$/, ""),
       "--workspace",
       parent,
       "--confirm-records",
@@ -73,9 +73,9 @@ test("empty feature and premature final declarations cannot commit records or re
   const before = git(started.featureWorkspace, "rev-parse", "HEAD");
   const finished = await invokeAsync(started.featureWorkspace, [
     "finish",
-    "--spec",
-    started.spec,
-    "--author",
+    "--feature",
+    started.spec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
     "--confirm-records",
   ]);
@@ -84,13 +84,13 @@ test("empty feature and premature final declarations cannot commit records or re
   const required = await invokeAsync(started.featureWorkspace, [
     "checks",
     "require",
-    "--spec",
-    started.spec,
+    "--feature",
+    started.spec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     "--command",
     "test final",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(required.status).not.toBe(0);
@@ -114,8 +114,8 @@ test("finalization refuses active hooks without executing or disabling them", as
   const started = cliOutput(
     await invokeAsync(repo, [
       "start",
-      "--spec",
-      created.spec,
+      "--feature",
+      created.spec.replace(/\/spec\.md$/, ""),
       "--workspace",
       parent,
       "--confirm-records",
@@ -127,9 +127,9 @@ test("finalization refuses active hooks without executing or disabling them", as
   const before = git(started.featureWorkspace, "rev-parse", "HEAD");
   const finished = await invokeAsync(started.featureWorkspace, [
     "finish",
-    "--spec",
-    started.spec,
-    "--author",
+    "--feature",
+    started.spec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
     "--confirm-records",
   ]);
@@ -158,8 +158,8 @@ async function readyFeature(codeFile = "feature.ts") {
   const started = cliOutput(
     await invokeAsync(original, [
       "start",
-      "--spec",
-      created.spec,
+      "--feature",
+      created.spec.replace(/\/spec\.md$/, ""),
       "--workspace",
       parent,
       "--confirm-records",
@@ -232,7 +232,6 @@ async function readyFeature(codeFile = "feature.ts") {
       s.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify([codeFile]),
         author: "controller",
       }),
     ),
@@ -257,11 +256,11 @@ async function readyFeature(codeFile = "feature.ts") {
   cliOutput(
     await invokeAsync(root, [
       "integrate",
-      "--spec",
-      spec,
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
       "--ticket",
       "T-0001",
-      "--author",
+      "--actor",
       "controller",
       "--confirm-records",
     ]),
@@ -270,15 +269,15 @@ async function readyFeature(codeFile = "feature.ts") {
     await invokeAsync(root, [
       "checks",
       "require",
-      "--spec",
-      spec,
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
       "--ticket",
       "T-0001",
       "--scope",
       "post-merge",
       "--command",
       "test merged ticket",
-      "--author",
+      "--actor",
       "controller",
     ]),
   );
@@ -286,8 +285,8 @@ async function readyFeature(codeFile = "feature.ts") {
     await invokeAsync(root, [
       "checks",
       "record",
-      "--spec",
-      spec,
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
       "--ticket",
       "T-0001",
       "--scope",
@@ -296,7 +295,7 @@ async function readyFeature(codeFile = "feature.ts") {
       "test merged ticket",
       "--result",
       "passed",
-      "--author",
+      "--actor",
       "controller",
     ]),
   );
@@ -328,7 +327,6 @@ async function readyFeature(codeFile = "feature.ts") {
       s.reviewService.review({
         spec,
         scope: "delivery",
-        inventory: JSON.stringify([codeFile]),
         author: "controller",
       }),
     ),
@@ -358,11 +356,11 @@ async function readyFeature(codeFile = "feature.ts") {
   const finish = () =>
     invokeAsync(root, [
       "finish",
-      "--spec",
-      spec,
+      "--feature",
+      spec.replace(/\/spec\.md$/, ""),
       "--report",
       report,
-      "--author",
+      "--actor",
       "controller",
       "--confirm-records",
     ]);
@@ -390,23 +388,23 @@ async function recordFinal(
     await invokeAsync(f.original, [
       "checks",
       "require",
-      "--spec",
-      f.originalSpec,
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
       "--scope",
       "final",
       "--command",
       "test final",
       "--command",
       "lint final",
-      "--author",
+      "--actor",
       "controller",
     ]),
   );
   const recorded = await invokeAsync(f.original, [
     "checks",
     "record",
-    "--spec",
-    f.originalSpec,
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     "--merge",
@@ -415,7 +413,7 @@ async function recordFinal(
     "test final",
     "--result",
     result,
-    "--author",
+    "--actor",
     "controller",
     ...(result === "passed" ? [] : ["--details", "external test failed"]),
   ]);
@@ -424,8 +422,8 @@ async function recordFinal(
       await invokeAsync(f.original, [
         "checks",
         "record",
-        "--spec",
-        f.originalSpec,
+        "--feature",
+        f.originalSpec.replace(/\/spec\.md$/, ""),
         "--scope",
         "final",
         "--merge",
@@ -434,7 +432,7 @@ async function recordFinal(
         "lint final",
         "--result",
         "passed",
-        "--author",
+        "--actor",
         "controller",
       ]),
     );
@@ -465,7 +463,13 @@ test("original ignored node_modules and build artifacts survive the real complet
   expect(merged.finalValidation).toBe("pending");
   cliOutput(await recordFinal(f, merged));
   const complete = cliOutput(
-    await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
+    await invokeAsync(f.original, [
+      "finish",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--actor",
+      "controller",
+    ]),
   );
   expect(complete.finished).toBe(true);
   expect(existsSync(f.root)).toBe(false);
@@ -508,9 +512,9 @@ test.each(["file", "directory", "parent-file", "empty-directory"])(
       cliOutput(
         await invokeAsync(f.original, [
           "finish",
-          "--spec",
-          f.originalSpec,
-          "--author",
+          "--feature",
+          f.originalSpec.replace(/\/spec\.md$/, ""),
+          "--actor",
           "controller",
         ]),
       ).finished,
@@ -568,19 +572,37 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
     git(f.original, "rev-list", "--parents", "-n", "1", pending.mergeCommit).split(" "),
   ).toEqual([pending.mergeCommit, f.featureRevision, journal.featureCommit]);
   const premature = cliOutput(
-    await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
+    await invokeAsync(f.original, [
+      "finish",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--actor",
+      "controller",
+    ]),
   );
   expect(premature.finalValidation).toBe("pending");
   expect(existsSync(f.root)).toBe(true);
   expect(existsSync(f.ticketRoot)).toBe(true);
   cliOutput(await recordFinal(f, pending, "failed"));
   const blocked = cliOutput(
-    await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
+    await invokeAsync(f.original, [
+      "finish",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--actor",
+      "controller",
+    ]),
   );
   expect(blocked.finalValidation).toBe("pending");
   cliOutput(await recordFinal(f, pending));
   const complete = cliOutput(
-    await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
+    await invokeAsync(f.original, [
+      "finish",
+      "--feature",
+      f.originalSpec.replace(/\/spec\.md$/, ""),
+      "--actor",
+      "controller",
+    ]),
   );
   expect(complete).toMatchObject({
     finished: true,
@@ -618,7 +640,13 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
   );
   expect(persisted.approvedLedger.tickets[0].worktree.workspace).toBe(f.ticketRoot);
   expect(
-    cliOutput(await invokeAsync(f.original, ["status", "--spec", f.originalSpec])).finished,
+    cliOutput(
+      await invokeAsync(f.original, [
+        "status",
+        "--feature",
+        f.originalSpec.replace(/\/spec\.md$/, ""),
+      ]),
+    ).finished,
   ).toBe(true);
 });
 
@@ -650,9 +678,9 @@ test.each([
     guard === "missing-retrospective"
       ? await invokeAsync(f.root, [
           "finish",
-          "--spec",
-          f.spec,
-          "--author",
+          "--feature",
+          f.spec.replace(/\/spec\.md$/, ""),
+          "--actor",
           "controller",
           "--confirm-records",
         ])
@@ -693,9 +721,9 @@ test.each([
   }
   const result = await invokeAsync(f.original, [
     "finish",
-    "--spec",
-    f.originalSpec,
-    "--author",
+    "--feature",
+    f.originalSpec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
   ]);
   expect(result.status).not.toBe(0);
@@ -757,9 +785,9 @@ test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "r
         : cliOutput(
             await invokeAsync(f.original, [
               "finish",
-              "--spec",
-              f.originalSpec,
-              "--author",
+              "--feature",
+              f.originalSpec.replace(/\/spec\.md$/, ""),
+              "--actor",
               "controller",
             ]),
           );
@@ -788,7 +816,13 @@ test("wrong merge, undeclared command and unavailable result cannot authorize cl
   finalization.record({ ...valid, result: "unavailable", details: "environment unavailable" });
   expect(
     cliOutput(
-      await invokeAsync(f.original, ["finish", "--spec", f.originalSpec, "--author", "controller"]),
+      await invokeAsync(f.original, [
+        "finish",
+        "--feature",
+        f.originalSpec.replace(/\/spec\.md$/, ""),
+        "--actor",
+        "controller",
+      ]),
     ).finalValidation,
   ).toBe("pending");
   expect(existsSync(f.root)).toBe(true);

@@ -13,11 +13,15 @@ export class TicketCreateCommand extends Command {
     group(root, "ticket")
       .command("create")
       .description("Create an attributed ticket in the selected feature.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--title <title>", "Ticket title", CommandOptions.once("--title"))
       .requiredOption("--reporter <reporter>", "Ticket reporter", CommandOptions.once("--reporter"))
       .requiredOption("--category <category>", "Ticket category", CommandOptions.once("--category"))
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketCreateOptions) => {
         const app = await createApp();

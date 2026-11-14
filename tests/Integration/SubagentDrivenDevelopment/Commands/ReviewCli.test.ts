@@ -15,34 +15,49 @@ test.each([
   ["--ticket", "T-0001"],
   ["--scope", "delivery"],
 ])("review dispatch accepts the %s selector", async (...selector) => {
-  await expect(
-    review(["--spec", "/feature/spec.md", ...selector, "--inventory", "[]", "--author", "owner"]),
-  ).rejects.toThrow("review dispatched");
+  await expect(review(["--feature", "/feature", ...selector, "--actor", "owner"])).rejects.toThrow(
+    "review dispatched",
+  );
 });
 
 test("review require accepts a ticket selector", async () => {
   await expect(
     review([
       "require",
-      "--spec",
-      "/feature/spec.md",
+      "--feature",
+      "/feature",
       "--ticket",
       "T-0001",
       "--type",
       "sdd-code-reviewer",
       "--details",
       "Inspect the change",
-      "--author",
+      "--actor",
       "owner",
     ]),
   ).rejects.toThrow("review dispatched");
+});
+
+test("review rejects caller-supplied inventory", async () => {
+  await expect(
+    review([
+      "--feature",
+      "/feature",
+      "--ticket",
+      "T-0001",
+      "--inventory",
+      "[]",
+      "--actor",
+      "owner",
+    ]),
+  ).rejects.toThrow(/unknown option.*inventory/i);
 });
 
 test.each([[], ["--ticket", "T-0001", "--scope", "delivery"]])(
   "review rejects missing or conflicting scope selectors",
   async (...selector) => {
     await expect(
-      review(["--spec", "/feature/spec.md", ...selector, "--inventory", "[]", "--author", "owner"]),
+      review(["--feature", "/feature", ...selector, "--actor", "owner"]),
     ).rejects.toThrow("exactly one of --ticket or --scope delivery");
   },
 );

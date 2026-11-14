@@ -362,7 +362,6 @@ export async function prepareReviewAssignment(
     service.reviewService.review({
       spec: prepared.spec,
       ticket: prepared.ticketId,
-      inventory: JSON.stringify([prepared.file]),
       author: "controller",
     }),
   );
@@ -480,7 +479,6 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
     service.reviewService.review({
       spec: prepared.spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -545,12 +543,12 @@ export async function declareFinalDeliveryChecks(
   const declared = await invokeAsync(pending.originalWorkspace, [
     "checks",
     "require",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     ...commands.flatMap((command) => ["--command", command]),
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(declared.status, declared.stderr).toBe(0);
@@ -566,8 +564,8 @@ export async function recordFinalDeliveryCheck(
   const recorded = await invokeAsync(pending.originalWorkspace, [
     "checks",
     "record",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     "--merge",
@@ -577,7 +575,7 @@ export async function recordFinalDeliveryCheck(
     "--result",
     result,
     ...(details ? ["--details", details] : []),
-    "--author",
+    "--actor",
     "controller",
   ]);
   return recorded;
@@ -586,9 +584,9 @@ export async function recordFinalDeliveryCheck(
 export async function completeDeliveryFinalization(pending: PendingFeatureFinalization) {
   return await invokeAsync(pending.originalWorkspace, [
     "finish",
-    "--spec",
-    pending.originalSpec,
-    "--author",
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
   ]);
 }

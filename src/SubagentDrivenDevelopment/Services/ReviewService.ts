@@ -189,19 +189,6 @@ export class ReviewService extends Service {
     if (!options.ticket) throw new Error("Review requires --ticket or --scope delivery.");
     validateTicketId(options.ticket);
     const ticketId = options.ticket;
-    let confirmedInventory: unknown;
-    try {
-      confirmedInventory = JSON.parse(options.inventory) as unknown;
-    } catch {
-      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
-    }
-    if (
-      !Array.isArray(confirmedInventory) ||
-      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
-      new Set(confirmedInventory).size !== confirmedInventory.length
-    ) {
-      throw new Error("--inventory must be a JSON string array without duplicate paths.");
-    }
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
@@ -235,15 +222,6 @@ export class ReviewService extends Service {
       );
       if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
       const inventory = this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace);
-      const suppliedPaths = new Set(confirmedInventory);
-      if (
-        suppliedPaths.size !== inventory.length ||
-        inventory.some((path) => !suppliedPaths.has(path))
-      ) {
-        throw new Error(
-          `Controller-confirmed inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
-        );
-      }
 
       const requiredReviewers = requiredTicketReviewers(ledger, progress);
       let existing = progress.reviewAssignments ?? [];
@@ -510,19 +488,6 @@ export class ReviewService extends Service {
     headSha: string;
   } {
     if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
-    let confirmedInventory: unknown;
-    try {
-      confirmedInventory = JSON.parse(options.inventory) as unknown;
-    } catch {
-      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
-    }
-    if (
-      !Array.isArray(confirmedInventory) ||
-      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
-      new Set(confirmedInventory).size !== confirmedInventory.length
-    ) {
-      throw new Error("--inventory must be a JSON string array without duplicate paths.");
-    }
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -572,15 +537,6 @@ export class ReviewService extends Service {
         );
       }
       const inventory = this.gitEvidence.changedPaths(baseline);
-      const suppliedPaths = new Set(confirmedInventory);
-      if (
-        suppliedPaths.size !== inventory.length ||
-        inventory.some((path) => !suppliedPaths.has(path))
-      ) {
-        throw new Error(
-          `Controller-confirmed delivery inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
-        );
-      }
       const required = requiredDeliveryReviewers(ledger, delivery);
       const correctionNumber =
         delivery.assignment?.action === "correct" ? delivery.assignment.attempt : undefined;

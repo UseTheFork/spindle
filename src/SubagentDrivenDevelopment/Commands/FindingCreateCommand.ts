@@ -13,12 +13,16 @@ export class FindingCreateCommand extends Command {
     group(root, "finding")
       .command("create")
       .description("Register a review finding from its assigned report.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--related-ticket <id>", "Ticket to reopen for a blocking feature finding")
       .requiredOption(
-        "--source <path>",
+        "--source <directory>",
         "Assigned review report containing the finding",
         CommandOptions.once("--source"),
       )
@@ -41,9 +45,9 @@ export class FindingCreateCommand extends Command {
         CommandOptions.once("--details"),
       )
       .requiredOption(
-        "--author <author>",
+        "--actor <acting-agent>",
         "Finding registration author",
-        CommandOptions.once("--author"),
+        CommandOptions.once("--actor"),
       )
       .allowExcessArguments(false)
       .action(async (options: FindingCreateOptions) => {

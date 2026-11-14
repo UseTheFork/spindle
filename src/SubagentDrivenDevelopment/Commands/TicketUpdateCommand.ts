@@ -13,7 +13,11 @@ export class TicketUpdateCommand extends Command {
     group(root, "ticket")
       .command("update")
       .description("Update ticket fields, status, blocker, or dependencies.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--title <title>", "Updated ticket title", CommandOptions.once("--title"))
       .option("--reporter <reporter>", "Updated ticket reporter", CommandOptions.once("--reporter"))
@@ -23,7 +27,7 @@ export class TicketUpdateCommand extends Command {
       .option("--clear-blocker", "Remove the explicit ticket blocker")
       .option("--blocked-by <tickets...>", "Authoritative dependency ticket IDs")
       .option("--clear-blocked-by", "Remove all ticket dependencies")
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketUpdateOptions) => {
         const app = await createApp();

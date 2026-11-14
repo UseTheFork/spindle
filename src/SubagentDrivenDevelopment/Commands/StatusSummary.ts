@@ -17,7 +17,7 @@ export function statusSummary(data: unknown, spec: string, heading: string): str
 
   const delivery = asRecord(status.delivery);
   if (delivery) {
-    const state = [delivery.status, delivery.execution, delivery.action]
+    const state = [delivery.status, delivery.execution]
       .map(asText)
       .filter((value): value is string => value !== undefined);
     if (state.length > 0) lines.push(`Delivery: ${state.join("; ")}.`);
@@ -25,12 +25,6 @@ export function statusSummary(data: unknown, spec: string, heading: string): str
     addTextList(lines, "Delivery blockers", delivery.blockers);
   }
 
-  addRecordList(lines, "Permitted actions", status.actions, (item) =>
-    [item.ticket, item.action]
-      .map(asText)
-      .filter((value): value is string => value !== undefined)
-      .join(": "),
-  );
   addRecordList(lines, "Pending assignments", status.pendingAssignments, (item) =>
     [
       [item.ticket, item.action, item.id]
@@ -62,7 +56,224 @@ export function statusSummary(data: unknown, spec: string, heading: string): str
     return command && result ? `${command}: ${result}` : (command ?? result ?? "");
   });
 
+  return [...lines, ...nextSummary(data)];
+}
+
+export function finishSummary(data: unknown): string[] {
+  const result = asRecord(data);
+  if (!result) throw new Error("Finish returned no structured workflow result.");
+  const feature = asText(result.feature);
+  if (!feature) throw new Error("Finish result is missing its feature identifier.");
+  if (result.finished === true) return [`Finished feature delivery for ${feature}.`];
+  if (result.phase !== "validation" || result.finalValidation !== "pending") {
+    throw new Error("Finish returned an unrecognized incomplete workflow result.");
+  }
+  const mergeCommit = asText(result.mergeCommit);
+  if (!mergeCommit) throw new Error("Pending final validation is missing its merge commit.");
+  return [`Final validation is pending for feature merge ${mergeCommit}.`, ...nextSummary(data)];
+}
+
+export function nextSummary(data: unknown): string[] {
+  const status = asRecord(data);
+  if (!status) return ["No structured workflow state was returned."];
+
+  const feature = asText(status.feature);
+  if (!feature) throw new Error("Workflow status is missing its feature identifier.");
+  const featureDirectory = `.scratch/${feature}`;
+  const delivery = asRecord(status.delivery);
+  const phase = asText(status.phase);
+  const step = deliveryStep(delivery, phase, status.finished === true);
+  const lines = [`Feature ${feature}: step ${step}`];
+  addTextList(lines, "Delivery blocker", delivery?.blockers);
+
+  const actions = records(status.actions);
+  for (const action of actions) {
+    const ticket = asText(action.ticket);
+    const name = asText(action.action);
+    if (!ticket || !name) continue;
+    const ticketStep = ticketActionStep(name);
+    const state = ticketActionState(name);
+    lines.push(`${ticket}: step ${ticketStep} (${state})`);
+    const command = ticketActionCommand(name, featureDirectory, ticket);
+    if (command) lines.push(`  Next: ${command}`);
+  }
+
+  const assignments = records(status.pendingAssignments);
+  for (const assignment of assignments) {
+    const ticket = asText(assignment.ticket);
+    const id = asText(assignment.id);
+    const role = asText(assignment.role);
+    const requestedAt = asText(assignment.requestedAt);
+    const report = asText(assignment.report);
+    if (!ticket || !id || !role || !requestedAt || !report) {
+      throw new Error("Pending assignment is missing its identity, dispatch time, or report path.");
+    }
+    const age = elapsedSince(requestedAt);
+    const reportState = assignment.reportPresent === true ? "present, not submitted" : "missing";
+    lines.push(`${ticket} ${role} ${id}  dispatched ${age}  report: ${reportState}`);
+    if (assignment.reportPresent === true) {
+      lines.push(`  Next: ${assignmentSubmitCommand(assignment, featureDirectory)}`);
+    }
+  }
+
+  const readyActions = actions.filter((action) => !asText(action.action)?.startsWith("await-"));
+  if (readyActions.length === 0 && assignments.length > 0) {
+    const reportsReady = assignments.some((assignment) => assignment.reportPresent === true);
+    lines.push(
+      reportsReady
+        ? "No ready tickets. Submit available reports or wait for the remaining assignments."
+        : "No ready tickets. Wait for the open assignments.",
+    );
+  } else if (readyActions.length === 0 && assignments.length === 0) {
+    addRecordList(lines, "Blocker", status.blockers, (item) => {
+      const ticket = asText(item.ticket);
+      const reason = asText(item.reason);
+      return ticket && reason ? `${ticket}: ${reason}` : (reason ?? ticket ?? "");
+    });
+  }
+
+  if (phase === "validation") addFinalValidationCommands(lines, status, featureDirectory);
+  if (step === "delivery:checks") {
+    lines.push(
+      `Next: pnpm spindle sdd checks require --feature ${featureDirectory} --scope delivery --command <check> --actor <acting-agent>`,
+    );
+  } else if (step === "delivery:review") {
+    lines.push(
+      `Next: pnpm spindle sdd review --feature ${featureDirectory} --scope delivery --actor <acting-agent>`,
+    );
+  } else if (step === "delivery:finish") {
+    lines.push(
+      `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
+    );
+  } else if (step === "delivery:cleanup") {
+    lines.push(
+      `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
+    );
+  }
+
   return lines;
+}
+
+function deliveryStep(
+  delivery: SummaryRecord | undefined,
+  phase: string | undefined,
+  finished: boolean,
+): string {
+  if (finished) return "delivery:complete";
+  if (phase === "validation") return "delivery:final-validation";
+  if (phase) return "delivery:cleanup";
+  const action = asText(delivery?.action);
+  switch (action) {
+    case "record-final-checks":
+      return "delivery:checks";
+    case "review":
+    case "await-review-report":
+      return "delivery:review";
+    case "correct":
+    case "adjudicate":
+      return "delivery:adjudicate";
+    case "finish":
+      return "delivery:finish";
+    case "finished":
+      return "delivery:complete";
+    default:
+      return "tickets-in-progress";
+  }
+}
+
+function ticketActionStep(action: string): string {
+  switch (action) {
+    case "implement":
+    case "await-implementation-report":
+      return "ticket:implement";
+    case "review":
+    case "await-review-report":
+      return "ticket:review";
+    case "integrate":
+      return "ticket:integrate";
+    case "post-merge-checks":
+      return "ticket:post-merge";
+    case "adjudicate":
+    case "adjudicate-findings":
+    case "controller-correction-decision":
+    case "correct":
+    case "resolve-findings":
+      return "ticket:adjudicate";
+    default:
+      throw new Error(`Unknown ticket workflow action: ${action}.`);
+  }
+}
+
+function ticketActionState(action: string): string {
+  if (action.startsWith("await-")) return "awaiting report";
+  if (["adjudicate", "adjudicate-findings", "controller-correction-decision"].includes(action)) {
+    return "judgment required";
+  }
+  return "ready";
+}
+
+function ticketActionCommand(action: string, feature: string, ticket: string): string | undefined {
+  switch (action) {
+    case "implement":
+      return `pnpm spindle sdd implement --feature ${feature} --ticket ${ticket} --workspace <absolute-authorized-directory> --actor <acting-agent>`;
+    case "review":
+      return `pnpm spindle sdd review --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+    case "integrate":
+      return `pnpm spindle sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+    case "post-merge-checks":
+      return `pnpm spindle sdd checks require --feature ${feature} --ticket ${ticket} --scope post-merge --command <check> --actor <acting-agent>`;
+    case "correct":
+    case "resolve-findings":
+      return `pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --findings <finding-id> --details <correction-objective> --actor <acting-agent>`;
+    default:
+      return undefined;
+  }
+}
+
+function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): string {
+  const ticket = asText(assignment.ticket);
+  const id = asText(assignment.id);
+  const role = asText(assignment.role);
+  const scope = asText(assignment.scope);
+  if (!id || !role) throw new Error("Pending assignment is missing its identity or role.");
+  const selection =
+    scope === "delivery" || ticket === "delivery"
+      ? "--scope delivery"
+      : ticket
+        ? `--ticket ${ticket}`
+        : "";
+  const result = role === "review" ? " --result <passed|failed|unavailable>" : "";
+  return `pnpm spindle sdd submit --feature ${feature} ${selection} --assignment ${id}${result} --actor <acting-agent>`
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addFinalValidationCommands(lines: string[], status: SummaryRecord, feature: string): void {
+  const required = records(status.required);
+  for (const check of required) {
+    const command = asText(check.command);
+    if (!command) continue;
+    lines.push(
+      `Next: pnpm spindle sdd checks record --feature ${feature} --scope final --command "${command}" --result <passed|failed|unavailable> --actor <acting-agent>`,
+    );
+  }
+}
+
+function elapsedSince(timestamp: string): string {
+  const dispatchedAt = Date.parse(timestamp);
+  if (!Number.isFinite(dispatchedAt)) {
+    throw new Error(`Pending assignment has an invalid dispatch time: ${timestamp}.`);
+  }
+  const minutes = Math.max(0, Math.floor((Date.now() - dispatchedAt) / 60_000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes === 0 ? `${hours}h ago` : `${hours}h ${remainingMinutes}m ago`;
+}
+
+function records(value: unknown): SummaryRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is SummaryRecord => asRecord(item) !== undefined);
 }
 
 function formatAssignment(value: unknown): string | undefined {

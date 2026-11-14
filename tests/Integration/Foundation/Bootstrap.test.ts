@@ -48,7 +48,7 @@ function workspace() {
 }
 
 const invocation: ConsoleInvocation = {
-  raw: ["sdd", "create", "--title", "Feature", "--author", "maintainer"],
+  raw: ["sdd", "create", "--title", "Feature", "--actor", "maintainer"],
   script: "/bin/spindle",
   commandPath: ["sdd", "create"],
   options: { title: "Feature", author: "maintainer" },
@@ -281,15 +281,15 @@ test("Commander preserves a real positional action and nested command path witho
     "sdd",
     "review",
     "require",
-    "--spec",
-    "/spec.md",
+    "--feature",
+    "/",
     "--scope",
     "delivery",
     "--agent",
     "reviewer",
     "--details",
     "Required",
-    "--author",
+    "--actor",
     "maintainer",
   ];
   await expect(

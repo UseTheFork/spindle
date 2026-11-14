@@ -1,6 +1,6 @@
 # SDD workflow redesign
 
-Status: draft, being settled through a design interview. Terms follow
+Status: accepted. Terms follow
 [the SDD glossary](src/SubagentDrivenDevelopment/GLOSSARY.md).
 
 ## Goal
@@ -172,27 +172,27 @@ not command syntax.
 
 ## Flag changes
 
-| Flag | Command | Change | Source of the value |
-|---|---|---|---|
-| `--feature` | feature-scoped commands (not `create`) | replace `--spec`, keep required | agent; `next` prints it |
-| `--actor` | all | replace `--author`, keep required | agent; `next` prints a placeholder |
-| `--workspace` | `start`, `implement` | keep, required | agent; must be an authorized location |
-| `--assignment` | `submit`, `finding create` | keep, required | agent; `next` and dispatch output print it |
-| `--result` | review `submit`, `checks record` | keep, required | orchestrator/agent; validated by the CLI |
-| `--command` | `checks record` | keep, required | agent-reported command; `next` echoes the declaration |
-| `--confirm-records` | `start` | keep | agent confirmation |
-| `--confirm-records` | `implement`, `integrate`, `finish` | remove | records commit immediately |
-| `--inventory` | `review` | remove | computed from the ticket diff |
-| `--role`, `--report` | `submit` | remove | the assignment |
-| `--findings`, `--no-findings` | `submit` | remove | derived from findings already linked to the assignment |
-| `--unavailable` | implementation `submit` | replace with `--result unavailable` | orchestrator |
-| `--source` | `finding create` | replace with `--assignment` | CLI resolves the assigned report |
-| `--merge` | final `checks record` | remove | finalization journal |
-| `--rebase-baseline` | `checks require` | remove | moves into `sync` |
-| `--paths` | `checks record` | remove | never read |
-| `--agent` | `review require` | remove | duplicate of `--type` |
-| `--status` | `ticket update` | remove | workflow sets status |
-| `--severity` | `finding create` | remove | only blocking status gates the workflow |
+| Flag                          | Command                                | Change                              | Source of the value                                    |
+| ----------------------------- | -------------------------------------- | ----------------------------------- | ------------------------------------------------------ |
+| `--feature`                   | feature-scoped commands (not `create`) | replace `--spec`, keep required     | agent; `next` prints it                                |
+| `--actor`                     | all                                    | replace `--author`, keep required   | agent; `next` prints a placeholder                     |
+| `--workspace`                 | `start`, `implement`                   | keep, required                      | agent; must be an authorized location                  |
+| `--assignment`                | `submit`, `finding create`             | keep, required                      | agent; `next` and dispatch output print it             |
+| `--result`                    | review `submit`, `checks record`       | keep, required                      | orchestrator/agent; validated by the CLI               |
+| `--command`                   | `checks record`                        | keep, required                      | agent-reported command; `next` echoes the declaration  |
+| `--confirm-records`           | `start`                                | keep                                | agent confirmation                                     |
+| `--confirm-records`           | `implement`, `integrate`, `finish`     | remove                              | records commit immediately                             |
+| `--inventory`                 | `review`                               | remove                              | computed from the ticket diff                          |
+| `--role`, `--report`          | `submit`                               | remove                              | the assignment                                         |
+| `--findings`, `--no-findings` | `submit`                               | remove                              | derived from findings already linked to the assignment |
+| `--unavailable`               | implementation `submit`                | replace with `--result unavailable` | orchestrator                                           |
+| `--source`                    | `finding create`                       | replace with `--assignment`         | CLI resolves the assigned report                       |
+| `--merge`                     | final `checks record`                  | remove                              | finalization journal                                   |
+| `--rebase-baseline`           | `checks require`                       | remove                              | moves into `sync`                                      |
+| `--paths`                     | `checks record`                        | remove                              | never read                                             |
+| `--agent`                     | `review require`                       | remove                              | duplicate of `--type`                                  |
+| `--status`                    | `ticket update`                        | remove                              | workflow sets status                                   |
+| `--severity`                  | `finding create`                       | remove                              | only blocking status gates the workflow                |
 
 Other retained inputs include agent identity and authorization (`--actor`,
 `--workspace`, `--confirm-records`, `--confirm-handoff`), explicit selection

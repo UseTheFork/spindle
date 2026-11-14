@@ -35,7 +35,7 @@ test("ready does not combine tracker states from interleaved serialized updates"
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
   const preloadPath = join(repoRoot, "tests/Helpers/Preloads/ready-pause.ts");
-  const ready = invokeAsync(repo, ["ready", "--spec", feature.spec], {
+  const ready = invokeAsync(repo, ["ready", "--feature", feature.spec.replace(/\/spec\.md$/, "")], {
     preload: preloadPath,
     env: {
       SPINDLE_TEST_READY_TARGET: join(feature.workspace, "tickets", "T-0002.md"),
@@ -66,15 +66,15 @@ test("concurrent ticket creation serializes per-feature IDs and ledger updates",
       invokeAsync(repo, [
         "ticket",
         "create",
-        "--spec",
-        feature.spec,
+        "--feature",
+        feature.spec.replace(/\/spec\.md$/, ""),
         "--title",
         title,
         "--reporter",
         "maintainer",
         "--category",
         "enhancement",
-        "--author",
+        "--actor",
         "controller",
       ]),
     ),
@@ -116,13 +116,13 @@ test("concurrent ticket updates preserve both attributed history entries", async
       invokeAsync(repo, [
         "ticket",
         "update",
-        "--spec",
-        feature.spec,
+        "--feature",
+        feature.spec.replace(/\/spec\.md$/, ""),
         "--ticket",
         "T-0001",
         "--title",
         title,
-        "--author",
+        "--actor",
         title,
       ]),
     ),

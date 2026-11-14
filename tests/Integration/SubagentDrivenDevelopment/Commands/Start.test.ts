@@ -24,8 +24,8 @@ test("start commits only the feature records and creates an isolated worktree", 
   const originalRevision = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -77,7 +77,11 @@ test("start commits only the feature records and creates an isolated worktree", 
     featureWorkspace: output.featureWorkspace,
     phase: "created",
   });
-  const status = await invokeAsync(output.featureWorkspace, ["status", "--spec", output.spec]);
+  const status = await invokeAsync(output.featureWorkspace, [
+    "status",
+    "--feature",
+    output.spec.replace(/\/spec\.md$/, ""),
+  ]);
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(status.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
 });
@@ -89,8 +93,8 @@ test("start uses the existing revision without creating an empty commit", async 
   const before = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -105,7 +109,7 @@ test("start uses the existing revision without creating an empty commit", async 
 test("competing starts resume the same branch, state, and worktree", async () => {
   const { repo, git, spec, parent } = await setup();
   const before = git("rev-parse", "HEAD");
-  const args = ["start", "--spec", spec, "--workspace", parent, "--confirm-records"];
+  const args = ["start", "--feature", dirname(spec), "--workspace", parent, "--confirm-records"];
   const results = await Promise.all([invokeAsync(repo, args), invokeAsync(repo, args)]);
   expect(results.map((result) => result.status)).toEqual([0, 0]);
   const winnerEnvelope = JSON.parse(results[0]!.stdout);
@@ -131,8 +135,8 @@ test("start refuses unrelated changes before creating a commit, branch, or state
   const before = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -154,8 +158,8 @@ test("start preserves staged feature content that differs from the worktree", as
   writeFileSync(spec, `${readFileSync(spec, "utf8")}\nUnstaged requirement.\n`);
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -171,8 +175,8 @@ test("start requires record confirmation and rejects unexpected or ignored featu
   const before = git("rev-parse", "HEAD");
   const missingConfirmation = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
   ]);
@@ -182,8 +186,8 @@ test("start requires record confirmation and rejects unexpected or ignored featu
   writeFileSync(secret, "credential-like data\n");
   const unexpected = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -196,8 +200,8 @@ test("start requires record confirmation and rejects unexpected or ignored featu
   writeFileSync(join(repo, ".git/info/exclude"), ".scratch/0001-worktree-feature/.env\n");
   const ignored = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -214,8 +218,8 @@ test("start refuses active Git hooks instead of bypassing them", async () => {
   const before = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -242,8 +246,8 @@ test("start preserves ledgers that refer to reports in the original checkout", a
   const before = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -272,8 +276,8 @@ test("start preserves unmerged feature entries without staging a conflict", asyn
   expect(before).not.toBe("");
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -292,8 +296,8 @@ test("start preserves existing paths and branches and rejects internal or missin
   const before = git("rev-parse", "HEAD");
   const collision = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -304,8 +308,8 @@ test("start preserves existing paths and branches and rejects internal or missin
   expect(git("rev-parse", "HEAD")).toBe(before);
   const internal = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     repo,
     "--confirm-records",
@@ -314,8 +318,8 @@ test("start preserves existing paths and branches and rejects internal or missin
   expect(internal.stderr).toMatch(/outside/);
   const missing = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     join(parent, "missing"),
     "--confirm-records",
@@ -328,8 +332,8 @@ test("start preserves existing paths and branches and rejects internal or missin
   git("branch", "features/0001-worktree-feature");
   const branch = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     otherParent,
     "--confirm-records",
@@ -345,8 +349,8 @@ test("start accepts a parent directory inside another checkout", async () => {
   execFileSync("git", ["init", "-q", parent]);
   const result = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",
@@ -368,7 +372,7 @@ test("interrupted startup resumes the journalled allocated directory", async () 
   );
   const result = await invokeAsync(
     repo,
-    ["start", "--spec", spec, "--workspace", parent, "--confirm-records"],
+    ["start", "--feature", dirname(spec), "--workspace", parent, "--confirm-records"],
     {
       env: { PATH: `${bin}:${process.env.PATH ?? ""}` },
     },
@@ -382,8 +386,8 @@ test("interrupted startup resumes the journalled allocated directory", async () 
   expect(existsSync(state.featureWorkspace)).toBe(true);
   const retry = await invokeAsync(repo, [
     "start",
-    "--spec",
-    spec,
+    "--feature",
+    dirname(spec),
     "--workspace",
     parent,
     "--confirm-records",

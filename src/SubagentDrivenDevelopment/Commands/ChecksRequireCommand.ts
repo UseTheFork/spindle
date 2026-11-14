@@ -14,7 +14,11 @@ export class ChecksRequireCommand extends Command {
     group(root, "checks")
       .command("require")
       .description("Add or remove a required external check.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery, post-merge or final")
       .requiredOption(
@@ -29,7 +33,7 @@ export class ChecksRequireCommand extends Command {
         "Adopt current feature HEAD after manually rebasing the ticket worktree",
       )
       .option("--details <details>", "Removal rationale")
-      .requiredOption("--author <author>", "Acting controller", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: Omit<ChecksRequireOptions, "command"> & { command: string[] }) => {
         if (

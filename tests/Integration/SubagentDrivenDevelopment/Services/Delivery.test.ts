@@ -2,8 +2,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
+import { runCli } from "../../../Helpers/Cli";
 import {
   cliOutput,
   commitTicketWorkspace,
@@ -23,6 +24,23 @@ import {
   prepareReviewedTicket,
   prepareDeliveryReady,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+
+vi.setConfig({ testTimeout: 60_000 });
+
+test("finish reports pending final validation without claiming the feature is complete", async () => {
+  const prepared = await prepareDeliveryReady();
+  await beginDeliveryFinalization(prepared);
+  const featureDirectory = prepared.spec.replace(/\/spec\.md$/, "");
+  const result = runCli(
+    prepared.repo,
+    ["sdd", "finish", "--feature", featureDirectory, "--actor", "controller"],
+    process.env.PATH ?? "",
+  );
+
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stdout).toMatch(/final validation is pending/i);
+  expect(result.stdout).not.toMatch(/Finished feature delivery/i);
+});
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
@@ -43,7 +61,6 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
       spec,
       ticket: "T-0001",
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -54,7 +71,6 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -110,7 +126,6 @@ test("delivery review requires passing post-merge evidence for each ticket's cur
       service.reviewService.review({
         spec,
         scope: "delivery",
-        inventory: JSON.stringify(["feature.ts"]),
         author: "controller",
       }),
     );
@@ -157,7 +172,6 @@ test("blocking delivery findings reopen their related ticket after all required 
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -307,7 +321,6 @@ test("delivery checks use their own current commit and stale aggregate checks bl
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -328,7 +341,6 @@ test("delivery correction attempts resume independently with the same assignment
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -441,7 +453,6 @@ test("delivery correction attempts resume independently with the same assignment
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -560,7 +571,6 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -705,7 +715,6 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     service.reviewService.review({
       spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -760,9 +769,9 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(optionalLedger.retrospectiveRequired).toBe(false);
   const repeatedOptional = await invokeAsync(optional.originalRepo, [
     "finish",
-    "--spec",
-    optionalFinalization.pending.originalSpec,
-    "--author",
+    "--feature",
+    optionalFinalization.pending.originalSpec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
   ]);
   expect(repeatedOptional.status, repeatedOptional.stderr).toBe(0);
@@ -899,7 +908,6 @@ test("aggregate review covers every closed ticket and stale requirements block f
     service.reviewService.review({
       spec: first.spec,
       ticket: secondId,
-      inventory: JSON.stringify([secondFile]),
       author: "controller",
     }),
   );
@@ -953,7 +961,6 @@ test("aggregate review covers every closed ticket and stale requirements block f
     service.reviewService.review({
       spec: first.spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature-two.ts", "feature.ts"]),
       author: "controller",
     }),
   );
@@ -1107,15 +1114,15 @@ test("final-merge check requirements are frozen after their initial declaration"
   const changedList = await invokeAsync(pending.originalWorkspace, [
     "checks",
     "require",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     "--command",
     command,
     "--command",
     "late unreviewed check",
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(changedList.status).not.toBe(0);
@@ -1136,9 +1143,9 @@ test("finalization cleanup remains bound to its recorded controller", async () =
 
   const replacementFinish = await invokeAsync(finalization.pending.originalWorkspace, [
     "finish",
-    "--spec",
-    finalization.pending.originalSpec,
-    "--author",
+    "--feature",
+    finalization.pending.originalSpec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "replacement",
   ]);
   expect(replacementFinish.status).not.toBe(0);
@@ -1157,13 +1164,13 @@ test("finalization status and next expose pending checks and completed cleanup",
   const pending = await beginDeliveryFinalization(prepared, { report });
   const statusPending = await invokeAsync(pending.originalWorkspace, [
     "status",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
   ]);
   const nextPending = await invokeAsync(pending.originalWorkspace, [
     "next",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
   ]);
   expect(statusPending.status, statusPending.stderr).toBe(0);
   expect(nextPending.status, nextPending.stderr).toBe(0);
@@ -1187,13 +1194,13 @@ test("finalization status and next expose pending checks and completed cleanup",
 
   const statusComplete = await invokeAsync(pending.originalWorkspace, [
     "status",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
   ]);
   const nextComplete = await invokeAsync(pending.originalWorkspace, [
     "next",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
   ]);
   expect(statusComplete.status, statusComplete.stderr).toBe(0);
   expect(nextComplete.status, nextComplete.stderr).toBe(0);

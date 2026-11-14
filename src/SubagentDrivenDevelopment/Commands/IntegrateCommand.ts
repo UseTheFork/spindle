@@ -13,9 +13,13 @@ export class IntegrateCommand extends Command {
     group(root)
       .command("integrate")
       .description("Merge a currently reviewed ticket commit into the feature branch.")
-      .requiredOption("--spec <path>", "Canonical feature spec", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Canonical feature spec",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .option(
         "--confirm-records",
         "Confirm that current canonical feature records were inspected before batching",

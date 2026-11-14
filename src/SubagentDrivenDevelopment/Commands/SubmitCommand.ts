@@ -15,7 +15,11 @@ export class SubmitCommand extends Command {
     const submitCommand = group(root)
       .command("submit")
       .description("Register an implementation or review report.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--role <role>", "Assignment role")
@@ -38,7 +42,7 @@ export class SubmitCommand extends Command {
         "Required details for failed or unavailable results",
         CommandOptions.once("--details"),
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false);
     submitCommand.on("option:findings", () => {
       findingsDeclared = true;
