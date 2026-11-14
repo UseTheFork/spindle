@@ -212,7 +212,6 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
   expect(missing.status).not.toBe(0);
   expect(missing.stderr).toMatch(/missing or unavailable/);
   expect(readFileSync(ledger, "utf8")).toBe(before);
-
 });
 
 test("submission derives implementation role and report from the assignment", async () => {
@@ -264,6 +263,76 @@ test("submission derives implementation role and report from the assignment", as
   );
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
+});
+
+test("next identifies missing and failed ticket checks after implementation submission", async () => {
+  const { repo, git, spec, worktreeParent } = await prepareReadyTicket();
+  const command = "pnpm run test:export";
+  const required = await execute(repo, (service) =>
+    service.checksService.checksRequire({
+      spec,
+      ticket: "T-0001",
+      command,
+      author: "controller",
+    }),
+  );
+  expect(required.status, required.stderr).toBe(0);
+
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    workspace: string;
+  };
+  writeFileSync(join(assignment.workspace, "export.ts"), "export const exportRows = [];\n");
+  git("-C", assignment.workspace, "add", "export.ts");
+  git("-C", assignment.workspace, "commit", "-qm", "implement export");
+  writeFileSync(assignment.report, "# Implementation report\n\nExport behavior is implemented.\n");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  expect(JSON.parse(missing.stdout).actions).toContainEqual({
+    ticket: "T-0001",
+    action: "checks",
+    checkCommand: command,
+  });
+
+  const failed = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      spec,
+      ticket: "T-0001",
+      command,
+      result: "failed",
+      details: "The export assertion failed.",
+      author: "controller",
+    }),
+  );
+  expect(failed.status, failed.stderr).toBe(0);
+  const afterFailure = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(afterFailure.status, afterFailure.stderr).toBe(0);
+  expect(JSON.parse(afterFailure.stdout).actions).toContainEqual({
+    ticket: "T-0001",
+    action: "correct",
+    checkFailure: command,
+    continuationRequired: false,
+  });
 });
 
 test("next and status guide unstarted work to implement without changing workflow state", async () => {

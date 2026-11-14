@@ -91,20 +91,38 @@ export function nextSummary(data: unknown): string[] {
   addTextList(lines, "Delivery blocker", delivery?.blockers);
 
   const actions = records(status.actions);
+  const guidedTickets = new Set<string>();
+  const renderedSteps = new Set<string>();
   for (const action of actions) {
     const ticket = asText(action.ticket);
     const name = asText(action.action);
     if (!ticket || !name) continue;
     const ticketStep = ticketActionStep(name);
     const state = ticketActionState(name);
-    lines.push(`${ticket}: step ${ticketStep} (${state})`);
-    const command = ticketActionCommand(
-      name,
-      featureDirectory,
-      ticket,
-      asText(action.checkFailure),
-    );
+    const stepKey = `${ticket}:${ticketStep}`;
+    if (!renderedSteps.has(stepKey)) {
+      lines.push(`${ticket}: step ${ticketStep} (${state})`);
+      renderedSteps.add(stepKey);
+    }
+    const command = ticketActionCommand(name, featureDirectory, ticket);
     if (command) lines.push(`  Next: ${command}`);
+    if (name === "checks") addTicketCheckCommand(lines, action, featureDirectory, ticket, "ticket");
+    if (name === "post-merge-checks")
+      addTicketCheckCommand(lines, action, featureDirectory, ticket, "post-merge");
+    if (
+      !guidedTickets.has(ticket) &&
+      [
+        "adjudicate",
+        "adjudicate-findings",
+        "controller-correction-decision",
+        "correct",
+        "post-merge-correct",
+        "resolve-findings",
+      ].includes(name)
+    ) {
+      guidedTickets.add(ticket);
+      addTicketCorrectionGuidance(lines, status, actions, featureDirectory, ticket);
+    }
   }
 
   const assignments = records(status.pendingAssignments);
@@ -128,10 +146,11 @@ export function nextSummary(data: unknown): string[] {
   const readyActions = actions.filter((action) => !asText(action.action)?.startsWith("await-"));
   if (readyActions.length === 0 && assignments.length > 0) {
     const reportsReady = assignments.some((assignment) => assignment.reportPresent === true);
+    const waiting = step.startsWith("delivery:") ? "delivery actions" : "tickets";
     lines.push(
       reportsReady
-        ? "No ready tickets. Submit available reports or wait for the remaining assignments."
-        : "No ready tickets. Wait for the open assignments.",
+        ? `No ready ${waiting}. Submit available reports or wait for the remaining assignments.`
+        : `No ready ${waiting}. Wait for the open assignments.`,
     );
   } else if (readyActions.length === 0 && assignments.length === 0) {
     addRecordList(lines, "Blocker", status.blockers, (item) => {
@@ -146,11 +165,7 @@ export function nextSummary(data: unknown): string[] {
     lines.push(
       `Next: pnpm spindle sdd claim --scope delivery --feature ${featureDirectory} --actor <acting-agent>`,
     );
-  } else if (step === "delivery:checks") {
-    lines.push(
-      `Next: pnpm spindle sdd checks require --feature ${featureDirectory} --scope delivery --command <check> --actor <acting-agent>`,
-    );
-  } else if (step === "delivery:review") {
+  } else if (step === "delivery:review" && delivery?.action === "review") {
     lines.push(
       `Next: pnpm spindle sdd review --feature ${featureDirectory} --scope delivery --actor <acting-agent>`,
     );
@@ -163,6 +178,14 @@ export function nextSummary(data: unknown): string[] {
       `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
     );
   }
+  if (step === "delivery:checks") addDeliveryCheckCommands(lines, delivery, featureDirectory);
+  if (
+    step === "delivery:adjudicate" &&
+    ["correct", "adjudicate", "adjudicate-findings", "controller-correction-decision"].includes(
+      asText(delivery?.action) ?? "",
+    )
+  )
+    addDeliveryCorrectionGuidance(lines, delivery, featureDirectory);
 
   return lines;
 }
@@ -182,10 +205,15 @@ function deliveryStep(
     case "record-final-checks":
       return "delivery:checks";
     case "review":
+      return "delivery:review";
     case "await-review-report":
       return "delivery:review";
+    case "await-implementation-report":
+      return "delivery:adjudicate";
     case "correct":
     case "adjudicate":
+    case "adjudicate-findings":
+    case "controller-correction-decision":
       return "delivery:adjudicate";
     case "finish":
       return "delivery:finish";
@@ -212,6 +240,8 @@ function ticketActionStep(action: string): string {
       return "ticket:sync";
     case "post-merge-correct":
       return "ticket:correct";
+    case "checks":
+      return "ticket:checks";
     case "adjudicate":
     case "adjudicate-findings":
     case "controller-correction-decision":
@@ -225,18 +255,22 @@ function ticketActionStep(action: string): string {
 
 function ticketActionState(action: string): string {
   if (action.startsWith("await-")) return "awaiting report";
-  if (["adjudicate", "adjudicate-findings", "controller-correction-decision"].includes(action)) {
+  if (
+    [
+      "adjudicate",
+      "adjudicate-findings",
+      "controller-correction-decision",
+      "correct",
+      "post-merge-correct",
+      "resolve-findings",
+    ].includes(action)
+  ) {
     return "judgment required";
   }
   return "ready";
 }
 
-function ticketActionCommand(
-  action: string,
-  feature: string,
-  ticket: string,
-  checkFailure?: string,
-): string | undefined {
+function ticketActionCommand(action: string, feature: string, ticket: string): string | undefined {
   switch (action) {
     case "implement":
       return `pnpm spindle sdd implement --feature ${feature} --ticket ${ticket} --workspace <absolute-authorized-directory> --actor <acting-agent>`;
@@ -244,20 +278,265 @@ function ticketActionCommand(
       return `pnpm spindle sdd review --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
     case "integrate":
       return `pnpm spindle sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
-    case "post-merge-checks":
-      return `pnpm spindle sdd checks require --feature ${feature} --ticket ${ticket} --scope post-merge --command <check> --actor <acting-agent>`;
     case "post-merge-sync":
       return `pnpm spindle sdd sync --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
-    case "post-merge-correct":
-      if (!checkFailure)
-        throw new Error("Post-merge correction action is missing its failed check.");
-      return `pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --check-failure ${quoteShellArgument(checkFailure)} --details <correction-objective> --actor <acting-agent>`;
-    case "correct":
-    case "resolve-findings":
-      return `pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --findings <finding-id> --details <correction-objective> --actor <acting-agent>`;
     default:
       return undefined;
   }
+}
+
+function addTicketCheckCommand(
+  lines: string[],
+  action: SummaryRecord,
+  feature: string,
+  ticket: string,
+  scope: "ticket" | "post-merge",
+): void {
+  const command = asText(action.checkCommand);
+  const checkScope = scope === "post-merge" ? " --scope post-merge" : "";
+  const label = scope === "post-merge" ? "post-merge" : "ticket";
+  if (!command) {
+    lines.push(
+      `  Next: pnpm spindle sdd checks require --feature ${feature} --ticket ${ticket}${checkScope} --command <check> --actor <acting-agent>`,
+    );
+    return;
+  }
+  lines.push(`  Run ${label} check: ${command}`);
+  lines.push(
+    `  Next: pnpm spindle sdd checks record --feature ${feature} --ticket ${ticket}${checkScope} --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
+  );
+}
+
+function addTicketCorrectionGuidance(
+  lines: string[],
+  status: SummaryRecord,
+  actions: SummaryRecord[],
+  feature: string,
+  ticket: string,
+): void {
+  const ticketFindings = records(status.findings)
+    .filter((entry) => entry.ticket === ticket)
+    .map((entry) => asRecord(entry.finding))
+    .filter((finding): finding is SummaryRecord => finding !== undefined);
+  const actionable = ticketFindings.filter((finding) => finding.status === "confirmed");
+  const unresolved = ticketFindings.filter(
+    (finding) =>
+      finding.blocking === true &&
+      !["confirmed", "fixed", "dismissed"].includes(String(finding.status)),
+  );
+  const checkFailures = actions
+    .filter((action) => action.ticket === ticket)
+    .map((action) => asText(action.checkFailure))
+    .filter((command): command is string => command !== undefined);
+  const failedReviewAssignments = actions
+    .filter((action) => action.ticket === ticket)
+    .flatMap((action) => records(action.failedReviewAssignments));
+  const uniqueFailedReviews = failedReviewAssignments.filter(
+    (assignment, index, all) => all.findIndex((other) => other.id === assignment.id) === index,
+  );
+  const adjudication = asRecord(
+    actions.find((action) => action.ticket === ticket && asRecord(action.adjudication))
+      ?.adjudication,
+  );
+  const continuationRequired = actions.some(
+    (action) => action.ticket === ticket && action.continuationRequired === true,
+  );
+  const continuation = continuationRequired
+    ? " --decision continue --assessment <progress-assessment>"
+    : "";
+  const hasCandidates = actionable.length > 0 || checkFailures.length > 0;
+
+  if (adjudication?.status === "pending") {
+    const reason = asText(adjudication.reason) ?? "reason not recorded";
+    const details = asText(adjudication.details);
+    lines.push(
+      `Correction is paused for adjudication (${reason})${details ? `: ${details}` : ""}.`,
+    );
+  }
+  if (hasCandidates) {
+    lines.push(`Eligible for correction on ${ticket}:`);
+    for (const finding of actionable) lines.push(`  ${describeFinding(finding)}`);
+    for (const checkFailure of new Set(checkFailures)) {
+      lines.push(`  check: ${checkFailure} (failed)`);
+    }
+    lines.push("Choose which to correct in this attempt:");
+    if (actionable.length > 0) {
+      const findingIds = actionable
+        .map((finding) => asText(finding.id))
+        .filter((id): id is string => id !== undefined);
+      lines.push(
+        `  pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --findings <one or more of: ${findingIds.join(" ")}> --details <correction-objective>${continuation} --actor <acting-agent>`,
+      );
+    }
+    for (const checkFailure of new Set(checkFailures)) {
+      lines.push(
+        `  pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --check-failure ${quoteShellArgument(checkFailure)} --details <correction-objective>${continuation} --actor <acting-agent>`,
+      );
+    }
+  }
+  if (unresolved.length > 0) addFindingDispositionCommands(lines, unresolved, feature, ticket);
+  if (uniqueFailedReviews.length > 0) {
+    lines.push(`Failed review reports on ${ticket}:`);
+    for (const assignment of uniqueFailedReviews) {
+      const id = asText(assignment.id);
+      const report = asText(assignment.report);
+      if (!id || !report) continue;
+      lines.push(`  ${id}: ${report}`);
+      if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
+        addFindingCreateCommands(lines, feature, `--ticket ${ticket}`, id);
+      }
+    }
+  }
+  if (!hasCandidates && unresolved.length === 0 && uniqueFailedReviews.length === 0) {
+    lines.push(
+      `Judgment required for ${ticket}: inspect the failed review evidence and register actionable findings before dispatching corrective work.`,
+    );
+  }
+}
+
+function addFindingDispositionCommands(
+  lines: string[],
+  findings: SummaryRecord[],
+  feature: string,
+  ticket: string,
+  scope?: "delivery",
+): void {
+  lines.push(`Unresolved findings need a disposition on ${ticket}:`);
+  for (const finding of findings) lines.push(`  ${describeFinding(finding)}`);
+  lines.push("Choose a finding disposition:");
+  const selection = scope === "delivery" ? "--scope delivery" : `--ticket ${ticket}`;
+  for (const finding of findings) {
+    const id = asText(finding.id);
+    if (!id) continue;
+    lines.push(
+      `  pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status confirmed --actor <acting-agent>`,
+    );
+    lines.push(
+      `  pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status dismissed --details <ruling-rationale> --actor <acting-agent>`,
+    );
+  }
+}
+
+function addDeliveryCheckCommands(
+  lines: string[],
+  delivery: SummaryRecord | undefined,
+  feature: string,
+): void {
+  const required = records(delivery?.requiredChecks);
+  if (required.length === 0) {
+    lines.push(
+      `Next: pnpm spindle sdd checks require --feature ${feature} --scope delivery --command <check> --actor <acting-agent>`,
+    );
+    return;
+  }
+  const headSha = asText(delivery?.headSha);
+  const checkRecords = records(delivery?.checkRecords);
+  for (const requirement of required) {
+    const command = asText(requirement.command);
+    if (!command) continue;
+    const latest = checkRecords
+      .filter((record) => record.command === command && record.headSha === headSha)
+      .at(-1);
+    if (latest?.result === "passed") continue;
+    lines.push(`Run delivery check: ${command}`);
+    lines.push(
+      `Next: pnpm spindle sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
+    );
+  }
+}
+
+function addDeliveryCorrectionGuidance(
+  lines: string[],
+  delivery: SummaryRecord | undefined,
+  feature: string,
+): void {
+  if (!delivery) return;
+  const findings = records(delivery.findings);
+  const actionable = findings.filter((finding) => finding.status === "confirmed");
+  const unresolved = findings.filter(
+    (finding) =>
+      finding.blocking === true &&
+      !["confirmed", "fixed", "dismissed"].includes(String(finding.status)),
+  );
+  const headSha = asText(delivery.headSha);
+  const failedChecks = new Set(
+    records(delivery.checkRecords)
+      .filter((record) => record.result === "failed" && (!headSha || record.headSha === headSha))
+      .map((record) => asText(record.command))
+      .filter((command): command is string => command !== undefined),
+  );
+  const attempts = records(delivery.correctionAttempts);
+  const adjudication = asRecord(delivery.adjudication);
+  const continuation = attempts.length > 0 || adjudication?.status === "pending";
+  const decision = continuation ? " --decision continue --assessment <progress-assessment>" : "";
+  const hasCandidates = actionable.length > 0 || failedChecks.size > 0;
+
+  if (adjudication?.status === "pending") {
+    lines.push(
+      `Correction is paused for adjudication (${asText(adjudication.reason) ?? "reason not recorded"}).`,
+    );
+  }
+  if (hasCandidates) {
+    lines.push("Eligible for correction on delivery:");
+    for (const finding of actionable) lines.push(`  ${describeFinding(finding)}`);
+    for (const command of failedChecks) lines.push(`  check: ${command} (failed)`);
+    lines.push("Choose which to correct in this attempt:");
+    if (actionable.length > 0) {
+      const ids = actionable
+        .map((finding) => asText(finding.id))
+        .filter((id): id is string => id !== undefined);
+      lines.push(
+        `  pnpm spindle sdd correct --feature ${feature} --scope delivery --findings <one or more of: ${ids.join(" ")}> --details <correction-objective>${decision} --actor <acting-agent>`,
+      );
+    }
+    for (const command of failedChecks) {
+      lines.push(
+        `  pnpm spindle sdd correct --feature ${feature} --scope delivery --check-failure ${quoteShellArgument(command)} --details <correction-objective>${decision} --actor <acting-agent>`,
+      );
+    }
+  }
+  if (unresolved.length > 0)
+    addFindingDispositionCommands(lines, unresolved, feature, "delivery", "delivery");
+  const failedReviews = records(delivery.reviewAssignments).filter(
+    (assignment) => assignment.status === "submitted" && assignment.result === "failed",
+  );
+  if (failedReviews.length > 0) {
+    lines.push("Failed feature-review reports:");
+    for (const assignment of failedReviews) {
+      const id = asText(assignment.id);
+      const report = asText(assignment.report);
+      if (!id || !report) continue;
+      lines.push(`  ${id}: ${report}`);
+      if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
+        addFindingCreateCommands(lines, feature, "--scope delivery", id);
+      }
+    }
+  }
+  if (!hasCandidates && unresolved.length === 0 && failedReviews.length === 0)
+    lines.push(
+      "Judgment required: inspect failed feature-review reports and register actionable findings before dispatching corrective work.",
+    );
+}
+
+function addFindingCreateCommands(
+  lines: string[],
+  feature: string,
+  selection: string,
+  assignment: string,
+): void {
+  lines.push("Register accepted findings with the selected impact:");
+  for (const impact of ["blocking", "non-blocking"]) {
+    lines.push(
+      `  pnpm spindle sdd finding create --feature ${feature} ${selection} --assignment ${assignment} --${impact} --summary <summary> --details <impact> --actor <acting-agent>`,
+    );
+  }
+}
+
+function describeFinding(finding: SummaryRecord): string {
+  const id = asText(finding.id) ?? "finding";
+  const blocking = finding.blocking === true ? "blocking" : "non-blocking";
+  const summary = asText(finding.summary) ?? asText(finding.details) ?? "No summary recorded";
+  return `${id} (${blocking}) ${summary}`;
 }
 
 function quoteShellArgument(value: string): string {
@@ -307,8 +586,9 @@ function addFinalValidationCommands(lines: string[], status: SummaryRecord, feat
     if (!command || !headSha) continue;
     const latest = recorded.filter((item) => item.command === command).at(-1);
     if (latest?.result === "passed" && latest.headSha === headSha) continue;
+    lines.push(`Run final check: ${command}`);
     lines.push(
-      `Next: pnpm spindle sdd checks record --feature ${feature} --scope final --command "${command}" --result <passed|failed|unavailable> --actor <acting-agent>`,
+      `Next: pnpm spindle sdd checks record --feature ${feature} --scope final --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
     );
   }
 }

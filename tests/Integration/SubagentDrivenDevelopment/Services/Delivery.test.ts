@@ -290,6 +290,24 @@ test("delivery checks use their own current commit and stale aggregate checks bl
   const requiredIdentity = JSON.parse(required.stdout) as { headSha: string };
   expect(requiredIdentity.headSha).toMatch(/^[0-9a-f]{40,64}$/);
 
+  const failed = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      result: "failed",
+      details: "The aggregate test failed.",
+      author: "controller",
+    }),
+  );
+  expect(failed.status, failed.stderr).toBe(0);
+  const failureNext = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(failureNext.status, failureNext.stderr).toBe(0);
+  expect(JSON.parse(failureNext.stdout)).toMatchObject({
+    delivery: { action: "correct" },
+  });
+
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       ticket: "",
@@ -321,7 +339,7 @@ test("delivery checks use their own current commit and stale aggregate checks bl
   const ledger = JSON.parse(
     readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
-  expect(ledger.delivery.checks.records.length).toBe(1);
+  expect(ledger.delivery.checks.records.length).toBe(2);
   expect(ledger.delivery.reviewAssignments).toBe(undefined);
 });
 
@@ -378,6 +396,10 @@ test("delivery correction attempts resume independently with the same assignment
     }),
   );
   expect(confirmed.status, confirmed.stderr).toBe(0);
+
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  expect(JSON.parse(next.stdout).delivery.action).toBe("correct");
 
   const correction = await execute(repo, (service) =>
     service.correctionService.correct({

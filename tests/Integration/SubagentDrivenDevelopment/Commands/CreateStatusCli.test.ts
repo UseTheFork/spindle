@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import { runCli } from "../../../Helpers/Cli.ts";
-import { invokeAsync, serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import {
+  execute,
+  invokeAsync,
+  prepareReadyTicket,
+  serviceFixture,
+} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 
 test("sdd create requires named non-empty title and actor options", async () => {
   const { repo } = await serviceFixture();
@@ -106,26 +111,25 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
   expect(existsSync(join(repo, ".scratch", ".sdd-create.lock"))).toBe(false);
 });
 
-test("sdd review require accepts a catalog reviewer through --type", async () => {
-  const { repo } = await serviceFixture();
-  const created = await invokeAsync(repo, [
-    "create",
-    "--title",
-    "Review Feature",
-    "--actor",
-    "controller",
-  ]);
-  expect(created.status, created.stderr).toBe(0);
-  expect(JSON.parse(created.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
-  const spec = join(repo, ".scratch", "0001-review-feature", "spec.md");
+test("sdd ticket review require accepts a catalog reviewer through --type", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
 
   const required = await invokeAsync(repo, [
     "review",
     "require",
     "--feature",
     spec.replace(/\/spec\.md$/, ""),
-    "--scope",
-    "delivery",
+    "--ticket",
+    "T-0001",
     "--type",
     "sdd-code-reviewer",
     "--details",
@@ -153,10 +157,11 @@ test("sdd help advertises guarded workflow commands", async () => {
     "resume",
     "next",
     "status",
+    "claim",
   ]) {
     expect(help.stdout).toMatch(new RegExp(`\\b${command}\\b`));
   }
-  expect(help.stdout).not.toMatch(/\b(claim|accept)\b/);
+  expect(help.stdout).not.toMatch(/\baccept\b/);
   expect(help.stdout).not.toMatch(/^\s+workspace\s+\[options\]/m);
   expect(help.stderr).toBe("");
 
@@ -168,10 +173,10 @@ test("sdd help advertises guarded workflow commands", async () => {
   expect(createHelp.stdout).toMatch(/--with-design/);
   const submitHelp = runCli(repo, ["sdd", "submit", "--help"], searchPath);
   expect(submitHelp.status, submitHelp.stderr).toBe(0);
-  expect(submitHelp.stdout).toMatch(/--role <role>/);
-  expect(submitHelp.stdout).toMatch(/--report <path>/);
-  expect(submitHelp.stdout).toMatch(/--unavailable/);
+  expect(submitHelp.stdout).toMatch(/--assignment <id>/);
+  expect(submitHelp.stdout).toMatch(/--result <result>/);
   expect(submitHelp.stdout).toMatch(/--details <details>/);
+  expect(submitHelp.stdout).not.toMatch(/--role|--report|--unavailable/);
   expect(submitHelp.stderr).toBe("");
   const statusHelp = runCli(repo, ["sdd", "status", "--help"], searchPath);
   expect(statusHelp.status, statusHelp.stderr).toBe(0);

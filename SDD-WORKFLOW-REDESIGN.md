@@ -39,10 +39,11 @@ not command syntax.
   of "Finished".
 - The CLI owns the workflow steps. `next` reports a named step for the
   feature and for each active ticket, with that step's command. Step names are
-  stable (`ticket:implement`, `ticket:checks`, `ticket:review`,
-  `ticket:adjudicate`, `ticket:integrate`, `ticket:post-merge`,
-  `delivery:claim`, `delivery:checks`, `delivery:review`, `delivery:finish`,
-  `delivery:final-validation`).
+  stable (`tickets-in-progress`, `ticket:implement`, `ticket:checks`,
+  `ticket:review`, `ticket:adjudicate`, `ticket:correct`, `ticket:integrate`,
+  `ticket:sync`, `ticket:post-merge`, `delivery:claim`, `delivery:checks`,
+  `delivery:review`, `delivery:adjudicate`, `delivery:finish`,
+  `delivery:cleanup`, `delivery:final-validation`, `delivery:complete`).
 - Judgment points are steps of their own. `next` lists the choices and stops;
   the CLI never selects a branch.
 - The skill drops its flowchart and lettered nodes. Agents announce the step

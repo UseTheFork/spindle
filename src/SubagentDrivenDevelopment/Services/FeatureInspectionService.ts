@@ -61,7 +61,20 @@ export class FeatureInspectionService extends Service {
     commits: ({ ticket: string } & CommitIdentity)[];
     findings: { ticket: string; finding: ReviewFinding }[];
     requirementsDecisions: { ticket: string; decision: RequirementsDecision }[];
-    actions: { ticket: string; action: string; checkFailure?: string }[];
+    actions: {
+      ticket: string;
+      action: string;
+      checkFailure?: string;
+      checkCommand?: string;
+      continuationRequired?: boolean;
+      adjudication?: CorrectionAdjudication;
+      failedReviewAssignments?: {
+        id: string;
+        report: string;
+        role: "review";
+        findingIds: string[];
+      }[];
+    }[];
     pendingAssignments: {
       ticket: string;
       id: string;
@@ -101,7 +114,20 @@ export class FeatureInspectionService extends Service {
     this.ticketRepository.validateDependencyGraph(tickets);
     const byId = new Map(tickets.map((ticket) => [ticket.id, ticket]));
     const progressById = new Map(feature.state.tickets.map((item) => [item.id, item]));
-    const actions: { ticket: string; action: string; checkFailure?: string }[] = [];
+    const actions: {
+      ticket: string;
+      action: string;
+      checkFailure?: string;
+      checkCommand?: string;
+      continuationRequired?: boolean;
+      adjudication?: CorrectionAdjudication;
+      failedReviewAssignments?: {
+        id: string;
+        report: string;
+        role: "review";
+        findingIds: string[];
+      }[];
+    }[] = [];
     const commits: ({ ticket: string } & CommitIdentity)[] = [];
     const findings: { ticket: string; finding: ReviewFinding }[] = [];
     const requirementsDecisions: { ticket: string; decision: RequirementsDecision }[] = [];
@@ -173,11 +199,26 @@ export class FeatureInspectionService extends Service {
         blockers.push({ ticket: progress.id, reason });
       }
       if (progress.adjudication?.status === "pending") {
+        const failedReviewAssignments = this.failedReviewAssignments(progress);
         blockers.push({
           ticket: progress.id,
           reason: `Correction is paused for adjudication (${progress.adjudication.reason}).`,
         });
-        actions.push({ ticket: progress.id, action: "adjudicate" });
+        actions.push({
+          ticket: progress.id,
+          action: "adjudicate",
+          continuationRequired: true,
+          adjudication: progress.adjudication,
+          ...(failedReviewAssignments.length > 0 ? { failedReviewAssignments } : {}),
+        });
+        actions.push(
+          ...this.failedTicketChecks(progress, identity).map((checkFailure) => ({
+            ticket: progress.id,
+            action: "correct",
+            checkFailure,
+            continuationRequired: true,
+          })),
+        );
         continue;
       }
       if (progress.execution === "unstarted") {
@@ -228,8 +269,15 @@ export class FeatureInspectionService extends Service {
               progress.assignment,
             );
             if (reason) blockers.push({ ticket: progress.id, reason });
-            else if (checkBlockers.length === 0)
-              actions.push({ ticket: progress.id, action: "review" });
+            else if (checkBlockers.length === 0) {
+              const requiredChecks =
+                progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
+              if (requiredChecks.length === 0)
+                actions.push({ ticket: progress.id, action: "checks" });
+              else actions.push({ ticket: progress.id, action: "review" });
+            } else {
+              actions.push(...this.ticketCheckActions(progress.id, progress, identity));
+            }
           } else {
             actions.push({ ticket: progress.id, action: "await-implementation-report" });
           }
@@ -311,27 +359,47 @@ export class FeatureInspectionService extends Service {
                   : "integrate",
             });
           }
-        } else if (
-          progress.assignment?.status === "submitted" &&
-          reviewCheckBlockers.some((blocker) => blocker.includes(" is failed."))
-        ) {
-          actions.push({ ticket: progress.id, action: "correct" });
+        } else {
+          actions.push(...this.ticketCheckActions(progress.id, progress, identity));
         }
       } else if (progress.execution === "changes-requested") {
         blockers.push({
           ticket: progress.id,
           reason: "A correction decision is required before another implementation dispatch.",
         });
-        actions.push({
-          ticket: progress.id,
-          action:
-            (progress.findings ?? []).some((finding) => finding.status === "confirmed") ||
-            (progress.correctionAttempts?.length ?? 0) > 0
-              ? "correct"
-              : this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length > 0
-                ? "adjudicate-findings"
-                : "controller-correction-decision",
-        });
+        const actionableFindings = (progress.findings ?? []).some(
+          (finding) =>
+            finding.status === "confirmed" && !["fixed", "dismissed"].includes(finding.status),
+        );
+        const unresolvedFindings =
+          this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length > 0;
+        const failedCheckCommands = this.failedTicketChecks(progress, identity);
+        const failedReviewAssignments = this.failedReviewAssignments(progress);
+        if (actionableFindings || failedCheckCommands.length > 0) {
+          if (actionableFindings) {
+            actions.push({
+              ticket: progress.id,
+              action: "correct",
+              continuationRequired: (progress.correctionAttempts?.length ?? 0) > 0,
+              ...(failedReviewAssignments.length > 0 ? { failedReviewAssignments } : {}),
+            });
+          }
+          actions.push(
+            ...failedCheckCommands.map((checkFailure) => ({
+              ticket: progress.id,
+              action: "correct",
+              checkFailure,
+              continuationRequired: (progress.correctionAttempts?.length ?? 0) > 0,
+              ...(failedReviewAssignments.length > 0 ? { failedReviewAssignments } : {}),
+            })),
+          );
+        } else {
+          actions.push({
+            ticket: progress.id,
+            action: unresolvedFindings ? "adjudicate-findings" : "controller-correction-decision",
+            ...(failedReviewAssignments.length > 0 ? { failedReviewAssignments } : {}),
+          });
+        }
       } else if (progress.execution === "blocked") {
         blockers.push({ ticket: progress.id, reason: "Ticket execution is blocked." });
       } else if (progress.execution === "integrated") {
@@ -366,13 +434,14 @@ export class FeatureInspectionService extends Service {
                   ticket: progress.id,
                   action: "post-merge-correct",
                   checkFailure,
+                  continuationRequired: (progress.correctionAttempts?.length ?? 0) > 0,
                 })),
               );
             } else {
               actions.push({ ticket: progress.id, action: "post-merge-sync" });
             }
           } else {
-            actions.push({ ticket: progress.id, action: "post-merge-checks" });
+            actions.push(...this.postMergeCheckActions(progress.id, progress, mergeSha));
           }
         } else {
           blockers.push({
@@ -429,6 +498,105 @@ export class FeatureInspectionService extends Service {
       blockers,
       delivery,
     };
+  }
+
+  private ticketCheckActions(
+    ticket: string,
+    progress: FeatureLedger["tickets"][number],
+    identity: CommitIdentity,
+  ): {
+    ticket: string;
+    action: string;
+    checkFailure?: string;
+    checkCommand?: string;
+    continuationRequired?: boolean;
+  }[] {
+    const requirements =
+      progress.checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
+    if (requirements.length === 0) return [{ ticket, action: "checks" }];
+    const failed = this.failedTicketChecks(progress, identity);
+    if (failed.length > 0) {
+      return failed.map((checkFailure) => ({
+        ticket,
+        action: "correct",
+        checkFailure,
+        continuationRequired: (progress.correctionAttempts?.length ?? 0) > 0,
+      }));
+    }
+    const commands = requirements
+      .filter((requirement) => {
+        const current = (progress.checks?.records ?? [])
+          .filter(
+            (record) =>
+              record.command === requirement.command && record.headSha === identity.headSha,
+          )
+          .at(-1);
+        return current?.result !== "passed";
+      })
+      .map((requirement) => requirement.command);
+    if (commands.length > 0) {
+      return commands.map((checkCommand) => ({ ticket, action: "checks", checkCommand }));
+    }
+    return [];
+  }
+
+  private failedTicketChecks(
+    progress: FeatureLedger["tickets"][number],
+    identity: CommitIdentity,
+  ): string[] {
+    const required = new Set(
+      progress.checks?.required
+        .filter((requirement) => !requirement.removedAt)
+        .map((requirement) => requirement.command) ?? [],
+    );
+    return [
+      ...new Set(
+        (progress.checks?.records ?? [])
+          .filter(
+            (record) =>
+              required.has(record.command) &&
+              record.headSha === identity.headSha &&
+              record.result === "failed",
+          )
+          .map((record) => record.command),
+      ),
+    ];
+  }
+
+  private failedReviewAssignments(
+    progress: FeatureLedger["tickets"][number],
+  ): { id: string; report: string; role: "review"; findingIds: string[] }[] {
+    const latestAttempt = progress.correctionAttempts?.at(-1);
+    const assignments =
+      progress.assignment?.action === "correct"
+        ? (latestAttempt?.reviewAssignments ?? [])
+        : (progress.reviewAssignments ?? []);
+    return assignments
+      .filter((assignment) => assignment.status === "submitted" && assignment.result === "failed")
+      .map(({ id, report, findingIds }) => ({
+        id,
+        report,
+        role: "review" as const,
+        findingIds: findingIds ?? [],
+      }));
+  }
+
+  private postMergeCheckActions(
+    ticket: string,
+    progress: FeatureLedger["tickets"][number],
+    mergeSha: string | undefined,
+  ): { ticket: string; action: string; checkCommand?: string }[] {
+    const checks = progress.integration?.postMerge?.checks;
+    const required = checks?.required.filter((requirement) => !requirement.removedAt) ?? [];
+    if (required.length === 0) return [{ ticket, action: "post-merge-checks" }];
+    return required.flatMap((requirement) => {
+      const latest = (checks?.records ?? [])
+        .filter((record) => record.command === requirement.command && record.headSha === mergeSha)
+        .at(-1);
+      return latest?.result === "passed"
+        ? []
+        : [{ ticket, action: "post-merge-checks", checkCommand: requirement.command }];
+    });
   }
 
   public resolveFeature(spec: string): FeaturePaths {
@@ -490,6 +658,7 @@ export class FeatureInspectionService extends Service {
     const allClosed =
       ledger.tickets.length > 0 && ledger.tickets.every((ticket) => ticket.status === "closed");
     let identity: CommitIdentity | undefined;
+    let deliveryFindingBlockers: string[] = [];
     if (!allClosed) {
       const missing = ledger.tickets
         .filter((ticket) => ticket.status !== "closed")
@@ -504,9 +673,13 @@ export class FeatureInspectionService extends Service {
         if (delivery.adjudication?.status === "pending") {
           blockers.push(`Correction is paused for adjudication (${delivery.adjudication.reason}).`);
         }
-        blockers.push(
-          ...this.findingPolicy.deliveryFindingBlockers(feature, ledger, delivery, identity),
+        deliveryFindingBlockers = this.findingPolicy.deliveryFindingBlockers(
+          feature,
+          ledger,
+          delivery,
+          identity,
         );
+        blockers.push(...deliveryFindingBlockers);
         const required = requiredDeliveryReviewers(ledger, delivery);
         const assignments = delivery.reviewAssignments ?? [];
         if (assignments.length !== required.length) {
@@ -558,6 +731,15 @@ export class FeatureInspectionService extends Service {
         blockers.push("Finished delivery retrospective evidence is unavailable or invalid.");
       }
     }
+    const failedCheckRecords = identity
+      ? (delivery.checks?.records ?? []).filter(
+          (record) => record.headSha === identity.headSha && record.result === "failed",
+        )
+      : [];
+    const actionableFindings = (delivery.findings ?? []).some(
+      (finding) =>
+        finding.status === "confirmed" && !["fixed", "dismissed"].includes(finding.status),
+    );
     let action: string;
     if (delivery.finished) action = blockers.length > 0 ? "completion-invalidated" : "finished";
     else if (!allClosed) action = "close-tickets";
@@ -568,6 +750,10 @@ export class FeatureInspectionService extends Service {
       ["pending", "unavailable"].includes(delivery.assignment.status)
     ) {
       action = "await-implementation-report";
+    } else if (delivery.execution === "changes-requested" || failedCheckRecords.length > 0) {
+      if (actionableFindings || failedCheckRecords.length > 0) action = "correct";
+      else if (deliveryFindingBlockers.length > 0) action = "adjudicate-findings";
+      else action = "controller-correction-decision";
     } else if (
       this.checkPolicy.deliveryCheckBlockers(
         feature,

@@ -1215,7 +1215,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   ]);
   expect(nextAfterSync.status, nextAfterSync.stderr).toBe(0);
   const nextAfterSyncSummary = nextSummary(cliOutput(nextAfterSync)).join("\n");
-  expect(nextAfterSyncSummary).toContain("step ticket:correct (ready)");
+  expect(nextAfterSyncSummary).toContain("step ticket:correct (judgment required)");
   expect(nextAfterSyncSummary).toContain("--check-failure 'integration test'");
   const unauthorized = await execute(root, (services) =>
     services.correctionService.correct({
