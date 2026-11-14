@@ -30,6 +30,7 @@ export async function workflowServices(app: Application) {
         }),
       resume: assignments.resume.bind(assignments),
       deliveryResume: assignments.deliveryResume.bind(assignments),
+      claim: assignments.claim.bind(assignments),
     },
     checksService: await app.make(ChecksService),
     correctionService: await app.make(CorrectionService),

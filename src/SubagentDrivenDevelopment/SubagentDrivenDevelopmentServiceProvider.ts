@@ -3,6 +3,7 @@ import { ServiceProvider } from "@/Foundation/ServiceProvider";
 import { GitService } from "@/Git/Services/GitService";
 import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ChecksRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";
+import { ClaimCommand } from "@/SubagentDrivenDevelopment/Commands/ClaimCommand";
 import { CorrectCommand } from "@/SubagentDrivenDevelopment/Commands/CorrectCommand";
 import { CreateCommand } from "@/SubagentDrivenDevelopment/Commands/CreateCommand";
 import { FindingCreateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingCreateCommand";
@@ -70,6 +71,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       ChecksRequireCommand,
       ChecksRecordCommand,
       ImplementCommand,
+      ClaimCommand,
       CorrectCommand,
       ReviewCommand,
       ReviewRequireCommand,

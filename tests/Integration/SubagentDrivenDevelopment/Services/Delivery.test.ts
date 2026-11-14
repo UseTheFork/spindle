@@ -7,6 +7,7 @@ import { expect, test, vi } from "vitest";
 import { runCli } from "../../../Helpers/Cli";
 import {
   cliOutput,
+  claimDelivery,
   commitTicketWorkspace,
   execute,
   commitAll,
@@ -116,6 +117,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
 
 test("delivery review requires passing post-merge evidence for each ticket's current merge", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
   const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
   const validLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const validIntegration = JSON.parse(JSON.stringify(validLedger.tickets[0].integration));
@@ -283,6 +285,7 @@ test("blocking delivery findings reopen their related ticket after all required 
 
 test("delivery checks use their own current commit and stale aggregate checks block review", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
 
   const command = "just test::test tests/whole-feature.test.ts";
   const required = await execute(repo, (service) =>
@@ -545,6 +548,7 @@ test("delivery correction attempts resume independently with the same assignment
 
 test("delivery requirements rulings authorize only a freshly reviewed deferral", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
   const checkCommand = "just test::test tests/whole-feature.test.ts";
   const requiredBeforeReview = await execute(repo, (service) =>
     service.checksService.checksRequire({
@@ -935,6 +939,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
     true,
   );
 
+  await claimDelivery(first.repo, first.spec);
   const deliveryCommand = "just test::test tests/whole-feature.test.ts";
   const deliveryCheck = await execute(first.repo, (service) =>
     service.checksService.checksRequire({

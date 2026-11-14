@@ -133,7 +133,11 @@ export function nextSummary(data: unknown): string[] {
   }
 
   if (phase === "validation") addFinalValidationCommands(lines, status, featureDirectory);
-  if (step === "delivery:checks") {
+  if (step === "delivery:claim") {
+    lines.push(
+      `Next: pnpm spindle sdd claim --scope delivery --feature ${featureDirectory} --actor <acting-agent>`,
+    );
+  } else if (step === "delivery:checks") {
     lines.push(
       `Next: pnpm spindle sdd checks require --feature ${featureDirectory} --scope delivery --command <check> --actor <acting-agent>`,
     );
@@ -164,6 +168,8 @@ function deliveryStep(
   if (phase) return "delivery:cleanup";
   const action = asText(delivery?.action);
   switch (action) {
+    case "claim":
+      return "delivery:claim";
     case "record-final-checks":
       return "delivery:checks";
     case "review":

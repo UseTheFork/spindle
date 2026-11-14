@@ -31,7 +31,10 @@ import {
   requiredDeliveryReviewers,
 } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertDeliveryOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class ReviewService extends Service {
@@ -76,6 +79,7 @@ export class ReviewService extends Service {
       return this.workspaceTransaction.run(feature.workspace, () => {
         const ledger = this.ledgerRepository.readLedger(feature);
         const delivery = ledger.delivery;
+        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         if (delivery.execution === "reviewing" || (delivery.reviewHistory?.length ?? 0) > 0) {
           throw new Error("Delivery review assignments are already frozen.");
         }
@@ -95,10 +99,6 @@ export class ReviewService extends Service {
             `Review agent '${agent}' is already required by the pinned delivery policy.`,
           );
         }
-        if (delivery.owner && delivery.owner !== options.author.trim()) {
-          throw new Error("Only the recorded delivery controller may require specialist reviews.");
-        }
-        delivery.owner = options.author.trim();
         const requirement: SpecialistReviewRequirement = {
           agent,
           details,
@@ -492,6 +492,7 @@ export class ReviewService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const tickets = this.ticketRepository.readTickets(feature.workspace);
+      assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
       const incomplete = ledger.tickets
         .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
@@ -526,7 +527,6 @@ export class ReviewService extends Service {
       if (delivery.adjudication?.status === "pending") {
         throw new Error("Delivery correction is paused for adjudication.");
       }
-      delivery.owner = options.author.trim();
       const identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
       const blockers = this.checkPolicy.deliveryCheckBlockers(feature, tickets, delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));

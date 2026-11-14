@@ -15,6 +15,7 @@ import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/Wo
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliverySubmissionService extends Service {
@@ -66,14 +67,12 @@ export class DeliverySubmissionService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.assignment;
       if (!assignment || assignment.action !== "correct" || assignment.role !== "implementation") {
         throw new Error("No matching delivery correction implementation assignment is pending.");
       }
-      if (
-        delivery.owner !== options.author.trim() ||
-        assignment.controller !== options.author.trim()
-      ) {
+      if (assignment.controller !== options.author.trim()) {
         throw new Error(
           "Only the current delivery controller may submit this implementation report.",
         );
@@ -211,9 +210,7 @@ export class DeliverySubmissionService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (!delivery.owner || delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may submit aggregate review.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.reviewAssignments?.find(
         (candidate) => candidate.id === options.assignment,
       );

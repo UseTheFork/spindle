@@ -304,11 +304,19 @@ export async function recordReviewCheck(
   );
 }
 
+export async function claimDelivery(repo: string, spec: string) {
+  const claimed = await execute(repo, (service) =>
+    service.assignmentService.claim({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(claimed.status, claimed.stderr).toBe(0);
+}
+
 export async function recordDeliveryCheck(
   repo: string,
   spec: string,
   command = "just test::test tests/whole-feature.test.ts",
 ) {
+  await claimDelivery(repo, spec);
   const status = await execute(repo, (service) =>
     service.featureInspectionService.status({ spec }),
   );

@@ -14,7 +14,11 @@ import type {
   CorrectionAdjudication,
   ReviewAssignment,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { ImplementOptions, ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+import type {
+  ClaimOptions,
+  ImplementOptions,
+  ResumeOptions,
+} from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
@@ -28,7 +32,10 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertDeliveryOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
@@ -51,6 +58,52 @@ export class AssignmentService extends Service {
     private readonly workflowRecordsCommitter: WorkflowRecordsCommitter,
   ) {
     super(app);
+  }
+
+  public claim(options: ClaimOptions): {
+    scope: "delivery";
+    owner: string;
+    idempotent?: boolean;
+  } {
+    if (options.scope !== "delivery") throw new Error("--scope must be 'delivery'.");
+    validateAuthor(options.author);
+    const feature = this.featureInspectionService.resolveFeature(options.spec);
+    return this.workspaceTransaction.run(feature.workspace, () => {
+      const ledger = this.ledgerRepository.readLedger(feature);
+      const delivery = ledger.delivery;
+      this.workflowPolicy.assertDeliveryOpen(delivery);
+      if (delivery.owner) {
+        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+        return { scope: "delivery", owner: delivery.owner, idempotent: true };
+      }
+      const incomplete = ledger.tickets.filter(
+        (ticket) =>
+          ticket.status !== "closed" ||
+          ticket.execution !== "integrated" ||
+          !ticket.integration?.mergeSha ||
+          ticket.integration.postMerge?.status !== "passed" ||
+          ticket.integration.postMerge.mergeSha !== ticket.integration.mergeSha,
+      );
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      this.ticketRepository.validateDependencyGraph(tickets);
+      if (
+        ledger.tickets.length === 0 ||
+        incomplete.length > 0 ||
+        tickets.length !== ledger.tickets.length
+      ) {
+        throw new Error(
+          `Delivery claim requires every ticket closed, integrated, and post-merge validated${incomplete.length ? `: ${incomplete.map((ticket) => ticket.id).join(", ")}` : "."}`,
+        );
+      }
+      delivery.owner = options.author.trim();
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: delivery.owner,
+        action: "controller-claimed",
+      });
+      this.workspaceTransaction.writeLedger(feature, ledger);
+      return { scope: "delivery", owner: delivery.owner };
+    });
   }
 
   public implement(options: ImplementOptions): {
@@ -308,11 +361,12 @@ export class AssignmentService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       let handoffRecorded = false;
+      if (!delivery.owner) {
+        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      }
       if (delivery.owner && delivery.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          throw new Error(
-            `Ownership handoff from ${delivery.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
-          );
+          assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         }
         const previousOwner = delivery.owner;
         delivery.owner = options.author.trim();

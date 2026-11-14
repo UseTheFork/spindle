@@ -24,6 +24,7 @@ import { validateTicketId } from "@/SubagentDrivenDevelopment/Policies/InputVali
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryFindingService extends Service {
@@ -65,9 +66,7 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (!delivery.owner || delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may register findings.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const report = options.source
         ? isAbsolute(options.source)
           ? resolve(options.source)
@@ -220,9 +219,7 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may record a finding ruling.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       const identity = this.gitEvidence.deliveryCommitIdentity(

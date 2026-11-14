@@ -301,6 +301,11 @@ async function readyFeature(codeFile = "feature.ts") {
   );
   output(
     await execute(root, (s) =>
+      s.assignmentService.claim({ spec, scope: "delivery", author: "controller" }),
+    ),
+  );
+  output(
+    await execute(root, (s) =>
       s.checksService.checksRequire({
         spec,
         ticket: "",

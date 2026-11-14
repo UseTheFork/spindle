@@ -524,6 +524,7 @@ export class FeatureInspectionService extends Service {
     let action: string;
     if (delivery.finished) action = blockers.length > 0 ? "completion-invalidated" : "finished";
     else if (!allClosed) action = "close-tickets";
+    else if (!delivery.owner) action = "claim";
     else if (delivery.adjudication?.status === "pending") action = "adjudicate";
     else if (
       delivery.assignment &&

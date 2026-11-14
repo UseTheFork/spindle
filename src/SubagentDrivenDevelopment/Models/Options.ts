@@ -123,6 +123,12 @@ export interface ResumeOptions extends TicketSelection {
   confirmHandoff?: boolean;
 }
 
+export interface ClaimOptions {
+  spec: string;
+  scope: string;
+  author: string;
+}
+
 export interface IntegrateOptions extends TicketSelection {
   confirmRecords?: boolean;
 }

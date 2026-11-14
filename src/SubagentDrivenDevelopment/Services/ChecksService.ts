@@ -27,7 +27,10 @@ import {
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertDeliveryOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { Records } from "@/Support/Records";
 
@@ -714,13 +717,10 @@ export class ChecksService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
-      if (delivery.owner && delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may change required checks.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       if (delivery.execution === "reviewing" && (delivery.reviewAssignments?.length ?? 0) > 0) {
         throw new Error("Aggregate review is frozen; required delivery checks cannot change.");
       }
-      delivery.owner = options.author.trim();
       const checks = (delivery.checks ??= { required: [], records: [] });
       const active = checks.required.find(
         (requirement) => requirement.command === command && !requirement.removedAt,
@@ -780,9 +780,7 @@ export class ChecksService extends Service {
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
       if (!delivery.checks) throw new Error("No required checks are declared for delivery.");
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may record final checks.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const requirement = delivery.checks.required.find(
         (item) => item.command === command && !item.removedAt,
       );

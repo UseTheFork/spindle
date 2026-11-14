@@ -17,6 +17,7 @@ import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/Ledger
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryCorrectionService extends Service {
@@ -84,9 +85,7 @@ export class DeliveryCorrectionService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may dispatch a correction.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const attempts = (delivery.correctionAttempts ??= []);
       const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,

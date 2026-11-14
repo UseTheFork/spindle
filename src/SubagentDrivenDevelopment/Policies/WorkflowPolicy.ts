@@ -6,6 +6,24 @@ import type {
   DeliveryProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
+export function assertDeliveryOwner(
+  owner: string | undefined,
+  actor: string,
+  feature: string,
+): void {
+  const directory = `.scratch/${feature}`;
+  if (!owner) {
+    throw new Error(
+      `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature ${directory} --actor <acting-agent>`,
+    );
+  }
+  if (owner !== actor.trim()) {
+    throw new Error(
+      `Delivery is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over, run: pnpm spindle sdd resume --scope delivery --feature ${directory} --actor <acting-agent> --confirm-handoff`,
+    );
+  }
+}
+
 export class WorkflowPolicy extends Service {
   public constructor(app: Application) {
     super(app);

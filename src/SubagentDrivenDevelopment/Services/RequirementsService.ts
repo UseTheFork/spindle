@@ -13,7 +13,10 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertDeliveryOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class RequirementsService extends Service {
@@ -196,9 +199,7 @@ export class RequirementsService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may record a requirements decision.");
-      }
+      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       if (!delivery.baseSha) {
