@@ -25,7 +25,10 @@ import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/Ledger
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import {
+  CheckPolicy,
+  hasOnlyUnavailableDeliveryCheckIssue,
+} from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
   validateTicketId,
@@ -414,9 +417,16 @@ export class AssignmentService extends Service {
         nextAction = "await-review-report";
       } else if (checkBlocker) {
         nextAction = "record-final-checks";
-      } else if (delivery.execution === "changes-requested") {
+      } else if (
+        delivery.execution === "changes-requested" &&
+        !hasOnlyUnavailableDeliveryCheckIssue(delivery, identity.headSha)
+      ) {
         nextAction = "correct";
-      } else if (delivery.execution === "reviewing") {
+      } else if (
+        delivery.execution === "reviewing" ||
+        (delivery.execution === "changes-requested" &&
+          (delivery.reviewAssignments?.length ?? 0) > 0)
+      ) {
         nextAction = "review-or-finish";
       } else {
         nextAction = "review";

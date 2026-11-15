@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+
 import { runCli } from "../../../Helpers/Cli.ts";
 import {
   execute,
@@ -366,7 +368,26 @@ test("submission derives implementation role and report from the assignment", as
   expect(unavailable.status, unavailable.stderr).toBe(0);
   expect(JSON.parse(unavailable.stdout).assignment.status).toBe("unavailable");
 
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  const missingStatus = JSON.parse(missing.stdout);
+  expect(missingStatus.pendingAssignments).toContainEqual(
+    expect.objectContaining({ id: assignment.id, status: "unavailable", reportPresent: false }),
+  );
+  expect(nextSummary(missingStatus).join("\n")).toContain(
+    "report: missing  assignment: unavailable",
+  );
+
   writeFileSync(assignment.report, "# Implementation report\n\nCompleted the work.\n");
+  const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(present.status, present.stderr).toBe(0);
+  const presentStatus = JSON.parse(present.stdout);
+  expect(presentStatus.pendingAssignments).toContainEqual(
+    expect.objectContaining({ id: assignment.id, status: "unavailable", reportPresent: true }),
+  );
+  expect(nextSummary(presentStatus).join("\n")).toContain(
+    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+  );
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,

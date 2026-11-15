@@ -137,7 +137,10 @@ export function nextSummary(data: unknown): string[] {
     }
     const age = elapsedSince(requestedAt);
     const reportState = assignment.reportPresent === true ? "present, not submitted" : "missing";
-    lines.push(`${ticket} ${role} ${id}  dispatched ${age}  report: ${reportState}`);
+    const assignmentState = assignment.status === "unavailable" ? "  assignment: unavailable" : "";
+    lines.push(
+      `${ticket} ${role} ${id}  dispatched ${age}  report: ${reportState}${assignmentState}`,
+    );
     if (assignment.reportPresent === true) {
       if (role === "review") {
         addPendingReviewGuidance(lines, status, assignment, featureDirectory);
@@ -151,7 +154,15 @@ export function nextSummary(data: unknown): string[] {
   }
 
   const readyActions = actions.filter((action) => !asText(action.action)?.startsWith("await-"));
-  if (readyActions.length === 0 && assignments.length > 0) {
+  const deliveryHasReadyActions = [
+    "record-final-checks",
+    "require-final-checks",
+    "correct",
+    "adjudicate",
+    "adjudicate-findings",
+    "controller-correction-decision",
+  ].includes(asText(delivery?.action) ?? "");
+  if (readyActions.length === 0 && assignments.length > 0 && !deliveryHasReadyActions) {
     const reportsReady = assignments.some((assignment) => assignment.reportPresent === true);
     const waiting = step.startsWith("delivery:") ? "delivery actions" : "tickets";
     lines.push(
@@ -197,8 +208,10 @@ export function nextSummary(data: unknown): string[] {
     ["correct", "adjudicate", "adjudicate-findings", "controller-correction-decision"].includes(
       asText(delivery?.action) ?? "",
     )
-  )
+  ) {
     addDeliveryCorrectionGuidance(lines, delivery, featureDirectory);
+    addDeliveryCheckCommands(lines, delivery, featureDirectory, true);
+  }
 
   return lines;
 }
@@ -448,12 +461,15 @@ function addDeliveryCheckCommands(
   lines: string[],
   delivery: SummaryRecord | undefined,
   feature: string,
+  unavailableOnly = false,
 ): void {
   const required = records(delivery?.requiredChecks);
   if (required.length === 0) {
-    lines.push(
-      `Next: pnpm spindle sdd checks require --feature ${feature} --scope delivery --command <check> --actor <acting-agent>`,
-    );
+    if (!unavailableOnly) {
+      lines.push(
+        `Next: pnpm spindle sdd checks require --feature ${feature} --scope delivery --command <check> --actor <acting-agent>`,
+      );
+    }
     return;
   }
   const headSha = asText(delivery?.headSha);
@@ -464,6 +480,7 @@ function addDeliveryCheckCommands(
     const latest = checkRecords
       .filter((record) => record.command === command && record.headSha === headSha)
       .at(-1);
+    if (unavailableOnly && latest?.result !== "unavailable") continue;
     if (latest?.result === "passed") continue;
     lines.push(`Run delivery check: ${command}`);
     addResultCommands(

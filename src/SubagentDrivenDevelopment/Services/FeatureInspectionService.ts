@@ -36,7 +36,10 @@ import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/Featur
 import { isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import {
+  CheckPolicy,
+  hasOnlyUnavailableDeliveryCheckIssue,
+} from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
@@ -252,7 +255,7 @@ export class FeatureInspectionService extends Service {
         actions.push({ ticket: progress.id, action: "implement" });
       } else if (progress.execution === "implementing") {
         if (progress.assignment) {
-          if (progress.assignment.status === "pending") {
+          if (["pending", "unavailable"].includes(progress.assignment.status)) {
             pendingAssignments.push({
               ticket: progress.id,
               id: progress.assignment.id,
@@ -458,7 +461,10 @@ export class FeatureInspectionService extends Service {
       }
     }
     const delivery = this.deliveryStatus(feature, feature.state, tickets);
-    if (feature.state.delivery.assignment?.status === "pending") {
+    if (
+      feature.state.delivery.assignment &&
+      ["pending", "unavailable"].includes(feature.state.delivery.assignment.status)
+    ) {
       const assignment = feature.state.delivery.assignment;
       pendingAssignments.push({
         ticket: "delivery",
@@ -752,7 +758,11 @@ export class FeatureInspectionService extends Service {
       ["pending", "unavailable"].includes(delivery.assignment.status)
     ) {
       action = "await-implementation-report";
-    } else if (delivery.execution === "changes-requested" || failedCheckRecords.length > 0) {
+    } else if (
+      (delivery.execution === "changes-requested" &&
+        (!identity || !hasOnlyUnavailableDeliveryCheckIssue(delivery, identity.headSha))) ||
+      failedCheckRecords.length > 0
+    ) {
       if (actionableFindings || failedCheckRecords.length > 0) action = "correct";
       else if (deliveryFindingBlockers.length > 0) action = "adjudicate-findings";
       else action = "controller-correction-decision";

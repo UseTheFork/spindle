@@ -9,6 +9,44 @@ import type {
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
+export function hasOnlyUnavailableDeliveryCheckIssue(
+  delivery: DeliveryProgress,
+  headSha: string,
+): boolean {
+  const records = (delivery.checks?.records ?? []).filter((record) => record.headSha === headSha);
+  // Old unavailable results set changes-requested; preserve any independent failure since the last reset.
+  const priorFailure = [...delivery.history].reverse().find(({ action }) => {
+    return (
+      action === "aggregate-review-dispatched" ||
+      action.startsWith("correction-report-submitted:") ||
+      action.startsWith("requirements-approved:") ||
+      action.startsWith("correction-paused:") ||
+      (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) ||
+      (action.startsWith("aggregate-review-submitted:") &&
+        (action.endsWith(":failed") || action.endsWith(":unavailable")))
+    );
+  });
+  return (
+    delivery.execution === "changes-requested" &&
+    records.some((record) => record.result === "unavailable") &&
+    !records.some((record) => record.result === "failed") &&
+    (!priorFailure ||
+      priorFailure.action === "aggregate-review-dispatched" ||
+      priorFailure.action.startsWith("correction-report-submitted:") ||
+      priorFailure.action.startsWith("requirements-approved:")) &&
+    delivery.adjudication?.status !== "pending" &&
+    !["pending", "unavailable"].includes(delivery.assignment?.status ?? "") &&
+    !(delivery.reviewAssignments ?? []).some(
+      (assignment) => assignment.status === "submitted" && assignment.result !== "passed",
+    ) &&
+    !(delivery.findings ?? []).some(
+      (finding) =>
+        finding.status === "confirmed" ||
+        (finding.blocking && !["fixed", "dismissed"].includes(finding.status)),
+    )
+  );
+}
+
 export class CheckPolicy extends Service {
   public constructor(
     app: Application,

@@ -43,6 +43,169 @@ test("finish reports pending final validation without claiming the feature is co
   expect(result.stdout).toMatch(/final validation is pending/i);
   expect(result.stdout).not.toMatch(/Finished feature delivery/i);
 });
+
+test("delivery checks retry unavailable results and recover legacy unavailable state", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
+  const command = "pnpm run test:delivery";
+  const required = await execute(repo, (service) =>
+    service.checksService.checksRequire({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      author: "controller",
+    }),
+  );
+  expect(required.status, required.stderr).toBe(0);
+  const unavailable = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      result: "unavailable",
+      details: "The test service is unavailable.",
+      author: "controller",
+    }),
+  );
+  expect(unavailable.status, unavailable.stderr).toBe(0);
+  const next = async () => {
+    const result = await execute(repo, (service) => service.deliveryService.next({ spec }));
+    expect(result.status, result.stderr).toBe(0);
+    return JSON.parse(result.stdout);
+  };
+  let state = await next();
+  expect(state.delivery.execution).toBe("unstarted");
+  expect(state.delivery.action).toBe("record-final-checks");
+  expect(nextSummary(state).join("\n")).toContain(
+    "pnpm spindle sdd checks record --feature .scratch/0001-ticket-flow --scope delivery --command 'pnpm run test:delivery' --result passed --actor <acting-agent>",
+  );
+
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const setLegacyState = () => {
+    const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    ledger.delivery.execution = "changes-requested";
+    writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+    execFileSync("git", ["add", ledgerPath], { cwd: repo });
+    execFileSync("git", ["commit", "-qm", "record legacy unavailable state"], { cwd: repo });
+  };
+  setLegacyState();
+  state = await next();
+  expect(state.delivery.action).toBe("record-final-checks");
+  expect(nextSummary(state).join("\n")).toContain("Run delivery check: pnpm run test:delivery");
+
+  const passed = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      result: "passed",
+      author: "controller",
+    }),
+  );
+  expect(passed.status, passed.stderr).toBe(0);
+  state = await next();
+  expect(state.delivery.execution).toBe("unstarted");
+  expect(state.delivery.action).toBe("review");
+
+  setLegacyState();
+  state = await next();
+  expect(state.delivery.action).toBe("review");
+  const resumed = await execute(repo, (service) =>
+    service.assignmentService.resume({ ticket: "", spec, scope: "delivery", author: "controller" }),
+  );
+  expect(resumed.status, resumed.stderr).toBe(0);
+  expect(JSON.parse(resumed.stdout).nextAction).toBe("review");
+  const review = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(review.status, review.stderr).toBe(0);
+  const reviewAssignment = JSON.parse(review.stdout).assignments[0] as { id: string };
+  const unavailableDuringReview = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      result: "unavailable",
+      details: "The test service is unavailable again.",
+      author: "controller",
+    }),
+  );
+  expect(unavailableDuringReview.status, unavailableDuringReview.stderr).toBe(0);
+  state = await next();
+  expect(state.delivery.execution).toBe("reviewing");
+  expect(state.delivery.action).toBe("record-final-checks");
+  expect(nextSummary(state).join("\n")).toContain("Run delivery check: pnpm run test:delivery");
+  expect(nextSummary(state).join("\n")).not.toContain("Wait for the open assignments.");
+  const retriedDuringReview = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      result: "passed",
+      author: "controller",
+    }),
+  );
+  expect(retriedDuringReview.status, retriedDuringReview.stderr).toBe(0);
+  state = await next();
+  expect(state.delivery.action).toBe("await-review-report");
+  expect(state.pendingAssignments).toContainEqual(
+    expect.objectContaining({ id: reviewAssignment.id, status: "pending" }),
+  );
+});
+
+test("retrying an unavailable delivery check preserves a separate failed check", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
+  for (const command of ["failed check", "unavailable check"]) {
+    const required = await execute(repo, (service) =>
+      service.checksService.checksRequire({
+        ticket: "",
+        spec,
+        scope: "delivery",
+        command,
+        author: "controller",
+      }),
+    );
+    expect(required.status, required.stderr).toBe(0);
+  }
+  for (const [command, result] of [
+    ["failed check", "failed"],
+    ["unavailable check", "unavailable"],
+    ["unavailable check", "passed"],
+  ] as const) {
+    const recorded = await execute(repo, (service) =>
+      service.checksService.checksRecord({
+        ticket: "",
+        spec,
+        scope: "delivery",
+        command,
+        result,
+        ...(result === "passed" ? {} : { details: `${command} did not pass.` }),
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
+    if (result === "unavailable") {
+      const duringRetry = await execute(repo, (service) => service.deliveryService.next({ spec }));
+      expect(duringRetry.status, duringRetry.stderr).toBe(0);
+      expect(nextSummary(JSON.parse(duringRetry.stdout)).join("\n")).toContain(
+        `Run delivery check: ${command}`,
+      );
+    }
+  }
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  const status = JSON.parse(next.stdout);
+  expect(status.delivery.execution).toBe("changes-requested");
+  expect(status.delivery.action).toBe("correct");
+  expect(nextSummary(status).join("\n")).toContain("--check-failure 'failed check'");
+});
+
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
@@ -450,6 +613,31 @@ test("delivery correction attempts resume independently with the same assignment
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
+  const checkCommand = "just test::test tests/whole-feature.test.ts";
+  for (const result of ["unavailable", "passed"] as const) {
+    const recorded = await execute(repo, (service) =>
+      service.checksService.checksRecord({
+        ticket: "",
+        spec,
+        scope: "delivery",
+        command: checkCommand,
+        result,
+        ...(result === "unavailable" ? { details: "The test service is unavailable." } : {}),
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
+    if (result === "unavailable") {
+      const duringRetry = await execute(repo, (service) => service.deliveryService.next({ spec }));
+      expect(duringRetry.status, duringRetry.stderr).toBe(0);
+      expect(nextSummary(JSON.parse(duringRetry.stdout)).join("\n")).toContain(
+        `Run delivery check: ${checkCommand}`,
+      );
+    }
+  }
+  const afterRetry = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(afterRetry.status, afterRetry.stderr).toBe(0);
+  expect(JSON.parse(afterRetry.stdout).delivery.execution).toBe("changes-requested");
   const confirmed = await execute(repo, (service) =>
     service.findingService.findingUpdate({
       ticket: "",
@@ -503,6 +691,30 @@ test("delivery correction attempts resume independently with the same assignment
   expect(resumedOutput.assignment.id).toBe(output.assignment.id);
   expect(resumedOutput.correctionAttempts.map(({ number }) => number)).toEqual([1]);
   expect(resumedOutput.correctionAttempts[0]?.assignmentId).toBe(output.assignment.id);
+  const unavailable = await execute(repo, (service) =>
+    service.submissionService.submit({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: output.assignment.id,
+      result: "unavailable",
+      details: "The worker could not return a report.",
+      author: "controller",
+    }),
+  );
+  expect(unavailable.status, unavailable.stderr).toBe(0);
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  const missingStatus = JSON.parse(missing.stdout);
+  expect(missingStatus.pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      id: output.assignment.id,
+      status: "unavailable",
+      reportPresent: false,
+      scope: "delivery",
+    }),
+  );
+  expect(nextSummary(missingStatus).join("\n")).toContain("assignment: unavailable");
   writeFileSync(
     join(repo, "feature.ts"),
     "export const feature = 'corrected whole-spec behavior';\n",
@@ -512,6 +724,11 @@ test("delivery correction attempts resume independently with the same assignment
   git("add", "feature.ts");
   git("commit", "-qm", "commit delivery correction");
   writeFileSync(output.assignment.report, "# Delivery correction\n\nProgress recorded.\n");
+  const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(present.status, present.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(present.stdout)).join("\n")).toContain(
+    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --scope delivery --assignment ${output.assignment.id} --actor <acting-agent>`,
+  );
   const implementation = await execute(repo, (service) =>
     service.submissionService.submit({
       ticket: "",

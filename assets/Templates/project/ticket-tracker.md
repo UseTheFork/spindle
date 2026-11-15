@@ -38,6 +38,8 @@ Use `sdd next` as the source of the next workflow step and exact command. Run it
 
 Use `--type` to select a specialist for `sdd review require`. Check records apply to the recorded commit, not a caller-selected list of paths. Failed or unavailable check and review results require `--details` with the evidence.
 
+Unavailable implementation reports remain open assignments; submit the report if it becomes available. Retry an unavailable delivery check and record the actual result. A failed check or review still requires its own correction decision.
+
 To defer a blocking finding, commit the approved requirements change, record its approval, and obtain fresh passing review coverage before recording the deferral. Delivery deferrals require the same evidence.
 
 Inspect feature records for sensitive content before starting the feature worktree. The start operation confirms those initial records may be committed. After start, workflow commands commit canonical record changes in the feature worktree. The implementer commits code on the ticket branch and returns its assigned report; the controller submits reports and owns all workflow state changes.
