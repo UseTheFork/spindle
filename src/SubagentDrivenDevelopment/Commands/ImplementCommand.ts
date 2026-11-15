@@ -1,12 +1,12 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
-import type { ImplementOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { ImplementOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
 
 export class ImplementCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

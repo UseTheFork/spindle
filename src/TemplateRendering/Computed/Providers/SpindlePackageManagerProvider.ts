@@ -1,5 +1,5 @@
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
 
 export class SpindlePackageManagerProvider extends ComputedVariableProvider {
   public render(): string {

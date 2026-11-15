@@ -10,19 +10,19 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { CreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FeatureWorkspace } from "@spindle/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class FeatureCreationService extends Service {
   public constructor(

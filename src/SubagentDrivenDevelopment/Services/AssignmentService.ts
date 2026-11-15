@@ -4,35 +4,35 @@ import { isAbsolute, join } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   ClaimOptions,
   ImplementOptions,
   ResumeOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 export class AssignmentService extends Service {
   public constructor(

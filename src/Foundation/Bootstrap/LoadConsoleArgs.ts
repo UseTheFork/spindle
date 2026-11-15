@@ -1,7 +1,7 @@
-import type { Application } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
-import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
-import { Repository } from "@/Support/Repository";
+import type { Application } from "@spindle/Foundation/Application";
+import { Bootstrapper } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import type { ConsoleInvocation } from "@spindle/Foundation/ConsoleInvocation";
+import { Repository } from "@spindle/Support/Repository";
 
 export class LoadConsoleArgs extends Bootstrapper {
   public bootstrap(application: Application): void {

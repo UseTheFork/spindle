@@ -1,4 +1,4 @@
-import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
+import type { ConflictPolicy } from "@spindle/BlueprintManagement/Types/Installation";
 
 export class ConflictPolicyParser {
   public static parseConflictPolicy(policy: string | undefined): ConflictPolicy | undefined {

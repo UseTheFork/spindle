@@ -3,25 +3,25 @@ import { join, relative } from "node:path";
 
 import matter from "gray-matter";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   TicketCreateOptions,
   TicketUpdateOptions,
   TicketCommentOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { TICKET_CATEGORIES, TICKET_ID } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { FeatureLedger, TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TICKET_CATEGORIES, TICKET_ID } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { FeatureLedger, TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class TicketService extends Service {
   public constructor(

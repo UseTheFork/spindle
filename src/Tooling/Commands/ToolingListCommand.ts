@@ -1,10 +1,10 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ToolCommandGroups } from "@/Tooling/Commands/ToolCommandGroups";
-import { ToolingService } from "@/Tooling/Services/ToolingService";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ToolCommandGroups } from "@spindle/Tooling/Commands/ToolCommandGroups";
+import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
 
 export class ToolingListCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {

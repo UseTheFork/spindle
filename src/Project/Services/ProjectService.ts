@@ -11,16 +11,16 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import { Service } from "@/Foundation/Service";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import { Service } from "@spindle/Foundation/Service";
 import {
   ProjectSettingsService,
   projectSettingsPath,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
-import { ToolingService } from "@/Tooling/Services/ToolingService";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
+import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
 
 const copilotPath = ".github/copilot-instructions.md";
 const startMarker = "<!-- spindle:start -->";

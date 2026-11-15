@@ -1,12 +1,12 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
-import type { TicketSelection } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketSyncService } from "@/SubagentDrivenDevelopment/Services/TicketSyncService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { TicketSelection } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
 
 export class SyncCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

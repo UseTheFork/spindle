@@ -1,29 +1,29 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { IntegrationRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import { blueprintCatalog } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { IntegrationRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import {
   FEATURE_DIRECTORY,
   EXECUTION_STATES,
   TICKET_CATEGORIES,
   TRACKER_STATUSES,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,
   TicketProgress,
   TicketBaselineChange,
   FeatureLedger,
   FeaturePaths,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { AssignmentSchema } from "@/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
-import { CheckSchema } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import { FindingSchema } from "@/SubagentDrivenDevelopment/Persistence/FindingSchema";
-import { ProgressSchema } from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
-import { ReviewSchema } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { AssignmentSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
+import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/CheckSchema";
+import { FindingSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/FindingSchema";
+import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

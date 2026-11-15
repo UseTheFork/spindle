@@ -1,9 +1,9 @@
-import type { SpecialistReviewRequirement } from "@/SubagentDrivenDevelopment/Models/Assignments";
+import type { SpecialistReviewRequirement } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   TicketProgress,
   FeatureLedger,
   DeliveryProgress,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export interface RequiredReviewer {
   agent: string;

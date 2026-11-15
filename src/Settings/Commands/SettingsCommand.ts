@@ -1,11 +1,11 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SettingsPrompts } from "@/Settings/Commands/SettingsPrompts";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { SettingsService } from "@/Settings/Services/SettingsService";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SettingsPrompts } from "@spindle/Settings/Commands/SettingsPrompts";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { SettingsService } from "@spindle/Settings/Services/SettingsService";
 
 export class SettingsCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {

@@ -3,15 +3,15 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import { ProjectService } from "@/Project/Services/ProjectService";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ToolingService } from "@/Tooling/Services/ToolingService";
-import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
+import { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import { ProjectService } from "@spindle/Project/Services/ProjectService";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
+import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
 
-import { makeTempDirSync, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const copilotInstructionsTemplate = readFileSync(
   join(repoRoot, "assets/Templates/project/copilot-instructions.md"),

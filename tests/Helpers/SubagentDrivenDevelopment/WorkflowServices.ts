@@ -1,21 +1,21 @@
 import { dirname, join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import type { ImplementOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
-import { CorrectionService } from "@/SubagentDrivenDevelopment/Services/CorrectionService";
-import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
-import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/FeatureCreationService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
-import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
-import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
-import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
-import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
-import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
-import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import type { Application } from "@spindle/Foundation/Application";
+import type { ImplementOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { ChecksService } from "@spindle/SubagentDrivenDevelopment/Services/ChecksService";
+import { CorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/CorrectionService";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { FeatureCreationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureCreationService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { FeatureWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
+import { FindingService } from "@spindle/SubagentDrivenDevelopment/Services/FindingService";
+import { ReadinessService } from "@spindle/SubagentDrivenDevelopment/Services/ReadinessService";
+import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services/RequirementsService";
+import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
+import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 
 export async function workflowServices(app: Application) {
   const assignments = await app.make(AssignmentService);

@@ -3,11 +3,11 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { SettingsService } from "@/Settings/Services/SettingsService";
+import { SettingsService } from "@spindle/Settings/Services/SettingsService";
 
-import { runCli, runCliInteractive } from "../../Helpers/Cli.ts";
-import { serviceFixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
-import { makeTempDir } from "../../Helpers/TemporaryDirectories.ts";
+import { runCli, runCliInteractive } from "@test/Helpers/Cli";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 vi.setConfig({ testTimeout: 30_000 });
 

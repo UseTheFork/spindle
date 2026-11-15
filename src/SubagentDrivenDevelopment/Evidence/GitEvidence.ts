@@ -3,18 +3,18 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 
 export class GitEvidence extends Service {
   public constructor(

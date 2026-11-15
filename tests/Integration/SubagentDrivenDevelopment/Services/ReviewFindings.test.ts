@@ -15,9 +15,9 @@ import {
   prepareReviewAssignment,
   prepareReviewedTicket,
   refreshReviewCheck,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
-import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import type { WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 test("implement records the ticket baseline and controller while creating an isolated worktree", async () => {
   const { repo, git, spec, baseSha, worktreeParent } = await prepareReadyTicket();
 

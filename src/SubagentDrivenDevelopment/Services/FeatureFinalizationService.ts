@@ -16,19 +16,19 @@ import {
 import { hostname } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
 import type {
   CheckRecord,
   CheckRequirement,
   CommitIdentity,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 interface Startup {
   version: 1;

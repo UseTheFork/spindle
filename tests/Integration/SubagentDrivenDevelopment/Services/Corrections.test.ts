@@ -11,9 +11,9 @@ import {
   prepareImplementationForReview,
   recordReviewCheck,
   prepareReviewAssignment,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
-import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import type { WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
   const { repo, spec, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");

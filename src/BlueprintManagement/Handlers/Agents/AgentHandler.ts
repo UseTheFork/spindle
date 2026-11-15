@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import { BlueprintVersioning } from "@/BlueprintManagement/Versioning/BlueprintVersioning";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import { BlueprintVersioning } from "@spindle/BlueprintManagement/Versioning/BlueprintVersioning";
 
 export const agentHandler: BlueprintHandler = {
   kind: "Agent",

@@ -1,26 +1,26 @@
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   ReviewResult,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { DeliverySubmissionService } from "@/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { SubmitOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { DeliverySubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class SubmissionService extends Service {
   public constructor(

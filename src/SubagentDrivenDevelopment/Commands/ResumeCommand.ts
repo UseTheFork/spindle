@@ -1,14 +1,14 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
-import type { ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
-import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { ResumeOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class ResumeCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

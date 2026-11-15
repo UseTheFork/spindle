@@ -1,9 +1,9 @@
 import { lstat, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, sep, win32 } from "node:path";
 
-import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
-import { Records } from "@/Support/Records";
-import { Stacks } from "@/Support/Stacks";
+import { blueprintCatalog as assetCatalog } from "@spindle/Assets/Blueprints/Catalog";
+import { Records } from "@spindle/Support/Records";
+import { Stacks } from "@spindle/Support/Stacks";
 
 export type CatalogKind = "agents" | "instructions" | "skills";
 export interface CatalogSourceEntry {

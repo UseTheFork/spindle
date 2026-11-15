@@ -1,6 +1,6 @@
-import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { defaultCommitSettings } from "@spindle/Settings/Models/CommitSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
 
 export class CommitGuidanceProvider extends ComputedVariableProvider {
   public render(): string {

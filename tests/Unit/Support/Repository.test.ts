@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, test, vi } from "vitest";
 
-import { Repository } from "@/Support/Repository";
+import { Repository } from "@spindle/Support/Repository";
 
 const getters = ["string", "integer", "float", "boolean", "array"] as const;
 

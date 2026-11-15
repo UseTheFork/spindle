@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("ledger validation returns the original validated object and preserves schema errors", async () => {
   const { app, service } = await serviceFixture();

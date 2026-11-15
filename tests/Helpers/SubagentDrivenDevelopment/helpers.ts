@@ -4,11 +4,11 @@ import { dirname, join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
 
-import { applicationFixture } from "../ApplicationFixture.ts";
-import { makeTempDirSync, repoRoot } from "../TemporaryDirectories.ts";
-import { workflowServices, type WorkflowServices } from "./WorkflowServices";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { workflowServices, type WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 
 vi.setConfig({ testTimeout: 30_000 });
 

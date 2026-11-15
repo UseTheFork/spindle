@@ -14,14 +14,14 @@ import {
 } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import type { StartOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { Records } from "@/Support/Records";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import type { StartOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { Records } from "@spindle/Support/Records";
 
 interface StartState {
   version: 1;

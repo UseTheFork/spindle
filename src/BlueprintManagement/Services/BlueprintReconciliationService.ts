@@ -4,25 +4,25 @@ import { join, relative, sep } from "node:path";
 import {
   type CatalogDeletion,
   type CatalogSelection,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
-import { BlueprintCatalogPlanner } from "@/BlueprintManagement/Reconciliation/BlueprintCatalogPlanner";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import { BlueprintCatalogPlanner } from "@spindle/BlueprintManagement/Reconciliation/BlueprintCatalogPlanner";
 import {
   BlueprintRemovalCoordinator,
   type PlannedDeletionOperation,
   type PlannedMembershipCleanupOperation,
-} from "@/BlueprintManagement/Reconciliation/BlueprintRemovalCoordinator";
-import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
-import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
+} from "@spindle/BlueprintManagement/Reconciliation/BlueprintRemovalCoordinator";
+import { InstallationService } from "@spindle/BlueprintManagement/Services/InstallationService";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
 import type {
   BlueprintHandler,
   BlueprintUpdatePlan,
   PreparedBlueprintInitialization,
-} from "@/BlueprintManagement/Types/Blueprint";
+} from "@spindle/BlueprintManagement/Types/Blueprint";
 import type {
   ConflictPolicy,
   PlannedBlueprintFile,
   PreparedBlueprintFile,
-} from "@/BlueprintManagement/Types/Installation";
+} from "@spindle/BlueprintManagement/Types/Installation";
 import type {
   BlueprintOutcome,
   BlueprintReconciliationOptions,
@@ -30,16 +30,16 @@ import type {
   PlannedBlueprintDeletion,
   ReconcileOptions,
   ReconciliationPlan,
-} from "@/BlueprintManagement/Types/Reconciliation";
-import { BlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+} from "@spindle/BlueprintManagement/Types/Reconciliation";
+import { BlueprintVersion } from "@spindle/BlueprintManagement/Versioning/BlueprintVersion";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import {
   ProjectSettingsService,
   projectSettingsPath,
-} from "@/Settings/Services/ProjectSettingsService";
-import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
-import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { ComputedContextService } from "@spindle/TemplateRendering/Computed/ComputedContextService";
+import type { RenderContext } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class BlueprintReconciliationService extends Service {
   private installationService!: InstallationService;

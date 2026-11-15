@@ -4,13 +4,13 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { cliOutput, invokeAsync } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import {
   createTicket,
   ticketFixture,
   workspaceSnapshot,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function waitForFile(path: string, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;

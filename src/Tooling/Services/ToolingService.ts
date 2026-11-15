@@ -10,14 +10,14 @@ import {
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
-import { Service } from "@/Foundation/Service";
+import { Service } from "@spindle/Foundation/Service";
 import {
   ProjectSettingsService,
   projectSettingsPath,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { BuiltInTooling, builtInTooling } from "@/Tooling/Models/BuiltInTooling";
-import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { BuiltInTooling, builtInTooling } from "@spindle/Tooling/Models/BuiltInTooling";
+import type { ToolingEntry } from "@spindle/Tooling/Models/ToolingEntry";
 
 const toolingPath = "docs/agents/tooling.md";
 const toolingKeyPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;

@@ -1,15 +1,15 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ReviewRequireCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type {
   ReviewOptions,
   ReviewRequireOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
 
 export class ReviewCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

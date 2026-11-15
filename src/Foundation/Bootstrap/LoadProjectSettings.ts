@@ -1,6 +1,6 @@
-import type { Application } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Bootstrapper } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 
 export class LoadProjectSettings extends Bootstrapper {
   public async bootstrap(application: Application): Promise<void> {

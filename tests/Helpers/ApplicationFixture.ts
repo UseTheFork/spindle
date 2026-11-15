@@ -1,10 +1,10 @@
-import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
-import { Application } from "@/Foundation/Application";
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import type { ProjectSettingsState } from "@/Settings/Services/ProjectSettingsService";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
-import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
+import { BlueprintManagementServiceProvider } from "@spindle/BlueprintManagement/BlueprintManagementServiceProvider";
+import { Application } from "@spindle/Foundation/Application";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import type { ProjectSettingsState } from "@spindle/Settings/Services/ProjectSettingsService";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { TemplateRenderingServiceProvider } from "@spindle/TemplateRendering/TemplateRenderingServiceProvider";
+import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
 
 export function applicationFixture(
   workspaceRoot: string,

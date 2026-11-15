@@ -9,25 +9,25 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@/Git/Services/GitService";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
   recordReviewCheck,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 function gitAt(directory: string, ...args: string[]): string {
   return execFileSync("git", args, {

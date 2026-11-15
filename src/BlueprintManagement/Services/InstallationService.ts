@@ -1,10 +1,10 @@
 import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import type { PreparedBlueprintFile } from "@/BlueprintManagement/Types/Installation";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
+import type { PreparedBlueprintFile } from "@spindle/BlueprintManagement/Types/Installation";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 
 export class InstallationService extends Service {
   constructor(app: Application) {

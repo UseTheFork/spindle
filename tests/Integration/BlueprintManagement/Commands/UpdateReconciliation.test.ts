@@ -3,9 +3,9 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 const managed = (version: string, text: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${text}\n`;

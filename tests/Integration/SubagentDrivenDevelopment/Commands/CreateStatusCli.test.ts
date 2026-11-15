@@ -3,13 +3,13 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { runCli } from "../../../Helpers/Cli.ts";
+import { runCli } from "@test/Helpers/Cli";
 import {
   execute,
   invokeAsync,
   prepareReadyTicket,
   serviceFixture,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("sdd create requires named non-empty title and actor options", async () => {
   const { repo } = await serviceFixture();

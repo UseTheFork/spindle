@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { ticketFixture } from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { ticketFixture } from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("sdd status reads the explicitly selected feature policy and progress without mutation", async () => {
   const { repo, git, service } = await serviceFixture();

@@ -1,25 +1,25 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CorrectOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class DeliveryCorrectionService extends Service {
   public constructor(

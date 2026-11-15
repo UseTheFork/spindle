@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import {
   createTicket,
   ticketFixture,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("continuing a correction requires an assessment without a redundant result flag", async () => {
   const { service, feature } = await ticketFixture("Correction Assessment");

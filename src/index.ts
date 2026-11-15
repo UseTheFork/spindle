@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SpindleExecutable } from "@/SpindleExecutable";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SpindleExecutable } from "@spindle/SpindleExecutable";
 
 if (import.meta.main) {
   const output = new ConsoleOutputService();

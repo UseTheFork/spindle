@@ -1,8 +1,8 @@
 import { beforeAll } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
+import { Application } from "@spindle/Foundation/Application";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export async function createStatusSummaryService(
   packageManager: string,

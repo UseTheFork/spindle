@@ -11,9 +11,9 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { PrivateSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
+import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("sdd create writes a numbered feature workspace with its default ledger policy", async () => {
   const { repo, service } = await serviceFixture();

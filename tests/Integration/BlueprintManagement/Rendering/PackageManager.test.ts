@@ -4,13 +4,13 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { writeFixtureCatalog } from "../../../Helpers/CatalogFixtures.ts";
+import { writeFixtureCatalog } from "@test/Helpers/CatalogFixtures";
 import {
   runCliInteractiveWithFixtureCatalogRaw,
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 async function setupBlueprints() {
   const blueprints = await makeTempDir("spindle-package-manager-blueprints-");

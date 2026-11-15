@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 
-import type { CheckRequirement, CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
-import { Records } from "@/Support/Records";
+import type { CheckRequirement, CheckRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

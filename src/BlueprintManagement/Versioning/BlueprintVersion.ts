@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import matter from "gray-matter";
 
-import { RenderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+import { RenderText, type RenderContext } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 const semverPattern =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;

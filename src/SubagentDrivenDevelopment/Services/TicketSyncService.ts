@@ -1,23 +1,23 @@
 import { accessSync, constants, realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { TicketSelection } from "@/SubagentDrivenDevelopment/Models/Options";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { TicketSelection } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import type {
   FeaturePaths,
   FeatureLedger,
   TicketProgress,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { ChecksService } from "@spindle/SubagentDrivenDevelopment/Services/ChecksService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class TicketSyncService extends Service {
   public constructor(

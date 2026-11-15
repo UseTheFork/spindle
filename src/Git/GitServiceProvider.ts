@@ -1,5 +1,5 @@
-import { GitService } from "@/Git/Services/GitService";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 
 export class GitServiceProvider extends ServiceProvider {
   public register(): void {

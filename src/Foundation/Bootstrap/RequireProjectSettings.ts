@@ -1,7 +1,7 @@
-import type { Application } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { Repository } from "@/Support/Repository";
+import type { Application } from "@spindle/Foundation/Application";
+import { Bootstrapper } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { Repository } from "@spindle/Support/Repository";
 
 export class RequireProjectSettings extends Bootstrapper {
   public bootstrap(application: Application): void {

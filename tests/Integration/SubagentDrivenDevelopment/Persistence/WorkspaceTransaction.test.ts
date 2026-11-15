@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("all workflow writes require the transaction-owned lock", async () => {
   const { app, service } = await serviceFixture();

@@ -11,8 +11,8 @@ import {
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw as runCliRaw,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 let stubsDirectory: string;
 

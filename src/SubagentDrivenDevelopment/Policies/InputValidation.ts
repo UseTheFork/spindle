@@ -1,6 +1,6 @@
-import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TICKET_ID, TICKET_CATEGORIES } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { CreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TICKET_ID, TICKET_CATEGORIES } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export class InputValidation {
   public static validateAuthor(author: string): void {

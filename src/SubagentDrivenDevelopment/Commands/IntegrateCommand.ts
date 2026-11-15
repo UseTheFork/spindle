@@ -1,12 +1,12 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
-import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { IntegrateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 
 export class IntegrateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

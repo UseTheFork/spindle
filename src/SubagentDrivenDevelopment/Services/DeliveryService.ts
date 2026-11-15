@@ -2,26 +2,26 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { FinishOptions, NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { FinishOptions, NextOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import {
   FeatureFinalizationService,
   type FeatureFinishOptions,
-} from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryService extends Service {
   public constructor(

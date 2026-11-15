@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
-import type { DeliveryProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import type { DeliveryProgress } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
 
 test("legacy unavailable checks do not hide an earlier unresolved failure", () => {
   const delivery: DeliveryProgress = {

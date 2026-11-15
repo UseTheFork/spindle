@@ -1,4 +1,4 @@
-import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
+import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
 
 export class AuthoringFlowchartProvider extends ComputedVariableProvider {
   public render(): string {

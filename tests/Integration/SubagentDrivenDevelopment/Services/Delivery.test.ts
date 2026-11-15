@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { runCli } from "../../../Helpers/Cli";
+import { runCli } from "@test/Helpers/Cli";
 import {
   cliOutput,
   claimDelivery,
@@ -23,8 +23,8 @@ import {
   prepareIntegratedTicket,
   prepareReviewedTicket,
   prepareDeliveryReady,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 
 vi.setConfig({ testTimeout: 60_000 });
 

@@ -7,21 +7,21 @@ vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
-import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
-import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
-import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
-import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
+import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ComputedContextService } from "@spindle/TemplateRendering/Computed/ComputedContextService";
+import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const description =
   "This is a private skill do not load it unless explicitly required by the user or another skill.";

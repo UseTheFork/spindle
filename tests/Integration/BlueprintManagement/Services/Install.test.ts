@@ -4,16 +4,16 @@ import { fileURLToPath } from "node:url";
 
 import { test, expect } from "vitest";
 
-import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
-import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
-import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
+import { InstallationService } from "@spindle/BlueprintManagement/Services/InstallationService";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 test("source Blueprint roots resolve from the module location, independent of App roots", async () => {
   const workspace = await makeTempDir("spindle-install-relative-root-");

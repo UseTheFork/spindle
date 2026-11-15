@@ -6,11 +6,11 @@ import {
   blueprintCatalog,
   type CatalogDeletion,
   type CatalogSelection,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
-import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { PlannedBlueprintDeletion } from "@/BlueprintManagement/Types/Reconciliation";
-import { InstalledBlueprintMetadata } from "@/BlueprintManagement/Versioning/InstalledBlueprintMetadata";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import type { PlannedBlueprintDeletion } from "@spindle/BlueprintManagement/Types/Reconciliation";
+import { InstalledBlueprintMetadata } from "@spindle/BlueprintManagement/Versioning/InstalledBlueprintMetadata";
 
 export interface BlueprintHandlerCatalogPlan {
   handler: BlueprintHandler;

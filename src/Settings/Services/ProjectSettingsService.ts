@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 
-import type { Application } from "@/Foundation/Application";
-import { projectSettingsSchema, type ProjectSettings } from "@/Settings/Models/ProjectSettings";
-import { Records } from "@/Support/Records";
-import { Stacks } from "@/Support/Stacks";
+import type { Application } from "@spindle/Foundation/Application";
+import { projectSettingsSchema, type ProjectSettings } from "@spindle/Settings/Models/ProjectSettings";
+import { Records } from "@spindle/Support/Records";
+import { Stacks } from "@spindle/Support/Stacks";
 
 export type ProjectSettingsData = ProjectSettings;
 

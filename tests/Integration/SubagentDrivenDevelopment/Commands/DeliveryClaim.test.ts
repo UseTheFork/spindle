@@ -3,11 +3,11 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { runCli } from "../../../Helpers/Cli";
+import { runCli } from "@test/Helpers/Cli";
 import {
   prepareIntegratedTicket,
   prepareReviewedTicket,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 vi.setConfig({ testTimeout: 60_000 });
 

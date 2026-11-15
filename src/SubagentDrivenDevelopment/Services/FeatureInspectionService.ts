@@ -1,47 +1,47 @@
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
   ReviewAssignment,
   SpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   CheckRequirement,
   CheckRecord,
   CommitIdentity,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
   ReviewFinding,
-} from "@/SubagentDrivenDevelopment/Models/Findings";
-import type { StatusOptions } from "@/SubagentDrivenDevelopment/Models/Options";
+} from "@spindle/SubagentDrivenDevelopment/Models/Findings";
+import type { StatusOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import {
   FEATURE_DIRECTORY,
   HISTORICAL_DATE_DIRECTORY,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FeatureWorkspace } from "@spindle/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class FeatureInspectionService extends Service {
   public constructor(

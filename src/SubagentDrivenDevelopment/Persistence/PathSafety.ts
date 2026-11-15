@@ -1,10 +1,10 @@
 import { realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 
 export class PathSafety extends Service {
   public constructor(

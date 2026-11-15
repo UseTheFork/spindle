@@ -4,7 +4,7 @@ import { isAbsolute, relative, sep } from "node:path";
 
 import { afterAll, describe, expect, test } from "vitest";
 
-import { makeTempDir, makeTempDirSync, repoRoot } from "../../Helpers/TemporaryDirectories.ts";
+import { makeTempDir, makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const completedDirectories: string[] = [];
 

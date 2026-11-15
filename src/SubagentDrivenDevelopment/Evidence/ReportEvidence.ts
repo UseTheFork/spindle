@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   ImplementationAssignment,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { TicketProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { TicketProgress, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
 
 export class ReportEvidence extends Service {
   public constructor(

@@ -7,7 +7,7 @@ import {
   createTicket,
   ticketFixture,
   workspaceSnapshot,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("ready rejects duplicated ledger ticket progress records", async () => {
   const { service, feature } = await ticketFixture("Duplicate Ledger Ticket");

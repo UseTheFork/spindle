@@ -4,16 +4,16 @@ import { dirname, join, resolve } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
+import { blueprintCatalog as assetCatalog } from "@spindle/Assets/Blueprints/Catalog";
 import {
   BlueprintCatalogOperations,
   blueprintCatalog,
   type BlueprintCatalogDefinition,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCli as runBundledCli, runCliWithCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCli as runBundledCli, runCliWithCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
   expect(blueprintCatalog).toBe(assetCatalog);

@@ -4,14 +4,14 @@ import type {
   AcceptedEvidence,
   CheckRequirement,
   IntegrationRecord,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
-import { EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { DeliveryProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { AssignmentSchema } from "@/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
-import { CheckSchema } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import { FindingSchema } from "@/SubagentDrivenDevelopment/Persistence/FindingSchema";
-import { ReviewSchema } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import { EXECUTION_STATES } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { DeliveryProgress } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { AssignmentSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
+import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/CheckSchema";
+import { FindingSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/FindingSchema";
+import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

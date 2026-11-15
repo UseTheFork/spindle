@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 describe("CheckRecords.latestForHead", () => {
   test("selects the latest record per command for the requested commit", () => {

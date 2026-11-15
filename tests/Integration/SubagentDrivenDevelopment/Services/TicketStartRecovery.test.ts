@@ -4,21 +4,21 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function preparedDispatch() {
   const { repo } = fixture();

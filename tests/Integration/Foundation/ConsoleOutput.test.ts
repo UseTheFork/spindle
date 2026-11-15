@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
+import { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 
 afterEach(() => vi.restoreAllMocks());
 

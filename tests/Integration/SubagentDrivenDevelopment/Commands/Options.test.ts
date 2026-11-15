@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 test("SDD schemas allocate independent parsers on registration", () => {
   const never = async () => {

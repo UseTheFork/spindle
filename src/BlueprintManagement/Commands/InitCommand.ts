@@ -1,25 +1,25 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
-import { BlueprintPrompts } from "@/BlueprintManagement/Support/BlueprintPrompts";
-import { ConflictPolicyParser } from "@/BlueprintManagement/Support/ConflictPolicyParser";
-import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { ConflictPolicy } from "@/BlueprintManagement/Types/Installation";
-import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ProjectService } from "@/Project/Services/ProjectService";
-import { SettingsPrompts } from "@/Settings/Commands/SettingsPrompts";
-import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
-import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import { BlueprintCommandOptions } from "@spindle/BlueprintManagement/Commands/BlueprintCommandOptions";
+import { BlueprintPrompts } from "@spindle/BlueprintManagement/Support/BlueprintPrompts";
+import { ConflictPolicyParser } from "@spindle/BlueprintManagement/Support/ConflictPolicyParser";
+import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import type { ConflictPolicy } from "@spindle/BlueprintManagement/Types/Installation";
+import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ProjectService } from "@spindle/Project/Services/ProjectService";
+import { SettingsPrompts } from "@spindle/Settings/Commands/SettingsPrompts";
+import { defaultCommitSettings } from "@spindle/Settings/Models/CommitSettings";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { Stacks } from "@/Support/Stacks";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { Stacks } from "@spindle/Support/Stacks";
 
 export interface InitResult {
   stacks: string[];

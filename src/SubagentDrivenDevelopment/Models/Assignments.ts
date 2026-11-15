@@ -1,4 +1,4 @@
-import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CheckRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 
 export interface ImplementationAssignment {
   id: string;

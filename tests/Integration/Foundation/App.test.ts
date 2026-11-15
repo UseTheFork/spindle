@@ -3,16 +3,16 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, expect, expectTypeOf, test, vi } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
-import { ApplicationConfiguration } from "@/Foundation/ApplicationConfiguration";
-import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
-import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
-import { Container } from "@/Foundation/Container";
-import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
-import { Kernel } from "@/Foundation/Kernel";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { Application } from "@spindle/Foundation/Application";
+import { ApplicationBuilder } from "@spindle/Foundation/ApplicationBuilder";
+import { ApplicationConfiguration } from "@spindle/Foundation/ApplicationConfiguration";
+import { Bootstrapper, type BootstrapperConstructor } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { RegisterProviders } from "@spindle/Foundation/Bootstrap/RegisterProviders";
+import type { ConsoleInvocation } from "@spindle/Foundation/ConsoleInvocation";
+import { Container } from "@spindle/Foundation/Container";
+import { FoundationServiceProvider } from "@spindle/Foundation/FoundationServiceProvider";
+import { Kernel } from "@spindle/Foundation/Kernel";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 
 afterEach(() => {
   RegisterProviders.merge([]);

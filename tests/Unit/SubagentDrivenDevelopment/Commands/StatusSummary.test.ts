@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
 
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 
 import {
   createStatusSummaryService,
   nextSummary,
-} from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
+} from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 
 test("summary uses the configured multi-word prefix for commands without rewriting check values", async () => {
   const service = await createStatusSummaryService("npm run");

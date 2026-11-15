@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { CommandOptions } from "@/Commands/CommandOptions";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
 
 test("once rejects repeated flags without sharing state between invocations or options", () => {
   const first = CommandOptions.once("--feature");

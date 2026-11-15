@@ -9,8 +9,8 @@ import {
   runCliRaw,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 let stubs: string;
 

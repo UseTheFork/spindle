@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 
 import { z } from "zod";
 
-import { commitSettingsSchema, defaultCommitSettings } from "@/Settings/Models/CommitSettings";
-import { Stacks } from "@/Support/Stacks";
-import { BuiltInTooling } from "@/Tooling/Models/BuiltInTooling";
+import { commitSettingsSchema, defaultCommitSettings } from "@spindle/Settings/Models/CommitSettings";
+import { Stacks } from "@spindle/Support/Stacks";
+import { BuiltInTooling } from "@spindle/Tooling/Models/BuiltInTooling";
 
 const singleLine = z.string().regex(/^(?=.*\S)[^\r\n]+$/, "Must be a non-empty single line.");
 const toolingEntrySchema = z.looseObject({

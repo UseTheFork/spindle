@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 
-import { CommandOptions } from "@/Commands/CommandOptions";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
 
 const normalizedPrograms = new WeakSet<Command>();
 

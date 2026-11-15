@@ -13,14 +13,14 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test, vi } from "vitest";
 
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { PrivateSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
 
-import { runCli } from "../../../Helpers/Cli.ts";
+import { runCli } from "@test/Helpers/Cli";
 import {
   createTicket,
   ticketFixture,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("ticket create persists attributed metadata and unstarted progress without overwriting", async () => {
   const { service, feature } = await ticketFixture("Ticket Lifecycle");

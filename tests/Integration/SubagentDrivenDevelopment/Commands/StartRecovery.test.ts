@@ -9,16 +9,16 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@/Git/Services/GitService";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { FeatureWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
-import { execute, fixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { execute, fixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 function stringEncoding(
   options: SpawnSyncOptionsWithStringEncoding | SpawnSyncOptionsWithBufferEncoding,

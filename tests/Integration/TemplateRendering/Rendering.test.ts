@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { computedVariableProviders } from "@/TemplateRendering/Computed/ComputedVariableProviders";
-import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
+import { Application } from "@spindle/Foundation/Application";
+import { computedVariableProviders } from "@spindle/TemplateRendering/Computed/ComputedVariableProviders";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 const context = {
   stacks: ["python", "typescript"],

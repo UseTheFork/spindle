@@ -1,7 +1,7 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { FeatureLedger, TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { FeatureLedger, TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
 
 export class ReadinessPolicy extends Service {
   public constructor(

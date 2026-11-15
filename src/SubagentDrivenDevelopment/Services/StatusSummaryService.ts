@@ -1,6 +1,6 @@
-import { Service } from "@/Foundation/Service";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { StatusSummaryFormatter } from "@/SubagentDrivenDevelopment/Support/StatusSummaryFormatter";
+import { Service } from "@spindle/Foundation/Service";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { StatusSummaryFormatter } from "@spindle/SubagentDrivenDevelopment/Support/StatusSummaryFormatter";
 
 export class StatusSummaryService extends Service {
   public statusSummary(data: unknown, spec: string, heading: string): string[] {

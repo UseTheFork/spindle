@@ -3,9 +3,9 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function put(path: string, value: string) {
   await mkdir(dirname(path), { recursive: true });

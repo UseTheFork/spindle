@@ -8,9 +8,9 @@ import {
   execute,
   prepareImplementationForReview,
   recordReviewCheck,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 function runSuggested(repo: string, lines: string[], operation: string, result: string) {
   const labels =

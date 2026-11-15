@@ -4,17 +4,17 @@ import type {
   CorrectionAdjudication,
   ReviewAssignment,
   SpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   AcceptedEvidence,
   CheckRequirement,
   IntegrationRecord,
   TicketChecks,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
   ReviewFinding,
-} from "@/SubagentDrivenDevelopment/Models/Findings";
+} from "@spindle/SubagentDrivenDevelopment/Models/Findings";
 
 export const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 

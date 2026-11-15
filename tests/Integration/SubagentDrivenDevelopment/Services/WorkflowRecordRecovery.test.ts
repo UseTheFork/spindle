@@ -9,25 +9,25 @@ import { dirname, join, resolve } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@/Git/Services/GitService";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
   prepareReadyTicket,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 function stringEncoding(
   options: SpawnSyncOptionsWithStringEncoding | SpawnSyncOptionsWithBufferEncoding,

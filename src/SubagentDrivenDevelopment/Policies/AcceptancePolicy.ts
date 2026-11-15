@@ -1,17 +1,17 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class AcceptancePolicy extends Service {
   public constructor(

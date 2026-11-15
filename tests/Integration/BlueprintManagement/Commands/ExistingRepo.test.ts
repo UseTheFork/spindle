@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { beforeEach, expect, test } from "vitest";
 
-import { runCliWithFixtureCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { runCliWithFixtureCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 let stubsDirectory: string;
 

@@ -10,7 +10,8 @@
     "noEmitOnError": true,
     "types": ["node"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@spindle/*": ["./src/*"],
+      "@test/*": ["./tests/*"]
     }
   },
   "include": ["src/**/*.ts"],

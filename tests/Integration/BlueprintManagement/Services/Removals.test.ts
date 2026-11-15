@@ -3,11 +3,11 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithFixtureCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithFixtureCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const versioned = (name: string, body: string) =>
   `---\nname: ${name}\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;

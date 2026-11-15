@@ -1,7 +1,7 @@
-import type { Application } from "@/Foundation/Application";
-import type { ComputedVariableRegistry } from "@/TemplateRendering/Computed/ComputedVariableProvider";
-import { computedVariableProviders } from "@/TemplateRendering/Computed/ComputedVariableProviders";
-import type { RenderContext, RenderInputs } from "@/TemplateRendering/Rendering/RenderText";
+import type { Application } from "@spindle/Foundation/Application";
+import type { ComputedVariableRegistry } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
+import { computedVariableProviders } from "@spindle/TemplateRendering/Computed/ComputedVariableProviders";
+import type { RenderContext, RenderInputs } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class ResolveRenderContext {
   public static resolve(

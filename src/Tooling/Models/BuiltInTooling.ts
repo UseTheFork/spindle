@@ -1,4 +1,4 @@
-import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
+import type { ToolingEntry } from "@spindle/Tooling/Models/ToolingEntry";
 
 export const builtInTooling: readonly ToolingEntry[] = [
   {

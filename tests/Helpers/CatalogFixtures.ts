@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type {
   BlueprintCatalogDefinition,
   CatalogSourceEntry,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 export function writeCatalogFixture(blueprints: string, catalog: BlueprintCatalogDefinition) {
   writeFileSync(join(blueprints, "catalog.fixture.json"), JSON.stringify(catalog, null, 2));

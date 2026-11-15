@@ -7,7 +7,7 @@ import { expect, test } from "vitest";
 import {
   createTicket,
   ticketFixture,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("ticket comment recovers an interrupted ticket/ledger write without losing history", async () => {
   const { service, feature } = await ticketFixture("Ticket Recovery");

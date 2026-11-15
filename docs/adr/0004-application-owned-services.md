@@ -156,7 +156,8 @@ Git discovery intentionally changes workspace command behavior outside working
 trees and when invoked from nested directories. Programmatic fixtures can bind
 explicit root values without Git discovery.
 
-Source imports use extensionless `@/` aliases with TypeScript Bundler resolution.
+Source imports use extensionless `@spindle/` aliases with TypeScript Bundler
+resolution. Tests use the `@test/` alias for test modules.
 The production build rewrites aliases and file extensions for Node ESM, preserves
 the Blueprint bundle and Project assets, and is verified as an executable
 package. Source subprocess runners explicitly select the repository tsconfig when

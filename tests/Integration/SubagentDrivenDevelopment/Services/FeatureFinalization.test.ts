@@ -13,22 +13,22 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@/Git/Services/GitService";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
-import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { FeatureFinalizationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 vi.setConfig({ testTimeout: 60_000 });
 function git(root: string, ...args: string[]) {

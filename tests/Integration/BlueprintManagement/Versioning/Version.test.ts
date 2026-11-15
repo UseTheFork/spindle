@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { test, expect } from "vitest";
 
-import { BlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
+import { BlueprintVersion } from "@spindle/BlueprintManagement/Versioning/BlueprintVersion";
 
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 test("reads Blueprint versions from metadata frontmatter", async () => {
   const directory = await makeTempDir("spindle-version-");

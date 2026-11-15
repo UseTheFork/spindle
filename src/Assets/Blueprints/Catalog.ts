@@ -1,4 +1,4 @@
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {

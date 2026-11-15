@@ -2,11 +2,11 @@ import { readFile } from "node:fs/promises";
 
 import { Command, CommanderError } from "commander";
 
-import type { Application, ServiceProviderConstructor } from "@/Foundation/Application";
-import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
-import { Kernel } from "@/Foundation/Kernel";
+import type { Application, ServiceProviderConstructor } from "@spindle/Foundation/Application";
+import type { ConsoleInvocation } from "@spindle/Foundation/ConsoleInvocation";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { FoundationServiceProvider } from "@spindle/Foundation/FoundationServiceProvider";
+import { Kernel } from "@spindle/Foundation/Kernel";
 
 export class Cli {
   public static async dispatch(

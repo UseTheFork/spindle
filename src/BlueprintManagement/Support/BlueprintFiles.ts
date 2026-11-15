@@ -5,9 +5,9 @@ import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   PlannedBlueprintFile,
   PreparedBlueprintFile,
-} from "@/BlueprintManagement/Types/Installation";
-import { projectSettingsPath } from "@/Settings/Services/ProjectSettingsService";
-import { RenderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/BlueprintManagement/Types/Installation";
+import { projectSettingsPath } from "@spindle/Settings/Services/ProjectSettingsService";
+import { RenderText, type RenderContext } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 // Only known text formats are rendered; all other files are copied unchanged.
 const textExtensions = new Set([

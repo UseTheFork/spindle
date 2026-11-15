@@ -1,13 +1,13 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
-import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/FeatureCreationService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { CreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { FeatureCreationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureCreationService";
 
 export class CreateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {

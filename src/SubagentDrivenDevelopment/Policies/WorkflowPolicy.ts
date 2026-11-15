@@ -1,11 +1,11 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   TicketProgress,
   FeatureLedger,
   DeliveryProgress,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
 
 export class WorkflowPolicy extends Service {
   public constructor(app: Application) {

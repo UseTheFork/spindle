@@ -1,4 +1,4 @@
-import type { Application } from "@/Foundation/Application";
+import type { Application } from "@spindle/Foundation/Application";
 
 const bootedServices = new WeakSet<Service>();
 

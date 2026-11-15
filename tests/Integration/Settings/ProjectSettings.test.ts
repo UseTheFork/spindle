@@ -3,13 +3,13 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
-import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
+import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
+import { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 
-import { serviceFixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("configuration commands require a booted application", async () => {
   const app = new Application({ basePath: "/workspace" });

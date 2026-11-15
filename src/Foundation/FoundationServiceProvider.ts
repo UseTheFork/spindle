@@ -1,5 +1,5 @@
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 
 export class FoundationServiceProvider extends ServiceProvider {
   public register(): void {

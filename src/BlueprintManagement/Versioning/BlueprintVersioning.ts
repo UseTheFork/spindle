@@ -3,9 +3,9 @@ import matter from "gray-matter";
 import type {
   BlueprintUpdateInput,
   BlueprintUpdatePlan,
-} from "@/BlueprintManagement/Types/Blueprint";
-import { BlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
-import { InstalledBlueprintMetadata } from "@/BlueprintManagement/Versioning/InstalledBlueprintMetadata";
+} from "@spindle/BlueprintManagement/Types/Blueprint";
+import { BlueprintVersion } from "@spindle/BlueprintManagement/Versioning/BlueprintVersion";
+import { InstalledBlueprintMetadata } from "@spindle/BlueprintManagement/Versioning/InstalledBlueprintMetadata";
 
 export class BlueprintVersioning {
   public static validateVersionedMetadata(

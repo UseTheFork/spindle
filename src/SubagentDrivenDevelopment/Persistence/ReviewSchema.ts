@@ -3,8 +3,8 @@ import { isAbsolute } from "node:path";
 import type {
   ReviewAssignment,
   SpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

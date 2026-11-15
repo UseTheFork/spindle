@@ -1,6 +1,6 @@
-import type { ReviewAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { ReviewFinding } from "@/SubagentDrivenDevelopment/Models/Findings";
-import type { TicketProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { ReviewAssignment } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { ReviewFinding } from "@spindle/SubagentDrivenDevelopment/Models/Findings";
+import type { TicketProgress } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export class ReviewBatch {
   public static currentReviewBatch(progress: TicketProgress): ReviewAssignment[] {

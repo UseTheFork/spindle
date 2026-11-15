@@ -3,10 +3,10 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { GitService } from "@/Git/Services/GitService";
+import { Application } from "@spindle/Foundation/Application";
+import { GitService } from "@spindle/Git/Services/GitService";
 
-import { fixture, serviceFixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
+import { fixture, serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("Git is bound early as an application-owned singleton without registration-time discovery", async () => {
   const discovery = vi.spyOn(GitService.prototype, "discoverRoot");

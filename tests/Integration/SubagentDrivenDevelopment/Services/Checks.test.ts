@@ -11,7 +11,7 @@ import {
   prepareImplementationForReview,
   prepareReadyTicket,
   recordReviewCheck,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("required checks are declared before implementation and accept only explicit results", async () => {
   const { repo, git, spec, worktreeParent } = await prepareReadyTicket();

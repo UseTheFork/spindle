@@ -1,12 +1,12 @@
-import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
-import { Cli } from "@/Cli";
-import { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import { SettingsServiceProvider } from "@/Settings/SettingsServiceProvider";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-import { TemplateRenderingServiceProvider } from "@/TemplateRendering/TemplateRenderingServiceProvider";
-import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
+import { BlueprintManagementServiceProvider } from "@spindle/BlueprintManagement/BlueprintManagementServiceProvider";
+import { Cli } from "@spindle/Cli";
+import { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import { SettingsServiceProvider } from "@spindle/Settings/SettingsServiceProvider";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { TemplateRenderingServiceProvider } from "@spindle/TemplateRendering/TemplateRenderingServiceProvider";
+import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
 
 export class SpindleExecutable {
   public static async run(

@@ -1,14 +1,14 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   DeliveryProgress,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class CheckPolicy extends Service {
   public constructor(

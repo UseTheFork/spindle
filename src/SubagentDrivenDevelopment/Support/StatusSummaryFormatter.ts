@@ -1,4 +1,4 @@
-import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 type SummaryRecord = Record<string, unknown>;
 

@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import { StartCommand } from "@/SubagentDrivenDevelopment/Commands/StartCommand";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartCommand";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("Project command declarations exclude SDD commands", () => {
   for (const command of SubagentDrivenDevelopmentServiceProvider.commands()) {

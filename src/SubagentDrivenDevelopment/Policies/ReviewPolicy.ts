@@ -1,16 +1,16 @@
 import { join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { ReviewAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { ReviewAssignment } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   DeliveryProgress,
   FeaturePaths,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export class ReviewPolicy extends Service {
   public constructor(

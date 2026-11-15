@@ -1,7 +1,7 @@
 import type { Command as CommanderCommand } from "commander";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 
 export abstract class Command extends Service {}
 

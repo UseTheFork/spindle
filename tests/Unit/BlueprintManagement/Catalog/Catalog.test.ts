@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import {
   BlueprintCatalogOperations,
   blueprintCatalog,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
   const entry = { path: "selected.agent.md", stacks: [] };

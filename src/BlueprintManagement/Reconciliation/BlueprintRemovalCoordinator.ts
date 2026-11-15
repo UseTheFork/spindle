@@ -1,10 +1,10 @@
 import { lstat, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { PlannedBlueprintDeletion } from "@/BlueprintManagement/Types/Reconciliation";
-import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import type { PlannedBlueprintDeletion } from "@spindle/BlueprintManagement/Types/Reconciliation";
+import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
 
 export interface PlannedDeletionOperation {
   handler: BlueprintHandler;

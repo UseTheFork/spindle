@@ -4,15 +4,15 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { ProgressSchema } from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { EXECUTION_STATES } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
 
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, {

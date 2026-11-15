@@ -1,16 +1,16 @@
 import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import {
   FEATURE_DIRECTORY,
   HISTORICAL_DATE_DIRECTORY,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
 
 export class FeatureWorkspace extends Service {
   public constructor(

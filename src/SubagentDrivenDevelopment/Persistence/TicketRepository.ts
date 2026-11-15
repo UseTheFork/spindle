@@ -3,14 +3,14 @@ import { basename, join } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { TicketCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TRACKER_STATUSES, type TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { Records } from "@/Support/Records";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { TicketCreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TRACKER_STATUSES, type TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

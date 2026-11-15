@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
-import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
-import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewCommand";
+import { ChecksRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
+import { ReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewCommand";
 
 function review(args: string[]): Promise<Command> {
   const program = new Command("spindle").exitOverride();

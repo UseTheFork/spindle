@@ -4,11 +4,11 @@ import {
   defaultCommitSettings,
   commitSettingsSchema,
   type CommitSettings,
-} from "@/Settings/Models/CommitSettings";
-import type { ProjectSettingsData } from "@/Settings/Services/ProjectSettingsService";
-import { Stacks } from "@/Support/Stacks";
-import { BuiltInTooling } from "@/Tooling/Models/BuiltInTooling";
-import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
+} from "@spindle/Settings/Models/CommitSettings";
+import type { ProjectSettingsData } from "@spindle/Settings/Services/ProjectSettingsService";
+import { Stacks } from "@spindle/Support/Stacks";
+import { BuiltInTooling } from "@spindle/Tooling/Models/BuiltInTooling";
+import type { ToolingEntry } from "@spindle/Tooling/Models/ToolingEntry";
 
 export class SettingsPrompts {
   private static answer<T>(value: T | symbol): T {

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 test("ticket ownership errors identify both actors and a safe handoff command", () => {
   expect(() =>

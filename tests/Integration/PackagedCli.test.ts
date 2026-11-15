@@ -17,7 +17,7 @@ vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
-import { makeTempDirSync, repoRoot } from "../Helpers/TemporaryDirectories.ts";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const checkout = repoRoot;
 function packagedCli(existingRoot?: string) {

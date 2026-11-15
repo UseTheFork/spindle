@@ -4,10 +4,10 @@ import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import { CheckSchema } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import { ReviewSchema } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/CheckSchema";
+import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

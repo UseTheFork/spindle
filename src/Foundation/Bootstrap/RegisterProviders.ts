@@ -1,5 +1,5 @@
-import type { Application, ServiceProviderConstructor } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
+import type { Application, ServiceProviderConstructor } from "@spindle/Foundation/Application";
+import { Bootstrapper } from "@spindle/Foundation/Bootstrap/Bootstrapper";
 
 export class RegisterProviders extends Bootstrapper {
   private static providers: ServiceProviderConstructor[] = [];

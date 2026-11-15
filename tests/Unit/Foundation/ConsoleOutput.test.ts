@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 
 afterEach(() => vi.restoreAllMocks());
 

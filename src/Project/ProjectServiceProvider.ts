@@ -1,6 +1,6 @@
-import type { Application } from "@/Foundation/Application";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { ProjectService } from "@/Project/Services/ProjectService";
+import type { Application } from "@spindle/Foundation/Application";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { ProjectService } from "@spindle/Project/Services/ProjectService";
 
 export class ProjectServiceProvider extends ServiceProvider {
   public register(): void {

@@ -13,18 +13,18 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
   RecoveryWrite,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FileSystem, LOCK_TIMEOUT_MS } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem, LOCK_TIMEOUT_MS } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 

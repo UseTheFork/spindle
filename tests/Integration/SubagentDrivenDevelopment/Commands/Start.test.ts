@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { execute, fixture, invokeAsync } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { execute, fixture, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 async function setup() {
   const { repo, git } = fixture();

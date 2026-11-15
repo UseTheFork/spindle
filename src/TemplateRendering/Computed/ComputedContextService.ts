@@ -1,8 +1,8 @@
-import { Service } from "@/Foundation/Service";
-import type { ComputedVariableRegistry } from "@/TemplateRendering/Computed/ComputedVariableProvider";
-import { computedVariableProviders } from "@/TemplateRendering/Computed/ComputedVariableProviders";
-import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import type { RenderContext, RenderInputs } from "@/TemplateRendering/Rendering/RenderText";
+import { Service } from "@spindle/Foundation/Service";
+import type { ComputedVariableRegistry } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
+import { computedVariableProviders } from "@spindle/TemplateRendering/Computed/ComputedVariableProviders";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import type { RenderContext, RenderInputs } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class ComputedContextService extends Service {
   private resolvedContext: Promise<RenderContext | undefined> | undefined;
