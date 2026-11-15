@@ -82,8 +82,7 @@ test("resumes a journalled worktree allocation before Git worktree creation", as
   const { root, workspace, assignment, options } = await preparedDispatch();
   const git = (...args: string[]) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
-  git("add", ".scratch");
-  git("commit", "-qm", "prepare ticket records");
+  expect(git("status", "--porcelain")).toBe("");
   const common = git("rev-parse", "--path-format=absolute", "--git-common-dir");
   const journals = join(common, "spindle-ticket-start");
   mkdirSync(journals);
@@ -122,9 +121,13 @@ test("retries dispatch after worktree creation without duplicating the branch or
   expect(repeated.assignment.id).toBe(resumed.assignment.id);
   const ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].assignment.id).toBe(resumed.assignment.id);
-  expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toContain(
-    ".scratch/",
-  );
+  expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe("");
+  expect(
+    execFileSync("git", ["show", "HEAD:.scratch/0001-recover-dispatch/sdd.json"], {
+      cwd: root,
+      encoding: "utf8",
+    }),
+  ).toContain(resumed.assignment.id);
 });
 
 test("retry preserves a previously created ticket worktree containing new work", async () => {

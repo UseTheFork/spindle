@@ -33,18 +33,26 @@ import { Records } from "@/Support/Records";
 const isRecord = Records.isRecord;
 
 export class WorkspaceTransaction extends Service {
-  private readonly activeWorkspaces = new Set<string>();
+  private readonly activeWorkspaces = new Map<string, readonly RecoveryWrite[]>();
 
   public run<T>(workspace: string, operation: () => T): T {
     const release = this.acquireTicketLock(workspace);
-    this.activeWorkspaces.add(workspace);
     try {
-      if (this.recoverWrites(workspace)) this.commitFeatureRecords(workspace);
+      const recovered = this.recoverWrites(workspace);
+      const records = this.workflowRecordsCommitter.workspaceRecords(workspace);
+      if (records && this.workflowRecordsCommitter.hasPendingCommit(records)) {
+        this.workflowRecordsCommitter.commit(records);
+      }
+      this.activeWorkspaces.set(workspace, recovered);
       return operation();
     } finally {
       this.activeWorkspaces.delete(workspace);
       release();
     }
+  }
+
+  public recoveredWrites(workspace: string): readonly RecoveryWrite[] {
+    return this.activeWorkspaces.get(workspace) ?? [];
   }
 
   public constructor(
@@ -108,20 +116,21 @@ export class WorkspaceTransaction extends Service {
     }
   }
 
-  private recoverWrites(workspace: string): boolean {
+  private recoverWrites(workspace: string): RecoveryWrite[] {
     const journalPath = join(workspace, ".sdd-write-recovery.json");
     const entry = lstatIfPresent(journalPath);
-    if (!entry) return false;
+    if (!entry) return [];
+    const records = this.workflowRecordsCommitter.assertWritable(workspace);
     if (!entry.isFile() || entry.isSymbolicLink())
       throw new Error("Ticket recovery journal is not a regular file.");
     const value = JSON.parse(readFileSync(journalPath, "utf8")) as unknown;
     if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.writes)) {
       throw new Error("Ticket recovery journal has an unsupported format.");
     }
-    const writes = value.writes;
+    const writes: RecoveryWrite[] = [];
     const targets = new Set<string>();
     const pending: { target: string; after: string }[] = [];
-    for (const write of writes) {
+    for (const write of value.writes as unknown[]) {
       if (
         !isRecord(write) ||
         typeof write.path !== "string" ||
@@ -153,10 +162,13 @@ export class WorkspaceTransaction extends Service {
         );
       }
       if (current !== write.after) pending.push({ target, after: write.after });
+      writes.push({ path: write.path, before: write.before, after: write.after });
     }
     for (const write of pending) this.atomicWrite(write.target, write.after);
+    // The journal outlives the record commit so an interrupted commit is retried on the next run.
+    if (records) this.workflowRecordsCommitter.commit(records);
     unlinkSync(journalPath);
-    return true;
+    return writes;
   }
 
   public applyWrites(workspace: string, writes: RecoveryWrite[]): void {
@@ -167,6 +179,7 @@ export class WorkspaceTransaction extends Service {
     if (lstatIfPresent(journalPath)) {
       throw new Error("A pending ticket write recovery journal must be resolved first.");
     }
+    this.workflowRecordsCommitter.assertWritable(workspace);
     for (const write of writes) {
       if (!(write.path === "sdd.json" || /^tickets\/T-\d{4,}\.md$/.test(write.path))) {
         throw new Error(`Unsafe ticket write target: ${write.path}.`);
@@ -185,11 +198,6 @@ export class WorkspaceTransaction extends Service {
     }
     this.atomicWrite(journalPath, `${JSON.stringify({ version: 1, writes }, null, 2)}\n`);
     this.recoverWrites(workspace);
-    this.commitFeatureRecords(workspace);
-  }
-
-  private commitFeatureRecords(workspace: string): void {
-    this.workflowRecordsCommitter.commitWorkspace(workspace);
   }
 
   private atomicWrite(path: string, contents: string): void {

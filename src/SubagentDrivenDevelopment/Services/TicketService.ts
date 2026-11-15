@@ -11,11 +11,8 @@ import type {
   TicketUpdateOptions,
   TicketCommentOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
-import {
-  TICKET_CATEGORIES,
-  TICKET_ID,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import { TICKET_CATEGORIES, TICKET_ID } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { FeatureLedger, TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
@@ -47,6 +44,8 @@ export class TicketService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
+      const recovered = this.recoveredTicket(feature.workspace, ledger, options);
+      if (recovered) return recovered;
       const tickets = this.ticketRepository.readTickets(feature.workspace);
       this.ticketRepository.validateDependencyGraph(tickets);
       let highest = 0n;
@@ -99,6 +98,27 @@ export class TicketService extends Service {
       ]);
       return { ticket: id, path };
     });
+  }
+
+  private recoveredTicket(
+    workspace: string,
+    ledger: FeatureLedger,
+    options: TicketCreateOptions,
+  ): { ticket: string; path: string } | undefined {
+    for (const write of this.workspaceTransaction.recoveredWrites(workspace)) {
+      const id = /^tickets\/(T-\d{4,})\.md$/.exec(write.path)?.[1];
+      if (!id || write.before !== null) continue;
+      const progress = ledger.tickets.find((candidate) => candidate.id === id);
+      if (
+        progress?.execution === "unstarted" &&
+        progress.title === options.title.trim() &&
+        progress.reporter === options.reporter.trim() &&
+        progress.category === options.category
+      ) {
+        return { ticket: id, path: join(workspace, write.path) };
+      }
+    }
+    return undefined;
   }
 
   public ticketUpdate(options: TicketUpdateOptions): { ticket: string; path: string } {

@@ -4,17 +4,19 @@ import type {
   SpawnSyncOptionsWithStringEncoding,
   SpawnSyncReturns,
 } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 import { applicationFixture } from "../../../Helpers/ApplicationFixture";
@@ -23,6 +25,7 @@ import {
   execute,
   fixture,
   invokeAsync,
+  prepareReadyTicket,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 import { repoRoot } from "../../../Helpers/TemporaryDirectories";
 
@@ -64,6 +67,44 @@ class InterruptingGitService extends GitService {
   }
 }
 
+async function interruptAppGit(app: Application, command: "add" | "commit") {
+  const git = await app.make(GitService);
+  const run = git.run.bind(git) as (
+    args: string[],
+    options: SpawnSyncOptionsWithStringEncoding,
+  ) => SpawnSyncReturns<string>;
+  const spy = vi.spyOn(git, "run").mockImplementation(((
+    args: string[],
+    options: SpawnSyncOptionsWithStringEncoding,
+  ) => {
+    const result = run(args, options);
+    if (result.status === 0 && args[0] === command) {
+      spy.mockRestore();
+      throw new Error("simulated interruption");
+    }
+    return result;
+  }) as typeof git.run);
+}
+
+async function bootedApp(root: string) {
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
+  await app.boot();
+  return app;
+}
+
+function gitOutput(cwd: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+}
+
+function recordCommitJournal(root: string, feature: string): string {
+  return join(
+    gitOutput(root, "rev-parse", "--path-format=absolute", "--git-common-dir"),
+    "spindle-record-commit",
+    `${feature}.json`,
+  );
+}
+
 async function setup() {
   const { repo } = fixture();
   const created = await execute(repo, (services) =>
@@ -92,7 +133,8 @@ async function setup() {
   const git = new InterruptingGitService(app);
   const committer = new WorkflowRecordsCommitter(app, git);
   writeFileSync(spec, `${readFileSync(spec, "utf8")}\nNew requirement.\n`);
-  return { root, spec, feature, git, committer, app };
+  const original = JSON.parse(created.stdout) as { spec: string };
+  return { repo, originalSpec: original.spec, root, spec, feature, git, committer, app };
 }
 
 test.each(["add", "commit"] as const)(
@@ -221,4 +263,77 @@ test("commits canonical report paths literally", async () => {
       encoding: "utf8",
     }),
   ).toBe("Reviewed.\n");
+});
+
+test.each(["add", "commit"] as const)(
+  "retrying ticket create after an interrupted record commit following %s recovers it without a duplicate ticket",
+  async (interrupted) => {
+    const { root, spec, feature, app } = await setup();
+    const tickets = await app.make(TicketService);
+    const options = {
+      spec,
+      title: "Recover the commit",
+      reporter: "requester",
+      category: "enhancement",
+      author: "controller",
+    };
+    const before = gitOutput(root, "rev-parse", "HEAD");
+    await interruptAppGit(app, interrupted);
+    expect(() => tickets.ticketCreate(options)).toThrow("simulated interruption");
+    expect(existsSync(recordCommitJournal(root, feature.feature))).toBe(true);
+
+    expect(tickets.ticketCreate(options).ticket).toBe("T-0001");
+
+    expect(readdirSync(join(feature.workspace, "tickets"))).toEqual(["T-0001.md"]);
+    const ledger = JSON.parse(readFileSync(feature.ledger, "utf8")) as {
+      tickets: { id: string }[];
+    };
+    expect(ledger.tickets.map((ticket) => ticket.id)).toEqual(["T-0001"]);
+    expect(gitOutput(root, "rev-list", "--count", `${before}..HEAD`)).toBe("1");
+    expect(gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
+    expect(existsSync(recordCommitJournal(root, feature.feature))).toBe(false);
+    expect(tickets.ticketCreate(options).ticket).toBe("T-0002");
+  },
+);
+
+test("retrying implement after an interrupted record commit recovers it without a duplicate assignment", async () => {
+  const { repo: root, spec, worktreeParent } = await prepareReadyTicket();
+  const app = await bootedApp(root);
+  const assignments = await app.make(AssignmentService);
+  const options = { spec, ticket: "T-0001", author: "controller", workspace: worktreeParent };
+  const before = gitOutput(root, "rev-parse", "HEAD");
+  await interruptAppGit(app, "commit");
+  expect(() => assignments.implement(options)).toThrow("simulated interruption");
+
+  const resumed = assignments.implement(options);
+
+  const ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")) as {
+    tickets: { assignment?: { id: string } }[];
+  };
+  expect(ledger.tickets[0]?.assignment?.id).toBe(resumed.assignment.id);
+  expect(gitOutput(root, "rev-list", "--count", `${before}..HEAD`)).toBe("1");
+  expect(gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
+  expect(gitOutput(root, "show", "HEAD:.scratch/0001-ticket-flow/sdd.json")).toContain(
+    resumed.assignment.id,
+  );
+  expect(assignments.implement(options).assignment.id).toBe(resumed.assignment.id);
+});
+
+test("rejects post-start workflow writes from the original checkout", async () => {
+  const { repo, originalSpec, root } = await setup();
+  const before = gitOutput(repo, "rev-parse", "HEAD");
+  const result = await execute(repo, (services) =>
+    services.ticketService.ticketCreate({
+      spec: originalSpec,
+      title: "Misplaced",
+      reporter: "requester",
+      category: "enhancement",
+      author: "controller",
+    }),
+  );
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`run this command from its feature worktree ${root}`);
+  expect(result.stderr).toContain("features/0001-record-recovery");
+  expect(gitOutput(repo, "rev-parse", "HEAD")).toBe(before);
+  expect(gitOutput(repo, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
 });
