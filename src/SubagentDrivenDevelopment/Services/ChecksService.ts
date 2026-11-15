@@ -18,7 +18,6 @@ import type {
   FeaturePaths,
   TicketProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { isSafeCoveragePath } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
@@ -261,8 +260,6 @@ export class ChecksService extends Service {
   } & CommitIdentity {
     validateTicketId(options.ticket);
     validateAuthor(options.author);
-    if (options.paths !== undefined)
-      throw new Error("--paths is not supported for post-merge checks.");
     const command = options.command.trim();
     const result = options.result;
     if (result !== "passed" && result !== "failed" && result !== "unavailable")
@@ -510,16 +507,6 @@ export class ChecksService extends Service {
         (item) => item.command === command && !item.removedAt,
       );
       if (!requirement) throw new Error(`Check command is not currently required: ${command}.`);
-      const coveredPaths =
-        options.paths === undefined
-          ? undefined
-          : [...new Set(options.paths.map((path) => path.trim()))].sort();
-      if (
-        coveredPaths &&
-        (coveredPaths.length === 0 || coveredPaths.some((path) => !isSafeCoveragePath(path)))
-      ) {
-        throw new Error("--paths must contain unique safe checkout-relative file paths.");
-      }
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
@@ -548,7 +535,7 @@ export class ChecksService extends Service {
         latestForCommand.headSha === identity.headSha &&
         (!progress.worktree || latestForCommand.headSha === identity.headSha) &&
         latestForCommand.details === options.details?.trim() &&
-        JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
+        latestForCommand.coveredPaths === undefined
           ? latestForCommand
           : undefined;
       if (repeat) return { ticket: options.ticket, record: repeat, idempotent: true, ...identity };
@@ -558,7 +545,6 @@ export class ChecksService extends Service {
         author: options.author.trim(),
         headSha: identity.headSha,
         recordedAt: new Date().toISOString(),
-        ...(coveredPaths ? { coveredPaths } : {}),
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       checks.records.push(record);

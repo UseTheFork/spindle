@@ -25,10 +25,7 @@ export class ReviewCommand extends Command {
           throw new Error("review needs exactly one of --ticket or --scope delivery.");
         }
         if (action === "require") {
-          if (options.type && options.agent && options.type !== options.agent) {
-            throw new Error("--type and --agent must identify the same review agent.");
-          }
-          const reviewType = options.type ?? options.agent;
+          const reviewType = options.type;
           if (!options.spec || !reviewType || !options.details || !options.author) {
             throw new Error("review require needs --feature, --type, --details, and --actor.");
           }
@@ -50,8 +47,8 @@ export class ReviewCommand extends Command {
           return;
         }
         if (action !== undefined) throw new Error(`Unknown review action: ${action}.`);
-        if (options.type || options.agent || options.details) {
-          throw new Error("--type, --agent, and --details are only valid with 'review require'.");
+        if (options.type || options.details) {
+          throw new Error("--type and --details are only valid with 'review require'.");
         }
         if (!options.spec || !options.author) {
           throw new Error("review requires --feature and --actor.");

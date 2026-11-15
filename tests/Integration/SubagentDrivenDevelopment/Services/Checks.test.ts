@@ -109,21 +109,20 @@ test("checks record the exact ticket commit without accepting a caller-supplied 
   ]);
 });
 
-test("check coverage is limited to declared paths and records explicit failure details", async () => {
+test("checks record explicit failure details and reject uncommitted code", async () => {
   const prepared = await prepareImplementationForReview();
   const { repo, spec, command, ticketWorkspace } = prepared;
-  const scoped = await execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );
-  expect(scoped.status, scoped.stderr).toBe(0);
-  expect(JSON.parse(scoped.stdout).record.coveredPaths).toEqual(["feature.ts"]);
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(JSON.parse(recorded.stdout).record).not.toHaveProperty("coveredPaths");
   const missingFailureDetails = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
@@ -140,18 +139,41 @@ test("check coverage is limited to declared paths and records explicit failure d
   expect(JSON.parse(failed.stdout).record.details).toMatch(/required check failed/i);
 
   writeFileSync(join(ticketWorkspace, "unrelated.ts"), "export const unrelated = true;\n");
-  const staleScoped = await execute(repo, (service) =>
+  const dirty = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );
-  expect(staleScoped.status).not.toBe(0);
-  expect(staleScoped.stderr).toMatch(/commit ticket code/i);
+  expect(dirty.status).not.toBe(0);
+  expect(dirty.stderr).toMatch(/commit ticket code/i);
+});
+
+test("legacy path-scoped records remain readable and are not reused for new results", async () => {
+  const { repo, spec, command, git } = await prepareImplementationForReview();
+  const initial = await recordReviewCheck(repo, spec, command, "passed");
+  expect(initial.status, initial.stderr).toBe(0);
+
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.tickets[0].checks.records[0].coveredPaths = ["feature.ts"];
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  commitAll(repo, git, "preserve a legacy check record");
+
+  const recorded = await recordReviewCheck(repo, spec, command, "passed");
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(JSON.parse(recorded.stdout).record).not.toHaveProperty("coveredPaths");
+  expect(JSON.parse(recorded.stdout).idempotent).not.toBe(true);
+
+  const records = JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].checks.records;
+  expect(records).toHaveLength(2);
+  expect(records[0].coveredPaths).toEqual(["feature.ts"]);
+  const repeated = await recordReviewCheck(repo, spec, command, "passed");
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
 });
 
 test("ticket checks reject uncommitted code and bind the next result to the new commit", async () => {
@@ -180,7 +202,7 @@ test("ticket checks reject uncommitted code and bind the next result to the new 
   expect(JSON.parse(recorded.stdout).record.headSha).toBe(JSON.parse(committed.stdout).headSha);
 });
 
-test("a new code commit requires fresh checks even outside a check's declared paths", async () => {
+test("a new code commit requires fresh checks", async () => {
   const { repo, spec, command, ticketWorkspace } = await prepareImplementationForReview();
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
@@ -188,7 +210,6 @@ test("a new code commit requires fresh checks even outside a check's declared pa
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );

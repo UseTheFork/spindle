@@ -57,7 +57,6 @@ export function reviewSchema(root: Command): Command {
       "Review-eligible Blueprint agent key to require",
       CommandOptions.once("--type"),
     )
-    .option("--agent <name>", "Alias for --type", CommandOptions.once("--agent"))
     .option(
       "--details <text>",
       "Justified specialist review objective",

@@ -285,7 +285,7 @@ test("Commander preserves a real positional action and nested command path witho
     "/",
     "--scope",
     "delivery",
-    "--agent",
+    "--type",
     "reviewer",
     "--details",
     "Required",

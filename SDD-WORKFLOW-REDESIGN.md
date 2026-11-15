@@ -205,7 +205,9 @@ Other retained inputs include agent identity and authorization (`--actor`,
 ## Example scenarios
 
 Commands use `pnpm spindle sdd`. Output is illustrative; exact wording is
-settled during implementation, but each output names the next command.
+settled during implementation, but each output names the next command. For
+failed or unavailable check and review results, supply `--details` with the
+reason; omit it for passed review results. `next` prints these choices separately.
 
 ### 1. Starting a feature
 
@@ -248,7 +250,7 @@ Feature 0042-export: step tickets-in-progress
 T-0001: step ticket:review (awaiting report for assignment <review-assignment-id>)
   Next: pnpm spindle sdd submit --feature .scratch/0042-export \
     --ticket T-0001 --assignment <review-assignment-id> \
-    --result <passed|failed|unavailable> --actor <acting-agent>
+    --result <passed|failed|unavailable> [--details <reason>] --actor <acting-agent>
 T-0002: step ticket:implement (ready)
   Next: pnpm spindle sdd implement --feature .scratch/0042-export \
     --ticket T-0002 --workspace <absolute-authorized-directory> \
@@ -264,7 +266,7 @@ Open assignments:
   T-0002 review         <assignment-id>  dispatched 3m ago  report: present, not submitted
     Next: pnpm spindle sdd submit --feature .scratch/0042-export \
       --ticket T-0002 --assignment <assignment-id> \
-      --result <passed|failed|unavailable> --actor <acting-agent>
+      --result <passed|failed|unavailable> [--details <reason>] --actor <acting-agent>
 No ready tickets. Wait for the open assignments.
 ```
 
@@ -308,7 +310,7 @@ Next, run this command in the ticket worktree:
 After the agent reports the result, record it:
   pnpm spindle sdd checks record --feature .scratch/0042-export \
     --ticket T-0001 --command "pnpm exec vitest run tests/Export.test.ts" \
-    --result <passed|failed|unavailable> --actor <acting-agent>
+    --result <passed|failed|unavailable> [--details <reason>] --actor <acting-agent>
 ```
 
 The agent runs the command in the ticket worktree. The orchestrator records
@@ -341,7 +343,7 @@ After the reviewer returns, read and adjudicate the report. Register each
 accepted finding with `finding create`, then run:
   pnpm spindle sdd submit --feature .scratch/0042-export \
     --ticket T-0001 --assignment <review-assignment-id> --result <passed|failed|unavailable> \
-    --actor <acting-agent>
+    [--details <reason>] --actor <acting-agent>
 ```
 
 The reviewer's report includes:
@@ -505,6 +507,7 @@ Merged features/0042-export into main. Final validation is pending.
 Next, in the original checkout, run each declared final check and record it:
   pnpm spindle sdd checks record --feature .scratch/0042-export \
     --scope final --command "pnpm run build" --result <passed|failed|unavailable> \
+    [--details <reason>] \
     --actor <acting-agent>
 ```
 

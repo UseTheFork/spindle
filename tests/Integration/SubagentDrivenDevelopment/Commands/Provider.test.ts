@@ -17,7 +17,7 @@ test("every executable operation is explicitly bound once as an application sing
   const { app } = await serviceFixture();
   app.register(SubagentDrivenDevelopmentServiceProvider);
   const commands = SubagentDrivenDevelopmentServiceProvider.commands();
-  expect(commands).toHaveLength(22);
+  expect(commands).toHaveLength(24);
   expect(commands).toContain(StartCommand);
   for (const command of commands) {
     expect(app.bound(command)).toBe(true);
@@ -49,7 +49,6 @@ test("schema-only registration reuses groups and preserves positional review req
     "--scope",
     "--actor",
     "--type",
-    "--agent",
     "--details",
   ]);
   expect(
@@ -61,5 +60,5 @@ test("schema-only registration reuses groups and preserves positional review req
     sdd.commands
       .find((command) => command.name() === "checks")!
       .commands.map((command) => command.name()),
-  ).toEqual(["require", "record"]);
+  ).toEqual(["require", "record", "revalidate"]);
 });

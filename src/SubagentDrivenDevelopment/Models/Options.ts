@@ -104,8 +104,7 @@ export interface RequirementsDecideOptions extends ScopedSelection {
 export type ReviewOptions = ScopedSelection;
 
 export interface ReviewRequireOptions extends ScopedSelection {
-  type?: string;
-  agent?: string;
+  type: string;
   details: string;
 }
 
@@ -139,7 +138,6 @@ export interface ChecksRecordOptions extends TicketSelection {
   scope?: string;
   command: string;
   result: string;
-  paths?: string[];
   details?: string;
 }
 

@@ -141,8 +141,12 @@ export function nextSummary(data: unknown): string[] {
     if (assignment.reportPresent === true) {
       if (role === "review") {
         addPendingReviewGuidance(lines, status, assignment, featureDirectory);
+        addResultCommands(lines, assignmentSubmitCommand(assignment, featureDirectory), "  ");
+      } else {
+        lines.push(
+          `  Next: ${assignmentSubmitCommand(assignment, featureDirectory)} --actor <acting-agent>`,
+        );
       }
-      lines.push(`  Next: ${assignmentSubmitCommand(assignment, featureDirectory)}`);
     }
   }
 
@@ -249,13 +253,13 @@ function ticketActionStep(action: string): string {
     case "post-merge-sync":
       return "ticket:sync";
     case "post-merge-correct":
+    case "correct":
       return "ticket:correct";
     case "checks":
       return "ticket:checks";
     case "adjudicate":
     case "adjudicate-findings":
     case "controller-correction-decision":
-    case "correct":
     case "resolve-findings":
       return "ticket:adjudicate";
     default:
@@ -312,8 +316,10 @@ function addTicketCheckCommand(
     return;
   }
   lines.push(`  Run ${label} check: ${command}`);
-  lines.push(
-    `  Next: pnpm spindle sdd checks record --feature ${feature} --ticket ${ticket}${checkScope} --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
+  addResultCommands(
+    lines,
+    `pnpm spindle sdd checks record --feature ${feature} --ticket ${ticket}${checkScope} --command ${quoteShellArgument(command)}`,
+    "  ",
   );
 }
 
@@ -451,8 +457,9 @@ function addDeliveryCheckCommands(
       .at(-1);
     if (latest?.result === "passed") continue;
     lines.push(`Run delivery check: ${command}`);
-    lines.push(
-      `Next: pnpm spindle sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
+    addResultCommands(
+      lines,
+      `pnpm spindle sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)}`,
     );
   }
 }
@@ -612,10 +619,16 @@ function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): st
   const role = asText(assignment.role);
   if (!id || !role) throw new Error("Pending assignment is missing its identity or role.");
   const selection = assignmentSelection(assignment);
-  const result = role === "review" ? " --result <passed|failed|unavailable>" : "";
-  return `pnpm spindle sdd submit --feature ${feature} ${selection} --assignment ${id}${result} --actor <acting-agent>`
+  return `pnpm spindle sdd submit --feature ${feature} ${selection} --assignment ${id}`
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function addResultCommands(lines: string[], command: string, indent = ""): void {
+  lines.push(`${indent}Next (passed): ${command} --result passed --actor <acting-agent>`);
+  lines.push(
+    `${indent}Next (failed or unavailable): ${command} --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>`,
+  );
 }
 
 function assignmentSelection(assignment: SummaryRecord): string {
@@ -652,8 +665,9 @@ function addFinalValidationCommands(lines: string[], status: SummaryRecord, feat
     const latest = recorded.filter((item) => item.command === command).at(-1);
     if (latest?.result === "passed" && latest.headSha === headSha) continue;
     lines.push(`Run final check: ${command}`);
-    lines.push(
-      `Next: pnpm spindle sdd checks record --feature ${feature} --scope final --command ${quoteShellArgument(command)} --result <passed|failed|unavailable> --actor <acting-agent>`,
+    addResultCommands(
+      lines,
+      `pnpm spindle sdd checks record --feature ${feature} --scope final --command ${quoteShellArgument(command)}`,
     );
   }
 }

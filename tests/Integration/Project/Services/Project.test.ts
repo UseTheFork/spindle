@@ -102,12 +102,14 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     status: "valid",
     data: { stacks: ["typescript"], tooling: expect.any(Array) },
   });
-  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8")).toContain(
-    "pnpm spindle sdd",
-  );
-  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8")).not.toContain(
-    "{{",
-  );
+  const ticketGuide = readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8");
+  expect(ticketGuide).toContain("pnpm spindle sdd");
+  expect(ticketGuide).toContain("Ticket status is `open` or `closed`");
+  expect(ticketGuide).toContain("Declare the complete final-check list before finishing");
+  expect(ticketGuide).toContain("check and review results require `--details`");
+  expect(ticketGuide).not.toContain("`in-progress`");
+  expect(ticketGuide).not.toContain("--confirm-records");
+  expect(ticketGuide).not.toContain("{{");
   expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
     `<!-- spindle:start -->\n${copilotInstructionsTemplate.trimEnd()}\n<!-- spindle:end -->\n`,
   );

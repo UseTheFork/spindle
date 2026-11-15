@@ -62,7 +62,7 @@ export class ReviewService extends Service {
     idempotent?: boolean;
   } {
     validateAuthor(options.author);
-    const agent = (options.type ?? options.agent ?? "").trim();
+    const agent = options.type.trim();
     const details = options.details.trim();
     if (!agent) throw new Error("Review agent must not be empty.");
     if (!details) throw new Error("Specialist review details must not be empty.");

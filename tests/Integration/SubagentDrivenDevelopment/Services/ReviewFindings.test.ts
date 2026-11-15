@@ -192,7 +192,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
       service.reviewService.reviewRequire({
         spec,
         ticket: "T-0001",
-        agent,
+        type: agent,
         details,
         author: "controller",
       }),
@@ -346,7 +346,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
     service.reviewService.reviewRequire({
       spec,
       ticket: "T-0001",
-      agent: "sdd-code-reviewer",
+      type: "sdd-code-reviewer",
       details: "Check generated declarations against the exported runtime API.",
       author: "controller",
     }),
@@ -486,7 +486,10 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(cliRegistered.status, cliRegistered.stderr).toBe(0);
   expect(cliOutput(cliRegistered).finding.provenance[0].report).toBe(assignment.report);
 
-  const beforeLegacyOptions = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const beforeLegacyOptions = readFileSync(
+    join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
+    "utf8",
+  );
   const legacyOptions = await invokeAsync(repo, [
     "finding",
     "create",

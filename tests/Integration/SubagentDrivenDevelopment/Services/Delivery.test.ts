@@ -165,7 +165,7 @@ test("blocking delivery findings reopen their related ticket after all required 
     service.reviewService.reviewRequire({
       spec,
       scope: "delivery",
-      agent: "sdd-code-reviewer",
+      type: "sdd-code-reviewer",
       details: "Check cross-ticket compatibility.",
       author: "controller",
     }),

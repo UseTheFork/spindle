@@ -28,7 +28,7 @@ test("next lists ticket findings and failed checks as separate correction choice
     delivery: { action: "close-tickets" },
   }).join("\n");
 
-  expect(summary).toContain("step ticket:adjudicate (judgment required)");
+  expect(summary).toContain("step ticket:correct (judgment required)");
   expect(summary).toContain("Eligible for correction on T-0001:");
   expect(summary).toContain("F-0001 (blocking) Reject malformed rows");
   expect(summary).toContain(
@@ -118,7 +118,10 @@ test("next prints run-and-record commands for declared delivery checks", () => {
 
   expect(summary).toContain("Run delivery check: pnpm run build");
   expect(summary).toContain(
-    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope delivery --command 'pnpm run build' --result <passed|failed|unavailable> --actor <acting-agent>",
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope delivery --command 'pnpm run build' --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope delivery --command 'pnpm run build' --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
   expect(summary).not.toContain("checks require --feature .scratch/0001-export --scope delivery");
 });
@@ -179,9 +182,39 @@ test("next allows a no-finding review result while guiding finding registration 
     "pnpm spindle sdd finding create --feature .scratch/0001-export --scope delivery --assignment review-0001 --blocking --summary <summary> --details <impact> --actor <acting-agent>",
   );
   expect(summary).toContain(
-    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result <passed|failed|unavailable> --actor <acting-agent>",
+    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
   expect(summary.indexOf("finding create")).toBeLessThan(summary.indexOf("sdd submit"));
+});
+
+test("next supplies result-specific commands for a ticket review report", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [{ ticket: "T-0001", action: "await-review-report" }],
+    pendingAssignments: [
+      {
+        ticket: "T-0001",
+        id: "review-0001",
+        role: "review",
+        requestedAt: new Date().toISOString(),
+        report: "/repo/.scratch/0001-export/reports/review-0001.md",
+        reportPresent: true,
+      },
+    ],
+    findings: [],
+    blockers: [],
+    delivery: { action: "close-tickets" },
+  }).join("\n");
+
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
+  );
 });
 
 test("next asks for an explicit finding disposition before dispatching correction", () => {
@@ -205,6 +238,7 @@ test("next asks for an explicit finding disposition before dispatching correctio
   }).join("\n");
 
   expect(summary).toContain("Unresolved findings need a disposition on T-0001:");
+  expect(summary).toContain("step ticket:adjudicate (judgment required)");
   expect(summary).toContain(
     "pnpm spindle sdd finding update --feature .scratch/0001-export --ticket T-0001 --finding F-0003 --status confirmed --actor <acting-agent>",
   );
@@ -257,7 +291,10 @@ test("next exposes the check command that must be recorded before ticket review"
   expect(summary).toContain("T-0001: step ticket:checks (ready)");
   expect(summary).toContain("Run ticket check: pnpm run test:export");
   expect(summary).toContain(
-    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --command 'pnpm run test:export' --result <passed|failed|unavailable> --actor <acting-agent>",
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --command 'pnpm run test:export' --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --command 'pnpm run test:export' --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
 });
 
@@ -280,7 +317,10 @@ test("next prints run-and-record commands for declared post-merge checks", () =>
   expect(summary).toContain("T-0001: step ticket:post-merge (ready)");
   expect(summary).toContain("Run post-merge check: pnpm run test:export");
   expect(summary).toContain(
-    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --scope post-merge --command 'pnpm run test:export' --result <passed|failed|unavailable> --actor <acting-agent>",
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --scope post-merge --command 'pnpm run test:export' --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --ticket T-0001 --scope post-merge --command 'pnpm run test:export' --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
   expect(summary).not.toContain(
     "checks require --feature .scratch/0001-export --ticket T-0001 --scope post-merge",
@@ -303,7 +343,10 @@ test("next prints each pending final check before its record command", () => {
 
   expect(summary).toContain("Run final check: pnpm run build");
   expect(summary).toContain(
-    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope final --command 'pnpm run build' --result <passed|failed|unavailable> --actor <acting-agent>",
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope final --command 'pnpm run build' --result passed --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd checks record --feature .scratch/0001-export --scope final --command 'pnpm run build' --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
 });
 

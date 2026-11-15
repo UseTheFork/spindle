@@ -32,7 +32,6 @@ export class ChecksRecordCommand extends Command {
         CommandOptions.once("--result"),
       )
       .option("--details <details>", "Failure or unavailability details")
-      .option("--paths <paths...>", "Paths whose content this check explicitly covers")
       .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: ChecksRecordOptions) => {
@@ -64,8 +63,7 @@ export class ChecksRecordCommand extends Command {
   public async run(options: ChecksRecordOptions) {
     this.assertApplicationBooted();
     if (options.scope === "final") {
-      if (options.ticket || options.paths)
-        throw new Error("Final records do not accept ticket or path coverage.");
+      if (options.ticket) throw new Error("Final records do not accept a ticket.");
       const finalization = await this.app.make(FeatureFinalizationService);
       const feature = finalization.recordedFeature(options.spec);
       if (!feature) throw new Error("Final records require a recorded feature merge.");
