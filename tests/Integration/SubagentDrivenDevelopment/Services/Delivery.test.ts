@@ -1210,7 +1210,9 @@ test("finalization cleanup remains bound to its recorded controller", async () =
     "replacement",
   ]);
   expect(replacementFinish.status).not.toBe(0);
-  expect(replacementFinish.stderr).toMatch(/only the recorded controller/i);
+  expect(replacementFinish.stderr).toContain("is owned by controller");
+  expect(replacementFinish.stderr).toContain("--actor replacement");
+  expect(replacementFinish.stderr).toContain("finalization journal cannot be handed off");
   expect(readFileSync(finalization.pending.journal, "utf8")).toBe(journalBefore);
 
   const repeated = await completeDeliveryFinalization(finalization.pending);

@@ -29,6 +29,7 @@ import {
 import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
 import {
   assertDeliveryOwner,
+  assertTicketOwner,
   WorkflowPolicy,
 } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -207,6 +208,7 @@ export class ChecksService extends Service {
         ledger,
         options.ticket,
         options.author,
+        feature.feature,
       );
       const previous = progress.integrationHistory?.at(-1)?.postMerge?.checks;
       if (
@@ -274,6 +276,7 @@ export class ChecksService extends Service {
         ledger,
         options.ticket,
         options.author,
+        feature.feature,
       );
       const checks = postMerge.checks;
       if (!checks?.required.length)
@@ -374,12 +377,16 @@ export class ChecksService extends Service {
     return { closed: true };
   }
 
-  private postMergeProgress(ledger: FeatureLedger, ticket: string, author: string) {
+  private postMergeProgress(
+    ledger: FeatureLedger,
+    ticket: string,
+    author: string,
+    feature: string,
+  ) {
     const progress = this.workflowPolicy.requireProgress(ledger, ticket);
     const integration = progress.integration;
     const postMerge = integration?.postMerge;
-    if (progress.owner !== author.trim())
-      throw new Error("Only the ticket controller may manage post-merge checks.");
+    assertTicketOwner(progress.owner, author, feature, ticket);
     if (
       progress.execution !== "integrated" ||
       progress.status === "closed" ||

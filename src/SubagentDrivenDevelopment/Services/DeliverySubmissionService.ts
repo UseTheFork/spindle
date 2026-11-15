@@ -72,7 +72,7 @@ export class DeliverySubmissionService extends Service {
       }
       if (assignment.controller !== options.author.trim()) {
         throw new Error(
-          "Only the current delivery controller may submit this implementation report.",
+          `Delivery owner ${delivery.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
         );
       }
       const attempt = delivery.correctionAttempts?.find(

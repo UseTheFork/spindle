@@ -4,12 +4,14 @@ description: "Implement a piece of work based on a spec or set of tickets."
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.2
+    version: 1.1.0
 ---
 
 # Implement
 
 Implement the user's task or supplied ticket/spec, verify it, and obtain a clean code review before committing.
+
+This is the general implementation workflow, not SDD. For SDD feature delivery, use the `sdd-implement-spec` skill.
 
 ## Workflow
 

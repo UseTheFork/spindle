@@ -104,6 +104,14 @@ function cli(root: string, spec: string, action: string, args: string[], author 
 
 test("post-merge results freeze the complete list, preserve failures and close only after all pass", async () => {
   const { root, spec, sha, ledgerPath } = await setup();
+  const ledgerBeforeConflict = readFileSync(ledgerPath, "utf8");
+  const conflict = await cli(root, spec, "require", ["--command", "test one"], "replacement");
+  expect(conflict.status).not.toBe(0);
+  expect(conflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(conflict.stderr).toContain("--actor replacement");
+  expect(conflict.stderr).toContain("--confirm-handoff");
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeConflict);
+
   const require = await cli(root, spec, "require", [
     "--command",
     "test one",

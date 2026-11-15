@@ -25,7 +25,10 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertTicketOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliveryFindingService } from "@/SubagentDrivenDevelopment/Services/DeliveryFindingService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -80,17 +83,14 @@ export class FindingService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may register findings.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
         attempt.reviewAssignments?.some((candidate) => candidate.id === options.assignment),
       );
       const assignment =
         correctionAttempt?.reviewAssignments?.find(
           (candidate) => candidate.id === options.assignment,
-        ) ??
-        progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
+        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
       if (!assignment) {
         throw new Error(
           `Review assignment not found for ticket ${ticketId}: ${options.assignment}.`,
@@ -291,9 +291,7 @@ export class FindingService extends Service {
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may record a finding ruling.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
       if (!progress.baseSha) throw new Error("Finding rulings require a recorded Git baseline.");
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       let verification: ReviewFinding["verification"];

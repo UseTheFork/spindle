@@ -33,6 +33,7 @@ import {
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import {
   assertDeliveryOwner,
+  assertTicketOwner,
   WorkflowPolicy,
 } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -128,9 +129,7 @@ export class ReviewService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      if (!progress.owner || progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded ticket controller may require specialist reviews.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
 
       const existing = (progress.reviewRequirements ?? []).find(
         (requirement) => requirement.agent === agent,
@@ -201,9 +200,7 @@ export class ReviewService extends Service {
       if (progress.execution !== "reviewing" || !progress.assignment) {
         throw new Error(`Ticket ${ticketId} must have a submitted implementation before review.`);
       }
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded controller may dispatch review.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const implementationBlocker = this.assignmentPolicy.implementationReportBlocker(
         feature,
         progress.assignment,

@@ -4,7 +4,7 @@ description: "Implement the result of /sdd-to-spec and /sdd-to-tickets in code."
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.2.0
+    version: 1.3.0
 ---
 
 # Implement a Spec
@@ -21,7 +21,7 @@ Before acting, read and follow each required skill:
 
    **Complete when:** the complete graph and delivery inputs are available to one controller, or missing requirements are reported for triage.
 
-2. **Execute the complete graph.** Follow the `int-subagent-driven-dev` skill once with the entire graph and explicit ownership of frontier selection, ticket delivery, aggregate review, and retrospective. Accepted work does not unblock dependents until integrated and verified in the feature worktree.
+2. **Execute the complete graph.** Hand the entire graph and the bound context, permissions, and worktree locations to the `sdd-orchestrator` agent. The orchestrator follows the `int-subagent-driven-dev` skill and owns frontier selection, ticket delivery, feature review, and retrospective. If the agent is unavailable, report the blocker instead of silently substituting another workflow. Accepted work does not unblock dependents until integrated and verified in the feature worktree.
 
    If the tracker calls for a PR, or the user requests one, open an authorized draft during execution after the first authorized commit is available; retain it as draft while delivery is incomplete.
 

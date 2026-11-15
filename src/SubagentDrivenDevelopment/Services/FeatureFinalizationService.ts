@@ -28,7 +28,10 @@ import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Mo
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertDeliveryOwner,
+  assertFinalizationOwner,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 interface Startup {
   version: 1;
@@ -299,8 +302,7 @@ export class FeatureFinalizationService extends Service {
         this.persist(path, journal);
       }
       this.verifyJournal(journal, common, feature.feature);
-      if (journal.author !== options.author.trim())
-        throw new Error("Only the recorded controller may finish this feature.");
+      assertFinalizationOwner(journal.author, options.author, feature.feature);
       const state = journal.startup;
       if (journal.phase === "records") {
         this.workspace(
@@ -565,11 +567,9 @@ export class FeatureFinalizationService extends Service {
           "Declare the complete final check list with checks require --scope final first.",
         );
       this.finalCheckout(journal);
-      if (
-        options.author.trim() !== journal.author ||
-        !journal.required.some((item) => item.command === options.command)
-      ) {
-        throw new Error("Final check controller or declared command does not match.");
+      assertFinalizationOwner(journal.author, options.author, options.feature);
+      if (!journal.required.some((item) => item.command === options.command)) {
+        throw new Error(`Final check command is not declared: ${options.command}.`);
       }
 
       if (
@@ -601,8 +601,7 @@ export class FeatureFinalizationService extends Service {
         throw new Error("Final checks may only be revalidated during final validation.");
       if (!journal.finalDeclared)
         throw new Error("Declare the complete final check list before revalidating.");
-      if (options.author.trim() !== journal.author)
-        throw new Error("Only the recorded controller may revalidate final checks.");
+      assertFinalizationOwner(journal.author, options.author, options.feature);
       const head = this.revalidationHead(journal);
       journal.finalIdentity = { headSha: head };
       journal.records = [];
@@ -630,8 +629,7 @@ export class FeatureFinalizationService extends Service {
         if (journal.phase !== "validation")
           throw new Error("Final checks may only be declared during final validation.");
         this.finalCheckout(journal);
-        if (options.author.trim() !== journal.author)
-          throw new Error("Only the recorded controller may declare final checks.");
+        assertFinalizationOwner(journal.author, options.author, feature.feature);
         if (journal.finalDeclared) {
           if (
             JSON.stringify(commands) !==

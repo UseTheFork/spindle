@@ -34,6 +34,7 @@ import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessP
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import {
   assertDeliveryOwner,
+  assertTicketOwner,
   WorkflowPolicy,
 } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -122,9 +123,7 @@ export class AssignmentService extends Service {
       const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "implementing" && progress.assignment) {
-        if (progress.owner !== options.author.trim()) {
-          throw new Error("Controller ownership changed; resume and confirm the handoff first.");
-        }
+        assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
         if (
           !progress.worktree ||
           !options.workspace ||
@@ -273,9 +272,7 @@ export class AssignmentService extends Service {
       let handoffRecorded = false;
       if (progress.owner && progress.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          throw new Error(
-            `Ownership handoff from ${progress.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
-          );
+          assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
         }
         const previousOwner = progress.owner;
         progress.owner = options.author.trim();

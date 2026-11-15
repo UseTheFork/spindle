@@ -1007,8 +1007,24 @@ test("obsolete merge selectors, undeclared commands and unavailable results cann
   ]);
   expect(obsoleteMerge.status).not.toBe(0);
   expect(obsoleteMerge.stderr).toMatch(/unknown option '--merge'/);
+  const journalBefore = readFileSync(f.journal, "utf8");
+  const ownerError = /is owned by controller.*--actor replacement.*cannot be handed off/;
+  expect(() => finalization.record({ ...valid, author: "replacement" })).toThrow(ownerError);
+  expect(() => finalization.revalidate({ feature: f.feature, author: "replacement" })).toThrow(
+    ownerError,
+  );
+  expect(() =>
+    finalization.declare({
+      spec: f.originalSpec,
+      command: ["test final", "lint final"],
+      author: "replacement",
+    }),
+  ).toThrow(ownerError);
+  expect(readFileSync(f.journal, "utf8")).toBe(journalBefore);
   finalization.record(valid);
-  expect(() => finalization.record({ ...valid, command: "undeclared" })).toThrow();
+  expect(() => finalization.record({ ...valid, command: "undeclared" })).toThrow(
+    "Final check command is not declared: undeclared.",
+  );
   finalization.record({ ...valid, result: "unavailable", details: "environment unavailable" });
   expect(
     cliOutput(

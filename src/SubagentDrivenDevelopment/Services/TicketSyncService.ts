@@ -18,7 +18,10 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertTicketOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -53,8 +56,7 @@ export class TicketSyncService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      if (progress.owner !== options.author.trim())
-        throw new Error("Only the ticket controller may synchronize this worktree.");
+      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
       if (
         progress.execution === "integrated" &&
         progress.integration?.postMerge?.status === "pending"

@@ -20,7 +20,10 @@ import {
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertTicketOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliverySubmissionService } from "@/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -107,11 +110,11 @@ export class SubmissionService extends Service {
       if (!assignment || assignment.id !== options.assignment) {
         throw new Error("No matching implementation assignment is pending for this ticket.");
       }
-      if (
-        progress.owner !== options.author.trim() ||
-        assignment.controller !== options.author.trim()
-      ) {
-        throw new Error("Only the current controller may submit this implementation report.");
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      if (assignment.controller !== options.author.trim()) {
+        throw new Error(
+          `Ticket ${ticketId} owner ${progress.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
+        );
       }
       if (unavailable) {
         const details = options.details!.trim();
@@ -256,16 +259,13 @@ export class SubmissionService extends Service {
       if (!["reviewing", "changes-requested"].includes(progress.execution) || !progress.owner) {
         throw new Error(`Ticket ${ticketId} is not awaiting review submission.`);
       }
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current controller may submit a review result.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
         attempt.reviewAssignments?.some((candidate) => candidate.id === assignmentId),
       );
       const assignment =
-        correctionAttempt?.reviewAssignments?.find(
-          (candidate) => candidate.id === assignmentId,
-        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === assignmentId);
+        correctionAttempt?.reviewAssignments?.find((candidate) => candidate.id === assignmentId) ??
+        progress.reviewAssignments?.find((candidate) => candidate.id === assignmentId);
       if (!assignment || assignment.role !== "review") {
         throw new Error(`No review assignment matches ID ${assignmentId}.`);
       }

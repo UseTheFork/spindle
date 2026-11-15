@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import { runCli } from "../../../Helpers/Cli.ts";
-import { execute, prepareReadyTicket } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import {
+  execute,
+  invokeAsync,
+  prepareReadyTicket,
+  prepareReviewAssignment,
+} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 
 test("implement reserves a ready ticket, creates its worktree, and resumes the same assignment", async () => {
   const { repo, git, spec, worktreeParent, baseSha } = await prepareReadyTicket();
@@ -48,6 +53,84 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
   );
   expect(repeat.status, repeat.stderr).toBe(0);
   expect(JSON.parse(repeat.stdout).assignment).toEqual(first.assignment);
+
+  const conflict = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "replacement",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(conflict.status).not.toBe(0);
+  expect(conflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(conflict.stderr).toContain("--actor replacement");
+  expect(conflict.stderr).toContain(
+    "resume --ticket T-0001 --feature .scratch/0001-ticket-flow --actor <acting-agent> --confirm-handoff",
+  );
+
+  const correctionConflict = await execute(repo, (service) =>
+    service.correctionService.correct({
+      spec,
+      ticket: "T-0001",
+      author: "replacement",
+      findings: ["F-0001"],
+      details: "Correct the finding",
+    }),
+  );
+  expect(correctionConflict.status).not.toBe(0);
+  expect(correctionConflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(correctionConflict.stderr).toContain("--actor replacement");
+  expect(correctionConflict.stderr).toContain("--confirm-handoff");
+
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerBeforeConflicts = readFileSync(ledgerPath, "utf8");
+  const selection = { spec, ticket: "T-0001", author: "replacement" };
+  const otherConflicts: { name: string; run: Parameters<typeof execute>[1] }[] = [
+    {
+      name: "implementation submission",
+      run: (service) =>
+        service.submissionService.submit({ ...selection, assignment: first.assignment.id }),
+    },
+    {
+      name: "specialist review",
+      run: (service) =>
+        service.reviewService.reviewRequire({
+          ...selection,
+          type: "sdd-task-reviewer",
+          details: "Review the ticket",
+        }),
+    },
+    {
+      name: "finding registration",
+      run: (service) =>
+        service.findingService.findingCreate({
+          ...selection,
+          assignment: "review-assignment",
+          blocking: true,
+          summary: "Finding",
+          details: "Finding details",
+        }),
+    },
+    {
+      name: "requirements decision",
+      run: (service) =>
+        service.requirementsService.requirementsDecide({
+          ...selection,
+          finding: "F-0001",
+          decision: "approved",
+          details: "Approved",
+        }),
+    },
+  ];
+  for (const { name, run } of otherConflicts) {
+    const result = await execute(repo, run);
+    expect(result.status, name).not.toBe(0);
+    expect(result.stderr, name).toContain("Ticket T-0001 is owned by controller");
+    expect(result.stderr, name).toContain("--actor replacement");
+    expect(result.stderr, name).toContain("--confirm-handoff");
+  }
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeConflicts);
 
   const resumed = await execute(repo, (service) =>
     service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
@@ -166,6 +249,50 @@ test("resume requires a confirmed controller handoff and preserves assignment id
       handoffs: [{ from: "controller", to: "replacement", confirmedStopped: true }],
     },
   });
+});
+
+test("review, submission, integration, and sync share ticket ownership guidance", async () => {
+  const { repo, spec, ticketId, assignment } = await prepareReviewAssignment();
+  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const before = readFileSync(ledger, "utf8");
+  const selection = { spec, ticket: ticketId, author: "replacement" };
+  const commands: { name: string; run: Parameters<typeof execute>[1] }[] = [
+    { name: "review", run: (service) => service.reviewService.review(selection) },
+    {
+      name: "review submission",
+      run: (service) =>
+        service.submissionService.submit({
+          ...selection,
+          assignment: assignment.id,
+          result: "passed",
+        }),
+    },
+    {
+      name: "integration",
+      run: (service) => service.ticketIntegrationService.integrate(selection),
+    },
+  ];
+  for (const { name, run } of commands) {
+    const result = await execute(repo, run);
+    expect(result.status, name).not.toBe(0);
+    expect(result.stderr, name).toContain(`Ticket ${ticketId} is owned by controller`);
+    expect(result.stderr, name).toContain("--actor replacement");
+    expect(result.stderr, name).toContain("--confirm-handoff");
+  }
+  const sync = await invokeAsync(repo, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    ticketId,
+    "--actor",
+    "replacement",
+  ]);
+  expect(sync.status).not.toBe(0);
+  expect(sync.stderr).toContain(`Ticket ${ticketId} is owned by controller`);
+  expect(sync.stderr).toContain("--actor replacement");
+  expect(sync.stderr).toContain("--confirm-handoff");
+  expect(readFileSync(ledger, "utf8")).toBe(before);
 });
 
 test("implementation submission rejects missing, symlinked, and misdirected reports", async () => {

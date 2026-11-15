@@ -11,15 +11,46 @@ export function assertDeliveryOwner(
   actor: string,
   feature: string,
 ): void {
-  const directory = `.scratch/${feature}`;
   if (!owner) {
     throw new Error(
-      `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature ${directory} --actor <acting-agent>`,
+      `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .scratch/${feature} --actor <acting-agent>`,
     );
   }
+  assertOwner(owner, actor, feature, "Delivery", "--scope delivery");
+}
+
+export function assertTicketOwner(
+  owner: string | undefined,
+  actor: string,
+  feature: string,
+  ticket: string,
+): void {
+  if (!owner) {
+    throw new Error(
+      `Ticket ${ticket} has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .scratch/${feature}`,
+    );
+  }
+  assertOwner(owner, actor, feature, `Ticket ${ticket}`, `--ticket ${ticket}`);
+}
+
+function assertOwner(
+  owner: string,
+  actor: string,
+  feature: string,
+  scope: string,
+  selector: string,
+): void {
   if (owner !== actor.trim()) {
     throw new Error(
-      `Delivery is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over, run: pnpm spindle sdd resume --scope delivery --feature ${directory} --actor <acting-agent> --confirm-handoff`,
+      `${scope} is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume ${selector} --feature .scratch/${feature} --actor <acting-agent> --confirm-handoff`,
+    );
+  }
+}
+
+export function assertFinalizationOwner(owner: string, actor: string, feature: string): void {
+  if (owner !== actor.trim()) {
+    throw new Error(
+      `Finalization of ${feature} is owned by ${owner}, but this command used --actor ${actor.trim()}. The finalization journal cannot be handed off; ask ${owner} to retry with their --actor value.`,
     );
   }
 }

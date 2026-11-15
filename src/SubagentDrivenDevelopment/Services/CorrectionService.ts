@@ -23,7 +23,10 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertTicketOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -108,9 +111,7 @@ export class CorrectionService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded ticket controller may dispatch a correction.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
 
       const attempts = (progress.correctionAttempts ??= []);
       if (options.decision === "pause") {

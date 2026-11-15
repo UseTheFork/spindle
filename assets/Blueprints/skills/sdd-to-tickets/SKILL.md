@@ -5,7 +5,7 @@ argument-hint: "[spec path or tracker reference]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 ---
 
 # To Tickets
@@ -26,7 +26,7 @@ Before drafting tickets, read and apply:
    - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.scratch/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
    - If `design.md` exists in the feature workspace, read it and confirm it was completed and approved before the spec. If the spec is not approved or a present design is unfinished, stop and resolve that before ticket planning.
    - A design is optional. Do not require or create one when the approved spec was intentionally written without a design.
-   - For local SDD tracker work, use the feature's `spec.md` path with `{{ computed.spindle_package_manager }} spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
+   - For local SDD tracker work, use the feature workspace directory with `{{ computed.spindle_package_manager }} spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
 
    **Complete when:** one approved spec and its tracker destination are identified; any existing design precedes it and is approved.
 

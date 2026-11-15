@@ -15,6 +15,7 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import {
   assertDeliveryOwner,
+  assertTicketOwner,
   WorkflowPolicy,
 } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -67,9 +68,7 @@ export class RequirementsService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may record a requirements decision.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       if (!progress.baseSha) {

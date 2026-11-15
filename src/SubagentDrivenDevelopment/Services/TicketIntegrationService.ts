@@ -32,7 +32,10 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import {
+  assertTicketOwner,
+  WorkflowPolicy,
+} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@/Support/Records";
@@ -104,9 +107,7 @@ export class TicketIntegrationService extends Service {
       ) {
         throw new Error(`Ticket ${options.ticket} must have current review before integration.`);
       }
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the ticket controller may integrate this ticket.");
-      }
+      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
       this.assertCanonical(root, feature);
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const outstandingPostMerge = ledger.tickets.filter((candidate) => {

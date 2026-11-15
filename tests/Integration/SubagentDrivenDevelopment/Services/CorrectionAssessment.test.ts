@@ -25,5 +25,5 @@ test("continuing a correction requires an assessment without a redundant result 
       ...options,
       assessment: "The previous correction improved the result.",
     }),
-  ).toThrow("Only the recorded ticket controller");
+  ).toThrow("Ticket T-0001 has no recorded owner");
 });
