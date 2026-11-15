@@ -15,6 +15,7 @@ The approved requirements document for a feature, grounded in its approved desig
 
 **Ticket**:
 An independently actionable unit of work with its own acceptance criteria.
+_Avoid_: Issue
 
 **Feature worktree**:
 The working tree in which a feature's ticket changes are integrated and its workflow records are maintained.
@@ -51,6 +52,10 @@ The Git commit containing the code and authoritative requirements assessed by a 
 
 **Finding**:
 A review observation that may require work on a ticket before the feature can complete.
+
+**Blocking finding**:
+A Finding that prevents acceptance until verified fixed, dismissed as invalid,
+or addressed by an approved and reviewed requirements change.
 
 **Verification evidence**:
 Recorded check commands and results that establish whether the relevant tests pass for committed code and requirements.
