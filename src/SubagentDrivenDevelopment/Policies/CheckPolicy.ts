@@ -1,7 +1,6 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
@@ -9,13 +8,14 @@ import type {
   FeaturePaths,
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export function hasOnlyRetryableDeliveryCheckIssue(
   delivery: DeliveryProgress,
   headSha: string,
 ): boolean {
   const records = (delivery.checks?.records ?? []).filter((record) => record.headSha === headSha);
-  const latest = latestCheckRecords(records, headSha);
+  const latest = CheckRecords.latestForHead(records, headSha);
   // Preserve independent failures when recovering old changes-requested states.
   const priorFailure = [...delivery.history].reverse().find(({ action, at }) => {
     if (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) {

@@ -12,7 +12,6 @@ import type {
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -31,6 +30,7 @@ import {
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class CorrectionService extends Service {
   public constructor(
@@ -120,7 +120,7 @@ export class CorrectionService extends Service {
           throw new Error("A pending implementation assignment must be resumed, not paused.");
         }
         const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
-        const hasCurrentFailure = latestCheckRecords(
+        const hasCurrentFailure = CheckRecords.latestForHead(
           progress.checks?.records ?? [],
           identity.headSha,
         ).some((record) => record.result === "failed");

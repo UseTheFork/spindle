@@ -17,7 +17,6 @@ import type {
   CheckRecord,
   CommitIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
-import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
   ReviewFinding,
@@ -48,6 +47,7 @@ import {
   reviewBatchNeedsRedispatch,
 } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class FeatureInspectionService extends Service {
   public constructor(
@@ -581,7 +581,7 @@ export class FeatureInspectionService extends Service {
         .filter((requirement) => !requirement.removedAt)
         .map((requirement) => requirement.command) ?? [],
     );
-    return latestCheckRecords(progress.checks?.records ?? [], identity.headSha)
+    return CheckRecords.latestForHead(progress.checks?.records ?? [], identity.headSha)
       .filter((record) => required.has(record.command) && record.result === "failed")
       .map((record) => record.command);
   }
@@ -767,7 +767,7 @@ export class FeatureInspectionService extends Service {
       }
     }
     const failedCheckRecords = identity
-      ? latestCheckRecords(delivery.checks?.records ?? [], identity.headSha).filter(
+      ? CheckRecords.latestForHead(delivery.checks?.records ?? [], identity.headSha).filter(
           (record) => record.result === "failed",
         )
       : [];

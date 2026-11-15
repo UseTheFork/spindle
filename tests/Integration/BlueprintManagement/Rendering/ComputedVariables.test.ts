@@ -16,7 +16,7 @@ import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 
 import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
 import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
@@ -465,12 +465,12 @@ test("providers receive Application once per run and refresh across runs", async
     },
   };
   expect(
-    renderText(
+    RenderText.render(
       "{{ computed.internal_skill_description }} | {{ variables.internal_skill_description }}",
       renderContext,
     ),
   ).toBe(`${description} | user value`);
-  expect(renderText("{{ computed.count }}", renderContext)).toBe("evaluation-1");
+  expect(RenderText.render("{{ computed.count }}", renderContext)).toBe("evaluation-1");
   expect(evaluations, "reusing resolved values does not render the provider again").toBe(1);
 
   projectConfig.data.spindle_package_manager = "npm run";

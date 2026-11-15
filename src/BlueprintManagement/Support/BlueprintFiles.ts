@@ -6,7 +6,7 @@ import type {
   PlannedBlueprintFile,
   PreparedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
-import { renderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+import { RenderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 // Only known text formats are rendered; all other files are copied unchanged.
 const textExtensions = new Set([
@@ -123,7 +123,7 @@ export async function preparePlannedBlueprintFiles(
     if (text === null && (typeof requireText === "function" ? requireText(file) : requireText)) {
       throw new Error(`Blueprint entry '${file.outputPath}' must be valid UTF-8 text.`);
     }
-    const renderedText = text === null ? null : renderText(text, context);
+    const renderedText = text === null ? null : RenderText.render(text, context);
     if (renderedText !== null) validateRenderedFile?.(file.outputPath, renderedText);
     prepared.push({ ...file, renderedText });
   }

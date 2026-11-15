@@ -28,8 +28,8 @@ import {
   validateCreateOptions,
   featureSlug,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 
 export class FeatureCreationService extends Service {
   public constructor(
@@ -102,18 +102,18 @@ export class FeatureCreationService extends Service {
       try {
         mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));
-        const context = resolveRenderContext(this.app, {
+        const context = ResolveRenderContext.resolve(this.app, {
           variables: {
             title: options.title.trim(),
             author: options.author.trim(),
           },
         });
-        const spec = renderText(
+        const spec = RenderText.render(
           readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.spec), "utf8"),
           context,
         );
         const design = options.withDesign
-          ? renderText(
+          ? RenderText.render(
               readFileSync(
                 join(this.app.assetsPath("Templates"), templateCatalog.sdd.design),
                 "utf8",

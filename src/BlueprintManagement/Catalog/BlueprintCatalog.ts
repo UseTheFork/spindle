@@ -2,6 +2,7 @@ import { lstat, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, sep, win32 } from "node:path";
 
 import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
+import { Records } from "@/Support/Records";
 import { Stacks } from "@/Support/Stacks";
 
 export type CatalogKind = "agents" | "instructions" | "skills";
@@ -55,10 +56,6 @@ const allowedEntryFields = new Set(["path", "stacks", "canReview"]);
 const requiredEntryFields = ["path", "stacks"] as const;
 const globCharacters = /[*?[\]{}]/;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function validateCatalogPath(value: unknown, kind: CatalogKind, key: string) {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`Blueprint Catalog ${kind}.${key}.path must be a non-empty relative path.`);
@@ -82,7 +79,7 @@ function validateCatalogPath(value: unknown, kind: CatalogKind, key: string) {
 }
 
 export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
-  if (!isRecord(data)) throw new Error("Blueprint Catalog must be an object.");
+  if (!Records.isRecord(data)) throw new Error("Blueprint Catalog must be an object.");
 
   for (const key of Object.keys(data)) {
     if (!catalogKinds.includes(key as CatalogKind)) {
@@ -98,12 +95,12 @@ export function validateBlueprintCatalog(data: unknown): BlueprintCatalog {
   const catalog = {} as BlueprintCatalog;
   for (const kind of catalogKinds) {
     const section = data[kind];
-    if (!isRecord(section)) {
+    if (!Records.isRecord(section)) {
       throw new Error(`Blueprint Catalog '${kind}' must be a mapping of logical keys to entries.`);
     }
     const entries: CatalogEntry[] = [];
     for (const [key, rawEntry] of Object.entries(section)) {
-      if (key.length === 0 || !isRecord(rawEntry)) {
+      if (key.length === 0 || !Records.isRecord(rawEntry)) {
         throw new Error(`Blueprint Catalog '${kind}.${key}' must be an entry mapping.`);
       }
       for (const field of Object.keys(rawEntry)) {

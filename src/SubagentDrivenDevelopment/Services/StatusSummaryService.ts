@@ -1,6 +1,6 @@
 import { Service } from "@/Foundation/Service";
 import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
 type SummaryRecord = Record<string, unknown>;
 
@@ -651,7 +651,7 @@ function addDeliveryCorrectionGuidance(
   );
   const failedChecks = new Set(
     headSha
-      ? latestCheckRecords(checkRecords, headSha)
+      ? CheckRecords.latestForHead(checkRecords, headSha)
           .filter((record) => record.result === "failed")
           .map((record) => record.command)
       : [],

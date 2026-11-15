@@ -10,7 +10,6 @@ import type {
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -20,6 +19,7 @@ import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/Wo
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class DeliveryCorrectionService extends Service {
   public constructor(
@@ -93,7 +93,7 @@ export class DeliveryCorrectionService extends Service {
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      const currentFailedCheck = latestCheckRecords(
+      const currentFailedCheck = CheckRecords.latestForHead(
         delivery.checks?.records ?? [],
         identity.headSha,
       ).some((record) => record.result === "failed");

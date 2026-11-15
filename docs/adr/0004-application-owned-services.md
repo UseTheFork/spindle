@@ -52,7 +52,11 @@ as established by [ADR-0009](./0009-shared-template-rendering.md).
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
 runs. Project Settings, prompt answers, plans, and operational mutable state remain per-run.
-Stateless utilities remain standalone functions, not artificial services.
+Named module-level operations belong on classes rather than standalone functions.
+Stateless utilities use static methods, not artificial services. General-purpose
+utilities shared across domains belong in shared Support; domain-specific helpers
+remain in their owning domain. Stateful behavior stays on its owning service or
+class. Anonymous callbacks and small functions local to a method remain appropriate.
 
 `FoundationServiceProvider` explicitly binds the ordinary, stateful
 `ConsoleOutputService` singleton. CLI dispatch configures its invocation-local

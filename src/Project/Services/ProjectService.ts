@@ -17,8 +17,8 @@ import {
   ProjectSettingsService,
   type ProjectSettingsData,
 } from "@/Settings/Services/ProjectSettingsService";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
 const projectSettingsPath = ".github/spindle.json";
@@ -88,7 +88,8 @@ export class ProjectService extends Service {
     const context = await ProjectSettingsService.withTemporaryState(
       this.app,
       { status: "valid", data: settings },
-      async () => resolveRenderContext(this.app, { stacks: settings.stacks, variables: {} }),
+      async () =>
+        ResolveRenderContext.resolve(this.app, { stacks: settings.stacks, variables: {} }),
     );
     const files = templateCatalog.project.map(({ source, destination, createOnce }) => {
       const target = join(workspace, destination);
@@ -96,7 +97,7 @@ export class ProjectService extends Service {
       const original = lstatSync(target, { throwIfNoEntry: false })
         ? readFileSync(target, "utf8")
         : undefined;
-      const rendered = renderText(
+      const rendered = RenderText.render(
         readFileSync(join(this.app.assetsPath("Templates"), source), "utf8"),
         {
           stacks: [...context.stacks],

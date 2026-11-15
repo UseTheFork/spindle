@@ -24,8 +24,8 @@ import {
   validateCategory,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 
 export class TicketService extends Service {
   public constructor(
@@ -68,7 +68,7 @@ export class TicketService extends Service {
         status: "open" as const,
         blockedBy: [],
       };
-      const context = resolveRenderContext(this.app, {
+      const context = ResolveRenderContext.resolve(this.app, {
         variables: {
           title: options.title.trim(),
           reporter: options.reporter.trim(),
@@ -76,7 +76,7 @@ export class TicketService extends Service {
           author: options.author.trim(),
         },
       });
-      const template = renderText(
+      const template = RenderText.render(
         readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.ticket), "utf8"),
         context,
       );
