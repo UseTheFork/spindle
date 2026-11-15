@@ -60,7 +60,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
   },
   skills: {
-    "int-commit-format": { path: "int-commit-format/", stacks: [] },
+    "public-commit-format": { path: "public-commit-format/", stacks: [] },
     "ref-asd-ste100": { path: "ref-asd-ste100/", stacks: [] },
     "author-agent": { path: "author-agent/", stacks: [] },
     "sdd-author-design": { path: "sdd-author-design/", stacks: [] },

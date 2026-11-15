@@ -137,7 +137,7 @@ to change one value without a terminal, for example
 enabling `commit.scopes_enabled`. Each change runs the update workflow and
 overwrites selected catalog paths.
 
-The `commit` object controls the internal Conventional Commits skill:
+The `commit` object controls the public Conventional Commits skill:
 `allow_body` (default `false`), `title_max_length` (default `72`),
 `scopes_enabled` (default `false`), `allowed_scopes` (default `[]`), and
 `allow_breaking_changes` (default `false`). Enabled scopes must be nonempty,

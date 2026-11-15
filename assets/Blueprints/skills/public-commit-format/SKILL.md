@@ -1,6 +1,6 @@
 ---
-name: int-commit-format
-description: "{{ computed.internal_skill_description }}"
+name: public-commit-format
+description: Use when drafting a commit message.
 user-invocable: false
 metadata:
   spindle:

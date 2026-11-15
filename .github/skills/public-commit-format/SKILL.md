@@ -1,6 +1,6 @@
 ---
-name: int-commit-format
-description: "This is an internal skill do not load it unless explicitly required by the user or another skill."
+name: public-commit-format
+description: Use when drafting a commit message.
 user-invocable: false
 metadata:
   spindle:

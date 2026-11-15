@@ -6,4 +6,4 @@ Template Rendering derives commit guidance from Project Settings.
 
 **Commit settings**:
 Project Settings that control the Conventional Commits guidance rendered
-into the internal commit-format Skill.
+into the public commit-format Skill.
