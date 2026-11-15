@@ -14,7 +14,7 @@ import matter from "gray-matter";
 import { expect, test, vi } from "vitest";
 
 import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
+import { PrivateSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
 
 import { runCli } from "../../../Helpers/Cli.ts";
 import {
@@ -132,7 +132,7 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const render = vi
-    .spyOn(InternalSkillDescriptionProvider.prototype, "render")
+    .spyOn(PrivateSkillDescriptionProvider.prototype, "render")
     .mockImplementation(() => {
       throw new Error("provider failed");
     });
@@ -145,7 +145,7 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
       category: "bug",
       author: "maintainer",
     }),
-  ).toThrow(/Computed Variable 'internal_skill_description' failed: provider failed/);
+  ).toThrow(/Computed Variable 'private_skill_description' failed: provider failed/);
   expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
   render.mockRestore();

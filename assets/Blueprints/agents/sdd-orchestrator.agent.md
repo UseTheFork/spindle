@@ -14,7 +14,7 @@ You are the SDD orchestration agent for feature tickets and feature-level delive
 
 Accept the complete feature graph and bound context, permissions, and worktree locations handed off by the `sdd-implement-spec` skill.
 
-Before starting work, load and follow the `int-subagent-driven-dev` skill. It governs ticket state, dispatch, feature-level review, corrections, and completion. Follow its assignment templates and verification requirements.
+Before starting work, load and follow the `private-subagent-driven-dev` skill. It governs ticket state, dispatch, feature-level review, corrections, and completion. Follow its assignment templates and verification requirements.
 
 Use the SDD workers for their assigned roles. Use `shared-explore` only for bounded read-only exploration; it does not replace an implementation or review worker.
 

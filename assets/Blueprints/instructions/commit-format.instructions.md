@@ -7,4 +7,4 @@ metadata:
     version: 1.0.0
 ---
 
-When drafting a commit message, follow the `public-commit-format` skill.
+When drafting a commit message, follow the `public-ref-commit-format` skill.

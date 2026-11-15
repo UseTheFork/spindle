@@ -32,7 +32,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   const init = run(["init", "--stack", "typescript", "--spindle-package-manager", "pnpm"]);
   expect(init.status, init.stderr).toBe(0);
   const configPath = join(project, ".github/spindle.json");
-  const skillPath = join(project, ".github/skills/public-commit-format/SKILL.md");
+  const skillPath = join(project, ".github/skills/public-ref-commit-format/SKILL.md");
   const config = JSON.parse(await readFile(configPath, "utf8"));
   const { version } = JSON.parse(
     await readFile(new URL("../../../package.json", import.meta.url), "utf8"),
@@ -128,8 +128,8 @@ test("settings and update overwrite catalog collisions while preserving unrelate
   const run = (args: string[]) => runCli(project, args, process.env.PATH ?? "");
   const init = run(["init", "--stack", "python", "--spindle-package-manager", "pnpm"]);
   expect(init.status, init.stderr).toBe(0);
-  const skill = join(project, ".github/skills/public-commit-format/SKILL.md");
-  const extra = join(project, ".github/skills/public-commit-format/extra.txt");
+  const skill = join(project, ".github/skills/public-ref-commit-format/SKILL.md");
+  const extra = join(project, ".github/skills/public-ref-commit-format/extra.txt");
   const custom = join(project, ".github/skills/custom/SKILL.md");
   await writeFile(skill, "---\nmetadata: [broken\n---\n");
   await writeFile(extra, "local extra");
@@ -142,7 +142,7 @@ test("settings and update overwrite catalog collisions while preserving unrelate
   expect(await readFile(custom, "utf8")).toBe("custom skill");
   const enableStack = run(["settings", "set", "stacks", '["php-laravel"]']);
   expect(enableStack.status, enableStack.stderr).toBe(0);
-  const phpSkill = join(project, ".github/skills/ref-php-laravel-framework/SKILL.md");
+  const phpSkill = join(project, ".github/skills/public-ref-php-laravel-framework/SKILL.md");
   expect(await readFile(phpSkill, "utf8")).toContain("laravel");
   const removeStack = run(["settings", "set", "stacks", '["python"]']);
   expect(removeStack.status, removeStack.stderr).toBe(0);

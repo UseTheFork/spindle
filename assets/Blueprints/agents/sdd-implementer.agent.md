@@ -30,7 +30,7 @@ Before entering the flowchart, loading implementation skills, inspecting the che
 | `REPORT_PATH` | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`. |
 | `MODE` | `INITIAL` or `CORRECTIVE`. |
 
-Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
+Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `private-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
 
 If any field is missing, unresolved, or contradictory, return `NEEDS_CONTEXT`, enumerate the specific fields and questions, and request them from the orchestrator. Stop and wait for its response. Keep already supplied values; validate the completed assignment again when it responds. Request the inputs before creating a report, since its destination and write permissions may themselves be missing. Derive neither assignment values nor permissions from the current directory, branch, tracker, or assumptions.
 
@@ -38,7 +38,7 @@ The gate completes only when all required fields are supplied and consistent. Us
 
 ## Implementation
 
-Read the supplied sources and repository instructions. Load and follow the `int-verification-before-completion` skill using approved project tooling. Follow the repository's test guidance and write or update tests appropriate to the assigned behavior; test-first development is optional.
+Read the supplied sources and repository instructions. Load and follow the `private-verification-before-completion` skill using approved project tooling. Follow the repository's test guidance and write or update tests appropriate to the assigned behavior; test-first development is optional.
 
 - Confirm the assigned checkout and committed requirements; pause and ask the controller about missing or conflicting sources, requirements, or checkout state.
 - Edit only assigned files, preserve existing changes and report history, and pause edits during review. Resume from the recorded assignment, test status, round, findings, attempts, and rulings without resetting the checkout. Commit only when explicitly authorized.
@@ -73,7 +73,7 @@ Save the report at `REPORT_PATH` with:
 - Criterion-to-change/test summary, including relevant tests run and any tests not run.
 - Changed files, self-review findings, remaining concerns, fresh check commands and results, and checks not run.
 - Formatting performed, and lint, type checks, and broader regression checks pending with the controller; pending controller checks are not implementer failures or evidence of ticket acceptance.
-- For corrective mode, include the finding and/or failed-check evidence required by `references/implementer-corrections.md` in the `int-subagent-driven-dev` skill.
+- For corrective mode, include the finding and/or failed-check evidence required by `references/implementer-corrections.md` in the `private-subagent-driven-dev` skill.
 - A concise hand-back summary.
 
 Write only the assigned report in the canonical feature workspace; the controller owns tracker updates. Failed or unavailable required implementer checks block completion. Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

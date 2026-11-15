@@ -40,31 +40,31 @@ If the user supplies a ticket reference, read it and state its title; ask if the
 
 ### B. Implement
 
-Implement the requested work. Call `int-test-driven-development` at pre-agreed seams where appropriate. Keep changes within the task scope.
+Implement the requested work. Call `private-test-driven-development` at pre-agreed seams where appropriate. Keep changes within the task scope.
 
 **Complete when:** the requested implementation is complete and its changed files are known, selecting C.
 
 ### C. Verify implementation
 
-Run applicable project completion checks through the repository's Just recipes. Call `int-verification-before-completion` for evidence-backed claims. If a required check fails or is unavailable, report the blocker and do not proceed to commit.
+Run applicable project completion checks through the repository's Just recipes. Call `private-verification-before-completion` for evidence-backed claims. If a required check fails or is unavailable, report the blocker and do not proceed to commit.
 
 **Complete when:** required checks pass and their results identify the snapshot they cover, selecting D; otherwise stop with the failing or unavailable checks.
 
 ### D. Freeze review snapshot
 
-Stop implementation edits while review runs. Prepare review inputs using the existing [review-input contract](../int-subagent-driven-dev/references/review-inputs.md): absolute workspace, recorded starting base, current head, exact snapshot identity, complete changed-file inventory and diff including staged, unstaged, and untracked changes, original task description and known ticket/spec pointers, and verification evidence for the same snapshot. Use `just tool::git-detailed-diff` to capture staged, unstaged, and untracked content. Keep the implementation frozen until review returns.
+Stop implementation edits while review runs. Prepare review inputs using the existing [review-input contract](../private-subagent-driven-dev/references/review-inputs.md): absolute workspace, recorded starting base, current head, exact snapshot identity, complete changed-file inventory and diff including staged, unstaged, and untracked changes, original task description and known ticket/spec pointers, and verification evidence for the same snapshot. Use `just tool::git-detailed-diff` to capture staged, unstaged, and untracked content. Keep the implementation frozen until review returns.
 
 **Complete when:** the caller can supply a complete, internally consistent review snapshot and matching verification evidence; otherwise stop and identify the gap.
 
 ### E. Review implementation
 
-Load and follow `int-code-review`. Supply the frozen review inputs and task requirements context. If the review reports a snapshot mismatch or incomplete evidence, do not commit; refresh the snapshot and required checks before reviewing again.
+Load and follow `private-code-review`. Supply the frozen review inputs and task requirements context. If the review reports a snapshot mismatch or incomplete evidence, do not commit; refresh the snapshot and required checks before reviewing again.
 
 **Complete when:** review findings identify the current snapshot and explicitly classify each finding as blocking or non-blocking, selecting F for blockers or G when there are none.
 
 ### F. Fix blockers
 
-Fix every substantiated requirement defect and confirmed mandatory repository-rule violation marked as a commit blocker. Keep advisory smells and optional recommendations separate; do not treat them as blockers. After changing code, rerun affected required checks, prepare a new frozen snapshot, and rerun `int-code-review`. Do not commit while any blocker remains.
+Fix every substantiated requirement defect and confirmed mandatory repository-rule violation marked as a commit blocker. Keep advisory smells and optional recommendations separate; do not treat them as blockers. After changing code, rerun affected required checks, prepare a new frozen snapshot, and rerun `private-code-review`. Do not commit while any blocker remains.
 
 **Complete when:** the updated snapshot has passing required checks and a current review with no commit blockers, selecting G; unresolved or unverified blockers remain here.
 

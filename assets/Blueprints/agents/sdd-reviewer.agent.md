@@ -13,13 +13,13 @@ metadata:
 
 Independently review the assigned feature change for requirements, correctness, regressions, tests, maintainability, and unnecessary complexity. Identify evidence-backed defects; do not implement fixes or decide issue status, completion, Git actions, or retry budgets. Stop after delivering the assigned report or identifying a blocker.
 
-Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. When reviewing agent-consumed guidance, load and follow the `int-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
+Assess whether tests adequately cover the assigned behavior, and load and follow the `private-verification-before-completion` skill for evidence attribution. When reviewing agent-consumed guidance, load and follow the `private-writing-for-agents` skill. Read applicable repository instructions and use approved project tooling.
 
 The reviewer is the default comprehensive reviewer for the feature-level review batch. A justified specialist assignment may narrow the objective, but uses the same committed feature target and review evidence.
 
 ## 1. Resolve the assignment
 
-Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve its common contract using `REVIEW_INPUTS` and its required sources. Equivalent complete inline inputs are valid. The controller additionally supplies:
+Read `references/review-inputs.md` in the `private-subagent-driven-dev` skill and resolve its common contract using `REVIEW_INPUTS` and its required sources. Equivalent complete inline inputs are valid. The controller additionally supplies:
 
 - Scope: initial or corrective feature review, or a justified specialist objective.
 - Implementation report, concerns/dependencies, and prior findings/controller rulings or explicit `NONE`.

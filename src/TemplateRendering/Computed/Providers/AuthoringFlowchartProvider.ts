@@ -5,7 +5,7 @@ export class AuthoringFlowchartProvider extends ComputedVariableProvider {
     return [
       "```mermaid",
       "flowchart TD",
-      '    A["Read and consider only the `int-writing-for-agents` and `ref-asd-ste100` skills"]',
+      '    A["Read and consider only the `private-writing-for-agents` and `public-ref-asd-ste100` skills"]',
       '    A --> B["Use the `grill` skill on the user request"]',
       '    B --> C{"Shared understanding confirmed?"}',
       '    C -- "No" --> B',

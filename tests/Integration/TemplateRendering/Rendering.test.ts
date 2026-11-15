@@ -9,8 +9,8 @@ const context = {
   stacks: ["python", "typescript"],
   variables: { name: "Spindle" },
   computed: {
-    internal_skill_description:
-      "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+    private_skill_description:
+      "This is a private skill do not load it unless explicitly required by the user or another skill.",
   },
 };
 

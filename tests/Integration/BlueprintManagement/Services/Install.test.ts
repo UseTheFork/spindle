@@ -98,9 +98,9 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
   const sourceRoot = fileURLToPath(new URL("../../../../assets/Blueprints/", import.meta.url));
   const firstSourceRoot = join(sourceParent, "first");
-  const skillSource = join(firstSourceRoot, "skills", "int-test-driven-development", "SKILL.md");
+  const skillSource = join(firstSourceRoot, "skills", "private-test-driven-development", "SKILL.md");
   const skillTarget = (workspace: string) =>
-    join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md");
+    join(workspace, ".github", "skills", "private-test-driven-development", "SKILL.md");
   const firstConfig = projectSettingsSchema.parse({
     stacks: ["python"],
     spindle_package_manager: "pnpm",

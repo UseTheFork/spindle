@@ -96,14 +96,14 @@ test.each([
   );
   expect(result.status, result.stderr).toBe(0);
 
-  const destination = join(project, ".github", "skills", "ref-php-laravel-saloon-api-integrations");
+  const destination = join(project, ".github", "skills", "public-ref-php-laravel-saloon-api-integrations");
   if (!installed) {
     await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
     return;
   }
 
   const content = await readFile(join(destination, "SKILL.md"), "utf8");
-  expect(content).toMatch(/name: ref-php-laravel-saloon-api-integrations/);
+  expect(content).toMatch(/name: public-ref-php-laravel-saloon-api-integrations/);
   expect(content).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
   const references = [
     "connectors.md",
@@ -125,7 +125,7 @@ test.each([
           "assets",
           "Blueprints",
           "skills",
-          "ref-php-laravel-saloon-api-integrations",
+          "public-ref-php-laravel-saloon-api-integrations",
           "references",
           reference,
         ),
@@ -361,12 +361,12 @@ test("init rejects a nested destination symlink before writing outside the GitHu
 test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
   const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
   const project = await makeTempDir("spindle-writing-guidance-project-");
-  const names = ["int-writing-for-agents", "int-writing-skills", "int-testing-agent-guidance"];
+  const names = ["private-writing-for-agents", "private-writing-skills", "private-testing-agent-guidance"];
   const installedSkills = join(project, ".github", "skills");
-  const oldMechanics = join(installedSkills, "int-writing-for-agents", "SKILL-MECHANICS.md");
+  const oldMechanics = join(installedSkills, "private-writing-for-agents", "SKILL-MECHANICS.md");
   const disclosedMechanics = join(
     installedSkills,
-    "int-writing-for-agents",
+    "private-writing-for-agents",
     "references",
     "skill-mechanics.md",
   );
@@ -389,8 +389,8 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status, init.stderr).toBe(0);
     for (const [name, version] of [
-      ["int-writing-for-agents", "1.1.0"],
-      ["int-writing-skills", "1.2.1"],
+      ["private-writing-for-agents", "1.1.0"],
+      ["private-writing-skills", "1.2.1"],
     ]) {
       await mkdir(join(installedSkills, name), { recursive: true });
       await writeFile(
@@ -407,7 +407,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     await expect(readFile(oldMechanics)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(disclosedMechanics)).rejects.toMatchObject({ code: "ENOENT" });
 
-    for (const relative of ["int-writing-for-agents/SKILL.md", "int-writing-skills/SKILL.md"]) {
+    for (const relative of ["private-writing-for-agents/SKILL.md", "private-writing-skills/SKILL.md"]) {
       const file = join(installedSkills, relative);
       const content = await readFile(file, "utf8");
       expect(content).not.toMatch(/skill-mechanics\.md|SKILL-MECHANICS\.md|{{|{%/);
@@ -416,11 +416,11 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
         const version = source.match(/version: (\S+)/)?.[1];
         expect(version).toBeTruthy();
         expect(content.includes(`version: ${version}`)).toBeTruthy();
-        expect(content).toMatch(/description: "This is an internal skill/);
+        expect(content).toMatch(/description: "This is a private skill/);
         expect(content).not.toMatch(/\[[^\]]+\]\([^)]*\/SKILL\.md\)/);
-        if (relative === "int-writing-for-agents/SKILL.md") {
-          expect(content.includes("use the `int-writing-skills` skill")).toBeTruthy();
-          expect(content.includes("use the `int-testing-agent-guidance` skill")).toBeTruthy();
+        if (relative === "private-writing-for-agents/SKILL.md") {
+          expect(content.includes("use the `private-writing-skills` skill")).toBeTruthy();
+          expect(content.includes("use the `private-testing-agent-guidance` skill")).toBeTruthy();
         } else {
           expect(content.includes("**Invocation:**")).toBeTruthy();
           expect(content.includes("**Routers:**")).toBeTruthy();
@@ -566,12 +566,12 @@ test("the shipped Blueprint collection initializes through the compiled catalog"
     expect(result.stdout).toMatch(/^✔ Installed /);
 
     const earsSkill = await readFile(
-      join(project, ".github", "skills", "int-ref-ears", "SKILL.md"),
+      join(project, ".github", "skills", "private-ref-ears", "SKILL.md"),
       "utf8",
     );
-    expect(earsSkill).toContain("name: int-ref-ears");
+    expect(earsSkill).toContain("name: private-ref-ears");
     expect(earsSkill).toContain(
-      'description: "This is an internal skill do not load it unless explicitly required by the user or another skill."',
+      'description: "This is a private skill do not load it unless explicitly required by the user or another skill."',
     );
     expect(earsSkill).toContain("user-invocable: false");
     expect(earsSkill).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
@@ -586,7 +586,7 @@ test("the shipped Blueprint collection initializes through the compiled catalog"
         join(project, ".github", "skills", skillName, "SKILL.md"),
         "utf8",
       );
-      expect(skill).toContain("- **REQUIRED:** `int-ref-ears`");
+      expect(skill).toContain("- **REQUIRED:** `private-ref-ears`");
     }
   }
 });

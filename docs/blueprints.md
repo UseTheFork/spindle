@@ -94,7 +94,7 @@ context; that context may include Project Settings values. Reference it with sta
 Nunjucks interpolation through the separate `computed` namespace, for example:
 
 ```yaml
-description: "{{ computed.internal_skill_description }}"
+description: "{{ computed.private_skill_description }}"
 ```
 
 Computed Variable names are explicit public keys in the typed

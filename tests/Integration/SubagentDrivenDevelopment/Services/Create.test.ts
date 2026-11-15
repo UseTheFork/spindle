@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
+import { PrivateSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
 
 import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 
@@ -80,7 +80,7 @@ test("sdd create renders spec and design titles while preserving unfilled author
 
 test("spec and design share one computed render context per create operation", async () => {
   const { service } = await serviceFixture();
-  const render = vi.spyOn(InternalSkillDescriptionProvider.prototype, "render");
+  const render = vi.spyOn(PrivateSkillDescriptionProvider.prototype, "render");
 
   service.featureCreationService.create({
     title: "First Rendered Feature",
@@ -106,7 +106,7 @@ test("SDD input is rendered as Markdown data rather than parsed as another templ
 test("computed provider failures leave no published feature or staging directory", async () => {
   const { repo, service } = await serviceFixture();
   const render = vi
-    .spyOn(InternalSkillDescriptionProvider.prototype, "render")
+    .spyOn(PrivateSkillDescriptionProvider.prototype, "render")
     .mockImplementation(() => {
       throw new Error("provider failed");
     });
@@ -117,7 +117,7 @@ test("computed provider failures leave no published feature or staging directory
       author: "maintainer",
       withDesign: true,
     }),
-  ).toThrow(/Computed Variable 'internal_skill_description' failed: provider failed/);
+  ).toThrow(/Computed Variable 'private_skill_description' failed: provider failed/);
   expect(readdirSync(join(repo, ".scratch"))).toEqual([]);
   expect(existsSync(join(repo, ".scratch", "0001-failed-feature"))).toBe(false);
   render.mockRestore();

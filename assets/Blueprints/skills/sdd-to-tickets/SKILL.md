@@ -18,7 +18,7 @@ An optional argument is one spec path or tracker reference. Read the full spec a
 
 Before drafting tickets, read and apply:
 
-- **REQUIRED:** `int-ref-ears`
+- **REQUIRED:** `private-ref-ears`
 
 ## Process
 

@@ -28,8 +28,8 @@ A Skill whose primary purpose is to direct an agent through ordered actions with
 **Reference Skill**:
 A Skill whose primary purpose is to supply knowledge an agent consults and applies as needed, rather than prescribe an end-to-end workflow. Examples and short procedures may support that knowledge.
 
-**Internal Skill**:
-A Skill intended for explicit use by a user or another Skill rather than autonomous discovery. Internal visibility is independent of whether the Skill is Interactive or Reference; a primary Skill can disclose it when needed, even if it is the only caller.
+**Private Skill**:
+A Skill intended for explicit use by a user or another Skill rather than autonomous discovery.
 
 **Agent**:
 A custom assistant with a specialized role, instructions, and optional tools.

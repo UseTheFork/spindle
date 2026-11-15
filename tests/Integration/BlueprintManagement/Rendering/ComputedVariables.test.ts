@@ -24,7 +24,7 @@ import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
 import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
 
 const description =
-  "This is an internal skill do not load it unless explicitly required by the user or another skill.";
+  "This is a private skill do not load it unless explicitly required by the user or another skill.";
 async function put(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
@@ -53,7 +53,7 @@ async function makeBlueprints() {
     [
       "---",
       "name: demo",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
@@ -65,45 +65,45 @@ async function makeBlueprints() {
   );
   await put(
     join(blueprints, "skills/demo/supporting.txt"),
-    "Skill: {{ computed.internal_skill_description }}\n",
+    "Skill: {{ computed.private_skill_description }}\n",
   );
   await put(
     join(blueprints, "agents/guide.agent.md"),
     [
       "---",
       "name: guide",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
       "---",
       "",
-      "Agent body: {{ computed.internal_skill_description }}",
+      "Agent body: {{ computed.private_skill_description }}",
       "",
     ].join("\n"),
   );
   await put(
     join(blueprints, "agents/guide-support.txt"),
-    "Agent file: {{ computed.internal_skill_description }}\n",
+    "Agent file: {{ computed.private_skill_description }}\n",
   );
   await put(
     join(blueprints, "instructions/testing.instructions.md"),
     [
       "---",
       "name: testing",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
       "---",
       "",
-      "Instruction body: {{ computed.internal_skill_description }}",
+      "Instruction body: {{ computed.private_skill_description }}",
       "",
     ].join("\n"),
   );
   await put(
     join(blueprints, "instructions/testing-support.txt"),
-    "Instruction file: {{ computed.internal_skill_description }}\n",
+    "Instruction file: {{ computed.private_skill_description }}\n",
   );
   writeCatalogFixture(blueprints, fixtureCatalog());
   return blueprints;
@@ -152,7 +152,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
         `${kind === "agents" ? "Agent" : "Instruction"} file: ${description}\n`,
       );
     }
-    expect(JSON.stringify(config)).not.toMatch(/computed|internal_skill_description/);
+    expect(JSON.stringify(config)).not.toMatch(/computed|private_skill_description/);
   }
 });
 
@@ -178,7 +178,7 @@ test("update reuses computed output and leaves Project Settings and version meta
       [
         "---",
         "name: demo",
-        'description: "{{ computed.internal_skill_description }}"',
+        'description: "{{ computed.private_skill_description }}"',
         "metadata:",
         "  spindle:",
         "    version: 2.0.0",
@@ -190,7 +190,7 @@ test("update reuses computed output and leaves Project Settings and version meta
     );
     await put(
       join(blueprints, "skills/demo/supporting.txt"),
-      "Update: {{ computed.internal_skill_description }}\n",
+      "Update: {{ computed.private_skill_description }}\n",
     );
     writeCatalogFixture(blueprints, {
       skills: {
@@ -228,7 +228,7 @@ test("update reuses computed output and leaves Project Settings and version meta
         /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
       ),
     });
-    expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
+    expect(configBytes.toString("utf8")).not.toMatch(/computed|private_skill_description/);
   }
 });
 
@@ -349,7 +349,7 @@ test("repeated updates through one App render updated Project Settings with comp
   const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
   const project = await makeTempDir("spindle-computed-app-project-");
   const github = join(project, ".github");
-  const skillName = "int-test-driven-development";
+  const skillName = "private-test-driven-development";
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(
@@ -374,7 +374,7 @@ test("repeated updates through one App render updated Project Settings with comp
       expect(generated.data.metadata.spindle.version).toBe(version);
       expect(generated.content).toContain(`Run manager=${manager}`);
       const config = await readFile(join(github, "spindle.json"), "utf8");
-      expect(config).not.toMatch(/computed|internal_skill_description/);
+      expect(config).not.toMatch(/computed|private_skill_description/);
     };
 
     const updateSource = async (version: string, manager: string) => {
@@ -457,16 +457,16 @@ test("providers receive Application once per run and refresh across runs", async
     ...firstContext,
     variables: {
       ...firstContext.variables,
-      internal_skill_description: "user value",
+      private_skill_description: "user value",
     },
     computed: {
       ...firstContext.computed,
-      internal_skill_description: description,
+      private_skill_description: description,
     },
   };
   expect(
     RenderText.render(
-      "{{ computed.internal_skill_description }} | {{ variables.internal_skill_description }}",
+      "{{ computed.private_skill_description }} | {{ variables.private_skill_description }}",
       renderContext,
     ),
   ).toBe(`${description} | user value`);

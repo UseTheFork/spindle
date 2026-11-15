@@ -418,7 +418,7 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   expect(fromRoot.status, fromRoot.stderr).toBe(0);
   const rootConfig = readFileSync(join(project, ".github", "spindle.json"), "utf8");
   const rootSkill = readFileSync(
-    join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
+    join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
     "utf8",
   );
   rmSync(join(project, ".github"), { recursive: true });
@@ -429,14 +429,14 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   expect(readFileSync(join(project, ".github", "spindle.json"), "utf8")).toBe(rootConfig);
   expect(
     readFileSync(
-      join(project, ".github", "skills", "int-test-driven-development", "SKILL.md"),
+      join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
       "utf8",
     ),
   ).toBe(rootSkill);
   expect(readdirSync(nested)).toEqual([]);
 });
 
-test("packaged CLI renders an Internal Skill and updates relocated references outside the checkout", () => {
+test("packaged CLI renders a Private Skill and updates relocated references outside the checkout", () => {
   const cli = packagedCli();
   const project = tempDirectory("spindle-packaged-computed-project-");
   execFileSync("git", ["init", "-q"], { cwd: project });
@@ -450,18 +450,18 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   ]);
   expect(result.status, result.stderr).toBe(0);
 
-  const skillDirectory = join(project, ".github", "skills", "int-test-driven-development");
+  const skillDirectory = join(project, ".github", "skills", "private-test-driven-development");
   const skillPath = join(skillDirectory, "SKILL.md");
   const installed = readFileSync(skillPath, "utf8");
   expect(matter(installed).data.description).toBe(
-    "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+    "This is a private skill do not load it unless explicitly required by the user or another skill.",
   );
   expect(installed).not.toMatch(/{{|}}/);
 
   for (const [name, references] of [
-    ["int-test-driven-development", ["tests.md", "mocking.md"]],
-    ["ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
-    ["int-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
+    ["private-test-driven-development", ["tests.md", "mocking.md"]],
+    ["public-ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
+    ["private-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
   ] as const) {
     const directory = join(project, ".github", "skills", name);
     const content = readFileSync(join(directory, "SKILL.md"), "utf8");
@@ -472,9 +472,9 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   }
 
   const domainModelingSkill = matter(
-    readFileSync(join(project, ".github", "skills", "ref-domain-modeling", "SKILL.md"), "utf8"),
+    readFileSync(join(project, ".github", "skills", "public-ref-domain-modeling", "SKILL.md"), "utf8"),
   );
-  expect(domainModelingSkill.data.name).toBe("ref-domain-modeling");
+  expect(domainModelingSkill.data.name).toBe("public-ref-domain-modeling");
   expect(domainModelingSkill.data.description).toBe(
     "Build and sharpen a project's domain model. Use when discussing codebase terminology, writing or editing a GLOSSARY.md, or recording or editing an ADR.",
   );
@@ -495,7 +495,7 @@ test("packaged CLI renders an Internal Skill and updates relocated references ou
   }
   const refreshed = matter(readFileSync(skillPath, "utf8"));
   expect(refreshed.data.description).toBe(
-    "This is an internal skill do not load it unless explicitly required by the user or another skill.",
+    "This is a private skill do not load it unless explicitly required by the user or another skill.",
   );
 });
 

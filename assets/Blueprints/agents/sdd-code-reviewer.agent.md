@@ -43,7 +43,7 @@ impact. If the assigned objective cannot be assessed, state why and do not
 represent the review as passing.
 
 Assess whether tests adequately cover the assigned behavior, and load and follow
-`int-verification-before-completion` for evidence attribution. Use approved
+`private-verification-before-completion` for evidence attribution. Use approved
 project tooling and only run checks authorized by the assignment. The report
 must distinguish inspected evidence from checks you ran, name their exact
 scope and assigned committed target, and disclose limitations.
