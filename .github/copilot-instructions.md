@@ -13,5 +13,5 @@ Read and follow `docs/agents/constitution.md` when planning or changing project 
 
 ## Project Tooling
 
-Run project commands with pnpm. Before running commands, read [Project tooling](../docs/agents/tooling.md) for available commands and usage.
+Run project commands with pnpm. Before running commands, read `docs/agents/tooling.md` for available commands and usage.
 <!-- spindle:end -->
