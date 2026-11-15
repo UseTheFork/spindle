@@ -432,6 +432,15 @@ function addFindingDispositionCommands(
     lines.push(
       `  pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status dismissed --details <ruling-rationale> --actor <acting-agent>`,
     );
+    lines.push(
+      `To defer ${id}, first commit the approved requirements change, record its approval if needed, and obtain fresh passing review coverage for the current requirements.`,
+    );
+    lines.push(
+      `  After committing a requirements change, if approval is not already recorded: pnpm spindle sdd requirements decide --feature ${feature} ${selection} --finding ${id} --decision approved --details <requirements-rationale> --actor <acting-agent>`,
+    );
+    lines.push(
+      `  After approval and fresh passing review: pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
+    );
   }
 }
 

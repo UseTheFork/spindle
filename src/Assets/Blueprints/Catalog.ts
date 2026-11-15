@@ -14,7 +14,6 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     },
     "sdd-implementer": { path: "sdd-implementer.agent.md", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", stacks: [] },
-    "sdd-re-review": { path: "sdd-re-review.agent.md", stacks: [] },
     "sdd-reviewer": {
       path: "sdd-reviewer.agent.md",
       stacks: [],

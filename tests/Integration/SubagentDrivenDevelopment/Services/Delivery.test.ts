@@ -804,6 +804,11 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   );
   expect(submitted.status, submitted.stderr).toBe(0);
 
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(next.stdout)).join("\n")).toContain(
+    `pnpm spindle sdd finding update --feature .scratch/0001-ticket-flow --scope delivery --finding ${findingId} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
+  );
   const deferred = await execute(repo, (service) =>
     service.findingService.findingUpdate({
       ticket: "",

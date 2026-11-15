@@ -245,7 +245,46 @@ test("next asks for an explicit finding disposition before dispatching correctio
   expect(summary).toContain(
     "pnpm spindle sdd finding update --feature .scratch/0001-export --ticket T-0001 --finding F-0003 --status dismissed --details <ruling-rationale> --actor <acting-agent>",
   );
+  expect(summary).toContain(
+    "To defer F-0003, first commit the approved requirements change, record its approval if needed, and obtain fresh passing review coverage for the current requirements.",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd requirements decide --feature .scratch/0001-export --ticket T-0001 --finding F-0003 --decision approved --details <requirements-rationale> --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd finding update --feature .scratch/0001-export --ticket T-0001 --finding F-0003 --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>",
+  );
   expect(summary).not.toContain("sdd correct");
+});
+
+test("next explains delivery finding deferral prerequisites and commands", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [],
+    pendingAssignments: [],
+    blockers: [],
+    delivery: {
+      action: "adjudicate-findings",
+      findings: [
+        {
+          id: "F-0004",
+          status: "open",
+          blocking: true,
+          summary: "Clarify the feature requirement",
+        },
+      ],
+    },
+  }).join("\n");
+
+  expect(summary).toContain(
+    "To defer F-0004, first commit the approved requirements change, record its approval if needed, and obtain fresh passing review coverage for the current requirements.",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd requirements decide --feature .scratch/0001-export --scope delivery --finding F-0004 --decision approved --details <requirements-rationale> --actor <acting-agent>",
+  );
+  expect(summary).toContain(
+    "pnpm spindle sdd finding update --feature .scratch/0001-export --scope delivery --finding F-0004 --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>",
+  );
 });
 
 test("next does not offer finding creation for an already-submitted review assignment", () => {

@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
+import matter from "gray-matter";
 import { expect, test } from "vitest";
 
 import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
@@ -17,6 +18,7 @@ import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts"
 test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
   expect(blueprintCatalog).toBe(assetCatalog);
   const validated = validateBlueprintCatalog(assetCatalog);
+  expect(validated.agents.map((entry) => entry.key)).not.toContain("sdd-re-review");
   expect(validated.agents.filter((entry) => entry.canReview).map((entry) => entry.key)).toEqual([
     "sdd-code-reviewer",
     "sdd-reviewer",
@@ -34,6 +36,50 @@ test("the management catalog validates shipped asset metadata without changing r
     directory: false,
     stacks: [],
   });
+});
+
+test("installed SDD reviewers match their shipped report contracts", async () => {
+  for (const name of [
+    "sdd-task-reviewer",
+    "sdd-reviewer",
+    "sdd-code-reviewer",
+    "sdd-code-slop-reviewer",
+  ]) {
+    const installed = await readFile(
+      join(repoRoot, ".github", "agents", `${name}.agent.md`),
+      "utf8",
+    );
+    const shipped = await readFile(
+      join(repoRoot, "assets", "Blueprints", "agents", `${name}.agent.md`),
+      "utf8",
+    );
+    expect(installed).toBe(shipped);
+    expect(matter(installed).data).toMatchObject({
+      name,
+      description: expect.any(String),
+      metadata: { spindle: { version: expect.any(String) } },
+    });
+  }
+});
+
+test("init omits the retired re-review agent and update removes its managed installation", async () => {
+  const project = await makeTempDir("spindle-retired-review-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+  const legacy = join(project, ".github", "agents", "sdd-re-review.agent.md");
+  await expect(readFile(legacy)).rejects.toMatchObject({ code: "ENOENT" });
+  await writeFile(legacy, "---\nmetadata:\n  spindle:\n    version: 1.3.0\n---\nLegacy agent\n");
+  const custom = join(project, ".github", "agents", "custom.agent.md");
+  await writeFile(custom, "Custom agent\n");
+
+  const update = runBundledCli(project, ["update"], process.env.PATH ?? "");
+  expect(update.status, update.stderr).toBe(0);
+  await expect(readFile(legacy)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(custom, "utf8")).toBe("Custom agent\n");
 });
 
 test.each([

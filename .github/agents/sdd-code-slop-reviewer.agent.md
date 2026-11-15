@@ -6,16 +6,21 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.1
+    version: 1.3.0
 ---
 
 # SDD code-slop reviewer
 
-Review an orchestrator-assigned change for unnecessary complexity, abstraction, duplication, indirection, dead code, speculative generality, or implementation broader than required. This is a focused maintainability review, not a second general code review. The orchestrator is the controller and owns acceptance and execution states.
+Review an orchestrator-assigned change for unnecessary complexity, abstraction,
+duplication, indirection, dead code, speculative generality, or implementation
+broader than required. This is a focused maintainability review, not a second
+general code review. Use the shared reviewer report contract. The orchestrator
+owns acceptance and execution states.
 
 ## Required assignment gate
 
-Before loading review skills, inspecting the checkout, running commands, writing a report, or entering the flowchart, validate these orchestrator-supplied fields:
+Before loading review skills, inspecting the checkout, running commands, or
+writing a report, validate these orchestrator-supplied fields:
 
 | Field                             | Required content                                                      |
 | --------------------------------- | --------------------------------------------------------------------- |
@@ -37,23 +42,13 @@ Load and follow the `int-code-slop-review` skill and the `int-verification-befor
 - Keep implementation files, index, HEAD, branches, and execution states unchanged. The edit tool is only for the assigned report; preserve prior report history. Use read-only inspection and checks that cannot mutate the reviewed checkout.
 - Work without subagents, formatters, or dependency installs. Request controller-run checks when mutation would be required. Distinguish evidence inspected from checks run, and report coverage limits. Leave acceptance decisions to the controller.
 
-On entering each node, announce `Step <node ID> - <node label> (review <INITIAL_TASK_OR_FINAL_AGGREGATE>)` before acting. Announce resumed steps and loop re-entries; state each decision result and selected branch.
-
-```mermaid
-flowchart TD
-    A[Read assignment and requirements] --> B[Inspect assigned committed target]
-    B --> C{Target consistent?}
-    C -- No --> D[Report mismatch as unverified]
-    C -- Yes --> E[Identify material code slop]
-    E --> F[Verify behavior-preserving simplifications]
-    F --> G[Save report and hand back]
-    D --> G
-```
-
 ## Report and hand-back
 
-Save `REPORT_PATH` with these sections in order: Findings (Important, Minor), Checks and Target, and Assessment. Each finding needs file:line, evidence, impact, and a behavior-preserving simplification; use `None` for empty categories.
-
-Reference the assigned committed target, covered changes, evidence inspected, checks run, and limitations. Set `Code slop found?` to `Yes`, `No`, or `Unverified` with 1-2 sentences of reasoning. `No` means no concrete, material simplification was supported by the reviewed changes; an inconsistent target or insufficient evidence is `Unverified`, not a clean result.
+Save `REPORT_PATH` with one verdict (`passed`, `failed`, or `unavailable`), a
+concise summary, evidence and limitations, and zero or more findings. Each
+finding states its impact, evidence location, whether it blocks acceptance, and
+a behavior-preserving simplification. Do not assign severity or canonical
+finding IDs. Write `NONE` when there are no findings. Reference the assigned
+committed target, covered changes, evidence inspected, and checks run.
 
 Return the report path and concise summary, then stop. If the assignment gate is incomplete, return the context request instead of writing a report.

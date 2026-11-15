@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
+import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+
 import {
   commitRequirementAndRebaseTicket,
   commitTicketWorkspace,
@@ -776,6 +778,11 @@ test("requirements decisions require fresh review before deferring a blocking fi
   );
   expect(submitted.status, submitted.stderr).toBe(0);
 
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(next.stdout)).join("\n")).toContain(
+    "pnpm spindle sdd finding update --feature .scratch/0001-ticket-flow --ticket T-0001 --finding F-0001 --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>",
+  );
   const finalDisposition = await deferred({ requirementsDecision: decision.id });
   expect(finalDisposition.status, finalDisposition.stderr).toBe(0);
   const finding = JSON.parse(finalDisposition.stdout).finding;

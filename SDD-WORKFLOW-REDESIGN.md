@@ -375,10 +375,19 @@ pnpm spindle sdd submit --feature .scratch/0042-export \
 Submitted review <review-assignment-id> for T-0001: failed.
 Registered finding: F-0001 (blocking) Reject malformed rows
 T-0001 is now changes-requested.
-Next (rule on each finding): pnpm spindle sdd finding update \
+Next (confirm): pnpm spindle sdd finding update \
   --feature .scratch/0042-export --ticket T-0001 --finding F-0001 \
-  --status <confirmed|dismissed|deferred> --details <rationale> --actor <acting-agent>
+  --status confirmed --actor <acting-agent>
+Next (dismiss): pnpm spindle sdd finding update \
+  --feature .scratch/0042-export --ticket T-0001 --finding F-0001 \
+  --status dismissed --details <rationale> --actor <acting-agent>
 ```
+
+For deferral of this blocking finding, commit the approved requirements change,
+record its approval with `requirements decide`, and obtain fresh passing review
+coverage. Then use `finding update --status deferred` with `--details`,
+`--follow-up`, and `--requirements-decision`. Delivery finding deferrals require
+the same evidence.
 
 ### 6. Correction selection
 

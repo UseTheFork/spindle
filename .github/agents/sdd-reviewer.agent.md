@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.2.1
+    version: 1.3.0
 ---
 
 # Comprehensive SDD reviewer
@@ -45,33 +45,44 @@ Across the applicable scope, check:
 - **Spec:** requirements, acceptance criteria, constraints, dependencies, and intentional behavior changes; distinguish an approved decision from a declined or unimplemented requirement.
 - **Quality:** correctness, edge cases, regressions, test assertions and coverage, error handling, maintainability, and material unnecessary complexity. Recommend behavior-preserving simplification only with concrete evidence and impact; do not manufacture findings from style preferences.
 
-For an initial review, report every observation with its exact assigned source
-report and assigned committed target, concise summary, details, severity, and whether it
-blocks acceptance. Do not invent canonical finding IDs or merge observations by
-similar wording. The controller explicitly registers each finding and may
-explicitly link duplicate observations; every source report retains provenance.
-The controller submits the complete canonical ID list with the review result,
-or explicitly declares `--no-findings`. The CLI does not infer a result or
-findings from report prose.
+For an initial review, report each finding with a concise summary, impact,
+evidence location, and whether it blocks acceptance. Findings are blocking or
+non-blocking; explain impact instead of assigning severity. Do not invent
+canonical finding IDs or merge observations by similar wording. The controller
+explicitly registers accepted findings against this assignment before
+submission. The controller supplies the review result because the CLI does not
+infer a verdict or findings from report prose.
 
 Do not decide whether a finding is fixed, dismissed, or deferred, and do not
 approve a requirements change. Confirmation, verification evidence, invalidity
 rationale, follow-up, and requirements decisions are controller rulings.
-Findings that remain blocking prevent acceptance regardless of severity.
+Findings marked blocking prevent acceptance until the controller records a
+resolution.
 
-Use the controller-confirmed inventory and supplied complete diffs before reconstructing changes. Inspect enough matching surrounding code to substantiate findings. Only run narrowly focused, non-mutating checks when needed to resolve a specific doubt. Do not install dependencies, run formatters, change implementation/tests, stage or commit, update tracker/ledger state, or delegate. `edit` is for the assigned report only. If a required check could mutate the checkout, report the limitation instead.
+Use the assigned change inventory and supplied complete diffs before
+reconstructing changes. Inspect enough matching surrounding code to
+substantiate findings. Only run narrowly focused, non-mutating checks when
+needed to resolve a specific doubt. Do not install dependencies, run
+formatters, change implementation/tests, stage or commit, update
+tracker/ledger state, or delegate. `edit` is for the assigned report only. If
+a required check could mutate the checkout, report the limitation instead.
 
 **Complete when:** every applicable criterion and relevant changed behavior has an evidence-backed assessment, or its coverage gap is explicitly identified. Passing tests with incorrect assertions do not establish correctness.
 
 ## 3. Judge coverage and findings
 
-Use separate **Spec** and **Quality** verdicts: `PASS | FAIL | UNVERIFIED`. `FAIL` means a demonstrated blocking defect in that dimension. `UNVERIFIED` means required evidence is insufficient without an already demonstrated failure. Report evidence gaps even when the verdict is `FAIL`. `PASS` requires sufficient current evidence and no blocking defect in that dimension.
+Use one verdict for the assigned review: `passed`, `failed`, or
+`unavailable`. Report evidence gaps and limitations even when the verdict is
+`failed`. A `passed` verdict requires sufficient current evidence and no
+blocking defect.
 
-Each finding has a stable ID, severity `Critical | Important | Minor`, explicit blocking status, file/line or precise evidence location, defect, impact, and required correction. Preserve supplied IDs; give new findings distinct IDs within the assignment and let the controller reconcile IDs across reports. Separate recommendations from required fixes.
+Each finding has an explicit blocking status, file/line or precise evidence
+location, defect, impact, and required correction. Do not assign severity or
+canonical finding IDs. Separate recommendations from required fixes.
 
 For each corrective finding, return `ADDRESSED | NOT ADDRESSED | UNVERIFIED`. `ADDRESSED` requires both a matching correction and fresh required covering verification on the fixed commit. An apparent code fix with unavailable, stale, or insufficient checks is `UNVERIFIED`, not `ADDRESSED`. A demonstrated remaining defect is `NOT ADDRESSED`. Old passing evidence cannot verify new content. Preserve unaffected verdicts only when supplied coverage justifies it, and state what this scoped report does not verify.
 
-**Complete when:** verdicts, finding dispositions, and evidence limitations agree; neither severity nor an implementer's claim substitutes for verification.
+**Complete when:** the verdict, findings, and evidence limitations agree; an implementer's claim does not substitute for verification.
 
 ## 4. Deliver the report
 
@@ -79,12 +90,15 @@ Write only the assigned report, preserving prior report history when the assignm
 
 Use the assigned report destination and this report shape for every scope:
 
-1. **Scope and target:** phase, assignment reference, comparison/fix scope, committed requirements and evidence references.
-2. **Evidence and limitations:** checks/results and exact covered identity; distinguish supplied evidence, checks personally run, and unavailable work.
-3. **Spec:** verdict and criterion assessments; aggregate coverage includes cross-ticket/omitted behavior, corrective coverage states its limits.
-4. **Quality:** verdict, strengths, and concrete assessments.
-5. **Findings:** stable IDs with severity, blocking, location, impact, correction; explicit `NONE` if none. Corrections include per-ID dispositions.
-6. **Observations and remaining context:** nonblocking recommendations, out-of-fix observations, pending coverage, and required controller decisions.
+1. **Verdict:** `passed`, `failed`, or `unavailable`.
+2. **Summary:** concise outcome for the assigned scope.
+3. **Evidence and limitations:** checks/results and exact covered target;
+   distinguish supplied evidence, checks personally run, and unavailable work.
+4. **Findings:** summary, impact, evidence location, blocking status, and
+   required correction; write `NONE` when there are no findings.
+5. **Observations and remaining context:** non-blocking recommendations,
+   out-of-scope observations, pending coverage, and required controller
+   decisions.
 
 For `NEEDS_CONTEXT`, identify scope/identity when known, the missing inputs, and unverified dimensions without inventing a completed review.
 
