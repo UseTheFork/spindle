@@ -1,8 +1,32 @@
+import { Service } from "@/Foundation/Service";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 
 type SummaryRecord = Record<string, unknown>;
 
-export function statusSummary(data: unknown, spec: string, heading: string): string[] {
+export class StatusSummaryService extends Service {
+  public statusSummary(data: unknown, spec: string, heading: string): string[] {
+    this.assertApplicationBooted();
+    return statusSummary(data, spec, heading, this.commandPrefix());
+  }
+
+  public finishSummary(data: unknown): string[] {
+    this.assertApplicationBooted();
+    return finishSummary(data, this.commandPrefix());
+  }
+
+  public nextSummary(data: unknown): string[] {
+    this.assertApplicationBooted();
+    return nextSummary(data, this.commandPrefix());
+  }
+
+  private commandPrefix(): string {
+    const { settings } = ProjectSettingsService.requireCurrent(this.app);
+    return settings.spindle_package_manager!.concat(" spindle");
+  }
+}
+
+function statusSummary(data: unknown, spec: string, heading: string, prefix: string): string[] {
   const status = asRecord(data);
   if (!status) return [`${heading} for ${spec}: no structured status details were returned.`];
 
@@ -62,10 +86,10 @@ export function statusSummary(data: unknown, spec: string, heading: string): str
     return command && result ? `${command}: ${result}` : (command ?? result ?? "");
   });
 
-  return [...lines, ...nextSummary(data)];
+  return [...lines, ...nextSummary(data, prefix)];
 }
 
-export function finishSummary(data: unknown): string[] {
+function finishSummary(data: unknown, prefix: string): string[] {
   const result = asRecord(data);
   if (!result) throw new Error("Finish returned no structured workflow result.");
   const feature = asText(result.feature);
@@ -76,10 +100,13 @@ export function finishSummary(data: unknown): string[] {
   }
   const mergeCommit = asText(result.mergeCommit);
   if (!mergeCommit) throw new Error("Pending final validation is missing its merge commit.");
-  return [`Final validation is pending for feature merge ${mergeCommit}.`, ...nextSummary(data)];
+  return [
+    `Final validation is pending for feature merge ${mergeCommit}.`,
+    ...nextSummary(data, prefix),
+  ];
 }
 
-export function nextSummary(data: unknown): string[] {
+function nextSummary(data: unknown, prefix: string): string[] {
   const status = asRecord(data);
   if (!status) return ["No structured workflow state was returned."];
 
@@ -108,11 +135,12 @@ export function nextSummary(data: unknown): string[] {
     }
     if (name === "review")
       addUnavailableReviewLines(lines, records(action.unavailableReviewAssignments), "  ");
-    const command = ticketActionCommand(name, featureDirectory, ticket);
+    const command = ticketActionCommand(name, featureDirectory, ticket, prefix);
     if (command) lines.push(`  Next: ${command}`);
-    if (name === "checks") addTicketCheckCommand(lines, action, featureDirectory, ticket, "ticket");
+    if (name === "checks")
+      addTicketCheckCommand(lines, action, featureDirectory, ticket, "ticket", prefix);
     if (name === "post-merge-checks")
-      addTicketCheckCommand(lines, action, featureDirectory, ticket, "post-merge");
+      addTicketCheckCommand(lines, action, featureDirectory, ticket, "post-merge", prefix);
     if (
       !guidedTickets.has(ticket) &&
       [
@@ -125,7 +153,7 @@ export function nextSummary(data: unknown): string[] {
       ].includes(name)
     ) {
       guidedTickets.add(ticket);
-      addTicketCorrectionGuidance(lines, status, actions, featureDirectory, ticket);
+      addTicketCorrectionGuidance(lines, status, actions, featureDirectory, ticket, prefix);
     }
   }
 
@@ -165,21 +193,21 @@ export function nextSummary(data: unknown): string[] {
           const check = checkFailure ? ` --check-failure ${quoteShellArgument(checkFailure)}` : "";
           lines.push("Record the starting commit for this older correction, then commit its work:");
           lines.push(
-            `  pnpm spindle sdd correct --feature ${featureDirectory} --ticket ${ticket}${selection}${check} --details ${quoteShellArgument(objective)} --actor <acting-agent>`,
+            `  ${prefix} sdd correct --feature ${featureDirectory} --ticket ${ticket}${selection}${check} --details ${quoteShellArgument(objective)} --actor <acting-agent>`,
           );
         } else {
           lines.push("Inspect the ticket ledger and worktree; the assignment baseline is missing.");
         }
       } else if (role === "review") {
-        addPendingReviewGuidance(lines, status, assignment, featureDirectory);
+        addPendingReviewGuidance(lines, status, assignment, featureDirectory, prefix);
         addReviewResultCommands(
           lines,
-          assignmentSubmitCommand(assignment, featureDirectory),
+          assignmentSubmitCommand(assignment, featureDirectory, prefix),
           registeredFindingsForAssignment(status, assignment).length > 0,
         );
       } else {
         lines.push(
-          `  Next: ${assignmentSubmitCommand(assignment, featureDirectory)} --actor <acting-agent>`,
+          `  Next: ${assignmentSubmitCommand(assignment, featureDirectory, prefix)} --actor <acting-agent>`,
         );
       }
     }
@@ -217,10 +245,10 @@ export function nextSummary(data: unknown): string[] {
     });
   }
 
-  if (phase === "validation") addFinalValidationCommands(lines, status, featureDirectory);
+  if (phase === "validation") addFinalValidationCommands(lines, status, featureDirectory, prefix);
   if (step === "delivery:claim") {
     lines.push(
-      `Next: pnpm spindle sdd claim --scope delivery --feature ${featureDirectory} --actor <acting-agent>`,
+      `Next: ${prefix} sdd claim --scope delivery --feature ${featureDirectory} --actor <acting-agent>`,
     );
   } else if (step === "delivery:review" && delivery?.action === "review") {
     addUnavailableReviewLines(
@@ -230,22 +258,18 @@ export function nextSummary(data: unknown): string[] {
       ),
     );
     lines.push(
-      `Next: pnpm spindle sdd review --feature ${featureDirectory} --scope delivery --actor <acting-agent>`,
+      `Next: ${prefix} sdd review --feature ${featureDirectory} --scope delivery --actor <acting-agent>`,
     );
   } else if (step === "delivery:finish") {
-    lines.push(
-      `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
-    );
+    lines.push(`Next: ${prefix} sdd finish --feature ${featureDirectory} --actor <acting-agent>`);
   } else if (step === "delivery:cleanup") {
-    lines.push(
-      `Next: pnpm spindle sdd finish --feature ${featureDirectory} --actor <acting-agent>`,
-    );
+    lines.push(`Next: ${prefix} sdd finish --feature ${featureDirectory} --actor <acting-agent>`);
   }
   if (step === "delivery:checks") {
     if (delivery?.action === "require-final-checks") {
-      addFinalCheckDeclarationCommand(lines, featureDirectory);
+      addFinalCheckDeclarationCommand(lines, featureDirectory, prefix);
     } else {
-      addDeliveryCheckCommands(lines, delivery, featureDirectory);
+      addDeliveryCheckCommands(lines, delivery, featureDirectory, prefix);
     }
   }
   if (
@@ -254,8 +278,8 @@ export function nextSummary(data: unknown): string[] {
       asText(delivery?.action) ?? "",
     )
   ) {
-    addDeliveryCorrectionGuidance(lines, delivery, featureDirectory);
-    addDeliveryCheckCommands(lines, delivery, featureDirectory, true);
+    addDeliveryCorrectionGuidance(lines, delivery, featureDirectory, prefix);
+    addDeliveryCheckCommands(lines, delivery, featureDirectory, prefix, true);
   }
 
   return lines;
@@ -342,16 +366,21 @@ function ticketActionState(action: string): string {
   return "ready";
 }
 
-function ticketActionCommand(action: string, feature: string, ticket: string): string | undefined {
+function ticketActionCommand(
+  action: string,
+  feature: string,
+  ticket: string,
+  prefix: string,
+): string | undefined {
   switch (action) {
     case "implement":
-      return `pnpm spindle sdd implement --feature ${feature} --ticket ${ticket} --workspace <absolute-authorized-directory> --actor <acting-agent>`;
+      return `${prefix} sdd implement --feature ${feature} --ticket ${ticket} --workspace <absolute-authorized-directory> --actor <acting-agent>`;
     case "review":
-      return `pnpm spindle sdd review --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+      return `${prefix} sdd review --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
     case "integrate":
-      return `pnpm spindle sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+      return `${prefix} sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
     case "post-merge-sync":
-      return `pnpm spindle sdd sync --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+      return `${prefix} sdd sync --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
     default:
       return undefined;
   }
@@ -363,20 +392,21 @@ function addTicketCheckCommand(
   feature: string,
   ticket: string,
   scope: "ticket" | "post-merge",
+  prefix: string,
 ): void {
   const command = asText(action.checkCommand);
   const checkScope = scope === "post-merge" ? " --scope post-merge" : "";
   const label = scope === "post-merge" ? "post-merge" : "ticket";
   if (!command) {
     lines.push(
-      `  Next: pnpm spindle sdd checks require --feature ${feature} --ticket ${ticket}${checkScope} --command <check> --actor <acting-agent>`,
+      `  Next: ${prefix} sdd checks require --feature ${feature} --ticket ${ticket}${checkScope} --command <check> --actor <acting-agent>`,
     );
     return;
   }
   lines.push(`  Run ${label} check: ${command}`);
   addResultCommands(
     lines,
-    `pnpm spindle sdd checks record --feature ${feature} --ticket ${ticket}${checkScope} --command ${quoteShellArgument(command)}`,
+    `${prefix} sdd checks record --feature ${feature} --ticket ${ticket}${checkScope} --command ${quoteShellArgument(command)}`,
     "  ",
   );
 }
@@ -387,6 +417,7 @@ function addTicketCorrectionGuidance(
   actions: SummaryRecord[],
   feature: string,
   ticket: string,
+  prefix: string,
 ): void {
   const ticketFindings = records(status.findings)
     .filter((entry) => entry.ticket === ticket)
@@ -439,16 +470,17 @@ function addTicketCorrectionGuidance(
         .map((finding) => asText(finding.id))
         .filter((id): id is string => id !== undefined);
       lines.push(
-        `  pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --findings <one or more of: ${findingIds.join(" ")}> --details <correction-objective>${continuation} --actor <acting-agent>`,
+        `  ${prefix} sdd correct --feature ${feature} --ticket ${ticket} --findings <one or more of: ${findingIds.join(" ")}> --details <correction-objective>${continuation} --actor <acting-agent>`,
       );
     }
     for (const checkFailure of new Set(checkFailures)) {
       lines.push(
-        `  pnpm spindle sdd correct --feature ${feature} --ticket ${ticket} --check-failure ${quoteShellArgument(checkFailure)} --details <correction-objective>${continuation} --actor <acting-agent>`,
+        `  ${prefix} sdd correct --feature ${feature} --ticket ${ticket} --check-failure ${quoteShellArgument(checkFailure)} --details <correction-objective>${continuation} --actor <acting-agent>`,
       );
     }
   }
-  if (unresolved.length > 0) addFindingDispositionCommands(lines, unresolved, feature, ticket);
+  if (unresolved.length > 0)
+    addFindingDispositionCommands(lines, unresolved, feature, ticket, prefix);
   if (uniqueFailedReviews.length > 0) {
     lines.push(`Failed review reports on ${ticket}:`);
     for (const assignment of uniqueFailedReviews) {
@@ -485,6 +517,7 @@ function addFindingDispositionCommands(
   findings: SummaryRecord[],
   feature: string,
   ticket: string,
+  prefix: string,
   scope?: "delivery",
 ): void {
   lines.push(`Unresolved findings need a disposition on ${ticket}:`);
@@ -495,19 +528,19 @@ function addFindingDispositionCommands(
     const id = asText(finding.id);
     if (!id) continue;
     lines.push(
-      `  pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status confirmed --actor <acting-agent>`,
+      `  ${prefix} sdd finding update --feature ${feature} ${selection} --finding ${id} --status confirmed --actor <acting-agent>`,
     );
     lines.push(
-      `  pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status dismissed --details <ruling-rationale> --actor <acting-agent>`,
+      `  ${prefix} sdd finding update --feature ${feature} ${selection} --finding ${id} --status dismissed --details <ruling-rationale> --actor <acting-agent>`,
     );
     lines.push(
       `To defer ${id}, first commit the approved requirements change, record its approval if needed, and obtain fresh passing review coverage for the current requirements.`,
     );
     lines.push(
-      `  After committing a requirements change, if approval is not already recorded: pnpm spindle sdd requirements decide --feature ${feature} ${selection} --finding ${id} --decision approved --details <requirements-rationale> --actor <acting-agent>`,
+      `  After committing a requirements change, if approval is not already recorded: ${prefix} sdd requirements decide --feature ${feature} ${selection} --finding ${id} --decision approved --details <requirements-rationale> --actor <acting-agent>`,
     );
     lines.push(
-      `  After approval and fresh passing review: pnpm spindle sdd finding update --feature ${feature} ${selection} --finding ${id} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
+      `  After approval and fresh passing review: ${prefix} sdd finding update --feature ${feature} ${selection} --finding ${id} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
     );
   }
 }
@@ -516,13 +549,14 @@ function addDeliveryCheckCommands(
   lines: string[],
   delivery: SummaryRecord | undefined,
   feature: string,
+  prefix: string,
   unavailableOnly = false,
 ): void {
   const required = records(delivery?.requiredChecks);
   if (required.length === 0) {
     if (!unavailableOnly) {
       lines.push(
-        `Next: pnpm spindle sdd checks require --feature ${feature} --scope delivery --command <check> --actor <acting-agent>`,
+        `Next: ${prefix} sdd checks require --feature ${feature} --scope delivery --command <check> --actor <acting-agent>`,
       );
     }
     return;
@@ -540,17 +574,17 @@ function addDeliveryCheckCommands(
     lines.push(`Run delivery check: ${command}`);
     addResultCommands(
       lines,
-      `pnpm spindle sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)}`,
+      `${prefix} sdd checks record --feature ${feature} --scope delivery --command ${quoteShellArgument(command)}`,
     );
   }
 }
 
-function addFinalCheckDeclarationCommand(lines: string[], feature: string): void {
+function addFinalCheckDeclarationCommand(lines: string[], feature: string, prefix: string): void {
   lines.push(
     "Declare the complete final-check list before finishing; repeat --command for each check.",
   );
   lines.push(
-    `Next: pnpm spindle sdd checks require --feature ${feature} --scope final --command <check> [--command <check> ...] --actor <acting-agent>`,
+    `Next: ${prefix} sdd checks require --feature ${feature} --scope final --command <check> [--command <check> ...] --actor <acting-agent>`,
   );
 }
 
@@ -559,6 +593,7 @@ function addPendingReviewGuidance(
   status: SummaryRecord,
   assignment: SummaryRecord,
   feature: string,
+  prefix: string,
 ): void {
   const id = asText(assignment.id);
   const report = asText(assignment.report);
@@ -576,7 +611,7 @@ function addPendingReviewGuidance(
           .join(", ")}.`
       : "Findings already registered from this report: none.",
   );
-  addFindingCreateCommands(lines, feature, assignmentSelection(assignment), id);
+  addFindingCreateCommands(lines, feature, assignmentSelection(assignment), id, prefix);
 }
 
 function registeredFindingsForAssignment(
@@ -599,6 +634,7 @@ function addDeliveryCorrectionGuidance(
   lines: string[],
   delivery: SummaryRecord | undefined,
   feature: string,
+  prefix: string,
 ): void {
   if (!delivery) return;
   const findings = records(delivery.findings);
@@ -641,17 +677,17 @@ function addDeliveryCorrectionGuidance(
         .map((finding) => asText(finding.id))
         .filter((id): id is string => id !== undefined);
       lines.push(
-        `  pnpm spindle sdd correct --feature ${feature} --scope delivery --findings <one or more of: ${ids.join(" ")}> --details <correction-objective>${decision} --actor <acting-agent>`,
+        `  ${prefix} sdd correct --feature ${feature} --scope delivery --findings <one or more of: ${ids.join(" ")}> --details <correction-objective>${decision} --actor <acting-agent>`,
       );
     }
     for (const command of failedChecks) {
       lines.push(
-        `  pnpm spindle sdd correct --feature ${feature} --scope delivery --check-failure ${quoteShellArgument(command)} --details <correction-objective>${decision} --actor <acting-agent>`,
+        `  ${prefix} sdd correct --feature ${feature} --scope delivery --check-failure ${quoteShellArgument(command)} --details <correction-objective>${decision} --actor <acting-agent>`,
       );
     }
   }
   if (unresolved.length > 0)
-    addFindingDispositionCommands(lines, unresolved, feature, "delivery", "delivery");
+    addFindingDispositionCommands(lines, unresolved, feature, "delivery", prefix, "delivery");
   const failedReviews = records(delivery.reviewAssignments).filter(
     (assignment) => assignment.status === "submitted" && assignment.result === "failed",
   );
@@ -675,11 +711,12 @@ function addFindingCreateCommands(
   feature: string,
   selection: string,
   assignment: string,
+  prefix: string,
 ): void {
   lines.push("Register accepted findings with the selected impact:");
   for (const impact of ["blocking", "non-blocking"]) {
     lines.push(
-      `  pnpm spindle sdd finding create --feature ${feature} ${selection} --assignment ${assignment} --${impact} --summary <summary> --details <impact> --actor <acting-agent>`,
+      `  ${prefix} sdd finding create --feature ${feature} ${selection} --assignment ${assignment} --${impact} --summary <summary> --details <impact> --actor <acting-agent>`,
     );
   }
 }
@@ -695,14 +732,16 @@ function quoteShellArgument(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-function assignmentSubmitCommand(assignment: SummaryRecord, feature: string): string {
+function assignmentSubmitCommand(
+  assignment: SummaryRecord,
+  feature: string,
+  prefix: string,
+): string {
   const id = asText(assignment.id);
   const role = asText(assignment.role);
   if (!id || !role) throw new Error("Pending assignment is missing its identity or role.");
   const selection = assignmentSelection(assignment);
-  return `pnpm spindle sdd submit --feature ${feature} ${selection} --assignment ${id}`
-    .replace(/\s+/g, " ")
-    .trim();
+  return `${prefix} sdd submit --feature ${feature} ${selection} --assignment ${id}`;
 }
 
 function addResultCommands(lines: string[], command: string, indent = ""): void {
@@ -731,7 +770,12 @@ function assignmentSelection(assignment: SummaryRecord): string {
   throw new Error("Pending assignment is missing its ticket or delivery scope.");
 }
 
-function addFinalValidationCommands(lines: string[], status: SummaryRecord, feature: string): void {
+function addFinalValidationCommands(
+  lines: string[],
+  status: SummaryRecord,
+  feature: string,
+  prefix: string,
+): void {
   const required = records(status.required);
   const recorded = records(status.records);
   const headSha = asText(status.headSha);
@@ -746,7 +790,7 @@ function addFinalValidationCommands(lines: string[], status: SummaryRecord, feat
     lines.push(`Final check failed on ${headSha}: ${command}.`);
     lines.push("Fix the failure on the original branch and commit the fix.");
     lines.push(
-      `Next: pnpm spindle sdd checks revalidate --feature ${feature} --scope final --actor <acting-agent>`,
+      `Next: ${prefix} sdd checks revalidate --feature ${feature} --scope final --actor <acting-agent>`,
     );
     return;
   }
@@ -759,7 +803,7 @@ function addFinalValidationCommands(lines: string[], status: SummaryRecord, feat
     lines.push(`Run final check: ${command}`);
     addResultCommands(
       lines,
-      `pnpm spindle sdd checks record --feature ${feature} --scope final --command ${quoteShellArgument(command)}`,
+      `${prefix} sdd checks record --feature ${feature} --scope final --command ${quoteShellArgument(command)}`,
     );
   }
 }

@@ -3,8 +3,6 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
-
 import { runCli } from "../../../Helpers/Cli.ts";
 import {
   commitTicketWorkspace,
@@ -13,6 +11,7 @@ import {
   prepareReadyTicket,
   prepareReviewAssignment,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 
 test("implement reserves a ready ticket, creates its worktree, and resumes the same assignment", async () => {
   const { repo, git, spec, worktreeParent, baseSha } = await prepareReadyTicket();

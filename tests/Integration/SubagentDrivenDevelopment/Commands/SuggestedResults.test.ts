@@ -4,13 +4,12 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
-
 import {
   execute,
   prepareImplementationForReview,
   recordReviewCheck,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { repoRoot } from "../../../Helpers/TemporaryDirectories";
 
 function runSuggested(repo: string, lines: string[], operation: string, result: string) {

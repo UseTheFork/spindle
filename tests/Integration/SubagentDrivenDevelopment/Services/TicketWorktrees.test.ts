@@ -12,7 +12,6 @@ import { expect, test, vi } from "vitest";
 import type { Application } from "@/Foundation/Application";
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -27,6 +26,7 @@ import {
   invokeAsync,
   recordReviewCheck,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
 
 function gitAt(directory: string, ...args: string[]): string {

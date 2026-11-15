@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
-
 import {
   cliOutput,
   commitTicketWorkspace,
@@ -18,6 +16,7 @@ import {
   prepareReviewedTicket,
   refreshReviewCheck,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
 test("implement records the ticket baseline and controller while creating an isolated worktree", async () => {
   const { repo, git, spec, baseSha, worktreeParent } = await prepareReadyTicket();

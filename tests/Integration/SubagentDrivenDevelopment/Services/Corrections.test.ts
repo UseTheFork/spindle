@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
-
 import {
   commitRequirementAndRebaseTicket,
   commitTicketWorkspace,
@@ -14,6 +12,7 @@ import {
   recordReviewCheck,
   prepareReviewAssignment,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
 test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
   const { repo, spec, assignment, ticketWorkspace } = await prepareReviewAssignment();

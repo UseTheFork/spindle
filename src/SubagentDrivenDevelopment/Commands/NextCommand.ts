@@ -5,9 +5,9 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import type { NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
+import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class NextCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -25,9 +25,10 @@ export class NextCommand extends Command {
         const command = await app.make(NextCommand);
         const data = await command.run(options);
         const output = await app.make(ConsoleOutputService);
+        const summary = await app.make(StatusSummaryService);
         output.result({
           level: "info",
-          human: nextSummary(data),
+          human: summary.nextSummary(data),
           data,
         });
       });

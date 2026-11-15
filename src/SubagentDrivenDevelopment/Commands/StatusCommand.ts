@@ -5,10 +5,10 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { statusSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import type { StatusOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class StatusCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -29,9 +29,10 @@ export class StatusCommand extends Command {
         };
         const data = await command.run(serviceOptions);
         const output = await app.make(ConsoleOutputService);
+        const summary = await app.make(StatusSummaryService);
         output.result({
           level: "info",
-          human: statusSummary(data, serviceOptions.spec, "Feature status"),
+          human: summary.statusSummary(data, serviceOptions.spec, "Feature status"),
           data,
         });
       });

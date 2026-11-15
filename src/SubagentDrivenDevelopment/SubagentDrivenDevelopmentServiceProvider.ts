@@ -55,6 +55,7 @@ import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingServ
 import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
 import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
 import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
+import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
 import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
@@ -92,6 +93,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     ];
   }
   public register(): void {
+    this.app.singleton(StatusSummaryService);
     this.app.singleton(
       FeatureFinalizationService,
       async (app) =>

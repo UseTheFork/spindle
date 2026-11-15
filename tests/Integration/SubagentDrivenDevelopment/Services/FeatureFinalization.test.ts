@@ -15,7 +15,6 @@ import { expect, test, vi } from "vitest";
 
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { GitService } from "@/Git/Services/GitService";
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
@@ -28,6 +27,7 @@ import {
   fixture,
   invokeAsync,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { repoRoot } from "../../../Helpers/TemporaryDirectories";
 
 vi.setConfig({ testTimeout: 60_000 });

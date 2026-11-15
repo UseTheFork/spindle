@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
-
 import { runCli } from "../../../Helpers/Cli";
 import {
   cliOutput,
@@ -26,12 +24,17 @@ import {
   prepareReviewedTicket,
   prepareDeliveryReady,
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
 
 vi.setConfig({ testTimeout: 60_000 });
 
 test("finish reports pending final validation without claiming the feature is complete", async () => {
   const prepared = await prepareDeliveryReady();
   await beginDeliveryFinalization(prepared);
+  const settingsPath = join(prepared.repo, ".github", "spindle.json");
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  settings.spindle_package_manager = "npm run";
+  writeFileSync(settingsPath, JSON.stringify(settings));
   const featureDirectory = prepared.spec.replace(/\/spec\.md$/, "");
   const result = runCli(
     prepared.repo,
@@ -41,6 +44,7 @@ test("finish reports pending final validation without claiming the feature is co
 
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout).toMatch(/final validation is pending/i);
+  expect(result.stdout).toContain("npm run spindle sdd checks record");
   expect(result.stdout).not.toMatch(/Finished feature delivery/i);
 });
 

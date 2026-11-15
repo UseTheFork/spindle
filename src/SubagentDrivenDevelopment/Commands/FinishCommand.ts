@@ -5,9 +5,9 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { finishSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import type { FeatureFinishOptions } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class FinishCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -33,9 +33,10 @@ export class FinishCommand extends Command {
         const command = await app.make(FinishCommand);
         const data = await command.run(options);
         const output = await app.make(ConsoleOutputService);
+        const summary = await app.make(StatusSummaryService);
         output.result({
           level: "success",
-          human: finishSummary(data),
+          human: summary.finishSummary(data),
           data,
         });
       });

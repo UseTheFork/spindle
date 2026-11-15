@@ -5,10 +5,10 @@ import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
 import type { ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
+import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class ResumeCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -38,9 +38,10 @@ export class ResumeCommand extends Command {
         const delivery = await app.make(DeliveryService);
         const next = delivery.next({ spec: options.spec });
         const output = await app.make(ConsoleOutputService);
+        const summary = await app.make(StatusSummaryService);
         const human = [
           `Resumed ${options.ticket ? `ticket ${options.ticket}` : "delivery"} at ${data.gate}.`,
-          ...nextSummary(next),
+          ...summary.nextSummary(next),
           ...(data.owner ? [`Controller: ${data.owner}.`] : []),
           ...(data.blocker ? [`Blocker: ${data.blocker}`] : []),
           ...(data.assignment

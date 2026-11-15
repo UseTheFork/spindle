@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { expect, test, vi } from "vitest";
@@ -18,10 +18,17 @@ function sdd(repo: string, ...args: string[]) {
 test("next identifies unclaimed delivery as the next step", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   const feature = spec.replace(/\/spec\.md$/, "");
+  const settingsPath = join(repo, ".github", "spindle.json");
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  settings.spindle_package_manager = "npm run";
+  writeFileSync(settingsPath, JSON.stringify(settings));
   const next = sdd(repo, "next", "--feature", feature);
   expect(next.status, next.stderr).toBe(0);
   expect(next.stdout).toContain("delivery:claim");
-  expect(next.stdout).toContain("sdd claim");
+  expect(next.stdout).toContain("Next: npm run spindle sdd claim");
+  const status = sdd(repo, "status", "--feature", feature);
+  expect(status.status, status.stderr).toBe(0);
+  expect(status.stdout).toContain("Next: npm run spindle sdd claim");
 });
 
 test.each([
@@ -49,7 +56,7 @@ test.each([
 });
 
 test("claim records delivery ownership and requires an explicit confirmed handoff", async () => {
-  const { repo, spec } = await prepareIntegratedTicket();
+  const { repo, spec, git } = await prepareIntegratedTicket();
   const feature = spec.replace(/\/spec\.md$/, "");
   const claim = () =>
     sdd(repo, "claim", "--feature", feature, "--scope", "delivery", "--actor", "controller");
@@ -96,6 +103,12 @@ test("claim records delivery ownership and requires an explicit confirmed handof
       (item: { action: string }) => item.action === "controller-claimed",
     ),
   ).toHaveLength(1);
+  const settingsPath = join(repo, ".github", "spindle.json");
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+  settings.spindle_package_manager = "npm run";
+  writeFileSync(settingsPath, JSON.stringify(settings));
+  git("add", ".github/spindle.json");
+  git("commit", "-qm", "configure package manager");
   const handoff = sdd(
     repo,
     "resume",
@@ -108,6 +121,7 @@ test("claim records delivery ownership and requires an explicit confirmed handof
     "--confirm-handoff",
   );
   expect(handoff.status, handoff.stderr).toBe(0);
+  expect(handoff.stdout).toContain("npm run spindle sdd checks require");
   const updated = JSON.parse(readFileSync(join(feature, "sdd.json"), "utf8"));
   expect(updated.delivery.owner).toBe("other");
 });

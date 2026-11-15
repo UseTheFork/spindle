@@ -1,6 +1,129 @@
 import { expect, test } from "vitest";
 
-import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary";
+import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+
+import {
+  createStatusSummaryService,
+  nextSummary,
+} from "../../../Helpers/SubagentDrivenDevelopment/StatusSummary";
+
+test("summary uses the configured multi-word prefix for commands without rewriting check values", async () => {
+  const service = await createStatusSummaryService("npm run");
+  const status = {
+    feature: "0001-export",
+    actions: [
+      { ticket: "T-0001", action: "implement" },
+      { ticket: "T-0002", action: "checks", checkCommand: "pnpm spindle custom" },
+      { ticket: "T-0003", action: "adjudicate-findings" },
+    ],
+    findings: [
+      {
+        ticket: "T-0003",
+        finding: { id: "F-0001", status: "open", blocking: true, summary: "Review" },
+      },
+    ],
+    pendingAssignments: [],
+    blockers: [],
+    delivery: { action: "close-tickets" },
+  };
+  const output = service.statusSummary(status, "spec.md", "Feature status").join("\n");
+
+  expect(output).toContain("Next: npm run spindle sdd implement");
+  expect(output).toContain("npm run spindle sdd checks record");
+  expect(output).toContain("--command 'pnpm spindle custom'");
+  expect(output).toContain("npm run spindle sdd finding update");
+  expect(output).toContain("npm run spindle sdd requirements decide");
+});
+
+test("summary uses the configured prefix for pending review and delivery guidance", async () => {
+  const service = await createStatusSummaryService("yarn");
+  const output = service
+    .nextSummary({
+      feature: "0001-export",
+      actions: [],
+      pendingAssignments: [
+        {
+          ticket: "delivery",
+          id: "review-0001",
+          role: "review",
+          scope: "delivery",
+          requestedAt: new Date().toISOString(),
+          report: "/repo/review.md",
+          reportPresent: true,
+        },
+      ],
+      delivery: { action: "await-review-report" },
+    })
+    .join("\n");
+
+  expect(output).toContain("yarn spindle sdd finding create");
+  expect(output).toContain("yarn spindle sdd submit");
+  expect(output).not.toContain("pnpm spindle");
+});
+
+test("finish uses the configured prefix for final validation guidance", async () => {
+  const service = await createStatusSummaryService("bun");
+  const output = service
+    .finishSummary({
+      feature: "0001-export",
+      phase: "validation",
+      finalValidation: "pending",
+      mergeCommit: "abc123",
+      headSha: "abc123",
+      required: [{ command: "pnpm run build" }],
+      records: [],
+    })
+    .join("\n");
+
+  expect(output).toContain("bun spindle sdd checks record");
+  expect(output).toContain("--command 'pnpm run build'");
+});
+
+test("summary uses the configured prefix for ticket and delivery correction commands", async () => {
+  const service = await createStatusSummaryService("pnpm exec");
+  const output = service
+    .nextSummary({
+      feature: "0001-export",
+      actions: [{ ticket: "T-0001", action: "correct", checkFailure: "test ticket" }],
+      findings: [
+        {
+          ticket: "T-0001",
+          finding: { id: "F-0001", status: "confirmed", blocking: true },
+        },
+      ],
+      pendingAssignments: [],
+      delivery: {
+        action: "correct",
+        headSha: "abc123",
+        findings: [{ id: "F-0002", status: "confirmed", blocking: true }],
+        checkRecords: [{ command: "test delivery", result: "failed", headSha: "abc123" }],
+      },
+    })
+    .join("\n");
+
+  expect(output).toContain(
+    "pnpm exec spindle sdd correct --feature .scratch/0001-export --ticket T-0001 --findings",
+  );
+  expect(output).toContain("--check-failure 'test ticket'");
+  expect(output).toContain(
+    "pnpm exec spindle sdd correct --feature .scratch/0001-export --scope delivery --findings",
+  );
+  expect(output).toContain("--check-failure 'test delivery'");
+});
+
+test("summary reads the current setting on each invocation", async () => {
+  const service = await createStatusSummaryService("pnpm");
+  const status = { feature: "0001-export", delivery: { action: "claim" } };
+  expect(service.nextSummary(status).join("\n")).toContain("pnpm spindle sdd claim");
+
+  const replacement = ProjectSettingsService.parse(
+    JSON.stringify({ stacks: ["python"], spindle_package_manager: "npm run" }),
+  );
+  await ProjectSettingsService.withTemporaryState(service.app, replacement, async () => {
+    expect(service.nextSummary(status).join("\n")).toContain("npm run spindle sdd claim");
+  });
+  expect(service.nextSummary(status).join("\n")).toContain("pnpm spindle sdd claim");
+});
 
 test("next lists ticket findings and failed checks as separate correction choices", () => {
   const summary = nextSummary({
