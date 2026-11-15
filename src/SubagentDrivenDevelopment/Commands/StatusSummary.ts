@@ -106,6 +106,8 @@ export function nextSummary(data: unknown): string[] {
       lines.push(`${ticket}: step ${ticketStep} (${state})`);
       renderedSteps.add(stepKey);
     }
+    if (name === "review")
+      addUnavailableReviewLines(lines, records(action.unavailableReviewAssignments), "  ");
     const command = ticketActionCommand(name, featureDirectory, ticket);
     if (command) lines.push(`  Next: ${command}`);
     if (name === "checks") addTicketCheckCommand(lines, action, featureDirectory, ticket, "ticket");
@@ -170,7 +172,11 @@ export function nextSummary(data: unknown): string[] {
         }
       } else if (role === "review") {
         addPendingReviewGuidance(lines, status, assignment, featureDirectory);
-        addResultCommands(lines, assignmentSubmitCommand(assignment, featureDirectory), "  ");
+        addReviewResultCommands(
+          lines,
+          assignmentSubmitCommand(assignment, featureDirectory),
+          registeredFindingsForAssignment(status, assignment).length > 0,
+        );
       } else {
         lines.push(
           `  Next: ${assignmentSubmitCommand(assignment, featureDirectory)} --actor <acting-agent>`,
@@ -217,6 +223,12 @@ export function nextSummary(data: unknown): string[] {
       `Next: pnpm spindle sdd claim --scope delivery --feature ${featureDirectory} --actor <acting-agent>`,
     );
   } else if (step === "delivery:review" && delivery?.action === "review") {
+    addUnavailableReviewLines(
+      lines,
+      records(delivery.reviewAssignments).filter(
+        (assignment) => assignment.status === "submitted" && assignment.result === "unavailable",
+      ),
+    );
     lines.push(
       `Next: pnpm spindle sdd review --feature ${featureDirectory} --scope delivery --actor <acting-agent>`,
     );
@@ -444,16 +456,26 @@ function addTicketCorrectionGuidance(
       const report = asText(assignment.report);
       if (!id || !report) continue;
       lines.push(`  ${id}: ${report}`);
-      if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
-        lines.push(
-          "No findings were registered before submission; this submitted assignment cannot accept findings.",
-        );
-      }
     }
   }
   if (!hasCandidates && unresolved.length === 0 && uniqueFailedReviews.length === 0) {
     lines.push(
       `Judgment required for ${ticket}: inspect the failed review evidence and choose an available correction or adjudication action.`,
+    );
+  }
+}
+
+function addUnavailableReviewLines(
+  lines: string[],
+  assignments: SummaryRecord[],
+  indent = "",
+): void {
+  for (const assignment of assignments) {
+    const id = asText(assignment.id);
+    const agent = asText(assignment.agent);
+    if (!id) continue;
+    lines.push(
+      `${indent}Review ${id}${agent ? ` (${agent})` : ""} was unavailable; dispatch a new review round for that reviewer.`,
     );
   }
 }
@@ -543,7 +565,7 @@ function addPendingReviewGuidance(
   if (!id || !report) return;
 
   lines.push(
-    "Inspect the report and register each accepted finding against this assignment before submission. If none are accepted, submit the authoritative result without creating a finding.",
+    "Inspect the report and register each accepted finding against this assignment before submission. A failed result requires at least one registered finding. If none are accepted, submit passed, or unavailable when the report has no usable verdict.",
   );
   const registered = registeredFindingsForAssignment(status, assignment);
   lines.push(
@@ -640,11 +662,6 @@ function addDeliveryCorrectionGuidance(
       const report = asText(assignment.report);
       if (!id || !report) continue;
       lines.push(`  ${id}: ${report}`);
-      if (!Array.isArray(assignment.findingIds) || assignment.findingIds.length === 0) {
-        lines.push(
-          "No findings were registered before submission; this submitted assignment cannot accept findings.",
-        );
-      }
     }
   }
   if (!hasCandidates && unresolved.length === 0 && failedReviews.length === 0)
@@ -692,6 +709,17 @@ function addResultCommands(lines: string[], command: string, indent = ""): void 
   lines.push(`${indent}Next (passed): ${command} --result passed --actor <acting-agent>`);
   lines.push(
     `${indent}Next (failed or unavailable): ${command} --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>`,
+  );
+}
+
+function addReviewResultCommands(lines: string[], command: string, hasFindings: boolean): void {
+  if (hasFindings) {
+    addResultCommands(lines, command, "  ");
+    return;
+  }
+  lines.push(`  Next (passed): ${command} --result passed --actor <acting-agent>`);
+  lines.push(
+    `  Next (unavailable): ${command} --result unavailable --details <unavailability-details> --actor <acting-agent>`,
   );
 }
 

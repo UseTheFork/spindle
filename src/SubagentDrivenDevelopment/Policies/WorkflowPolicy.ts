@@ -5,6 +5,10 @@ import type {
   FeatureLedger,
   DeliveryProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import {
+  currentReviewBatch,
+  reviewBatchNeedsRedispatch,
+} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 
 export function assertDeliveryOwner(
   owner: string | undefined,
@@ -81,6 +85,7 @@ export class WorkflowPolicy extends Service {
         if (reviews.some((assignment) => assignment.status === "pending")) {
           return "await-review-report";
         }
+        if (reviewBatchNeedsRedispatch(reviews, progress.findings ?? [])) return "review";
         if (reviews.some((assignment) => assignment.result !== "passed")) {
           return "resolve-review-result";
         }
@@ -89,6 +94,9 @@ export class WorkflowPolicy extends Service {
       return blocker ? "restore-implementation-report" : "review";
     }
     if (progress.execution === "changes-requested") {
+      if (currentReviewBatch(progress).some((assignment) => assignment.status === "pending")) {
+        return "await-review-report";
+      }
       if ((progress.findings ?? []).some((finding) => finding.status === "confirmed")) {
         return "correct";
       }

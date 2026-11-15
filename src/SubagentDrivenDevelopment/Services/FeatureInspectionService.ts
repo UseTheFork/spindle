@@ -43,6 +43,10 @@ import {
 } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import {
+  currentReviewBatch,
+  reviewBatchNeedsRedispatch,
+} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class FeatureInspectionService extends Service {
@@ -78,6 +82,7 @@ export class FeatureInspectionService extends Service {
         role: "review";
         findingIds: string[];
       }[];
+      unavailableReviewAssignments?: { id: string; agent: string; report: string }[];
     }[];
     pendingAssignments: {
       ticket: string;
@@ -136,6 +141,7 @@ export class FeatureInspectionService extends Service {
         role: "review";
         findingIds: string[];
       }[];
+      unavailableReviewAssignments?: { id: string; agent: string; report: string }[];
     }[] = [];
     const commits: ({ ticket: string } & CommitIdentity)[] = [];
     const findings: { ticket: string; finding: ReviewFinding }[] = [];
@@ -337,26 +343,10 @@ export class FeatureInspectionService extends Service {
         );
         for (const blocker of reviewCheckBlockers)
           blockers.push({ ticket: progress.id, reason: blocker });
-        const latestAttempt = progress.correctionAttempts?.at(-1);
-        const assignments =
-          progress.assignment?.action === "correct"
-            ? (latestAttempt?.reviewAssignments ?? [])
-            : (progress.reviewAssignments ?? []);
+        const assignments = currentReviewBatch(progress);
         for (const assignment of assignments) {
           if (assignment.status === "pending") {
-            pendingAssignments.push({
-              ticket: progress.id,
-              id: assignment.id,
-              role: assignment.role,
-              action: "review",
-              report: assignment.report,
-              requestedAt: assignment.requestedAt,
-              reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
-              status: assignment.status,
-              agent: assignment.agent,
-              scope: assignment.scope,
-              ...(assignment.objective ? { objective: assignment.objective } : {}),
-            });
+            pendingAssignments.push(this.pendingReview(feature, progress.id, assignment));
           }
           const assignmentBlocker = this.reviewPolicy.reviewAssignmentBlocker(
             feature,
@@ -391,11 +381,29 @@ export class FeatureInspectionService extends Service {
                   ? "resolve-findings"
                   : "integrate",
             });
+          } else if (reviewBatchNeedsRedispatch(assignments, progress.findings ?? [])) {
+            actions.push({
+              ticket: progress.id,
+              action: "review",
+              unavailableReviewAssignments: assignments
+                .filter((assignment) => assignment.result === "unavailable")
+                .map(({ id, agent, report }) => ({ id, agent, report })),
+            });
           }
         } else {
           actions.push(...this.ticketCheckActions(progress.id, progress, identity));
         }
       } else if (progress.execution === "changes-requested") {
+        const pendingReviews = currentReviewBatch(progress).filter(
+          (assignment) => assignment.status === "pending",
+        );
+        if (pendingReviews.length > 0) {
+          for (const assignment of pendingReviews) {
+            pendingAssignments.push(this.pendingReview(feature, progress.id, assignment));
+          }
+          actions.push({ ticket: progress.id, action: "await-review-report" });
+          continue;
+        }
         blockers.push({
           ticket: progress.id,
           reason: "A correction decision is required before another implementation dispatch.",
@@ -509,19 +517,7 @@ export class FeatureInspectionService extends Service {
     }
     for (const assignment of feature.state.delivery.reviewAssignments ?? []) {
       if (assignment.status !== "pending") continue;
-      pendingAssignments.push({
-        ticket: "delivery",
-        id: assignment.id,
-        role: assignment.role,
-        action: "review",
-        report: assignment.report,
-        requestedAt: assignment.requestedAt,
-        reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
-        status: assignment.status,
-        agent: assignment.agent,
-        scope: assignment.scope,
-        ...(assignment.objective ? { objective: assignment.objective } : {}),
-      });
+      pendingAssignments.push(this.pendingReview(feature, "delivery", assignment));
     }
 
     return {
@@ -590,15 +586,26 @@ export class FeatureInspectionService extends Service {
       .map((record) => record.command);
   }
 
+  private pendingReview(feature: FeaturePaths, ticket: string, assignment: ReviewAssignment) {
+    return {
+      ticket,
+      id: assignment.id,
+      role: assignment.role,
+      action: "review" as const,
+      report: assignment.report,
+      requestedAt: assignment.requestedAt,
+      reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
+      status: assignment.status,
+      agent: assignment.agent,
+      scope: assignment.scope,
+      ...(assignment.objective ? { objective: assignment.objective } : {}),
+    };
+  }
+
   private failedReviewAssignments(
     progress: FeatureLedger["tickets"][number],
   ): { id: string; report: string; role: "review"; findingIds: string[] }[] {
-    const latestAttempt = progress.correctionAttempts?.at(-1);
-    const assignments =
-      progress.assignment?.action === "correct"
-        ? (latestAttempt?.reviewAssignments ?? [])
-        : (progress.reviewAssignments ?? []);
-    return assignments
+    return currentReviewBatch(progress)
       .filter((assignment) => assignment.status === "submitted" && assignment.result === "failed")
       .map(({ id, report, findingIds }) => ({
         id,
@@ -778,6 +785,12 @@ export class FeatureInspectionService extends Service {
       ["pending", "unavailable"].includes(delivery.assignment.status)
     ) {
       action = "await-implementation-report";
+    } else if (
+      delivery.execution === "changes-requested" &&
+      failedCheckRecords.length === 0 &&
+      (delivery.reviewAssignments ?? []).some((assignment) => assignment.status === "pending")
+    ) {
+      action = "await-review-report";
     } else if (
       (delivery.execution === "changes-requested" &&
         (!identity || !hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha))) ||

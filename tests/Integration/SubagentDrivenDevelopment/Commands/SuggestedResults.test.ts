@@ -14,9 +14,13 @@ import {
 import { repoRoot } from "../../../Helpers/TemporaryDirectories";
 
 function runSuggested(repo: string, lines: string[], operation: string, result: string) {
-  const label = result === "passed" ? "Next (passed):" : "Next (failed or unavailable):";
+  const labels =
+    result === "passed"
+      ? ["Next (passed):"]
+      : ["Next (failed or unavailable):", `Next (${result}):`];
   const line = lines.find(
-    (candidate) => candidate.includes(label) && candidate.includes(operation),
+    (candidate) =>
+      labels.some((label) => candidate.includes(label)) && candidate.includes(operation),
   );
   if (!line) throw new Error(`Missing ${result} guidance for ${operation}.`);
   const prefix = "pnpm spindle sdd ";
@@ -25,7 +29,7 @@ function runSuggested(repo: string, lines: string[], operation: string, result: 
   const args = line
     .slice(index + prefix.length)
     .replace("<failed|unavailable>", result)
-    .replace("<failure-or-unavailability-details>", "'Reported result details'")
+    .replace(/<(failure-or-unavailability|unavailability)-details>/, "'Reported result details'")
     .replace("<acting-agent>", "controller");
   const output = execFileSync(
     "sh",
@@ -71,8 +75,22 @@ test.each(["passed", "failed", "unavailable"])(
       service.reviewService.review({ spec, ticket: "T-0001", author: "controller" }),
     );
     expect(review.status, review.stderr).toBe(0);
-    const assignment = JSON.parse(review.stdout).assignments[0] as { report: string };
+    const assignment = JSON.parse(review.stdout).assignments[0] as { id: string; report: string };
     writeFileSync(assignment.report, "# Review report\n\nCompleted.\n");
+    if (result === "failed") {
+      const finding = await execute(repo, (service) =>
+        service.findingService.findingCreate({
+          spec,
+          ticket: "T-0001",
+          assignment: assignment.id,
+          blocking: true,
+          summary: "Acceptance regression",
+          details: "The behavior violates an acceptance requirement.",
+          author: "controller",
+        }),
+      );
+      expect(finding.status, finding.stderr).toBe(0);
+    }
     const reviewStatus = await execute(repo, (service) => service.deliveryService.next({ spec }));
     expect(reviewStatus.status, reviewStatus.stderr).toBe(0);
     const submitted = runSuggested(

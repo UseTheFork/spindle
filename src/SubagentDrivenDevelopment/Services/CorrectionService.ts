@@ -310,26 +310,30 @@ export class CorrectionService extends Service {
       if (progress.assignment?.action === "correct" && progress.assignment.status !== "submitted") {
         throw new Error("The current correction assignment must be resumed, not replaced.");
       }
+      let progressAssessment: CorrectionAttempt["progressAssessment"];
       if (attempts.length > 0 || pendingAdjudication) {
         if (options.decision !== "continue" || !options.assessment?.trim()) {
           throw new Error(
             "A subsequent correction requires --decision continue and an explicit --assessment.",
           );
         }
-        const previous = attempts.at(-1)!;
+        progressAssessment = {
+          decision: "continue",
+          result: "productive",
+          details: options.assessment.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+        // A pause before the first attempt leaves no previous attempt; the adjudication resolution records the assessment.
+        const previous = attempts.at(-1);
         if (
-          previous.progressAssessment?.decision !== "continue" ||
-          previous.progressAssessment.result !== "productive" ||
-          previous.progressAssessment.recordedBy !== options.author.trim() ||
-          previous.progressAssessment.details !== options.assessment.trim()
+          previous &&
+          (previous.progressAssessment?.decision !== "continue" ||
+            previous.progressAssessment.result !== "productive" ||
+            previous.progressAssessment.recordedBy !== progressAssessment.recordedBy ||
+            previous.progressAssessment.details !== progressAssessment.details)
         ) {
-          previous.progressAssessment = {
-            decision: "continue",
-            result: "productive",
-            details: options.assessment.trim(),
-            recordedAt: new Date().toISOString(),
-            recordedBy: options.author.trim(),
-          };
+          previous.progressAssessment = { ...progressAssessment };
         }
       } else if (options.decision || options.assessment) {
         throw new Error("The first correction does not accept a continuation assessment.");
@@ -401,15 +405,7 @@ export class CorrectionService extends Service {
             }
           : {}),
       };
-      if (attempts.length > 0 || pendingAdjudication) {
-        attempt.progressAssessment = {
-          decision: "continue",
-          result: "productive",
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
-        };
-      }
+      if (progressAssessment) attempt.progressAssessment = { ...progressAssessment };
       attempts.push(attempt);
       if (failedPostMergeRecord && failedIntegration) {
         (progress.integrationHistory ??= []).push(failedIntegration);
@@ -417,12 +413,12 @@ export class CorrectionService extends Service {
       }
       progress.execution = "implementing";
       progress.assignment = assignment;
-      if (pendingAdjudication && progress.adjudication) {
+      if (pendingAdjudication && progress.adjudication && progressAssessment) {
         progress.adjudication.status = "resolved";
         progress.adjudication.resolution = {
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
+          details: progressAssessment.details,
+          recordedAt: progressAssessment.recordedAt,
+          recordedBy: progressAssessment.recordedBy,
         };
       }
       const afterTicket = matter.stringify(

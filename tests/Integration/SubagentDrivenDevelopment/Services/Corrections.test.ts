@@ -361,6 +361,117 @@ test("a progress pause records adjudication and resume preserves it without disp
   expect(resume.correctionAttempts).toEqual([]);
 });
 
+test("continuing from a pause before any attempt resolves adjudication and permits later corrections", async () => {
+  const { repo, spec, command, ticketWorkspace } = await prepareImplementationForReview();
+  const failed = await recordReviewCheck(repo, spec, command, "failed");
+  expect(failed.status, failed.stderr).toBe(0);
+  const paused = await execute(repo, (service) =>
+    service.correctionService.correct({
+      spec,
+      ticket: "T-0001",
+      decision: "pause",
+      reason: "requirements-disagreement",
+      details: "The failing check may contradict the requirements; request adjudication.",
+      author: "controller",
+    }),
+  );
+  expect(paused.status, paused.stderr).toBe(0);
+  const pausedNext = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(pausedNext.status, pausedNext.stderr).toBe(0);
+  expect(JSON.parse(pausedNext.stdout).actions).toContainEqual(
+    expect.objectContaining({ ticket: "T-0001", action: "correct", continuationRequired: true }),
+  );
+
+  const assessment = "The requirements support the check; a correction can make progress.";
+  const continued = await execute(repo, (service) =>
+    service.correctionService.correct({
+      spec,
+      ticket: "T-0001",
+      checkFailure: command,
+      details: "Satisfy the adjudicated check.",
+      decision: "continue",
+      assessment,
+      author: "controller",
+    }),
+  );
+  expect(continued.status, continued.stderr).toBe(0);
+  const first = JSON.parse(continued.stdout) as {
+    execution: string;
+    attempt: { number: number; progressAssessment?: { details: string } };
+    assignment: { id: string; report: string; attempt: number };
+  };
+  expect(first.execution).toBe("implementing");
+  expect(first.attempt.number).toBe(1);
+  expect(first.attempt.progressAssessment?.details).toBe(assessment);
+  expect(first.assignment.report).toMatch(/round-1-fix\.md$/);
+
+  const resumed = await execute(repo, (service) =>
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(resumed.status, resumed.stderr).toBe(0);
+  const state = JSON.parse(resumed.stdout) as {
+    adjudication: {
+      status: string;
+      reason: string;
+      resolution?: { details: string; recordedBy: string };
+    };
+    correctionAttempts: { number: number }[];
+  };
+  expect(state.adjudication.status).toBe("resolved");
+  expect(state.adjudication.reason).toBe("requirements-disagreement");
+  expect(state.adjudication.resolution).toMatchObject({
+    details: assessment,
+    recordedBy: "controller",
+  });
+  expect(state.correctionAttempts.map(({ number }) => number)).toEqual([1]);
+
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'adjudicated';\n");
+  commitTicketWorkspace(ticketWorkspace, "adjudicated correction");
+  writeFileSync(first.assignment.report, "# Correction 1\n\nProgress recorded.\n");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: first.assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+  const failedAgain = await recordReviewCheck(repo, spec, command, "failed");
+  expect(failedAgain.status, failedAgain.stderr).toBe(0);
+  const secondAssessment = "Correction 1 changed the failure; continue with the new behavior.";
+  const second = await execute(repo, (service) =>
+    service.correctionService.correct({
+      spec,
+      ticket: "T-0001",
+      checkFailure: command,
+      details: "Address the remaining check failure.",
+      decision: "continue",
+      assessment: secondAssessment,
+      author: "controller",
+    }),
+  );
+  expect(second.status, second.stderr).toBe(0);
+  const secondOutput = JSON.parse(second.stdout) as {
+    attempt: { number: number };
+    assignment: { report: string };
+  };
+  expect(secondOutput.attempt.number).toBe(2);
+  expect(secondOutput.assignment.report).toMatch(/round-2-fix\.md$/);
+  const afterSecond = await execute(repo, (service) =>
+    service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
+  );
+  expect(afterSecond.status, afterSecond.stderr).toBe(0);
+  const finalState = JSON.parse(afterSecond.stdout) as {
+    adjudication: { status: string; resolution?: { details: string } };
+    correctionAttempts: { number: number; progressAssessment?: { details: string } }[];
+  };
+  expect(finalState.correctionAttempts.map(({ number }) => number)).toEqual([1, 2]);
+  expect(finalState.correctionAttempts[0]?.progressAssessment?.details).toBe(secondAssessment);
+  expect(finalState.adjudication.status).toBe("resolved");
+  expect(finalState.adjudication.resolution?.details).toBe(assessment);
+});
+
 test("corrective review findings retain assignment provenance for the next progress decision", async () => {
   const { repo, spec, command, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
@@ -926,11 +1037,26 @@ test("failed review requires details and blocks integration", async () => {
   const missingDetails = await submit();
   expect(missingDetails.status).not.toBe(0);
   expect(missingDetails.stderr).toMatch(/--details/);
+  const missingFinding = await submit("A blocking defect was found in the implementation.");
+  expect(missingFinding.status).not.toBe(0);
+  expect(missingFinding.stderr).toMatch(/failed review requires at least one registered finding/i);
+  const finding = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      blocking: true,
+      summary: "Blocking defect",
+      details: "A blocking defect was found in the implementation.",
+      author: "controller",
+    }),
+  );
+  expect(finding.status, finding.stderr).toBe(0);
   const recordedFailure = await submit("A blocking defect was found in the implementation.");
   expect(recordedFailure.status, recordedFailure.stderr).toBe(0);
   const submitted = JSON.parse(recordedFailure.stdout).assignment;
   expect(submitted.result).toBe("failed");
-  expect(submitted.findingIds).toEqual([]);
+  expect(submitted.findingIds).toEqual(["F-0001"]);
   expect(submitted.details).toBe("A blocking defect was found in the implementation.");
   expect(
     JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))

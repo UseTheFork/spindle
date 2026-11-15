@@ -175,8 +175,9 @@ test("next allows a no-finding review result while guiding finding registration 
     "register each accepted finding against this assignment before submission",
   );
   expect(summary).toContain("Findings already registered from this report: none.");
+  expect(summary).toContain("A failed result requires at least one registered finding.");
   expect(summary).toContain(
-    "If none are accepted, submit the authoritative result without creating a finding.",
+    "If none are accepted, submit passed, or unavailable when the report has no usable verdict.",
   );
   expect(summary).toContain(
     "pnpm spindle sdd finding create --feature .scratch/0001-export --scope delivery --assignment review-0001 --blocking --summary <summary> --details <impact> --actor <acting-agent>",
@@ -185,8 +186,9 @@ test("next allows a no-finding review result while guiding finding registration 
     "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result passed --actor <acting-agent>",
   );
   expect(summary).toContain(
-    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
+    "pnpm spindle sdd submit --feature .scratch/0001-export --scope delivery --assignment review-0001 --result unavailable --details <unavailability-details> --actor <acting-agent>",
   );
+  expect(summary).not.toContain("--result <failed|unavailable>");
   expect(summary.indexOf("finding create")).toBeLessThan(summary.indexOf("sdd submit"));
 });
 
@@ -212,6 +214,41 @@ test("next supplies result-specific commands for a ticket review report", () => 
   expect(summary).toContain(
     "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --result passed --actor <acting-agent>",
   );
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --result unavailable --details <unavailability-details> --actor <acting-agent>",
+  );
+  expect(summary).not.toContain("--result <failed|unavailable>");
+});
+
+test("next offers a failed review result once a finding is registered", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [{ ticket: "T-0001", action: "await-review-report" }],
+    pendingAssignments: [
+      {
+        ticket: "T-0001",
+        id: "review-0001",
+        role: "review",
+        requestedAt: new Date().toISOString(),
+        report: "/repo/.scratch/0001-export/reports/review-0001.md",
+        reportPresent: true,
+      },
+    ],
+    findings: [
+      {
+        ticket: "T-0001",
+        finding: {
+          id: "F-0001",
+          blocking: true,
+          summary: "Regression",
+          provenance: [{ report: "/repo/.scratch/0001-export/reports/review-0001.md" }],
+        },
+      },
+    ],
+    blockers: [],
+    delivery: { action: "close-tickets" },
+  }).join("\n");
+
   expect(summary).toContain(
     "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0001 --result <failed|unavailable> --details <failure-or-unavailability-details> --actor <acting-agent>",
   );
@@ -287,7 +324,7 @@ test("next explains delivery finding deferral prerequisites and commands", () =>
   );
 });
 
-test("next does not offer finding creation for an already-submitted review assignment", () => {
+test("next lists failed review reports without finding creation or a dead-end notice", () => {
   const summary = nextSummary({
     feature: "0001-export",
     actions: [
@@ -310,11 +347,106 @@ test("next does not offer finding creation for an already-submitted review assig
   }).join("\n");
 
   expect(summary).toContain("review-0001: /repo/.scratch/0001-export/reports/review-0001.md");
-  expect(summary).toContain(
-    "No findings were registered before submission; this submitted assignment cannot accept findings.",
-  );
+  expect(summary).not.toContain("cannot accept findings");
   expect(summary).not.toContain("sdd finding create");
   expect(summary).not.toContain("sdd correct");
+});
+
+test("next re-dispatches a ticket review after an unavailable report", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [
+      {
+        ticket: "T-0001",
+        action: "review",
+        unavailableReviewAssignments: [
+          {
+            id: "review-0002",
+            agent: "sdd-code-reviewer",
+            report: "/repo/.scratch/0001-export/reports/review-0002.md",
+          },
+        ],
+      },
+    ],
+    findings: [],
+    pendingAssignments: [],
+    blockers: [],
+    delivery: { action: "close-tickets" },
+  }).join("\n");
+
+  expect(summary).toContain("T-0001: step ticket:review (ready)");
+  expect(summary).toContain(
+    "Review review-0002 (sdd-code-reviewer) was unavailable; dispatch a new review round for that reviewer.",
+  );
+  expect(summary).toContain(
+    "Next: pnpm spindle sdd review --feature .scratch/0001-export --ticket T-0001 --actor <acting-agent>",
+  );
+  expect(summary).not.toContain("cannot accept findings");
+  expect(summary).not.toContain("sdd correct");
+});
+
+test("next asks for pending parallel reviews before a correction decision", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [{ ticket: "T-0001", action: "await-review-report" }],
+    pendingAssignments: [
+      {
+        ticket: "T-0001",
+        id: "review-0003",
+        role: "review",
+        status: "pending",
+        scope: "initial",
+        requestedAt: new Date().toISOString(),
+        report: "/repo/.scratch/0001-export/reports/review-0003.md",
+        reportPresent: true,
+      },
+    ],
+    findings: [
+      {
+        ticket: "T-0001",
+        finding: { id: "F-0001", status: "open", blocking: true, summary: "Reject rows" },
+      },
+    ],
+    blockers: [],
+    delivery: { action: "close-tickets" },
+  }).join("\n");
+
+  expect(summary).toContain("T-0001: step ticket:review (awaiting report)");
+  expect(summary).toContain(
+    "pnpm spindle sdd submit --feature .scratch/0001-export --ticket T-0001 --assignment review-0003 --result passed --actor <acting-agent>",
+  );
+  expect(summary).not.toContain("sdd correct");
+  expect(summary).not.toContain("sdd finding update");
+});
+
+test("next re-dispatches a feature review after an unavailable report", () => {
+  const summary = nextSummary({
+    feature: "0001-export",
+    actions: [],
+    pendingAssignments: [],
+    blockers: [],
+    delivery: {
+      action: "review",
+      reviewAssignments: [
+        { id: "review-0004", agent: "sdd-reviewer", status: "submitted", result: "passed" },
+        {
+          id: "review-0005",
+          agent: "sdd-code-reviewer",
+          status: "submitted",
+          result: "unavailable",
+        },
+      ],
+    },
+  }).join("\n");
+
+  expect(summary).toContain("Feature 0001-export: step delivery:review");
+  expect(summary).toContain(
+    "Review review-0005 (sdd-code-reviewer) was unavailable; dispatch a new review round for that reviewer.",
+  );
+  expect(summary).not.toContain("Review review-0004");
+  expect(summary).toContain(
+    "Next: pnpm spindle sdd review --feature .scratch/0001-export --scope delivery --actor <acting-agent>",
+  );
 });
 
 test("next exposes the check command that must be recorded before ticket review", () => {

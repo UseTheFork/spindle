@@ -1553,3 +1553,295 @@ test("finalization status and next expose pending checks and completed cleanup",
   expect(lateRecord.stderr).toMatch(/only accepted during final validation/i);
   expect(readFileSync(pending.journal, "utf8")).toBe(journalBeforeLateRecord);
 });
+
+test("delivery continuation from a pause before any attempt resolves adjudication and permits later corrections", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await recordDeliveryCheck(repo, spec);
+  const dispatched = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const review = JSON.parse(dispatched.stdout).assignments[0] as { id: string; report: string };
+  writeFileSync(review.report, "# Aggregate review\n\nA whole-feature blocker.\n");
+  const created = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: review.id,
+      blocking: true,
+      summary: "Integrated behaviors disagree",
+      details: "The independently accepted ticket implementations conflict at their boundary.",
+      author: "controller",
+    }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+  const failedReview = await execute(repo, (service) =>
+    service.submissionService.submit({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: review.id,
+      result: "failed",
+      details: "The aggregate finding must be corrected.",
+      author: "controller",
+    }),
+  );
+  expect(failedReview.status, failedReview.stderr).toBe(0);
+  const confirmed = await execute(repo, (service) =>
+    service.findingService.findingUpdate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      finding: "F-0001",
+      status: "confirmed",
+      author: "controller",
+    }),
+  );
+  expect(confirmed.status, confirmed.stderr).toBe(0);
+
+  const paused = await execute(repo, (service) =>
+    service.correctionService.correct({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      decision: "pause",
+      reason: "requirements-disagreement",
+      details: "The finding may contradict the accepted requirements; request adjudication.",
+      author: "controller",
+    }),
+  );
+  expect(paused.status, paused.stderr).toBe(0);
+  expect(JSON.parse(paused.stdout).adjudication.status).toBe("pending");
+
+  const assessment = "The requirements support the finding; a correction can make progress.";
+  const continued = await execute(repo, (service) =>
+    service.correctionService.correct({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      findings: ["F-0001"],
+      details: "Reconcile the cross-ticket behavior.",
+      decision: "continue",
+      assessment,
+      author: "controller",
+    }),
+  );
+  expect(continued.status, continued.stderr).toBe(0);
+  const first = JSON.parse(continued.stdout) as {
+    execution: string;
+    attempt: { number: number; progressAssessment?: { details: string } };
+    assignment: { id: string; report: string };
+    adjudication: { status: string; resolution?: { details: string; recordedBy: string } };
+  };
+  expect(first.execution).toBe("implementing");
+  expect(first.attempt.number).toBe(1);
+  expect(first.attempt.progressAssessment?.details).toBe(assessment);
+  expect(first.assignment.report).toMatch(/final-round-1-fix\.md$/);
+  expect(first.adjudication.status).toBe("resolved");
+  expect(first.adjudication.resolution).toMatchObject({
+    details: assessment,
+    recordedBy: "controller",
+  });
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'adjudicated delivery';\n");
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  git("add", "feature.ts");
+  git("commit", "-qm", "commit adjudicated delivery correction");
+  writeFileSync(first.assignment.report, "# Delivery correction\n\nProgress recorded.\n");
+  const implementation = await execute(repo, (service) =>
+    service.submissionService.submit({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: first.assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(implementation.status, implementation.stderr).toBe(0);
+  const checkCommand = "just test::test tests/whole-feature.test.ts";
+  await recordDeliveryCheck(repo, spec, checkCommand);
+  const failedCheck = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command: checkCommand,
+      result: "failed",
+      details: "The whole-feature check still fails.",
+      author: "controller",
+    }),
+  );
+  expect(failedCheck.status, failedCheck.stderr).toBe(0);
+
+  const secondAssessment = "Correction 1 changed the failure; continue with the new behavior.";
+  const second = await execute(repo, (service) =>
+    service.correctionService.correct({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      checkFailure: checkCommand,
+      details: "Address the remaining whole-feature failure.",
+      decision: "continue",
+      assessment: secondAssessment,
+      author: "controller",
+    }),
+  );
+  expect(second.status, second.stderr).toBe(0);
+  const secondOutput = JSON.parse(second.stdout) as {
+    attempt: { number: number };
+    assignment: { report: string };
+  };
+  expect(secondOutput.attempt.number).toBe(2);
+  expect(secondOutput.assignment.report).toMatch(/final-round-2-fix\.md$/);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+  );
+  expect(
+    ledger.delivery.correctionAttempts.map(({ number }: { number: number }) => number),
+  ).toEqual([1, 2]);
+  expect(ledger.delivery.correctionAttempts[0].progressAssessment.details).toBe(secondAssessment);
+  expect(ledger.delivery.adjudication.status).toBe("resolved");
+  expect(ledger.delivery.adjudication.resolution.details).toBe(assessment);
+});
+
+test("parallel delivery reviews stay submittable after a failed review and require its finding", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await recordDeliveryCheck(repo, spec);
+  const requested = await execute(repo, (service) =>
+    service.reviewService.reviewRequire({
+      spec,
+      scope: "delivery",
+      type: "sdd-code-reviewer",
+      details: "Check cross-ticket compatibility.",
+      author: "controller",
+    }),
+  );
+  expect(requested.status, requested.stderr).toBe(0);
+  const reviewed = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(reviewed.status, reviewed.stderr).toBe(0);
+  const assignments = JSON.parse(reviewed.stdout).assignments as {
+    id: string;
+    agent: string;
+    report: string;
+  }[];
+  const comprehensive = assignments.find(({ agent }) => agent === "sdd-reviewer")!;
+  const specialist = assignments.find(({ agent }) => agent === "sdd-code-reviewer")!;
+  writeFileSync(comprehensive.report, "# Aggregate review\n\nA blocking issue.\n");
+  writeFileSync(specialist.report, "# Specialist review\n\nNo additional findings.\n");
+  const submit = async (id: string, result: "passed" | "failed") =>
+    await execute(repo, (service) =>
+      service.submissionService.submit({
+        ticket: "",
+        spec,
+        scope: "delivery",
+        assignment: id,
+        result,
+        ...(result === "failed" ? { details: "Cross-ticket behavior is inconsistent." } : {}),
+        author: "controller",
+      }),
+    );
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+
+  const ledgerBefore = readFileSync(ledgerPath, "utf8");
+  const unregistered = await submit(comprehensive.id, "failed");
+  expect(unregistered.status).not.toBe(0);
+  expect(unregistered.stderr).toMatch(/failed review requires at least one registered finding/i);
+  expect(unregistered.stderr).toContain("--scope delivery");
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
+
+  const registered = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      relatedTicket: "T-0001",
+      assignment: comprehensive.id,
+      blocking: true,
+      summary: "Cross-ticket behavior is inconsistent",
+      details: "The integrated tickets use inconsistent names for the same behavior.",
+      author: "controller",
+    }),
+  );
+  expect(registered.status, registered.stderr).toBe(0);
+  const failed = await submit(comprehensive.id, "failed");
+  expect(failed.status, failed.stderr).toBe(0);
+
+  const waiting = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(waiting.status, waiting.stderr).toBe(0);
+  const waitingStatus = JSON.parse(waiting.stdout);
+  expect(waitingStatus.delivery.action).toBe("await-review-report");
+  expect(waitingStatus.pendingAssignments.map(({ id }: { id: string }) => id)).toEqual([
+    specialist.id,
+  ]);
+  const waitingText = nextSummary(waitingStatus).join("\n");
+  expect(waitingText).toContain(`--scope delivery --assignment ${specialist.id} --result passed`);
+  expect(waitingText).not.toContain("sdd correct");
+  let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  expect(ledger.delivery.execution).toBe("reviewing");
+  expect(ledger.tickets[0].status).toBe("closed");
+
+  const remaining = await submit(specialist.id, "passed");
+  expect(remaining.status, remaining.stderr).toBe(0);
+  ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  expect(ledger.delivery.execution).toBe("changes-requested");
+  expect(ledger.tickets[0].status).toBe("open");
+});
+
+test("an unavailable delivery review re-dispatches the same reviewer", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await recordDeliveryCheck(repo, spec);
+  const dispatched = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignments[0] as {
+    id: string;
+    agent: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Aggregate review\n\nThe reviewer stopped early.\n");
+  const unavailable = await execute(repo, (service) =>
+    service.submissionService.submit({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: assignment.id,
+      result: "unavailable",
+      details: "The reviewer could not finish.",
+      author: "controller",
+    }),
+  );
+  expect(unavailable.status, unavailable.stderr).toBe(0);
+
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  const status = JSON.parse(next.stdout);
+  expect(status.delivery.action).toBe("review");
+  const text = nextSummary(status).join("\n");
+  expect(text).toContain(
+    `Review ${assignment.id} (${assignment.agent}) was unavailable; dispatch a new review round for that reviewer.`,
+  );
+  expect(text).toContain("sdd review --feature .scratch/0001-ticket-flow --scope delivery");
+  expect(text).not.toContain("cannot accept findings");
+
+  const redispatched = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(redispatched.status, redispatched.stderr).toBe(0);
+  const replacement = JSON.parse(redispatched.stdout).assignments[0] as typeof assignment;
+  expect(replacement.id).not.toBe(assignment.id);
+  expect(replacement.agent).toBe(assignment.agent);
+  const ledger = JSON.parse(
+    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+  );
+  expect(ledger.delivery.reviewHistory.map(({ id }: { id: string }) => id)).toEqual([
+    assignment.id,
+  ]);
+  expect(ledger.delivery.reviewAssignments).toEqual([
+    expect.objectContaining({ id: replacement.id, status: "pending" }),
+  ]);
+});

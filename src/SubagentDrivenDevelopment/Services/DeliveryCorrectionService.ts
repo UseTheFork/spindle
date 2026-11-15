@@ -185,20 +185,23 @@ export class DeliveryCorrectionService extends Service {
           "The current delivery correction assignment must be resumed, not replaced.",
         );
       }
+      let progressAssessment: CorrectionAttempt["progressAssessment"];
       if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
         if (options.decision !== "continue" || !options.assessment?.trim()) {
           throw new Error(
             "A subsequent delivery correction requires --decision continue and --assessment.",
           );
         }
-        const previous = attempts.at(-1)!;
-        previous.progressAssessment = {
+        progressAssessment = {
           decision: "continue",
           result: "productive",
           details: options.assessment.trim(),
           recordedAt: new Date().toISOString(),
           recordedBy: options.author.trim(),
         };
+        // A pause before the first attempt leaves no previous attempt; the adjudication resolution records the assessment.
+        const previous = attempts.at(-1);
+        if (previous) previous.progressAssessment = { ...progressAssessment };
       } else if (options.decision || options.assessment) {
         throw new Error("The first delivery correction does not accept a continuation assessment.");
       }
@@ -261,24 +264,16 @@ export class DeliveryCorrectionService extends Service {
             }
           : {}),
       };
-      if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
-        attempt.progressAssessment = {
-          decision: "continue",
-          result: "productive",
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
-        };
-      }
+      if (progressAssessment) attempt.progressAssessment = { ...progressAssessment };
       attempts.push(attempt);
       delivery.assignment = assignment;
       delivery.execution = "implementing";
-      if (delivery.adjudication?.status === "pending") {
+      if (delivery.adjudication?.status === "pending" && progressAssessment) {
         delivery.adjudication.status = "resolved";
         delivery.adjudication.resolution = {
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
+          details: progressAssessment.details,
+          recordedAt: progressAssessment.recordedAt,
+          recordedBy: progressAssessment.recordedBy,
         };
       }
       delivery.history.push({

@@ -19,6 +19,10 @@ import {
   validateAuthor,
   validateTicketId,
 } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import {
+  failedReviewWithoutFindings,
+  reviewBatchRequestsChanges,
+} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import {
   assertTicketOwner,
@@ -284,9 +288,6 @@ export class SubmissionService extends Service {
       if (!assignment || assignment.role !== "review") {
         throw new Error(`No review assignment matches ID ${assignmentId}.`);
       }
-      if (progress.execution === "changes-requested" && assignment.status !== "submitted") {
-        throw new Error(`Ticket ${ticketId} is awaiting a controller correction decision.`);
-      }
       if (!progress.baseSha) throw new Error("Review assignment has no recorded Git baseline.");
       this.gitEvidence.assertTicketCodeCommitted(progress);
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
@@ -333,6 +334,9 @@ export class SubmissionService extends Service {
         }
         throw new Error("The review assignment already has a different submitted result.");
       }
+      if (options.result === "failed" && registeredFromReport.length === 0) {
+        throw new Error(failedReviewWithoutFindings(assignmentId, `--ticket ${ticketId}`));
+      }
 
       const confirmedTicket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
@@ -367,16 +371,8 @@ export class SubmissionService extends Service {
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
-      const submittedFindings = (progress.findings ?? []).filter((finding) =>
-        registeredFromReport.includes(finding.id),
-      );
-      if (
-        assignment.result !== "passed" ||
-        submittedFindings.some(
-          (finding) =>
-            finding.blocking && finding.status !== "fixed" && finding.status !== "dismissed",
-        )
-      ) {
+      const batch = correctionAttempt?.reviewAssignments ?? progress.reviewAssignments ?? [];
+      if (reviewBatchRequestsChanges(batch, progress.findings ?? [])) {
         progress.execution = "changes-requested";
       }
       const afterTicket = matter.stringify(

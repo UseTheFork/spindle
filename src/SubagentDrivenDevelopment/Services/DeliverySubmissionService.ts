@@ -14,6 +14,11 @@ import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/Ticket
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import {
+  failedReviewWithoutFindings,
+  reviewBatchComplete,
+  reviewBatchRequestsChanges,
+} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -246,6 +251,9 @@ export class DeliverySubmissionService extends Service {
       if (assignment.status !== "pending") {
         throw new Error("The delivery review assignment is not awaiting a report.");
       }
+      if (options.result === "failed" && reported.length === 0) {
+        throw new Error(failedReviewWithoutFindings(assignmentId, "--scope delivery"));
+      }
       if (
         JSON.stringify(this.gitEvidence.changedPaths(delivery.baseSha!)) !==
         JSON.stringify(assignment.inventory)
@@ -259,16 +267,8 @@ export class DeliverySubmissionService extends Service {
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
-      const unresolvedBlocking = (assignment.findingIds ?? []).some((id) =>
-        delivery.findings?.some(
-          (finding) =>
-            finding.id === id &&
-            finding.blocking &&
-            finding.status !== "fixed" &&
-            finding.status !== "dismissed",
-        ),
-      );
-      if (assignment.result !== "passed" || unresolvedBlocking) {
+      const batch = delivery.reviewAssignments ?? [];
+      if (reviewBatchRequestsChanges(batch, delivery.findings ?? [])) {
         delivery.execution = "changes-requested";
       }
       delivery.history.push({
@@ -276,7 +276,7 @@ export class DeliverySubmissionService extends Service {
         author: options.author.trim(),
         action: `aggregate-review-submitted:${assignment.id}:${assignment.result}`,
       });
-      if (delivery.reviewAssignments?.every((item) => item.status === "submitted")) {
+      if (reviewBatchComplete(batch)) {
         for (const finding of delivery.findings ?? []) {
           if (
             !finding.blocking ||
