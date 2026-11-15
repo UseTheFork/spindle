@@ -27,11 +27,8 @@ import type {
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  assertDeliveryOwner,
-  assertFinalizationOwner,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 interface Startup {
   version: 1;
@@ -112,7 +109,7 @@ export class FeatureFinalizationService extends Service {
       retrospective?: { report: string; reportSha256: string };
     },
   ): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     return this.locked(feature.feature, (common, path) => {
       let journal = this.read<Journal>(path);
       if (!journal) {
@@ -302,7 +299,7 @@ export class FeatureFinalizationService extends Service {
         this.persist(path, journal);
       }
       this.verifyJournal(journal, common, feature.feature);
-      assertFinalizationOwner(journal.author, options.author, feature.feature);
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, feature.feature);
       const state = journal.startup;
       if (journal.phase === "records") {
         this.workspace(
@@ -555,7 +552,7 @@ export class FeatureFinalizationService extends Service {
     author: string;
     details?: string;
   }): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     return this.locked(options.feature, (common, path) => {
       const journal = this.read<Journal>(path);
       if (!journal) throw new Error("No feature merge to validate.");
@@ -567,7 +564,7 @@ export class FeatureFinalizationService extends Service {
           "Declare the complete final check list with checks require --scope final first.",
         );
       this.finalCheckout(journal);
-      assertFinalizationOwner(journal.author, options.author, options.feature);
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, options.feature);
       if (!journal.required.some((item) => item.command === options.command)) {
         throw new Error(`Final check command is not declared: ${options.command}.`);
       }
@@ -592,7 +589,7 @@ export class FeatureFinalizationService extends Service {
   }
 
   public revalidate(options: { feature: string; author: string }): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     return this.locked(options.feature, (common, path) => {
       const journal = this.read<Journal>(path);
       if (!journal) throw new Error("No feature merge to validate.");
@@ -601,7 +598,7 @@ export class FeatureFinalizationService extends Service {
         throw new Error("Final checks may only be revalidated during final validation.");
       if (!journal.finalDeclared)
         throw new Error("Declare the complete final check list before revalidating.");
-      assertFinalizationOwner(journal.author, options.author, options.feature);
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, options.feature);
       const head = this.revalidationHead(journal);
       journal.finalIdentity = { headSha: head };
       journal.records = [];
@@ -611,7 +608,7 @@ export class FeatureFinalizationService extends Service {
   }
 
   public declare(options: { spec: string; command: string[]; author: string }): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.startedFeature(options.spec);
     if (!feature) throw new Error("Final checks require a started feature.");
     const commands = options.command.map((command) => command.trim());
@@ -629,7 +626,7 @@ export class FeatureFinalizationService extends Service {
         if (journal.phase !== "validation")
           throw new Error("Final checks may only be declared during final validation.");
         this.finalCheckout(journal);
-        assertFinalizationOwner(journal.author, options.author, feature.feature);
+        WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, feature.feature);
         if (journal.finalDeclared) {
           if (
             JSON.stringify(commands) !==
@@ -663,7 +660,7 @@ export class FeatureFinalizationService extends Service {
       }
       return this.workspaceTransaction.run(feature.workspace, () => {
         const ledger = this.ledgers.readLedger(feature);
-        assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
+        WorkflowPolicy.assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
         if (ledger.delivery.finished)
           throw new Error("Final checks must be declared before feature delivery is finished.");
         const existing = ledger.delivery.finalChecks ?? [];

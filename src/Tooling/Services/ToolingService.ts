@@ -15,7 +15,7 @@ import {
   ProjectSettingsService,
   type ProjectSettingsData,
 } from "@/Settings/Services/ProjectSettingsService";
-import { builtInTooling, isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
+import { BuiltInTooling, builtInTooling } from "@/Tooling/Models/BuiltInTooling";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 const toolingPath = "docs/agents/tooling.md";
@@ -207,7 +207,7 @@ export class ToolingService extends Service {
         throw new Error("docs/agents must be a real directory.");
       }
     } catch (error) {
-      if (isMissing(error)) {
+      if (ToolingService.isMissing(error)) {
         throw new Error("Project tooling is not initialized. Run `spindle init` first.");
       }
       throw error;
@@ -232,7 +232,7 @@ export class ToolingService extends Service {
     if (!toolingKeyPattern.test(key)) {
       throw new Error("Tooling key must use lowercase letters, digits, and interior hyphens.");
     }
-    if (isBuiltInToolingKey(key)) {
+    if (BuiltInTooling.isBuiltInToolingKey(key)) {
       throw new Error(`Tooling key '${key}' is reserved for a built-in command.`);
     }
   }
@@ -256,7 +256,7 @@ export class ToolingService extends Service {
       lines.push("", `## ${section}`, "");
       for (const entry of commands) {
         const description = entry.description ? `: ${entry.description}` : "";
-        lines.push(`- ${inlineCode(entry.command)}${description}`);
+        lines.push(`- ${ToolingService.inlineCode(entry.command)}${description}`);
       }
     }
     return `${lines.join("\n")}\n`;
@@ -314,7 +314,7 @@ export class ToolingService extends Service {
     try {
       unlinkSync(path);
     } catch (error) {
-      if (!isMissing(error)) throw error;
+      if (!ToolingService.isMissing(error)) throw error;
     }
   }
 
@@ -324,14 +324,16 @@ export class ToolingService extends Service {
       throw new Error(`${relativePath} must be a regular file, not a directory or symlink.`);
     }
   }
-}
 
-function inlineCode(value: string): string {
-  const runs = value.match(/`+/g) ?? [];
-  const delimiter = "`".repeat(Math.max(0, ...runs.map((run) => run.length)) + 1);
-  return `${delimiter}${value}${delimiter}`;
-}
+  private static inlineCode(value: string): string {
+    const runs = value.match(/`+/g) ?? [];
+    const delimiter = "`".repeat(Math.max(0, ...runs.map((run) => run.length)) + 1);
+    return `${delimiter}${value}${delimiter}`;
+  }
 
-function isMissing(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+  private static isMissing(error: unknown): boolean {
+    return (
+      typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"
+    );
+  }
 }

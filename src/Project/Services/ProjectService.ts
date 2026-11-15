@@ -47,22 +47,6 @@ export interface PreparedProjectGuidance {
   }[];
 }
 
-function copilotInstructions(template: string, existing: string | undefined): string {
-  const block = `${startMarker}\n${template.trimEnd()}\n${endMarker}`;
-  if (existing === undefined) return `${block}\n`;
-  const start = existing.indexOf(startMarker);
-  const end = existing.indexOf(endMarker);
-  if (
-    start < 0 ||
-    end < start ||
-    existing.indexOf(startMarker, start + startMarker.length) !== -1 ||
-    existing.indexOf(endMarker, end + endMarker.length) !== -1
-  ) {
-    return `${block}\n`;
-  }
-  return existing.slice(0, start) + block + existing.slice(end + endMarker.length);
-}
-
 export class ProjectService extends Service {
   public async prepare(
     settings: ProjectSettingsData,
@@ -109,7 +93,10 @@ export class ProjectService extends Service {
         destination,
         original,
         createOnce: createOnce ?? false,
-        content: destination === copilotPath ? copilotInstructions(rendered, original) : rendered,
+        content:
+          destination === copilotPath
+            ? ProjectService.copilotInstructions(rendered, original)
+            : rendered,
       };
     });
     return { workspace, settings, directories, files };
@@ -216,5 +203,21 @@ export class ProjectService extends Service {
     } catch (error) {
       if (!this.isMissing(error)) throw error;
     }
+  }
+
+  private static copilotInstructions(template: string, existing: string | undefined): string {
+    const block = `${startMarker}\n${template.trimEnd()}\n${endMarker}`;
+    if (existing === undefined) return `${block}\n`;
+    const start = existing.indexOf(startMarker);
+    const end = existing.indexOf(endMarker);
+    if (
+      start < 0 ||
+      end < start ||
+      existing.indexOf(startMarker, start + startMarker.length) !== -1 ||
+      existing.indexOf(endMarker, end + endMarker.length) !== -1
+    ) {
+      return `${block}\n`;
+    }
+    return existing.slice(0, start) + block + existing.slice(end + endMarker.length);
   }
 }

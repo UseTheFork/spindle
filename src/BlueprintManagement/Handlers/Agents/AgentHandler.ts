@@ -1,10 +1,7 @@
 import { join } from "node:path";
 
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import {
-  planVersionedUpdate,
-  validateVersionedMetadata,
-} from "@/BlueprintManagement/Versioning/BlueprintVersioning";
+import { BlueprintVersioning } from "@/BlueprintManagement/Versioning/BlueprintVersioning";
 
 export const agentHandler: BlueprintHandler = {
   kind: "Agent",
@@ -15,13 +12,18 @@ export const agentHandler: BlueprintHandler = {
   targetPath: (destinationDirectory, name) => join(destinationDirectory, name),
   validateMetadata: (relativePath, renderedText) => {
     if (relativePath.toLowerCase().endsWith(".md")) {
-      validateVersionedMetadata("Agent", relativePath, relativePath, renderedText);
+      BlueprintVersioning.validateVersionedMetadata(
+        "Agent",
+        relativePath,
+        relativePath,
+        renderedText,
+      );
     }
   },
   planUpdate: (input) => {
     const entry = input.sourceFiles[0].outputPath;
     return entry.toLowerCase().endsWith(".md")
-      ? planVersionedUpdate(input, "Agent", entry, (target) => target)
+      ? BlueprintVersioning.planVersionedUpdate(input, "Agent", entry, (target) => target)
       : Promise.resolve({ status: input.installed ? "conflict" : "new" });
   },
 };

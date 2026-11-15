@@ -4,13 +4,13 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { TicketUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
 
 export class TicketUpdateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "ticket")
+    SddCommandGroups.group(root, "ticket")
       .command("update")
       .description("Update ticket fields, blockers, or dependencies.")
       .requiredOption(

@@ -1,12 +1,8 @@
 import type { Command as CommanderCommand } from "commander";
 
 import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
-import { parseConflictPolicy } from "@/BlueprintManagement/Commands/ConflictPolicy";
-import {
-  promptConflict,
-  promptSpindlePackageManager,
-  promptStacks,
-} from "@/BlueprintManagement/Commands/Prompts";
+import { BlueprintPrompts } from "@/BlueprintManagement/Support/BlueprintPrompts";
+import { ConflictPolicyParser } from "@/BlueprintManagement/Support/ConflictPolicyParser";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
@@ -16,7 +12,7 @@ import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
 import { ProjectService } from "@/Project/Services/ProjectService";
-import { promptCommitSettings } from "@/Settings/Commands/Prompts";
+import { SettingsPrompts } from "@/Settings/Commands/SettingsPrompts";
 import { defaultCommitSettings } from "@/Settings/Models/CommitSettings";
 import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import {
@@ -93,7 +89,7 @@ Run \`spindle --version\` to print the installed version.
             options.interactive &&
             Boolean(process.stdin.isTTY) &&
             Boolean(process.stdout.isTTY);
-          const policy = parseConflictPolicy(options.onConflict);
+          const policy = ConflictPolicyParser.parseConflictPolicy(options.onConflict);
           Stacks.validate(options.stack);
           const spindlePackageManager =
             options.spindlePackageManager === undefined
@@ -178,14 +174,14 @@ Run \`spindle --version\` to print the installed version.
           `Provide at least one --stack flag <${Stacks.supported.join("|")}> (or run interactively).`,
         );
       }
-      stacks = await promptStacks(Stacks.supported);
+      stacks = await BlueprintPrompts.promptStacks(Stacks.supported);
     }
 
     let spindlePackageManager =
       packageManagerArgument ??
       (existing.status === "valid" ? existing.data.spindle_package_manager : undefined);
     if (spindlePackageManager === undefined && interactive) {
-      spindlePackageManager = await promptSpindlePackageManager();
+      spindlePackageManager = await BlueprintPrompts.promptSpindlePackageManager();
     }
     if (spindlePackageManager === undefined) {
       throw new Error(
@@ -194,7 +190,9 @@ Run \`spindle --version\` to print the installed version.
     }
     spindlePackageManager = InitCommand.normalizeSpindlePackageManager(spindlePackageManager);
     const commit = interactive
-      ? await promptCommitSettings(existing.status === "valid" ? existing.data.commit : undefined)
+      ? await SettingsPrompts.promptCommitSettings(
+          existing.status === "valid" ? existing.data.commit : undefined,
+        )
       : ((existing.status === "valid" ? existing.data.commit : undefined) ?? defaultCommitSettings);
 
     const settings: ProjectSettingsData = projectSettingsSchema.parse({
@@ -211,7 +209,7 @@ Run \`spindle --version\` to print the installed version.
       context: { stacks, variables: {} },
       settings,
       conflictPolicy: policy,
-      chooseConflict: interactive ? promptConflict : undefined,
+      chooseConflict: interactive ? BlueprintPrompts.promptConflict : undefined,
     });
     await ProjectSettingsService.refresh(this.app);
     try {

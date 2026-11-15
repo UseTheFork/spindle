@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type { IntegrationRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
@@ -18,81 +18,14 @@ import type {
   FeatureLedger,
   FeaturePaths,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  isImplementationAssignment,
-  isCorrectionAttempt,
-  isCorrectionAdjudication,
-  hasMatchingCorrectionAttempt,
-} from "@/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
-import {
-  isCheckRequirement,
-  isCheckRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import {
-  isReviewFinding,
-  isRequirementsDecision,
-} from "@/SubagentDrivenDevelopment/Persistence/FindingSchema";
-import {
-  isDeliveryProgress,
-  isAcceptedEvidence,
-  isIntegrationRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
-import {
-  isReviewAssignment,
-  isSpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { AssignmentSchema } from "@/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
+import { CheckSchema } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
+import { FindingSchema } from "@/SubagentDrivenDevelopment/Persistence/FindingSchema";
+import { ProgressSchema } from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { ReviewSchema } from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
-
-function matchingCorrectionChecks(
-  current: IntegrationRecord,
-  previous: IntegrationRecord,
-): boolean {
-  const expected = previous.postMerge?.checks;
-  const checks = current.postMerge?.checks;
-  return (
-    !!expected &&
-    !!checks &&
-    JSON.stringify(expected.required.map((item) => item.command)) ===
-      JSON.stringify(checks.required.map((item) => item.command))
-  );
-}
-
-function matchingCorrectionHistory(history: IntegrationRecord[]): boolean {
-  const first = history[0];
-  return !!first && history.every((integration) => matchingCorrectionChecks(integration, first));
-}
-
-function validBaselineHistory(value: unknown, baseSha: unknown): value is TicketBaselineChange[] {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    !value.every(
-      (change) =>
-        isRecord(change) &&
-        typeof change.from === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.from) &&
-        typeof change.to === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.to) &&
-        change.from !== change.to &&
-        typeof change.ticketHead === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.ticketHead) &&
-        typeof change.at === "string" &&
-        Number.isFinite(Date.parse(change.at)) &&
-        typeof change.author === "string" &&
-        !!change.author.trim() &&
-        Object.keys(change).every((key) =>
-          ["from", "to", "ticketHead", "at", "author"].includes(key),
-        ),
-    )
-  )
-    return false;
-  return (
-    value.every((change, index) => index === 0 || value[index - 1].to === change.from) &&
-    value.at(-1).to === baseSha
-  );
-}
 
 export class LedgerRepository extends Service {
   public constructor(app: Application) {
@@ -158,9 +91,7 @@ export class LedgerRepository extends Service {
         changed = true;
         return { ...attempt, reviewAssignments: reviews.value };
       });
-      return changed
-        ? { value: normalized, changed: true }
-        : { value: attempts, changed: false };
+      return changed ? { value: normalized, changed: true } : { value: attempts, changed: false };
     };
     if (Array.isArray(value.tickets)) {
       let changed = false;
@@ -177,7 +108,8 @@ export class LedgerRepository extends Service {
           !reviews.changed &&
           !reviewHistory.changed &&
           !attempts.changed
-        ) return ticket;
+        )
+          return ticket;
         changed = true;
         return {
           ...ticket,
@@ -274,7 +206,7 @@ export class LedgerRepository extends Service {
               typeof ticket.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(ticket.baseSha))) &&
           (!Object.hasOwn(ticket, "baselineHistory") ||
-            validBaselineHistory(ticket.baselineHistory, ticket.baseSha)) &&
+            LedgerRepository.validBaselineHistory(ticket.baselineHistory, ticket.baseSha)) &&
           (!Object.hasOwn(ticket, "worktree") ||
             (isRecord(ticket.worktree) &&
               typeof ticket.worktree.workspace === "string" &&
@@ -284,17 +216,17 @@ export class LedgerRepository extends Service {
               ticket.worktree.baseSha === ticket.baseSha &&
               /^[0-9a-f]{40,64}$/i.test(ticket.worktree.baseSha))) &&
           (!Object.hasOwn(ticket, "acceptedEvidence") ||
-            isAcceptedEvidence(ticket.acceptedEvidence)) &&
+            ProgressSchema.isAcceptedEvidence(ticket.acceptedEvidence)) &&
           (!Object.hasOwn(ticket, "integration") ||
             (ticket.execution === "integrated" &&
-              isIntegrationRecord(ticket.integration) &&
-              isAcceptedEvidence(ticket.acceptedEvidence) &&
+              ProgressSchema.isIntegrationRecord(ticket.integration) &&
+              ProgressSchema.isAcceptedEvidence(ticket.acceptedEvidence) &&
               JSON.stringify(ticket.integration.files) ===
                 JSON.stringify(ticket.acceptedEvidence.files))) &&
           (!Object.hasOwn(ticket, "integrationHistory") ||
             (Array.isArray(ticket.integrationHistory) &&
               ticket.integrationHistory.length > 0 &&
-              ticket.integrationHistory.every(isIntegrationRecord) &&
+              ticket.integrationHistory.every(ProgressSchema.isIntegrationRecord) &&
               ticket.integrationHistory.every((integration) => {
                 const postMerge = integration.postMerge;
                 const records = postMerge?.checks?.records ?? [];
@@ -309,29 +241,29 @@ export class LedgerRepository extends Service {
               }) &&
               new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).size ===
                 ticket.integrationHistory.length &&
-              (!isIntegrationRecord(ticket.integration) ||
+              (!ProgressSchema.isIntegrationRecord(ticket.integration) ||
                 (!new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).has(
                   ticket.integration.mergeSha,
                 ) &&
-                  matchingCorrectionChecks(
+                  LedgerRepository.matchingCorrectionChecks(
                     ticket.integration,
                     ticket.integrationHistory[ticket.integrationHistory.length - 1]!,
                   ))) &&
-              matchingCorrectionHistory(ticket.integrationHistory))) &&
+              LedgerRepository.matchingCorrectionHistory(ticket.integrationHistory))) &&
           (!Object.hasOwn(ticket, "reviewRequirements") ||
             (Array.isArray(ticket.reviewRequirements) &&
-              ticket.reviewRequirements.every(isSpecialistReviewRequirement) &&
+              ticket.reviewRequirements.every(ReviewSchema.isSpecialistReviewRequirement) &&
               new Set(ticket.reviewRequirements.map((requirement) => requirement.agent)).size ===
                 ticket.reviewRequirements.length)) &&
           (!Object.hasOwn(ticket, "checks") ||
             (isRecord(ticket.checks) &&
               Array.isArray(ticket.checks.required) &&
-              ticket.checks.required.every(isCheckRequirement) &&
+              ticket.checks.required.every(CheckSchema.isCheckRequirement) &&
               Array.isArray(ticket.checks.records) &&
-              ticket.checks.records.every(isCheckRecord) &&
+              ticket.checks.records.every(CheckSchema.isCheckRecord) &&
               !Object.hasOwn(ticket.checks, "invalidations"))) &&
           (!Object.hasOwn(ticket, "assignment") ||
-            (isImplementationAssignment(ticket.assignment) &&
+            (AssignmentSchema.isImplementationAssignment(ticket.assignment) &&
               (!ticket.worktree ||
                 (isRecord(ticket.worktree) &&
                   ticket.assignment.workspace === ticket.worktree.workspace &&
@@ -348,7 +280,7 @@ export class LedgerRepository extends Service {
                 ))) &&
           (!Object.hasOwn(ticket, "correctionAttempts") ||
             (Array.isArray(ticket.correctionAttempts) &&
-              ticket.correctionAttempts.every(isCorrectionAttempt) &&
+              ticket.correctionAttempts.every(AssignmentSchema.isCorrectionAttempt) &&
               ticket.correctionAttempts.every((attempt, index) => attempt.number === index + 1) &&
               ticket.correctionAttempts.every(
                 (attempt) =>
@@ -385,14 +317,14 @@ export class LedgerRepository extends Service {
                       ),
                   ),
               ) &&
-              hasMatchingCorrectionAttempt(ticket))) &&
+              AssignmentSchema.hasMatchingCorrectionAttempt(ticket))) &&
           (!Object.hasOwn(ticket, "adjudication") ||
-            isCorrectionAdjudication(ticket.adjudication)) &&
+            AssignmentSchema.isCorrectionAdjudication(ticket.adjudication)) &&
           (!Object.hasOwn(ticket, "reviewAssignments") ||
             (Array.isArray(ticket.reviewAssignments) &&
               ticket.reviewAssignments.every(
                 (assignment) =>
-                  isReviewAssignment(assignment) &&
+                  ReviewSchema.isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
                   assignment.report ===
                     join(
@@ -409,7 +341,7 @@ export class LedgerRepository extends Service {
             (Array.isArray(ticket.reviewHistory) &&
               ticket.reviewHistory.every(
                 (assignment) =>
-                  isReviewAssignment(assignment) &&
+                  ReviewSchema.isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
                   assignment.report ===
                     join(
@@ -424,9 +356,10 @@ export class LedgerRepository extends Service {
               ))) &&
           (!Object.hasOwn(ticket, "requirementsDecisions") ||
             (Array.isArray(ticket.requirementsDecisions) &&
-              ticket.requirementsDecisions.every(isRequirementsDecision))) &&
+              ticket.requirementsDecisions.every(FindingSchema.isRequirementsDecision))) &&
           (!Object.hasOwn(ticket, "findings") ||
-            (Array.isArray(ticket.findings) && ticket.findings.every(isReviewFinding))),
+            (Array.isArray(ticket.findings) &&
+              ticket.findings.every(FindingSchema.isReviewFinding))),
       )
     ) {
       throw new Error(
@@ -560,14 +493,14 @@ export class LedgerRepository extends Service {
         (typeof delivery.owner !== "string" || !delivery.owner.trim())) ||
       (Object.hasOwn(delivery, "reviewRequirements") &&
         (!Array.isArray(delivery.reviewRequirements) ||
-          !delivery.reviewRequirements.every(isSpecialistReviewRequirement) ||
+          !delivery.reviewRequirements.every(ReviewSchema.isSpecialistReviewRequirement) ||
           new Set(delivery.reviewRequirements.map((item) => item.agent)).size !==
             delivery.reviewRequirements.length)) ||
       (Object.hasOwn(delivery, "reviewAssignments") &&
         (!Array.isArray(delivery.reviewAssignments) ||
           !delivery.reviewAssignments.every(
             (assignment) =>
-              isReviewAssignment(assignment) &&
+              ReviewSchema.isReviewAssignment(assignment) &&
               assignment.scope === "delivery" &&
               blueprintCatalog.agents[assignment.agent]?.canReview === true &&
               assignment.report ===
@@ -585,19 +518,20 @@ export class LedgerRepository extends Service {
         (!Array.isArray(delivery.reviewHistory) ||
           !delivery.reviewHistory.every(
             (assignment) =>
-              isReviewAssignment(assignment) &&
+              ReviewSchema.isReviewAssignment(assignment) &&
               assignment.scope === "delivery" &&
               blueprintCatalog.agents[assignment.agent]?.canReview === true,
           ))) ||
       (Object.hasOwn(delivery, "requirementsDecisions") &&
         (!Array.isArray(delivery.requirementsDecisions) ||
-          !delivery.requirementsDecisions.every(isRequirementsDecision) ||
+          !delivery.requirementsDecisions.every(FindingSchema.isRequirementsDecision) ||
           new Set(delivery.requirementsDecisions.map((decision) => decision.id)).size !==
             delivery.requirementsDecisions.length)) ||
       (Object.hasOwn(delivery, "findings") &&
-        (!Array.isArray(delivery.findings) || !delivery.findings.every(isReviewFinding))) ||
+        (!Array.isArray(delivery.findings) ||
+          !delivery.findings.every(FindingSchema.isReviewFinding))) ||
       (Object.hasOwn(delivery, "assignment") &&
-        (!isImplementationAssignment(delivery.assignment) ||
+        (!AssignmentSchema.isImplementationAssignment(delivery.assignment) ||
           delivery.assignment.action !== "correct" ||
           !Number.isSafeInteger(delivery.assignment.attempt) ||
           delivery.assignment.report !==
@@ -611,12 +545,12 @@ export class LedgerRepository extends Service {
       (Object.hasOwn(delivery, "checks") &&
         (!isRecord(delivery.checks) ||
           !Array.isArray(delivery.checks.required) ||
-          !delivery.checks.required.every(isCheckRequirement) ||
+          !delivery.checks.required.every(CheckSchema.isCheckRequirement) ||
           !Array.isArray(delivery.checks.records) ||
-          !delivery.checks.records.every(isCheckRecord))) ||
+          !delivery.checks.records.every(CheckSchema.isCheckRecord))) ||
       (Object.hasOwn(delivery, "correctionAttempts") &&
         (!Array.isArray(delivery.correctionAttempts) ||
-          !delivery.correctionAttempts.every(isCorrectionAttempt) ||
+          !delivery.correctionAttempts.every(AssignmentSchema.isCorrectionAttempt) ||
           delivery.correctionAttempts.some(
             (attempt, index) =>
               attempt.number !== index + 1 ||
@@ -643,12 +577,13 @@ export class LedgerRepository extends Service {
                     ),
               ),
           ) ||
-          !hasMatchingCorrectionAttempt(delivery))) ||
-      (Object.hasOwn(delivery, "adjudication") && !isCorrectionAdjudication(delivery.adjudication))
+          !AssignmentSchema.hasMatchingCorrectionAttempt(delivery))) ||
+      (Object.hasOwn(delivery, "adjudication") &&
+        !AssignmentSchema.isCorrectionAdjudication(delivery.adjudication))
     ) {
       throw new Error("Feature delivery evidence or assignment records are invalid.");
     }
-    if (!isDeliveryProgress(delivery)) {
+    if (!ProgressSchema.isDeliveryProgress(delivery)) {
       throw new Error("Feature delivery progress does not match the delivery ledger schema.");
     }
     const deliveryFindingIds = delivery.findings?.map((finding) => finding.id) ?? [];
@@ -691,5 +626,60 @@ export class LedgerRepository extends Service {
     ) {
       throw new Error("Feature review assignment IDs must be unique.");
     }
+  }
+
+  private static matchingCorrectionChecks(
+    current: IntegrationRecord,
+    previous: IntegrationRecord,
+  ): boolean {
+    const expected = previous.postMerge?.checks;
+    const checks = current.postMerge?.checks;
+    return (
+      !!expected &&
+      !!checks &&
+      JSON.stringify(expected.required.map((item) => item.command)) ===
+        JSON.stringify(checks.required.map((item) => item.command))
+    );
+  }
+
+  private static matchingCorrectionHistory(history: IntegrationRecord[]): boolean {
+    const first = history[0];
+    return (
+      !!first &&
+      history.every((integration) => LedgerRepository.matchingCorrectionChecks(integration, first))
+    );
+  }
+
+  private static validBaselineHistory(
+    value: unknown,
+    baseSha: unknown,
+  ): value is TicketBaselineChange[] {
+    if (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      !value.every(
+        (change) =>
+          isRecord(change) &&
+          typeof change.from === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.from) &&
+          typeof change.to === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.to) &&
+          change.from !== change.to &&
+          typeof change.ticketHead === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.ticketHead) &&
+          typeof change.at === "string" &&
+          Number.isFinite(Date.parse(change.at)) &&
+          typeof change.author === "string" &&
+          !!change.author.trim() &&
+          Object.keys(change).every((key) =>
+            ["from", "to", "ticketHead", "at", "author"].includes(key),
+          ),
+      )
+    )
+      return false;
+    return (
+      value.every((change, index) => index === 0 || value[index - 1].to === change.from) &&
+      value.at(-1).to === baseSha
+    );
   }
 }

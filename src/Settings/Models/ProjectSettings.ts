@@ -4,14 +4,17 @@ import { z } from "zod";
 
 import { commitSettingsSchema, defaultCommitSettings } from "@/Settings/Models/CommitSettings";
 import { Stacks } from "@/Support/Stacks";
-import { isBuiltInToolingKey } from "@/Tooling/Models/BuiltInTooling";
+import { BuiltInTooling } from "@/Tooling/Models/BuiltInTooling";
 
 const singleLine = z.string().regex(/^(?=.*\S)[^\r\n]+$/, "Must be a non-empty single line.");
 const toolingEntrySchema = z.looseObject({
   key: z
     .string()
     .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
-    .refine((key) => !isBuiltInToolingKey(key), "Key is reserved for a built-in command."),
+    .refine(
+      (key) => !BuiltInTooling.isBuiltInToolingKey(key),
+      "Key is reserved for a built-in command.",
+    ),
   section: singleLine,
   command: singleLine,
   description: singleLine.optional(),

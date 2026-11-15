@@ -13,16 +13,12 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Options";
 import { TICKET_CATEGORIES, TICKET_ID } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type { FeatureLedger, TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-  validateCategory,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
@@ -58,7 +54,7 @@ export class TicketService extends Service {
       }
       const id = `T-${String(highest + 1n).padStart(4, "0")}`;
       const path = join(feature.workspace, "tickets", `${id}.md`);
-      if (lstatIfPresent(path)) throw new Error(`Ticket already exists: ${id}.`);
+      if (FileSystem.lstatIfPresent(path)) throw new Error(`Ticket already exists: ${id}.`);
       this.pathSafety.assertTicketPath(feature.workspace, path);
       const ticket = {
         id,
@@ -122,8 +118,8 @@ export class TicketService extends Service {
   }
 
   public ticketUpdate(options: TicketUpdateOptions): { ticket: string; path: string } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (
       options.title === undefined &&
       options.reporter === undefined &&
@@ -146,7 +142,7 @@ export class TicketService extends Service {
     if (options.reporter !== undefined && !options.reporter.trim()) {
       throw new Error("Reporter must not be empty.");
     }
-    if (options.category !== undefined) validateCategory(options.category);
+    if (options.category !== undefined) InputValidation.validateCategory(options.category);
     if (options.blocker !== undefined && !options.blocker.trim()) {
       throw new Error("Blocker reason must not be empty.");
     }
@@ -207,8 +203,8 @@ export class TicketService extends Service {
   }
 
   public ticketComment(options: TicketCommentOptions): { ticket: string; path: string } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (!options.details.trim()) throw new Error("Comment details must not be empty.");
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {

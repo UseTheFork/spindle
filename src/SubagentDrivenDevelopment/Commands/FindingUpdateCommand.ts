@@ -4,13 +4,13 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { FindingUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
 
 export class FindingUpdateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "finding")
+    SddCommandGroups.group(root, "finding")
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
       .requiredOption(

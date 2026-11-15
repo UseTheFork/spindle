@@ -1,4 +1,4 @@
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {

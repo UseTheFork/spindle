@@ -3,12 +3,12 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { toolGroup } from "@/Tooling/Commands/groups";
+import { ToolCommandGroups } from "@/Tooling/Commands/ToolCommandGroups";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
 export class ToolingRemoveCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    toolGroup(program)
+    ToolCommandGroups.toolGroup(program)
       .command("remove <key>")
       .description("Remove a registered tooling command and regenerate docs/agents/tooling.md.")
       .allowExcessArguments(false)

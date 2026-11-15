@@ -2,7 +2,7 @@ import type {
   CatalogDeletion,
   CatalogKind,
   CatalogSelection,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintUpdateInput {

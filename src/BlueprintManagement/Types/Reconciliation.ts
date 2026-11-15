@@ -1,4 +1,4 @@
-import type { CatalogDeletion } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { CatalogDeletion } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import type { BlueprintHandler, BlueprintUpdatePlan } from "@/BlueprintManagement/Types/Blueprint";
 import type {
   ConflictPolicy,

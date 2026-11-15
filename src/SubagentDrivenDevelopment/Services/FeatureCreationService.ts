@@ -17,17 +17,10 @@ import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import {
-  assertRealDirectory,
-  lstatIfPresent,
-  isPathInside,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateCreateOptions,
-  featureSlug,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 
@@ -44,7 +37,7 @@ export class FeatureCreationService extends Service {
 
   public create(options: CreateOptions): FeaturePaths {
     this.assertApplicationBooted();
-    validateCreateOptions(options);
+    InputValidation.validateCreateOptions(options);
     const root = realpathSync(this.app.workspaceRoot);
     if (!statSync(root).isDirectory()) throw new Error("Workspace root must be a directory.");
 
@@ -52,9 +45,9 @@ export class FeatureCreationService extends Service {
     if (this.pathSafety.isIgnored(root, ".scratch/.sdd-create.lock")) {
       throw new Error("Feature destination is ignored: .scratch");
     }
-    const scratchEntry = lstatIfPresent(scratch);
+    const scratchEntry = FileSystem.lstatIfPresent(scratch);
     if (scratchEntry) {
-      assertRealDirectory(scratch, ".scratch");
+      FileSystem.assertRealDirectory(scratch, ".scratch");
     } else {
       try {
         mkdirSync(scratch);
@@ -67,10 +60,10 @@ export class FeatureCreationService extends Service {
         ) {
           throw error;
         }
-        assertRealDirectory(scratch, ".scratch");
+        FileSystem.assertRealDirectory(scratch, ".scratch");
       }
     }
-    if (!isPathInside(root, realpathSync(scratch))) {
+    if (!FileSystem.isPathInside(root, realpathSync(scratch))) {
       throw new Error(".scratch must remain inside this checkout.");
     }
 
@@ -78,9 +71,9 @@ export class FeatureCreationService extends Service {
     try {
       this.featureWorkspace.rejectAbandonedStaging(scratch);
       const id = this.featureWorkspace.nextFeatureId(scratch);
-      const feature = `${id}-${featureSlug(options.title)}`;
+      const feature = `${id}-${InputValidation.featureSlug(options.title)}`;
       const workspace = join(scratch, feature);
-      if (lstatIfPresent(workspace)) {
+      if (FileSystem.lstatIfPresent(workspace)) {
         throw new Error(`Feature workspace already exists: ${feature}`);
       }
 
@@ -148,7 +141,7 @@ export class FeatureCreationService extends Service {
         writeFileSync(join(staging, "sdd.json"), `${JSON.stringify(ledger, null, 2)}\n`, {
           flag: "wx",
         });
-        if (lstatIfPresent(workspace)) {
+        if (FileSystem.lstatIfPresent(workspace)) {
           throw new Error(`Feature workspace already exists: ${feature}`);
         }
         renameSync(staging, workspace);

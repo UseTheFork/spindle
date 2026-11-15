@@ -7,7 +7,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
 import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
-import { dispatch } from "@/cli";
+import { Cli } from "@/Cli";
 import { Command, type CommandConstructor } from "@/Commands/Command";
 import { Application } from "@/Foundation/Application";
 import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
@@ -234,7 +234,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     outcomes: [],
     guidanceInitialized: true,
   });
-  await dispatch(
+  await Cli.dispatch(
     raw,
     () => {
       application = Application.configure(nested, [
@@ -293,7 +293,7 @@ test("Commander preserves a real positional action and nested command path witho
     "maintainer",
   ];
   await expect(
-    dispatch(
+    Cli.dispatch(
       raw,
       () => {
         application = Application.configure(nested, [
@@ -324,7 +324,7 @@ test("Commander preserves a real positional action and nested command path witho
 test("semantic invalid input fails before Application construction or Git bootstrap", async () => {
   let constructions = 0;
   await expect(
-    dispatch(
+    Cli.dispatch(
       ["init", "--stack", "unsupported", "--no-interactive"],
       () => {
         constructions++;
@@ -381,7 +381,7 @@ test("provider declarations supply CLI schemas and singleton services without ca
     public async boot(): Promise<void> {}
   }
   const supplied = [CustomProvider, AnotherProvider, CustomProvider];
-  await dispatch(
+  await Cli.dispatch(
     ["custom", "--value", "hello"],
     (_invocation, providers) => Application.configure(nested, providers).create(),
     "custom-cli",
@@ -420,7 +420,7 @@ test("foundation command declarations participate in both parsing and registrati
     }
   }
   vi.spyOn(FoundationServiceProvider, "commands").mockReturnValue([FoundationCommand]);
-  await dispatch(["foundation-test"], () => Application.configure(nested).create());
+  await Cli.dispatch(["foundation-test"], () => Application.configure(nested).create());
   expect(resolved).toBe(true);
 });
 
@@ -444,7 +444,7 @@ test("distinct declared commands cannot define the same Commander command", asyn
     public async boot(): Promise<void> {}
   }
   await expect(
-    dispatch(
+    Cli.dispatch(
       ["duplicate"],
       () => {
         constructed = true;
@@ -495,8 +495,8 @@ test("concurrent dispatches retain their own provider selections", async () => {
     providers: readonly (typeof FirstProvider)[],
   ) => Application.configure(nested, providers).create();
   await Promise.all([
-    dispatch(["first"], createApp, "spindle", [FirstProvider]),
-    dispatch(["second"], createApp, "spindle", [SecondProvider]),
+    Cli.dispatch(["first"], createApp, "spindle", [FirstProvider]),
+    Cli.dispatch(["second"], createApp, "spindle", [SecondProvider]),
   ]);
   expect(resolved.sort()).toEqual(["first", "second"]);
 });

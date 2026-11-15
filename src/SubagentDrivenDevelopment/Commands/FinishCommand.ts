@@ -4,14 +4,14 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
 import type { FeatureFinishOptions } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class FinishCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("finish")
       .description(
         "Merge approved feature delivery, then clean up only after final checks pass for the validation target.",

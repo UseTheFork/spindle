@@ -19,7 +19,7 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
 import { FEATURE_DIRECTORY, type FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { Records } from "@/Support/Records";
 
 interface RecordCommitState {
@@ -83,7 +83,7 @@ export class WorkflowRecordsCommitter extends Service {
       .sort();
     const journal = this.journalPath(root, feature.feature);
     const directory = dirname(journal);
-    const journalEntry = lstatIfPresent(journal);
+    const journalEntry = FileSystem.lstatIfPresent(journal);
     let state: RecordCommitState;
     if (journalEntry) {
       const directoryEntry = lstatSync(directory);
@@ -163,7 +163,7 @@ export class WorkflowRecordsCommitter extends Service {
       try {
         mkdirSync(directory, { mode: 0o700 });
       } catch (error) {
-        if (!lstatIfPresent(directory)?.isDirectory()) throw error;
+        if (!FileSystem.lstatIfPresent(directory)?.isDirectory()) throw error;
       }
       const entry = lstatSync(directory);
       if (!entry.isDirectory() || entry.isSymbolicLink()) {
@@ -266,7 +266,7 @@ export class WorkflowRecordsCommitter extends Service {
 
   public hasPendingCommit(feature: FeaturePaths): boolean {
     const root = realpathSync(this.app.workspaceRoot);
-    return lstatIfPresent(this.journalPath(root, feature.feature)) !== undefined;
+    return FileSystem.lstatIfPresent(this.journalPath(root, feature.feature)) !== undefined;
   }
 
   private journalPath(root: string, feature: string): string {
@@ -306,7 +306,7 @@ export class WorkflowRecordsCommitter extends Service {
 
   private misplacedCheckoutError(root: string, feature: string, branch: string): Error | undefined {
     const path = join(this.commonDirectory(root), "spindle-feature-start", `${feature}.json`);
-    const entry = lstatIfPresent(path);
+    const entry = FileSystem.lstatIfPresent(path);
     if (!entry) return undefined;
     if (!entry.isFile() || entry.isSymbolicLink()) {
       return new Error(`Feature startup state must be a regular file: ${path}.`);
@@ -320,7 +320,7 @@ export class WorkflowRecordsCommitter extends Service {
 
   private digest(root: string, paths: string[]): string {
     const entries = paths.map((path) => {
-      const entry = lstatIfPresent(join(root, path));
+      const entry = FileSystem.lstatIfPresent(join(root, path));
       if (!entry) return [path, "deleted"];
       if (!entry.isFile() || entry.isSymbolicLink()) {
         throw new Error(`Canonical record is not a regular file: ${path}.`);
@@ -376,7 +376,7 @@ export class WorkflowRecordsCommitter extends Service {
       "sequencer",
     ]) {
       const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
-      if (lstatIfPresent(path)) {
+      if (FileSystem.lstatIfPresent(path)) {
         throw new Error(
           `Complete the existing Git operation (${operation}) before committing records.`,
         );

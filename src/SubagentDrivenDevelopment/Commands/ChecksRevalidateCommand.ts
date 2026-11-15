@@ -4,12 +4,12 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 
 export class ChecksRevalidateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "checks")
+    SddCommandGroups.group(root, "checks")
       .command("revalidate")
       .description("Move final-check validation to a committed fix.")
       .requiredOption(

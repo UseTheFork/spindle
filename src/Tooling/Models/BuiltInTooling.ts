@@ -21,6 +21,8 @@ export const builtInTooling: readonly ToolingEntry[] = [
   },
 ];
 
-export function isBuiltInToolingKey(key: string): boolean {
-  return builtInTooling.some((entry) => entry.key === key);
+export class BuiltInTooling {
+  public static isBuiltInToolingKey(key: string): boolean {
+    return builtInTooling.some((entry) => entry.key === key);
+  }
 }

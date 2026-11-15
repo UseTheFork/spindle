@@ -21,11 +21,7 @@ import type {
   TicketDocument,
   RecoveryWrite,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  lstatIfPresent,
-  waitBriefly,
-  LOCK_TIMEOUT_MS,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem, LOCK_TIMEOUT_MS } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@/Support/Records";
@@ -97,7 +93,7 @@ export class WorkspaceTransaction extends Service {
         )
           throw error;
         if (this.staleLockReason(lockPath)) {
-          const lockEntry = lstatIfPresent(lockPath);
+          const lockEntry = FileSystem.lstatIfPresent(lockPath);
           if (!lockEntry?.isFile() || lockEntry.isSymbolicLink()) {
             throw new Error(
               `Ticket lock path is not a regular file and was preserved: ${lockPath}.`,
@@ -111,14 +107,14 @@ export class WorkspaceTransaction extends Service {
             `Timed out waiting for ticket updates; inspect ${lockPath} before retrying.`,
           );
         }
-        waitBriefly();
+        FileSystem.waitBriefly();
       }
     }
   }
 
   private recoverWrites(workspace: string): RecoveryWrite[] {
     const journalPath = join(workspace, ".sdd-write-recovery.json");
-    const entry = lstatIfPresent(journalPath);
+    const entry = FileSystem.lstatIfPresent(journalPath);
     if (!entry) return [];
     const records = this.workflowRecordsCommitter.assertWritable(workspace);
     if (!entry.isFile() || entry.isSymbolicLink())
@@ -150,12 +146,12 @@ export class WorkspaceTransaction extends Service {
       }
       if (write.path !== "sdd.json") this.pathSafety.assertTicketPath(workspace, target);
       else {
-        const ledgerEntry = lstatIfPresent(target);
+        const ledgerEntry = FileSystem.lstatIfPresent(target);
         if (!ledgerEntry?.isFile() || ledgerEntry.isSymbolicLink()) {
           throw new Error("Feature ledger must be a regular file during ticket recovery.");
         }
       }
-      const current = lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
+      const current = FileSystem.lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
       if (current !== write.before && current !== write.after) {
         throw new Error(
           `Ticket recovery found conflicting external content at ${write.path}; preserved all files.`,
@@ -176,7 +172,7 @@ export class WorkspaceTransaction extends Service {
       throw new Error("Workflow writes require the workspace transaction lock.");
     }
     const journalPath = join(workspace, ".sdd-write-recovery.json");
-    if (lstatIfPresent(journalPath)) {
+    if (FileSystem.lstatIfPresent(journalPath)) {
       throw new Error("A pending ticket write recovery journal must be resolved first.");
     }
     this.workflowRecordsCommitter.assertWritable(workspace);
@@ -202,7 +198,7 @@ export class WorkspaceTransaction extends Service {
 
   private atomicWrite(path: string, contents: string): void {
     const temporary = `${path}.${randomUUID()}.tmp`;
-    const existing = lstatIfPresent(path);
+    const existing = FileSystem.lstatIfPresent(path);
     const mode = existing ? existing.mode & 0o777 : 0o666 & ~process.umask();
     try {
       writeFileSync(temporary, contents, { flag: "wx", mode: mode | 0o200 });
@@ -284,14 +280,14 @@ export class WorkspaceTransaction extends Service {
             `Timed out waiting for another feature workspace creation; inspect ${lockPath} and remove it only after confirming its owner stopped.`,
           );
         }
-        waitBriefly();
+        FileSystem.waitBriefly();
       }
     }
   }
 
   public staleLockReason(lockPath: string): string | undefined {
     try {
-      const entry = lstatIfPresent(lockPath);
+      const entry = FileSystem.lstatIfPresent(lockPath);
       if (!entry) return undefined;
       if (!entry.isFile()) return "the lock path is not a regular file";
       let owner: { pid?: unknown };

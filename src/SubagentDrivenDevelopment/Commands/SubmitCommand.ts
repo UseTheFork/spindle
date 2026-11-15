@@ -4,13 +4,13 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
 
 export class SubmitCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    const submitCommand = group(root)
+    const submitCommand = SddCommandGroups.group(root)
       .command("submit")
       .description("Register an implementation or review report.")
       .requiredOption(

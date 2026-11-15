@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
 
 import {
+  BlueprintCatalogOperations,
   blueprintCatalog,
-  validateBlueprintCatalog,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 test("catalog validation preserves schema and path diagnostics for static definitions", () => {
   const entry = { path: "selected.agent.md", stacks: [] };
@@ -51,13 +51,13 @@ test("catalog validation preserves schema and path diagnostics for static defini
     });
   }
   for (const { data, diagnostic } of cases) {
-    expect(() => validateBlueprintCatalog(data)).toThrow(diagnostic);
+    expect(() => BlueprintCatalogOperations.validateBlueprintCatalog(data)).toThrow(diagnostic);
   }
 });
 
 test("static catalog normalization preserves logical keys, directories, and Stack selection data", () => {
   expect(
-    validateBlueprintCatalog({
+    BlueprintCatalogOperations.validateBlueprintCatalog({
       agents: {
         reviewer: {
           path: "group/reviewer.agent.md",
@@ -92,8 +92,9 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
   });
 
   expect(
-    validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: true } }, {}, {}))
-      .agents[0],
+    BlueprintCatalogOperations.validateBlueprintCatalog(
+      catalog({ reviewer: { ...entry, canReview: true } }, {}, {}),
+    ).agents[0],
   ).toEqual({
     key: "reviewer",
     path: "reviewer.agent.md",
@@ -105,17 +106,22 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
   expect(blueprintCatalog.agents["sdd-code-reviewer"]?.canReview).toBe(true);
   expect(blueprintCatalog.agents["sdd-task-reviewer"]?.canReview).toBe(true);
   expect(
-    validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: false } }, {}, {}))
-      .agents[0]?.canReview,
+    BlueprintCatalogOperations.validateBlueprintCatalog(
+      catalog({ reviewer: { ...entry, canReview: false } }, {}, {}),
+    ).agents[0]?.canReview,
   ).toBe(false);
   expect(() =>
-    validateBlueprintCatalog(catalog({ reviewer: { ...entry, canReview: "yes" } }, {}, {})),
+    BlueprintCatalogOperations.validateBlueprintCatalog(
+      catalog({ reviewer: { ...entry, canReview: "yes" } }, {}, {}),
+    ),
   ).toThrow(/canReview.*boolean/);
   expect(() =>
-    validateBlueprintCatalog(catalog({}, { reviewer: { ...entry, canReview: true } }, {})),
+    BlueprintCatalogOperations.validateBlueprintCatalog(
+      catalog({}, { reviewer: { ...entry, canReview: true } }, {}),
+    ),
   ).toThrow(/canReview.*agents/);
   expect(() =>
-    validateBlueprintCatalog(
+    BlueprintCatalogOperations.validateBlueprintCatalog(
       catalog({}, {}, { reviewer: { path: "reviewer/", stacks: [], canReview: true } }),
     ),
   ).toThrow(/canReview.*agents/);

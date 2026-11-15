@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
-import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 
 export class PathSafety extends Service {
   public constructor(
@@ -16,19 +16,19 @@ export class PathSafety extends Service {
 
   public assertTicketPath(workspace: string, path: string): void {
     const ticketsDirectory = join(workspace, "tickets");
-    const directoryEntry = lstatIfPresent(ticketsDirectory);
+    const directoryEntry = FileSystem.lstatIfPresent(ticketsDirectory);
     if (!directoryEntry?.isDirectory() || directoryEntry.isSymbolicLink()) {
       throw new Error("Feature tickets path must be a real directory.");
     }
     if (
-      !isPathInside(ticketsDirectory, path) ||
+      !FileSystem.isPathInside(ticketsDirectory, path) ||
       !/^T-\d{4,}\.md$/.test(path.slice(ticketsDirectory.length + 1))
     ) {
       throw new Error("Ticket path must be a numbered Markdown file inside tickets/.");
     }
-    const entry = lstatIfPresent(path);
+    const entry = FileSystem.lstatIfPresent(path);
     if (entry && !entry.isFile()) throw new Error(`Ticket path must be a regular file: ${path}.`);
-    if (entry && !isPathInside(ticketsDirectory, realpathSync(path))) {
+    if (entry && !FileSystem.isPathInside(ticketsDirectory, realpathSync(path))) {
       throw new Error("Ticket file must remain inside the feature tickets directory.");
     }
     const root = realpathSync(this.app.workspaceRoot);
@@ -63,10 +63,10 @@ export class PathSafety extends Service {
   }
 
   public assertReadyReadable(workspace: string): void {
-    if (lstatIfPresent(join(workspace, ".sdd-write-recovery.json"))) {
+    if (FileSystem.lstatIfPresent(join(workspace, ".sdd-write-recovery.json"))) {
       throw new Error("Pending ticket recovery journal; run a mutating ticket command to recover.");
     }
-    if (lstatIfPresent(join(workspace, ".sdd-tickets.lock"))) {
+    if (FileSystem.lstatIfPresent(join(workspace, ".sdd-tickets.lock"))) {
       throw new Error("Ticket updates are in progress; retry ready after the lock is released.");
     }
   }

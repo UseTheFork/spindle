@@ -21,17 +21,10 @@ import type {
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { hasOnlyRetryableDeliveryCheckIssue } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import {
-  assertDeliveryOwner,
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { Records } from "@/Support/Records";
 
@@ -69,8 +62,8 @@ export class ChecksService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("checks require needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (options.remove && !options.details?.trim()) {
@@ -188,8 +181,8 @@ export class ChecksService extends Service {
     closureBlocked?: string[];
     retry?: string;
   } & CommitIdentity {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (options.remove || options.details !== undefined)
       throw new Error("Post-merge checks must be declared as a complete list.");
     const commands = (Array.isArray(options.command) ? options.command : [options.command]).map(
@@ -259,8 +252,8 @@ export class ChecksService extends Service {
     closureBlocked?: string[];
     retry?: string;
   } & CommitIdentity {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     const result = options.result;
     if (result !== "passed" && result !== "failed" && result !== "unavailable")
@@ -384,7 +377,7 @@ export class ChecksService extends Service {
     const progress = this.workflowPolicy.requireProgress(ledger, ticket);
     const integration = progress.integration;
     const postMerge = integration?.postMerge;
-    assertTicketOwner(progress.owner, author, feature, ticket);
+    WorkflowPolicy.assertTicketOwner(progress.owner, author, feature, ticket);
     if (
       progress.execution !== "integrated" ||
       progress.status === "closed" ||
@@ -486,8 +479,8 @@ export class ChecksService extends Service {
   } & CommitIdentity {
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("checks record needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
@@ -587,7 +580,7 @@ export class ChecksService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (options.remove && !options.details?.trim()) {
@@ -601,7 +594,7 @@ export class ChecksService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       if (delivery.execution === "reviewing" && (delivery.reviewAssignments?.length ?? 0) > 0) {
         throw new Error("Aggregate review is frozen; required delivery checks cannot change.");
       }
@@ -649,7 +642,7 @@ export class ChecksService extends Service {
     record: CheckRecord;
     idempotent?: boolean;
   } & CommitIdentity {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
@@ -664,7 +657,7 @@ export class ChecksService extends Service {
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
       if (!delivery.checks) throw new Error("No required checks are declared for delivery.");
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const requirement = delivery.checks.required.find(
         (item) => item.command === command && !item.removedAt,
       );
@@ -697,7 +690,7 @@ export class ChecksService extends Service {
       };
       delivery.checks.records.push(record);
       if (record.result === "failed") delivery.execution = "changes-requested";
-      else if (hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)) {
+      else if (CheckPolicy.hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)) {
         delivery.execution =
           (delivery.reviewAssignments?.length ?? 0) > 0 ? "reviewing" : "unstarted";
       }

@@ -72,7 +72,7 @@ updated independently and keeps its source path. Skills remain directories led
 by `SKILL.md`.
 
 The asset catalog contains only declarative metadata and type-only imports.
-`src/BlueprintManagement/Catalog/BlueprintCatalog.ts` owns its types, validation,
+`src/BlueprintManagement/Catalog/BlueprintCatalogOperations.ts` owns its types, validation,
 and validated export, including the reviewer metadata consumed by SDD.
 Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.

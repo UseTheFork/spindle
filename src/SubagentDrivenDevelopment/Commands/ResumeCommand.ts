@@ -4,7 +4,7 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
@@ -12,7 +12,7 @@ import { StatusSummaryService } from "@/SubagentDrivenDevelopment/Services/Statu
 
 export class ResumeCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("resume")
       .description("Restore the recorded ticket or delivery gate and assignment.")
       .requiredOption(

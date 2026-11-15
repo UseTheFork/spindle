@@ -12,12 +12,12 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
@@ -44,7 +44,7 @@ export class DeliveryCorrectionService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
     if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
       throw new Error("--findings must contain canonical finding IDs.");
@@ -86,7 +86,7 @@ export class DeliveryCorrectionService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const attempts = (delivery.correctionAttempts ??= []);
       const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
@@ -243,7 +243,7 @@ export class DeliveryCorrectionService extends Service {
         handoffs: [],
       };
       this.reportEvidence.assertReportPath(feature, assignment.report, false);
-      if (lstatIfPresent(assignment.report)) {
+      if (FileSystem.lstatIfPresent(assignment.report)) {
         throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
       }
       const attempt: CorrectionAttempt = {

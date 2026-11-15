@@ -4,13 +4,13 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { TicketSelection } from "@/SubagentDrivenDevelopment/Models/Options";
 import { TicketSyncService } from "@/SubagentDrivenDevelopment/Services/TicketSyncService";
 
 export class SyncCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("sync")
       .description("Synchronize a ticket baseline with its current feature state.")
       .requiredOption(

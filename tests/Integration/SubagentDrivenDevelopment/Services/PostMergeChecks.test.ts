@@ -5,10 +5,7 @@ import { dirname, join } from "node:path";
 import { expect, test } from "vitest";
 
 import { EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  isDeliveryProgress,
-  isIntegrationRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { ProgressSchema } from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
 
 import {
   cliOutput,
@@ -364,11 +361,11 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     integratedBy: "controller",
     files: ["source.ts"],
   };
-  expect(isIntegrationRecord({ ...base, postMerge: { status: "passed", mergeSha: sha } })).toBe(
-    false,
-  );
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({ ...base, postMerge: { status: "passed", mergeSha: sha } }),
+  ).toBe(false);
+  expect(
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: { status: "passed", mergeSha: sha, checks: { required: [], records: [] } },
     }),
@@ -383,13 +380,13 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     recordedAt: at,
   };
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: { status: "passed", mergeSha: sha, checks: { required, records: [record] } },
     }),
   ).toBe(false);
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: {
         status: "passed",
@@ -399,7 +396,7 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     }),
   ).toBe(false);
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: {
         status: "passed",
@@ -412,9 +409,9 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
 
 test("legacy accepted and check-invalidation states are rejected", () => {
   expect(EXECUTION_STATES).not.toContain("accepted");
-  expect(isDeliveryProgress({ execution: "accepted", history: [] })).toBe(false);
+  expect(ProgressSchema.isDeliveryProgress({ execution: "accepted", history: [] })).toBe(false);
   expect(
-    isDeliveryProgress({
+    ProgressSchema.isDeliveryProgress({
       execution: "reviewing",
       history: [],
       checks: { required: [], records: [], invalidations: [] },

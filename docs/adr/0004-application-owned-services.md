@@ -56,7 +56,8 @@ Named module-level operations belong on classes rather than standalone functions
 Stateless utilities use static methods, not artificial services. General-purpose
 utilities shared across domains belong in shared Support; domain-specific helpers
 remain in their owning domain. Stateful behavior stays on its owning service or
-class. Anonymous callbacks and small functions local to a method remain appropriate.
+class. Each class belongs in its own file. Anonymous callbacks and small functions
+local to a method remain appropriate.
 
 `FoundationServiceProvider` explicitly binds the ordinary, stateful
 `ConsoleOutputService` singleton. CLI dispatch configures its invocation-local

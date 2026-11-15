@@ -3,8 +3,8 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { reviewSchema } from "@/SubagentDrivenDevelopment/Commands/groups";
 import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type {
   ReviewOptions,
   ReviewRequireOptions,
@@ -13,7 +13,7 @@ import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewServic
 
 export class ReviewCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    reviewSchema(root).action(
+    SddCommandGroups.reviewSchema(root).action(
       async (
         action: string | undefined,
         options: Partial<ReviewOptions & ReviewRequireOptions>,

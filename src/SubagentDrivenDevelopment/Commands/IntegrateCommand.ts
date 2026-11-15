@@ -4,13 +4,13 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 
 export class IntegrateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("integrate")
       .description("Merge a currently reviewed ticket commit into the feature branch.")
       .requiredOption(

@@ -13,10 +13,10 @@ import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/Ticket
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import {
   FeatureFinalizationService,
   type FeatureFinishOptions,
@@ -41,7 +41,7 @@ export class DeliveryService extends Service {
   }
 
   public finish(options: FeatureFinishOptions): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature =
       this.finalization.recordedFeature(options.spec) ??
       this.featureInspectionService.resolveFeature(options.spec);
@@ -61,7 +61,7 @@ export class DeliveryService extends Service {
       if (ledger.tickets.length === 0) {
         throw new Error("Cannot finish; the feature must contain at least one ticket.");
       }
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const tickets = this.ticketRepository.readTickets(feature.workspace);
       const missing = ledger.tickets
         .filter((progress) => progress.status !== "closed")
@@ -139,7 +139,7 @@ export class DeliveryService extends Service {
           `Cannot finish; final delivery checks are not current and passing:\n${checkBlockers.join("\n")}`,
         );
       }
-      const reviewers = requiredDeliveryReviewers(ledger, delivery);
+      const reviewers = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
       const assignments = delivery.reviewAssignments ?? [];
       const reviewBlockers: string[] = [];
       if (assignments.length !== reviewers.length) {

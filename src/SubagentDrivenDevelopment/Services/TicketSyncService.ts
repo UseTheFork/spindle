@@ -11,17 +11,11 @@ import type {
   FeatureLedger,
   TicketProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -48,15 +42,20 @@ export class TicketSyncService extends Service {
     mergeCommit?: string;
     idempotent?: boolean;
   } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     this.assertGitEnvironment();
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     const root = this.assertCanonicalFeature(feature);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
+      WorkflowPolicy.assertTicketOwner(
+        progress.owner,
+        options.author,
+        feature.feature,
+        options.ticket,
+      );
       if (
         progress.execution === "integrated" &&
         progress.integration?.postMerge?.status === "pending"
@@ -345,7 +344,7 @@ export class TicketSyncService extends Service {
           .gitBuffer(["rev-parse", "--git-path", operation], workspace)
           .toString("utf8")
           .trim();
-        if (lstatIfPresent(resolve(workspace, gitPath)))
+        if (FileSystem.lstatIfPresent(resolve(workspace, gitPath)))
           throw new Error(`Resolve Git operation ${operation} before synchronizing.`);
       }
     }

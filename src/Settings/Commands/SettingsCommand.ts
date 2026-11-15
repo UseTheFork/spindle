@@ -3,7 +3,7 @@ import type { Command as CommanderCommand } from "commander";
 import { Command } from "@/Commands/Command";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { promptSettings } from "@/Settings/Commands/Prompts";
+import { SettingsPrompts } from "@/Settings/Commands/SettingsPrompts";
 import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
 import { SettingsService } from "@/Settings/Services/SettingsService";
 
@@ -29,7 +29,7 @@ export class SettingsCommand extends Command {
         }
         const app = await createApp();
         const { settings } = ProjectSettingsService.requireCurrent(app);
-        const updated = await promptSettings(settings);
+        const updated = await SettingsPrompts.promptSettings(settings);
         const data = await (await app.make(SettingsService)).save(updated);
         (await app.make(ConsoleOutputService)).result({
           level: "success",

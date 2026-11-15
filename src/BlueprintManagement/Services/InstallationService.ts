@@ -1,40 +1,10 @@
 import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { assertSingleFileDestination } from "@/BlueprintManagement/Support/BlueprintFiles";
+import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
 import type { PreparedBlueprintFile } from "@/BlueprintManagement/Types/Installation";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-
-async function installFile(
-  file: PreparedBlueprintFile,
-  destinationPath: string,
-  replace = false,
-  requireText = false,
-) {
-  await mkdir(dirname(destinationPath), { recursive: true });
-  if (replace && requireText) {
-    await assertSingleFileDestination(destinationPath, true);
-    const stagingDirectory = await mkdtemp(join(dirname(destinationPath), ".spindle-"));
-    try {
-      const stagedPath = join(stagingDirectory, basename(destinationPath));
-      await writeFile(stagedPath, file.renderedText!, { flag: "wx" });
-      await assertSingleFileDestination(destinationPath, true);
-      await rename(stagedPath, destinationPath);
-    } finally {
-      await rm(stagingDirectory, { recursive: true, force: true });
-    }
-    return;
-  }
-  if (replace) await rm(destinationPath, { recursive: true, force: true });
-  if (file.renderedText === null) {
-    await copyFile(file.sourcePath, destinationPath);
-  } else if (requireText) {
-    await writeFile(destinationPath, file.renderedText, { flag: "wx" });
-  } else {
-    await writeFile(destinationPath, file.renderedText);
-  }
-}
 
 export class InstallationService extends Service {
   constructor(app: Application) {
@@ -57,7 +27,7 @@ export class InstallationService extends Service {
           ? join(target, file.outputPath)
           : target;
       try {
-        await installFile(
+        await InstallationService.installFile(
           file,
           destinationPath,
           replace,
@@ -70,6 +40,36 @@ export class InstallationService extends Service {
         );
       }
       onFileApplied?.(file, destinationPath);
+    }
+  }
+
+  private static async installFile(
+    file: PreparedBlueprintFile,
+    destinationPath: string,
+    replace = false,
+    requireText = false,
+  ) {
+    await mkdir(dirname(destinationPath), { recursive: true });
+    if (replace && requireText) {
+      await BlueprintFiles.assertSingleFileDestination(destinationPath, true);
+      const stagingDirectory = await mkdtemp(join(dirname(destinationPath), ".spindle-"));
+      try {
+        const stagedPath = join(stagingDirectory, basename(destinationPath));
+        await writeFile(stagedPath, file.renderedText!, { flag: "wx" });
+        await BlueprintFiles.assertSingleFileDestination(destinationPath, true);
+        await rename(stagedPath, destinationPath);
+      } finally {
+        await rm(stagingDirectory, { recursive: true, force: true });
+      }
+      return;
+    }
+    if (replace) await rm(destinationPath, { recursive: true, force: true });
+    if (file.renderedText === null) {
+      await copyFile(file.sourcePath, destinationPath);
+    } else if (requireText) {
+      await writeFile(destinationPath, file.renderedText, { flag: "wx" });
+    } else {
+      await writeFile(destinationPath, file.renderedText);
     }
   }
 }

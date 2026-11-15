@@ -7,7 +7,7 @@ import { test, expect } from "vitest";
 import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
 import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
-import { preparePlannedBlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
+import { BlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
 import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
 import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
 import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
@@ -74,7 +74,7 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       "templates/sub/x.md",
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
-    const prepared = await preparePlannedBlueprintFiles(files, context);
+    const prepared = await BlueprintFiles.preparePlannedBlueprintFiles(files, context);
     const app = applicationFixture(target, source);
     await new LoadProjectSettings().bootstrap(app);
     await app.boot();

@@ -20,26 +20,16 @@ import type {
   ResumeOptions,
 } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import {
-  CheckPolicy,
-  hasOnlyRetryableDeliveryCheckIssue,
-} from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import {
-  assertDeliveryOwner,
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
@@ -70,14 +60,14 @@ export class AssignmentService extends Service {
     idempotent?: boolean;
   } {
     if (options.scope !== "delivery") throw new Error("--scope must be 'delivery'.");
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
       if (delivery.owner) {
-        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         return { scope: "delivery", owner: delivery.owner, idempotent: true };
       }
       const incomplete = ledger.tickets.filter(
@@ -116,8 +106,8 @@ export class AssignmentService extends Service {
     assignment: ImplementationAssignment;
     headSha: string;
   } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -126,7 +116,12 @@ export class AssignmentService extends Service {
       const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "implementing" && progress.assignment) {
-        assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
+        WorkflowPolicy.assertTicketOwner(
+          progress.owner,
+          options.author,
+          feature.feature,
+          options.ticket,
+        );
         if (
           !progress.worktree ||
           !options.workspace ||
@@ -169,7 +164,7 @@ export class AssignmentService extends Service {
 
       const report = join(feature.workspace, "reports", `${options.ticket}-implementation.md`);
       this.reportEvidence.assertReportPath(feature, report, false);
-      if (lstatIfPresent(report)) {
+      if (FileSystem.lstatIfPresent(report)) {
         throw new Error(`Assigned report already exists and was preserved: ${report}.`);
       }
       const pendingPostMerge = ledger.tickets.some(
@@ -262,8 +257,8 @@ export class AssignmentService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("resume requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -276,7 +271,12 @@ export class AssignmentService extends Service {
       let handoffRecorded = false;
       if (progress.owner && progress.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
+          WorkflowPolicy.assertTicketOwner(
+            progress.owner,
+            options.author,
+            feature.feature,
+            options.ticket,
+          );
         }
         const previousOwner = progress.owner;
         progress.owner = options.author.trim();
@@ -353,18 +353,18 @@ export class AssignmentService extends Service {
     finished: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       let handoffRecorded = false;
       if (!delivery.owner) {
-        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       }
       if (delivery.owner && delivery.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+          WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         }
         const previousOwner = delivery.owner;
         delivery.owner = options.author.trim();
@@ -420,7 +420,7 @@ export class AssignmentService extends Service {
         nextAction = "record-final-checks";
       } else if (
         delivery.execution === "changes-requested" &&
-        !hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)
+        !CheckPolicy.hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)
       ) {
         nextAction = "correct";
       } else if (

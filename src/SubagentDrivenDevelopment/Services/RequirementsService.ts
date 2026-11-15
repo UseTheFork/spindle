@@ -9,15 +9,8 @@ import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  assertDeliveryOwner,
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class RequirementsService extends Service {
@@ -41,14 +34,14 @@ export class RequirementsService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryRequirementsDecide(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("requirements decide needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
@@ -68,7 +61,7 @@ export class RequirementsService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       if (!progress.baseSha) {
@@ -198,7 +191,7 @@ export class RequirementsService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       if (!delivery.baseSha) {

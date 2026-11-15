@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import matter from "gray-matter";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
@@ -23,27 +23,17 @@ import type {
   TicketDocument,
   TicketProgress,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  requiredTicketReviewers,
-  requiredDeliveryReviewers,
-} from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { reviewBatchNeedsRedispatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import {
-  assertDeliveryOwner,
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class ReviewService extends Service {
@@ -69,7 +59,7 @@ export class ReviewService extends Service {
     requirement: SpecialistReviewRequirement;
     idempotent?: boolean;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const agent = options.type.trim();
     const details = options.details.trim();
     if (!agent) throw new Error("Review agent must not be empty.");
@@ -88,7 +78,7 @@ export class ReviewService extends Service {
       return this.workspaceTransaction.run(feature.workspace, () => {
         const ledger = this.ledgerRepository.readLedger(feature);
         const delivery = ledger.delivery;
-        assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         if (delivery.execution === "reviewing" || (delivery.reviewHistory?.length ?? 0) > 0) {
           throw new Error("Delivery review assignments are already frozen.");
         }
@@ -126,7 +116,7 @@ export class ReviewService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("Review require needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
@@ -137,7 +127,7 @@ export class ReviewService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
 
       const existing = (progress.reviewRequirements ?? []).find(
         (requirement) => requirement.agent === agent,
@@ -190,11 +180,11 @@ export class ReviewService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (options.scope === "delivery") return this.deliveryReview(options);
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("Review requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
@@ -208,7 +198,7 @@ export class ReviewService extends Service {
       if (progress.execution !== "reviewing" || !progress.assignment) {
         throw new Error(`Ticket ${ticketId} must have a submitted implementation before review.`);
       }
-      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const implementationBlocker = this.assignmentPolicy.implementationReportBlocker(
         feature,
         progress.assignment,
@@ -228,7 +218,7 @@ export class ReviewService extends Service {
       if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
       const inventory = this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace);
 
-      const requiredReviewers = requiredTicketReviewers(ledger, progress);
+      const requiredReviewers = RequiredReviewers.requiredTicketReviewers(ledger, progress);
       let existing = progress.reviewAssignments ?? [];
       if (progress.assignment.action === "correct") {
         const completeInitialCoverage = requiredReviewers.every(({ agent, details }) => {
@@ -247,7 +237,9 @@ export class ReviewService extends Service {
           );
           if (!attempt) throw new Error("Corrective assignment has no persisted attempt record.");
           const correctionAssignments = attempt.reviewAssignments ?? [];
-          if (reviewBatchNeedsRedispatch(correctionAssignments, progress.findings ?? [])) {
+          if (
+            ReviewBatch.reviewBatchNeedsRedispatch(correctionAssignments, progress.findings ?? [])
+          ) {
             return this.redispatchUnavailableTicketReviews(
               { feature, ledger, ticket, progress, ticketId, author: options.author },
               correctionAssignments,
@@ -365,7 +357,7 @@ export class ReviewService extends Service {
         existing = [];
       }
 
-      if (reviewBatchNeedsRedispatch(existing, progress.findings ?? [])) {
+      if (ReviewBatch.reviewBatchNeedsRedispatch(existing, progress.findings ?? [])) {
         return this.redispatchUnavailableTicketReviews(
           { feature, ledger, ticket, progress, ticketId, author: options.author },
           existing,
@@ -485,7 +477,7 @@ export class ReviewService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const tickets = this.ticketRepository.readTickets(feature.workspace);
-      assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
       const incomplete = ledger.tickets
         .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
@@ -530,7 +522,7 @@ export class ReviewService extends Service {
         );
       }
       const inventory = this.gitEvidence.changedPaths(baseline);
-      const required = requiredDeliveryReviewers(ledger, delivery);
+      const required = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
       const correctionNumber =
         delivery.assignment?.action === "correct" ? delivery.assignment.attempt : undefined;
       const existing = delivery.reviewAssignments ?? [];
@@ -551,7 +543,7 @@ export class ReviewService extends Service {
         ) {
           if (
             delivery.execution === "reviewing" &&
-            reviewBatchNeedsRedispatch(existing, delivery.findings ?? [])
+            ReviewBatch.reviewBatchNeedsRedispatch(existing, delivery.findings ?? [])
           ) {
             const retired = existing.filter((assignment) => assignment.result === "unavailable");
             delivery.reviewHistory = [...(delivery.reviewHistory ?? []), ...retired];
@@ -650,7 +642,7 @@ export class ReviewService extends Service {
         : `${ticketId}-review-${id}.md`,
     );
     this.reportEvidence.assertReportPath(feature, report, false);
-    if (lstatIfPresent(report)) {
+    if (FileSystem.lstatIfPresent(report)) {
       throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
     }
     return {
@@ -778,7 +770,7 @@ export class ReviewService extends Service {
         : `final-review-${id}.md`,
     );
     this.reportEvidence.assertReportPath(feature, report, false);
-    if (lstatIfPresent(report)) {
+    if (FileSystem.lstatIfPresent(report)) {
       throw new Error(`Assigned report already exists and was preserved: ${report}.`);
     }
     return {

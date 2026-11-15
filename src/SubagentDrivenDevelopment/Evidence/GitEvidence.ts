@@ -13,7 +13,7 @@ import type {
   FeaturePaths,
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 
 export class GitEvidence extends Service {
@@ -60,7 +60,7 @@ export class GitEvidence extends Service {
     const addReport = (report: string | undefined) => {
       if (!report) return;
       const path = isAbsolute(report) ? resolve(report) : resolve(feature.workspace, report);
-      if (isPathInside(reports, path) && /^[^/]+\.md$/.test(relative(reports, path))) {
+      if (FileSystem.isPathInside(reports, path) && /^[^/]+\.md$/.test(relative(reports, path))) {
         paths.add(relative(root, path));
       }
     };
@@ -172,7 +172,7 @@ export class GitEvidence extends Service {
       "rebase-apply",
       "sequencer",
     ]) {
-      if (lstatIfPresent(gitPath(operation))) {
+      if (FileSystem.lstatIfPresent(gitPath(operation))) {
         throw new Error(
           `Existing Git operation ${operation} was preserved; inspect it before dispatch.`,
         );
@@ -183,7 +183,9 @@ export class GitEvidence extends Service {
         .toString("utf8")
         .trim(),
     );
-    if (lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))) {
+    if (
+      FileSystem.lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))
+    ) {
       throw new Error("Pending workflow-record commit journal must be resolved before dispatch.");
     }
     const status = this.gitBuffer(
@@ -213,7 +215,7 @@ export class GitEvidence extends Service {
       if (!allowed.has(path)) {
         throw new Error(`Unrelated or non-canonical changes were preserved: ${path}.`);
       }
-      const file = lstatIfPresent(join(root, path));
+      const file = FileSystem.lstatIfPresent(join(root, path));
       if (!file?.isFile() || file.isSymbolicLink()) {
         throw new Error(`Canonical workflow record is missing or unsafe: ${path}.`);
       }
@@ -498,7 +500,7 @@ export class GitEvidence extends Service {
     }
 
     for (const path of knownPaths) {
-      const entry = lstatIfPresent(join(workspace ?? this.app.workspaceRoot, path));
+      const entry = FileSystem.lstatIfPresent(join(workspace ?? this.app.workspaceRoot, path));
       if (!entry) {
         throw new Error(
           `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
@@ -572,7 +574,7 @@ export class GitEvidence extends Service {
   public ticketWorkspace(progress: TicketProgress): string | undefined {
     if (!progress.worktree) return undefined;
     const recorded = progress.worktree;
-    const entry = lstatIfPresent(recorded.workspace);
+    const entry = FileSystem.lstatIfPresent(recorded.workspace);
     if (
       !entry?.isDirectory() ||
       entry.isSymbolicLink() ||
@@ -605,7 +607,7 @@ export class GitEvidence extends Service {
       .toString("utf8")
       .split("\0");
     if (
-      isPathInside(canonical, recorded.workspace) ||
+      FileSystem.isPathInside(canonical, recorded.workspace) ||
       realpathSync(common) !== realpathSync(ticketCommon) ||
       realpathSync(top) !== recorded.workspace ||
       !registrations.includes(`worktree ${recorded.workspace}`) ||

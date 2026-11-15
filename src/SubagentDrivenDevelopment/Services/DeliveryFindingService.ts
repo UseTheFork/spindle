@@ -17,11 +17,10 @@ import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/Ticket
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { validateTicketId } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryFindingService extends Service {
@@ -46,14 +45,14 @@ export class DeliveryFindingService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     if (options.blocking === options.nonBlocking) {
       throw new Error("Choose exactly one of --blocking or --non-blocking.");
     }
     if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
     if (!options.details.trim()) throw new Error("Finding details must not be empty.");
-    if (options.relatedTicket) validateTicketId(options.relatedTicket);
+    if (options.relatedTicket) InputValidation.validateTicketId(options.relatedTicket);
     if (options.link !== undefined && options.relatedTicket !== undefined) {
       throw new Error("--related-ticket cannot be combined with --link.");
     }
@@ -61,11 +60,9 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.reviewAssignments?.find(
-        (candidate) =>
-          candidate.id === options.assignment &&
-          candidate.scope === "delivery",
+        (candidate) => candidate.id === options.assignment && candidate.scope === "delivery",
       );
       if (!assignment) {
         throw new Error(`Delivery review assignment not found: ${options.assignment}.`);
@@ -182,7 +179,7 @@ export class DeliveryFindingService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
     }
@@ -210,7 +207,7 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       const identity = this.gitEvidence.deliveryCommitIdentity(
@@ -233,7 +230,7 @@ export class DeliveryFindingService extends Service {
             "--requirements-decision must identify an approved decision for this finding and current requirements.",
           );
         }
-        const requiredReviewers = requiredDeliveryReviewers(ledger, delivery);
+        const requiredReviewers = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
         const assignments = delivery.reviewAssignments ?? [];
         for (const { agent } of requiredReviewers) {
           const matching = assignments.filter(

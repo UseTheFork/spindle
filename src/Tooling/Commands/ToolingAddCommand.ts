@@ -4,12 +4,12 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { toolGroup } from "@/Tooling/Commands/groups";
+import { ToolCommandGroups } from "@/Tooling/Commands/ToolCommandGroups";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
 export class ToolingAddCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    toolGroup(program)
+    ToolCommandGroups.toolGroup(program)
       .command("add")
       .description("Register a project tooling command and regenerate docs/agents/tooling.md.")
       .requiredOption(

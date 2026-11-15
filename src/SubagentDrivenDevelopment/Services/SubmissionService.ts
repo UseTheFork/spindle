@@ -15,19 +15,10 @@ import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/Ledger
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  failedReviewWithoutFindings,
-  reviewBatchRequestsChanges,
-} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import {
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliverySubmissionService } from "@/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -61,7 +52,7 @@ export class SubmissionService extends Service {
   } {
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
-      validateAuthor(options.author);
+      InputValidation.validateAuthor(options.author);
       if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
       const feature = this.featureInspectionService.resolveFeature(options.spec);
       const delivery = this.ledgerRepository.readLedger(feature).delivery;
@@ -76,8 +67,8 @@ export class SubmissionService extends Service {
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     const ticketId = options.ticket;
     if (!ticketId) throw new Error("Submit requires --ticket or --scope delivery.");
-    validateTicketId(ticketId);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(ticketId);
+    InputValidation.validateAuthor(options.author);
     if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     const ledger = this.ledgerRepository.readLedger(feature);
@@ -114,7 +105,7 @@ export class SubmissionService extends Service {
       if (!assignment || assignment.id !== options.assignment) {
         throw new Error("No matching implementation assignment is pending for this ticket.");
       }
-      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       if (assignment.controller !== options.author.trim()) {
         throw new Error(
           `Ticket ${ticketId} owner ${progress.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
@@ -278,7 +269,7 @@ export class SubmissionService extends Service {
       if (!["reviewing", "changes-requested"].includes(progress.execution) || !progress.owner) {
         throw new Error(`Ticket ${ticketId} is not awaiting review submission.`);
       }
-      assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
         attempt.reviewAssignments?.some((candidate) => candidate.id === assignmentId),
       );
@@ -335,7 +326,9 @@ export class SubmissionService extends Service {
         throw new Error("The review assignment already has a different submitted result.");
       }
       if (options.result === "failed" && registeredFromReport.length === 0) {
-        throw new Error(failedReviewWithoutFindings(assignmentId, `--ticket ${ticketId}`));
+        throw new Error(
+          ReviewBatch.failedReviewWithoutFindings(assignmentId, `--ticket ${ticketId}`),
+        );
       }
 
       const confirmedTicket = this.ticketRepository.requireTicket(
@@ -372,7 +365,7 @@ export class SubmissionService extends Service {
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
       const batch = correctionAttempt?.reviewAssignments ?? progress.reviewAssignments ?? [];
-      if (reviewBatchRequestsChanges(batch, progress.findings ?? [])) {
+      if (ReviewBatch.reviewBatchRequestsChanges(batch, progress.findings ?? [])) {
         progress.execution = "changes-requested";
       }
       const afterTicket = matter.stringify(

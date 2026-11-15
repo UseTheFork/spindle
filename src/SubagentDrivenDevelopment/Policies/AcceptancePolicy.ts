@@ -10,7 +10,7 @@ import type {
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class AcceptancePolicy extends Service {
@@ -47,7 +47,7 @@ export class AcceptancePolicy extends Service {
     if (implementationBlocker) blockers.push(implementationBlocker);
 
     const assignments = progress.reviewAssignments ?? [];
-    const requiredReviewers = requiredTicketReviewers(ledger, progress);
+    const requiredReviewers = RequiredReviewers.requiredTicketReviewers(ledger, progress);
     if (
       new Set(assignments.map((assignment) => assignment.id)).size !== assignments.length ||
       new Set(assignments.map((assignment) => assignment.report)).size !== assignments.length

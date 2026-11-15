@@ -10,56 +10,6 @@ import type {
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
-export function hasOnlyRetryableDeliveryCheckIssue(
-  delivery: DeliveryProgress,
-  headSha: string,
-): boolean {
-  const records = (delivery.checks?.records ?? []).filter((record) => record.headSha === headSha);
-  const latest = CheckRecords.latestForHead(records, headSha);
-  // Preserve independent failures when recovering old changes-requested states.
-  const priorFailure = [...delivery.history].reverse().find(({ action, at }) => {
-    if (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) {
-      const failed = records.find(
-        (record) =>
-          record.result === "failed" &&
-          record.recordedAt === at &&
-          action === `delivery-check-recorded:${record.command}:failed`,
-      );
-      if (failed && latest.find((record) => record.command === failed.command) !== failed) {
-        return false;
-      }
-    }
-    return (
-      action === "aggregate-review-dispatched" ||
-      action.startsWith("correction-report-submitted:") ||
-      action.startsWith("requirements-approved:") ||
-      action.startsWith("correction-paused:") ||
-      (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) ||
-      (action.startsWith("aggregate-review-submitted:") &&
-        (action.endsWith(":failed") || action.endsWith(":unavailable")))
-    );
-  });
-  return (
-    delivery.execution === "changes-requested" &&
-    records.some((record) => record.result === "unavailable" || record.result === "failed") &&
-    !latest.some((record) => record.result === "failed") &&
-    (!priorFailure ||
-      priorFailure.action === "aggregate-review-dispatched" ||
-      priorFailure.action.startsWith("correction-report-submitted:") ||
-      priorFailure.action.startsWith("requirements-approved:")) &&
-    delivery.adjudication?.status !== "pending" &&
-    !["pending", "unavailable"].includes(delivery.assignment?.status ?? "") &&
-    !(delivery.reviewAssignments ?? []).some(
-      (assignment) => assignment.status === "submitted" && assignment.result !== "passed",
-    ) &&
-    !(delivery.findings ?? []).some(
-      (finding) =>
-        finding.status === "confirmed" ||
-        (finding.blocking && !["fixed", "dismissed"].includes(finding.status)),
-    )
-  );
-}
-
 export class CheckPolicy extends Service {
   public constructor(
     app: Application,
@@ -180,5 +130,55 @@ export class CheckPolicy extends Service {
           return [];
         }),
     ];
+  }
+
+  public static hasOnlyRetryableDeliveryCheckIssue(
+    delivery: DeliveryProgress,
+    headSha: string,
+  ): boolean {
+    const records = (delivery.checks?.records ?? []).filter((record) => record.headSha === headSha);
+    const latest = CheckRecords.latestForHead(records, headSha);
+    // Preserve independent failures when recovering old changes-requested states.
+    const priorFailure = [...delivery.history].reverse().find(({ action, at }) => {
+      if (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) {
+        const failed = records.find(
+          (record) =>
+            record.result === "failed" &&
+            record.recordedAt === at &&
+            action === `delivery-check-recorded:${record.command}:failed`,
+        );
+        if (failed && latest.find((record) => record.command === failed.command) !== failed) {
+          return false;
+        }
+      }
+      return (
+        action === "aggregate-review-dispatched" ||
+        action.startsWith("correction-report-submitted:") ||
+        action.startsWith("requirements-approved:") ||
+        action.startsWith("correction-paused:") ||
+        (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) ||
+        (action.startsWith("aggregate-review-submitted:") &&
+          (action.endsWith(":failed") || action.endsWith(":unavailable")))
+      );
+    });
+    return (
+      delivery.execution === "changes-requested" &&
+      records.some((record) => record.result === "unavailable" || record.result === "failed") &&
+      !latest.some((record) => record.result === "failed") &&
+      (!priorFailure ||
+        priorFailure.action === "aggregate-review-dispatched" ||
+        priorFailure.action.startsWith("correction-report-submitted:") ||
+        priorFailure.action.startsWith("requirements-approved:")) &&
+      delivery.adjudication?.status !== "pending" &&
+      !["pending", "unavailable"].includes(delivery.assignment?.status ?? "") &&
+      !(delivery.reviewAssignments ?? []).some(
+        (assignment) => assignment.status === "submitted" && assignment.result !== "passed",
+      ) &&
+      !(delivery.findings ?? []).some(
+        (finding) =>
+          finding.status === "confirmed" ||
+          (finding.blocking && !["fixed", "dismissed"].includes(finding.status)),
+      )
+    );
   }
 }

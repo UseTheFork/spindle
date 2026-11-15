@@ -8,11 +8,7 @@ import {
   HISTORICAL_DATE_DIRECTORY,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  assertRealDirectory,
-  lstatIfPresent,
-  isPathInside,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
 
@@ -34,18 +30,18 @@ export class FeatureWorkspace extends Service {
     const scratch = join(root, ".scratch");
     const workspace = join(scratch, segments[1]!);
     const ledgerPath = join(workspace, "sdd.json");
-    assertRealDirectory(scratch, ".scratch");
-    assertRealDirectory(workspace, "Feature workspace");
+    FileSystem.assertRealDirectory(scratch, ".scratch");
+    FileSystem.assertRealDirectory(workspace, "Feature workspace");
     for (const directory of ["tickets", "reports"]) {
-      assertRealDirectory(join(workspace, directory), `Feature ${directory} directory`);
+      FileSystem.assertRealDirectory(join(workspace, directory), `Feature ${directory} directory`);
     }
-    const specEntry = lstatIfPresent(specPath);
+    const specEntry = FileSystem.lstatIfPresent(specPath);
     if (!specEntry?.isFile()) throw new Error("Feature spec must be a regular file.");
-    const ledgerEntry = lstatIfPresent(ledgerPath);
+    const ledgerEntry = FileSystem.lstatIfPresent(ledgerPath);
     if (!ledgerEntry?.isFile()) throw new Error("Feature ledger must be a regular file.");
     if (
-      !isPathInside(root, realpathSync(specPath)) ||
-      !isPathInside(root, realpathSync(ledgerPath))
+      !FileSystem.isPathInside(root, realpathSync(specPath)) ||
+      !FileSystem.isPathInside(root, realpathSync(ledgerPath))
     ) {
       throw new Error("Feature files must remain inside this checkout.");
     }

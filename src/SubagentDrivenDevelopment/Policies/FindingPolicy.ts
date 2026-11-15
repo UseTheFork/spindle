@@ -9,7 +9,7 @@ import type {
   FeaturePaths,
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class FindingPolicy extends Service {
@@ -87,7 +87,7 @@ export class FindingPolicy extends Service {
             ),
         );
         if (!decision) return true;
-        const required = requiredDeliveryReviewers(ledger, delivery);
+        const required = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
         return required.some(({ agent }) => {
           const matching = (delivery.reviewAssignments ?? []).filter(
             (assignment) =>

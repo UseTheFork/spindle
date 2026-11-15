@@ -33,19 +33,13 @@ import type {
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import { isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import {
-  CheckPolicy,
-  hasOnlyRetryableDeliveryCheckIssue,
-} from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import {
-  currentReviewBatch,
-  reviewBatchNeedsRedispatch,
-} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { RequiredReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 import { CheckRecords } from "@/SubagentDrivenDevelopment/Support/CheckRecords";
 
@@ -343,7 +337,7 @@ export class FeatureInspectionService extends Service {
         );
         for (const blocker of reviewCheckBlockers)
           blockers.push({ ticket: progress.id, reason: blocker });
-        const assignments = currentReviewBatch(progress);
+        const assignments = ReviewBatch.currentReviewBatch(progress);
         for (const assignment of assignments) {
           if (assignment.status === "pending") {
             pendingAssignments.push(this.pendingReview(feature, progress.id, assignment));
@@ -381,7 +375,7 @@ export class FeatureInspectionService extends Service {
                   ? "resolve-findings"
                   : "integrate",
             });
-          } else if (reviewBatchNeedsRedispatch(assignments, progress.findings ?? [])) {
+          } else if (ReviewBatch.reviewBatchNeedsRedispatch(assignments, progress.findings ?? [])) {
             actions.push({
               ticket: progress.id,
               action: "review",
@@ -394,7 +388,7 @@ export class FeatureInspectionService extends Service {
           actions.push(...this.ticketCheckActions(progress.id, progress, identity));
         }
       } else if (progress.execution === "changes-requested") {
-        const pendingReviews = currentReviewBatch(progress).filter(
+        const pendingReviews = ReviewBatch.currentReviewBatch(progress).filter(
           (assignment) => assignment.status === "pending",
         );
         if (pendingReviews.length > 0) {
@@ -605,7 +599,7 @@ export class FeatureInspectionService extends Service {
   private failedReviewAssignments(
     progress: FeatureLedger["tickets"][number],
   ): { id: string; report: string; role: "review"; findingIds: string[] }[] {
-    return currentReviewBatch(progress)
+    return ReviewBatch.currentReviewBatch(progress)
       .filter((assignment) => assignment.status === "submitted" && assignment.result === "failed")
       .map(({ id, report, findingIds }) => ({
         id,
@@ -649,7 +643,8 @@ export class FeatureInspectionService extends Service {
     }
     const root = realpathSync(this.app.workspaceRoot);
     const specPath = resolve(root, spec);
-    if (!isPathInside(root, specPath)) throw new Error("Spec must be inside this checkout.");
+    if (!FileSystem.isPathInside(root, specPath))
+      throw new Error("Spec must be inside this checkout.");
     const relativeSpec = relative(root, specPath);
     const segments = relativeSpec.split(sep);
     if (
@@ -715,7 +710,7 @@ export class FeatureInspectionService extends Service {
           identity,
         );
         blockers.push(...deliveryFindingBlockers);
-        const required = requiredDeliveryReviewers(ledger, delivery);
+        const required = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
         const assignments = delivery.reviewAssignments ?? [];
         if (assignments.length !== required.length) {
           blockers.push("Aggregate review assignment batch is incomplete.");
@@ -793,7 +788,8 @@ export class FeatureInspectionService extends Service {
       action = "await-review-report";
     } else if (
       (delivery.execution === "changes-requested" &&
-        (!identity || !hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha))) ||
+        (!identity ||
+          !CheckPolicy.hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha))) ||
       failedCheckRecords.length > 0
     ) {
       if (actionableFindings || failedCheckRecords.length > 0) action = "correct";

@@ -18,7 +18,7 @@ import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitService } from "@/Git/Services/GitService";
 import type { StartOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { isPathInside, lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { Records } from "@/Support/Records";
@@ -70,7 +70,7 @@ export class FeatureWorktreeService extends Service {
     if (!isAbsolute(options.workspace)) {
       throw new Error("--workspace must be an absolute path to an existing external directory.");
     }
-    const parentEntry = lstatIfPresent(options.workspace);
+    const parentEntry = FileSystem.lstatIfPresent(options.workspace);
     if (!parentEntry?.isDirectory() || parentEntry.isSymbolicLink()) {
       throw new Error("--workspace must be an existing real directory, not a file or symlink.");
     }
@@ -79,7 +79,7 @@ export class FeatureWorktreeService extends Service {
     const common = realpathSync(
       this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
     );
-    if (isPathInside(root, parent) || isPathInside(common, parent)) {
+    if (FileSystem.isPathInside(root, parent) || FileSystem.isPathInside(common, parent)) {
       throw new Error("--workspace must be outside the original checkout and Git directory.");
     }
     const target = join(parent, feature.feature);
@@ -131,7 +131,7 @@ export class FeatureWorktreeService extends Service {
       try {
         mkdirSync(stateDirectory, { mode: 0o700 });
       } catch (error) {
-        if (!lstatIfPresent(stateDirectory)?.isDirectory()) throw error;
+        if (!FileSystem.lstatIfPresent(stateDirectory)?.isDirectory()) throw error;
       }
       const directoryEntry = lstatSync(stateDirectory);
       if (!directoryEntry.isDirectory() || directoryEntry.isSymbolicLink()) {
@@ -139,14 +139,14 @@ export class FeatureWorktreeService extends Service {
       }
       const stateFile = join(stateDirectory, `${feature.feature}.json`);
       let state: StartState;
-      const stateEntry = lstatIfPresent(stateFile);
+      const stateEntry = FileSystem.lstatIfPresent(stateFile);
       if (stateEntry) {
         if (!stateEntry.isFile() || stateEntry.isSymbolicLink()) {
           throw new Error(`Feature startup state must be a regular file: ${stateFile}.`);
         }
         state = this.readState(stateFile, feature.feature, root, target, branch, originalBranch);
       } else {
-        if (lstatIfPresent(target))
+        if (FileSystem.lstatIfPresent(target))
           throw new Error(`Worktree destination already exists: ${target}.`);
         if (this.branchExists(root, branch))
           throw new Error(`Feature branch already exists: ${branch}.`);
@@ -237,7 +237,7 @@ export class FeatureWorktreeService extends Service {
         this.assertOriginal(root, state.originalBranch, revision);
         this.assertClean(root, lockPath);
         if (state.phase === "committed") {
-          if (lstatIfPresent(target) || this.branchExists(root, branch)) {
+          if (FileSystem.lstatIfPresent(target) || this.branchExists(root, branch)) {
             throw new Error("Feature destination or branch exists without a recorded allocation.");
           }
           mkdirSync(target);
@@ -246,7 +246,7 @@ export class FeatureWorktreeService extends Service {
           state.phase = "allocated";
           this.writeState(stateFile, state);
         }
-        const targetEntry = lstatIfPresent(target);
+        const targetEntry = FileSystem.lstatIfPresent(target);
         if (
           !targetEntry?.isDirectory() ||
           targetEntry.isSymbolicLink() ||
@@ -269,13 +269,13 @@ export class FeatureWorktreeService extends Service {
         }
         for (const directory of ["tickets", "reports"]) {
           const path = join(target, featurePath, directory);
-          if (!lstatIfPresent(path)) mkdirSync(path);
+          if (!FileSystem.lstatIfPresent(path)) mkdirSync(path);
           if (!lstatSync(path).isDirectory() || lstatSync(path).isSymbolicLink()) {
             throw new Error(`Feature ${directory} path is not a real directory: ${path}.`);
           }
         }
         const worktreeSpec = join(target, featurePath, "spec.md");
-        const specEntry = lstatIfPresent(worktreeSpec);
+        const specEntry = FileSystem.lstatIfPresent(worktreeSpec);
         if (!specEntry?.isFile() || specEntry.isSymbolicLink()) {
           throw new Error(`Created worktree has no regular feature spec: ${worktreeSpec}.`);
         }
@@ -388,7 +388,7 @@ export class FeatureWorktreeService extends Service {
 
   private recordDigest(root: string, paths: string[]): string {
     const entries = paths.map((path) => {
-      const entry = lstatIfPresent(join(root, path));
+      const entry = FileSystem.lstatIfPresent(join(root, path));
       if (!entry) return [path, "deleted"];
       if (!entry.isFile() || entry.isSymbolicLink()) {
         throw new Error(`Feature record is not a regular file: ${path}.`);
@@ -453,7 +453,7 @@ export class FeatureWorktreeService extends Service {
 
   private referencesFeaturePath(value: unknown, workspace: string): boolean {
     if (typeof value === "string") {
-      return isAbsolute(value) && isPathInside(workspace, resolve(value));
+      return isAbsolute(value) && FileSystem.isPathInside(workspace, resolve(value));
     }
     if (Array.isArray(value)) {
       return value.some((entry) => this.referencesFeaturePath(entry, workspace));
@@ -504,7 +504,7 @@ export class FeatureWorktreeService extends Service {
       "sequencer",
     ]) {
       const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
-      if (lstatIfPresent(path)) {
+      if (FileSystem.lstatIfPresent(path)) {
         throw new Error(`Complete the existing Git operation (${operation}) before starting.`);
       }
     }
@@ -579,7 +579,7 @@ export class FeatureWorktreeService extends Service {
       ) {
         throw new Error(`Unexpected feature file must be handled before starting: ${path}.`);
       }
-      if (lstatIfPresent(join(root, path))?.isSymbolicLink()) {
+      if (FileSystem.lstatIfPresent(join(root, path))?.isSymbolicLink()) {
         throw new Error(`Feature records must not be symlinks: ${path}.`);
       }
     }

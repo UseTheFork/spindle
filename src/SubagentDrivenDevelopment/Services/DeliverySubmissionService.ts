@@ -13,14 +13,10 @@ import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/Ledger
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  failedReviewWithoutFindings,
-  reviewBatchComplete,
-  reviewBatchRequestsChanges,
-} from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReviewBatch } from "@/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { assertDeliveryOwner } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliverySubmissionService extends Service {
@@ -60,12 +56,12 @@ export class DeliverySubmissionService extends Service {
     if (!unavailable && options.details !== undefined) {
       throw new Error("--details is only valid with --result unavailable.");
     }
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.assignment;
       if (
         !assignment ||
@@ -187,12 +183,12 @@ export class DeliverySubmissionService extends Service {
     if (options.result !== "passed" && !options.details?.trim()) {
       throw new Error("--details is required for failed or unavailable reviews.");
     }
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.reviewAssignments?.find(
         (candidate) => candidate.id === assignmentId,
       );
@@ -252,7 +248,7 @@ export class DeliverySubmissionService extends Service {
         throw new Error("The delivery review assignment is not awaiting a report.");
       }
       if (options.result === "failed" && reported.length === 0) {
-        throw new Error(failedReviewWithoutFindings(assignmentId, "--scope delivery"));
+        throw new Error(ReviewBatch.failedReviewWithoutFindings(assignmentId, "--scope delivery"));
       }
       if (
         JSON.stringify(this.gitEvidence.changedPaths(delivery.baseSha!)) !==
@@ -268,7 +264,7 @@ export class DeliverySubmissionService extends Service {
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
       const batch = delivery.reviewAssignments ?? [];
-      if (reviewBatchRequestsChanges(batch, delivery.findings ?? [])) {
+      if (ReviewBatch.reviewBatchRequestsChanges(batch, delivery.findings ?? [])) {
         delivery.execution = "changes-requested";
       }
       delivery.history.push({
@@ -276,7 +272,7 @@ export class DeliverySubmissionService extends Service {
         author: options.author.trim(),
         action: `aggregate-review-submitted:${assignment.id}:${assignment.result}`,
       });
-      if (reviewBatchComplete(batch)) {
+      if (ReviewBatch.reviewBatchComplete(batch)) {
         for (const finding of delivery.findings ?? []) {
           if (
             !finding.blocking ||

@@ -15,18 +15,12 @@ import type {
 import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
@@ -65,8 +59,8 @@ export class CorrectionService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("correct requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
     if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
       throw new Error("--findings must contain canonical finding IDs.");
@@ -112,7 +106,12 @@ export class CorrectionService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
+      WorkflowPolicy.assertTicketOwner(
+        progress.owner,
+        options.author,
+        feature.feature,
+        options.ticket,
+      );
 
       const attempts = (progress.correctionAttempts ??= []);
       if (options.decision === "pause") {
@@ -271,7 +270,7 @@ export class CorrectionService extends Service {
             .gitBuffer(["rev-parse", "--git-path", operation], workspace)
             .toString("utf8")
             .trim();
-          if (lstatIfPresent(resolve(workspace, path)))
+          if (FileSystem.lstatIfPresent(resolve(workspace, path)))
             throw new Error(
               `Ticket Git operation ${operation} must be resolved before correction.`,
             );
@@ -382,7 +381,7 @@ export class CorrectionService extends Service {
         handoffs: [],
       };
       this.reportEvidence.assertReportPath(feature, assignment.report, false);
-      if (lstatIfPresent(assignment.report)) {
+      if (FileSystem.lstatIfPresent(assignment.report)) {
         throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
       }
       const attempt: CorrectionAttempt = {

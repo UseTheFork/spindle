@@ -23,19 +23,13 @@ import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvide
 import type { AcceptedEvidence, CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { FeaturePaths, TicketProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { FileSystem } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  assertTicketOwner,
-  WorkflowPolicy,
-} from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@/Support/Records";
@@ -75,8 +69,8 @@ export class TicketIntegrationService extends Service {
     journal: string;
     idempotent?: true;
   } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     for (const variable of [
       "GIT_DIR",
       "GIT_WORK_TREE",
@@ -107,7 +101,12 @@ export class TicketIntegrationService extends Service {
       ) {
         throw new Error(`Ticket ${options.ticket} must have current review before integration.`);
       }
-      assertTicketOwner(progress.owner, options.author, feature.feature, options.ticket);
+      WorkflowPolicy.assertTicketOwner(
+        progress.owner,
+        options.author,
+        feature.feature,
+        options.ticket,
+      );
       this.assertCanonical(root, feature);
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       const outstandingPostMerge = ledger.tickets.filter((candidate) => {
@@ -219,7 +218,7 @@ export class TicketIntegrationService extends Service {
       try {
         mkdirSync(directory, { mode: 0o700 });
       } catch (error) {
-        if (!lstatIfPresent(directory)?.isDirectory()) throw error;
+        if (!FileSystem.lstatIfPresent(directory)?.isDirectory()) throw error;
       }
       if (!lstatSync(directory).isDirectory() || lstatSync(directory).isSymbolicLink()) {
         throw new Error("Integration journal directory must be a real directory.");
@@ -228,7 +227,7 @@ export class TicketIntegrationService extends Service {
         directory,
         `${feature.feature}-${options.ticket}-${identity.headSha}.json`,
       );
-      const existingJournal = lstatIfPresent(journalPath)
+      const existingJournal = FileSystem.lstatIfPresent(journalPath)
         ? this.readJournal(journalPath, feature, progress, identity.headSha, accepted)
         : undefined;
       // An interruption after `merge --no-commit` leaves the journalled merge in progress.
@@ -401,7 +400,7 @@ export class TicketIntegrationService extends Service {
       this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
     );
     const path = join(common, "spindle-feature-start", `${feature.feature}.json`);
-    const entry = lstatIfPresent(path);
+    const entry = FileSystem.lstatIfPresent(path);
     if (!entry?.isFile() || entry.isSymbolicLink())
       throw new Error("Canonical feature startup state is missing or unsafe.");
     const state: unknown = JSON.parse(readFileSync(path, "utf8"));
@@ -566,7 +565,7 @@ export class TicketIntegrationService extends Service {
       const components = path.split("/");
       for (let count = 1; count < components.length; count++) {
         const ancestor = components.slice(0, count).join("/");
-        const entry = lstatIfPresent(join(root, ancestor));
+        const entry = FileSystem.lstatIfPresent(join(root, ancestor));
         if (!entry) break;
         if (!entry.isDirectory() || entry.isSymbolicLink()) {
           candidates.add(ancestor);
@@ -596,7 +595,7 @@ export class TicketIntegrationService extends Service {
       );
     if (!ignored.length) {
       for (const path of incoming) {
-        if (!lstatIfPresent(join(root, path))?.isDirectory()) continue;
+        if (!FileSystem.lstatIfPresent(join(root, path))?.isDirectory()) continue;
         const result = this.git.run(["check-ignore", "--quiet", "--", path], {
           cwd: root,
           encoding: "utf8",
@@ -739,7 +738,7 @@ export class TicketIntegrationService extends Service {
 
   private pendingMergeHead(root: string): string | undefined {
     const path = resolve(root, this.run(root, ["rev-parse", "--git-path", "MERGE_HEAD"]));
-    const entry = lstatIfPresent(path);
+    const entry = FileSystem.lstatIfPresent(path);
     if (!entry) return undefined;
     if (!entry.isFile() || entry.isSymbolicLink())
       throw new Error("In-progress MERGE_HEAD is unsafe; inspect it before continuing.");
@@ -760,7 +759,7 @@ export class TicketIntegrationService extends Service {
     ]) {
       if (allowMerge && operation === "MERGE_HEAD") continue;
       const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
-      if (lstatIfPresent(path))
+      if (FileSystem.lstatIfPresent(path))
         throw new Error(
           `Existing Git operation ${operation} was preserved; inspect and review before continuing.`,
         );

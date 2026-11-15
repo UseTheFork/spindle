@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import { Application } from "@/Foundation/Application";
 
 const root = process.env.SPINDLE_TEST_BLUEPRINTS_DIR;

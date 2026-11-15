@@ -6,10 +6,10 @@ import { expect, test } from "vitest";
 
 import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
 import {
+  BlueprintCatalogOperations,
   blueprintCatalog,
-  validateBlueprintCatalog,
   type BlueprintCatalogDefinition,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+} from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
 import { runCli as runBundledCli, runCliWithCatalog as runCli } from "../../../Helpers/Cli.ts";
@@ -17,7 +17,7 @@ import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts"
 
 test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
   expect(blueprintCatalog).toBe(assetCatalog);
-  const validated = validateBlueprintCatalog(assetCatalog);
+  const validated = BlueprintCatalogOperations.validateBlueprintCatalog(assetCatalog);
   expect(validated.agents.map((entry) => entry.key)).not.toContain("sdd-re-review");
   expect(validated.agents.filter((entry) => entry.canReview).map((entry) => entry.key)).toEqual([
     "sdd-code-reviewer",
@@ -525,7 +525,7 @@ test("the compiled catalog ignores external catalog files", async () => {
   const blueprints = await makeTempDir("spindle-static-catalog-assets-");
   const project = await makeTempDir("spindle-static-catalog-project-");
   {
-    const catalog = validateBlueprintCatalog(blueprintCatalog);
+    const catalog = BlueprintCatalogOperations.validateBlueprintCatalog(blueprintCatalog);
     for (const kind of ["agents", "instructions", "skills"] as const) {
       for (const entry of catalog[kind]) {
         const destination = join(blueprints, kind, entry.path);

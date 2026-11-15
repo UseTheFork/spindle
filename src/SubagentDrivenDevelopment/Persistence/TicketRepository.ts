@@ -6,17 +6,10 @@ import matter from "gray-matter";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import type { TicketCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import {
-  TRACKER_STATUSES,
-  type TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+import { TRACKER_STATUSES, type TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import {
-  validateAuthor,
-  validateTicketId,
-  validateCategory,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+import { InputValidation } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
 import { Records } from "@/Support/Records";
 
 const isRecord = Records.isRecord;
@@ -44,7 +37,7 @@ export class TicketRepository extends Service {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       if (!entry.name.endsWith(".md")) continue;
       const id = entry.name.slice(0, -3);
-      validateTicketId(id);
+      InputValidation.validateTicketId(id);
       const path = join(directory, entry.name);
       this.pathSafety.assertTicketPath(workspace, path);
       const raw = readFileSync(path, "utf8");
@@ -66,7 +59,7 @@ export class TicketRepository extends Service {
         throw new Error(`Ticket ${id} title is invalid.`);
       if (typeof reporter !== "string" || !reporter.trim())
         throw new Error(`Ticket ${id} reporter is invalid.`);
-      validateCategory(category);
+      InputValidation.validateCategory(category);
       if (!TRACKER_STATUSES.includes(status)) {
         throw new Error(`Ticket ${id} status is invalid.`);
       }
@@ -75,7 +68,7 @@ export class TicketRepository extends Service {
       }
       if (new Set(blockedBy).size !== blockedBy.length)
         throw new Error(`Ticket ${id} has duplicate dependencies.`);
-      for (const blocked of blockedBy) validateTicketId(blocked);
+      for (const blocked of blockedBy) InputValidation.validateTicketId(blocked);
       tickets.push({
         metadata: { ...data },
         id,
@@ -109,7 +102,7 @@ export class TicketRepository extends Service {
   public normalizeDependencies(values: string[]): string[] {
     const dependencies = values.flatMap((value) => value.split(",")).map((value) => value.trim());
     if (dependencies.some((value) => !value)) throw new Error("Dependency IDs must not be empty.");
-    for (const dependency of dependencies) validateTicketId(dependency);
+    for (const dependency of dependencies) InputValidation.validateTicketId(dependency);
     if (new Set(dependencies).size !== dependencies.length) {
       throw new Error("Dependency IDs must not contain duplicates.");
     }
@@ -156,7 +149,7 @@ export class TicketRepository extends Service {
   public validateTicketCreateOptions(options: TicketCreateOptions): void {
     if (!options.title.trim()) throw new Error("Title must not be empty.");
     if (!options.reporter.trim()) throw new Error("Reporter must not be empty.");
-    validateCategory(options.category);
-    validateAuthor(options.author);
+    InputValidation.validateCategory(options.category);
+    InputValidation.validateAuthor(options.author);
   }
 }

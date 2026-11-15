@@ -4,14 +4,14 @@ import { Command } from "@/Commands/Command";
 import { CommandOptions } from "@/Commands/CommandOptions";
 import type { Application } from "@/Foundation/Application";
 import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
+import { SddCommandGroups } from "@/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { ChecksRecordOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
 import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 
 export class ChecksRecordCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "checks")
+    SddCommandGroups.group(root, "checks")
       .command("record")
       .description("Record an externally executed check against the current commit.")
       .requiredOption(

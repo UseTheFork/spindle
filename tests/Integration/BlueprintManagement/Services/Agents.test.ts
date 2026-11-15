@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
 import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
 import {
