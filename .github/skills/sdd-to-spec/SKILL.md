@@ -5,7 +5,7 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.1
+    version: 1.1.2
 ---
 
 # To Spec
@@ -13,6 +13,12 @@ metadata:
 Turn an agreed feature request or an approved design into a codebase-grounded spec, then publish it to the configured ticket tracker. A design is optional; when one exists, it must be completed and approved before the spec, and tickets follow the spec.
 
 Use the ticket-tracker conventions in project guidance when available. If tracker or publication status is unclear, ask the user before publishing; do not assume labels or invent status values.
+
+## Required Skills
+
+Before drafting the spec, read and apply:
+
+- **REQUIRED:** `int-ref-ears`
 
 ## Argument
 
