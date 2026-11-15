@@ -17,6 +17,7 @@ import type {
   CheckRecord,
   CommitIdentity,
 } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   RequirementsDecision,
   ReviewFinding,
@@ -38,7 +39,7 @@ import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/Ticket
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import {
   CheckPolicy,
-  hasOnlyUnavailableDeliveryCheckIssue,
+  hasOnlyRetryableDeliveryCheckIssue,
 } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
 import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
@@ -90,6 +91,10 @@ export class FeatureInspectionService extends Service {
       agent?: string;
       scope?: ReviewAssignment["scope"];
       objective?: string;
+      workspace?: string;
+      submissionBlocker?: "commit-required" | "baseline-required";
+      findingIds?: string[];
+      checkFailure?: string;
     }[];
     blockers: { ticket: string; reason: string }[];
     delivery: {
@@ -147,6 +152,10 @@ export class FeatureInspectionService extends Service {
       agent?: string;
       scope?: ReviewAssignment["scope"];
       objective?: string;
+      workspace?: string;
+      submissionBlocker?: "commit-required" | "baseline-required";
+      findingIds?: string[];
+      checkFailure?: string;
     }[] = [];
     const blockers: { ticket: string; reason: string }[] = [];
 
@@ -256,15 +265,35 @@ export class FeatureInspectionService extends Service {
       } else if (progress.execution === "implementing") {
         if (progress.assignment) {
           if (["pending", "unavailable"].includes(progress.assignment.status)) {
+            const assignment = progress.assignment;
+            const startingHeadSha =
+              assignment.startingHeadSha ??
+              (assignment.action === "implement"
+                ? (progress.baseSha ?? progress.worktree?.baseSha)
+                : undefined);
+            const submissionBlocker = !startingHeadSha
+              ? "baseline-required"
+              : startingHeadSha === identity.headSha
+                ? "commit-required"
+                : undefined;
             pendingAssignments.push({
               ticket: progress.id,
-              id: progress.assignment.id,
-              role: progress.assignment.role,
-              action: progress.assignment.action,
-              report: progress.assignment.report,
-              requestedAt: progress.assignment.requestedAt,
-              reportPresent: this.reportEvidence.reportExists(feature, progress.assignment.report),
-              status: progress.assignment.status,
+              id: assignment.id,
+              role: assignment.role,
+              action: assignment.action,
+              report: assignment.report,
+              requestedAt: assignment.requestedAt,
+              reportPresent: this.reportEvidence.reportExists(feature, assignment.report),
+              status: assignment.status,
+              ...(assignment.workspace ? { workspace: assignment.workspace } : {}),
+              ...(submissionBlocker ? { submissionBlocker } : {}),
+              ...(assignment.action === "correct" && submissionBlocker === "baseline-required"
+                ? {
+                    findingIds: assignment.findingIds,
+                    checkFailure: assignment.checkFailure,
+                    objective: assignment.objective,
+                  }
+                : {}),
             });
           }
           if (progress.assignment.status === "submitted") {
@@ -556,18 +585,9 @@ export class FeatureInspectionService extends Service {
         .filter((requirement) => !requirement.removedAt)
         .map((requirement) => requirement.command) ?? [],
     );
-    return [
-      ...new Set(
-        (progress.checks?.records ?? [])
-          .filter(
-            (record) =>
-              required.has(record.command) &&
-              record.headSha === identity.headSha &&
-              record.result === "failed",
-          )
-          .map((record) => record.command),
-      ),
-    ];
+    return latestCheckRecords(progress.checks?.records ?? [], identity.headSha)
+      .filter((record) => required.has(record.command) && record.result === "failed")
+      .map((record) => record.command);
   }
 
   private failedReviewAssignments(
@@ -740,8 +760,8 @@ export class FeatureInspectionService extends Service {
       }
     }
     const failedCheckRecords = identity
-      ? (delivery.checks?.records ?? []).filter(
-          (record) => record.headSha === identity.headSha && record.result === "failed",
+      ? latestCheckRecords(delivery.checks?.records ?? [], identity.headSha).filter(
+          (record) => record.result === "failed",
         )
       : [];
     const actionableFindings = (delivery.findings ?? []).some(
@@ -760,7 +780,7 @@ export class FeatureInspectionService extends Service {
       action = "await-implementation-report";
     } else if (
       (delivery.execution === "changes-requested" &&
-        (!identity || !hasOnlyUnavailableDeliveryCheckIssue(delivery, identity.headSha))) ||
+        (!identity || !hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha))) ||
       failedCheckRecords.length > 0
     ) {
       if (actionableFindings || failedCheckRecords.length > 0) action = "correct";

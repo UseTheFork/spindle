@@ -625,6 +625,39 @@ export class GitEvidence extends Service {
     return recorded.workspace;
   }
 
+  public assertTicketCommitSince(
+    progress: TicketProgress,
+    startingHeadSha: string,
+    headSha: string,
+  ): void {
+    const workspace = this.ticketWorkspace(progress);
+    if (!workspace) throw new Error(`Ticket ${progress.id} has no recorded worktree to submit.`);
+    if (headSha === startingHeadSha) {
+      throw new Error(
+        `Ticket ${progress.id} has no new commits for this assignment. Commit the implementation in ${workspace}, then submit the report again.`,
+      );
+    }
+    const ancestry = this.git.run(["merge-base", "--is-ancestor", startingHeadSha, headSha], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    if (ancestry.error) throw ancestry.error;
+    if (ancestry.status !== 0 && ancestry.status !== 1) {
+      throw new Error(
+        `Could not verify ticket ${progress.id} assignment ancestry: ${ancestry.stderr.trim()}`,
+      );
+    }
+    if (ancestry.status !== 0) {
+      throw new Error(
+        `Ticket ${progress.id} no longer descends from the assignment's starting commit. Inspect the worktree and preserve its changes before submitting.`,
+      );
+    }
+    this.assertTicketCodeCommitted(progress);
+    if (this.headSha(workspace) !== headSha) {
+      throw new Error(`Ticket ${progress.id} changed during submission; inspect it and retry.`);
+    }
+  }
+
   public assertTicketCodeCommitted(progress: TicketProgress): void {
     const workspace = this.ticketWorkspace(progress);
     if (!workspace) return;
@@ -703,11 +736,7 @@ export class GitEvidence extends Service {
     for (const ticket of ledger.tickets) {
       records.delete(`.scratch/${feature.feature}/tickets/${ticket.id}.md`);
     }
-    return this.headBeforeCommitsChangingOnly(
-      root,
-      headSha,
-      records,
-    );
+    return this.headBeforeCommitsChangingOnly(root, headSha, records);
   }
 
   public headBeforePostMergeRecordCommits(

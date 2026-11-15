@@ -8,6 +8,7 @@ export interface ImplementationAssignment {
   report: string;
   workspace?: string;
   branch?: string;
+  startingHeadSha?: string;
   requestedAt: string;
   status: "pending" | "submitted" | "unavailable";
   attempt?: number;

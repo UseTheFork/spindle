@@ -7,6 +7,7 @@ import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary"
 
 import { runCli } from "../../../Helpers/Cli.ts";
 import {
+  commitTicketWorkspace,
   execute,
   invokeAsync,
   prepareReadyTicket,
@@ -354,7 +355,11 @@ test("submission derives implementation role and report from the assignment", as
     }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
-  const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    workspace: string;
+  };
   const unavailable = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
@@ -385,9 +390,43 @@ test("submission derives implementation role and report from the assignment", as
   expect(presentStatus.pendingAssignments).toContainEqual(
     expect.objectContaining({ id: assignment.id, status: "unavailable", reportPresent: true }),
   );
-  expect(nextSummary(presentStatus).join("\n")).toContain(
+  expect(nextSummary(presentStatus).join("\n")).toContain("before submitting the report");
+  expect(nextSummary(presentStatus).join("\n")).not.toContain("sdd submit");
+  const withoutCommit = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(withoutCommit.status).not.toBe(0);
+  expect(withoutCommit.stderr).toMatch(/no new commits/i);
+  writeFileSync(
+    join(assignment.workspace, "feature.ts"),
+    "export const feature = 'implemented';\n",
+  );
+  commitTicketWorkspace(assignment.workspace, "implement feature");
+  const committed = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(committed.status, committed.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(committed.stdout)).join("\n")).toContain(
     `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
   );
+  writeFileSync(
+    join(assignment.workspace, "feature.ts"),
+    "export const feature = 'uncommitted';\n",
+  );
+  const dirty = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(dirty.status).not.toBe(0);
+  expect(dirty.stderr).toMatch(/commit ticket code/i);
+  commitTicketWorkspace(assignment.workspace, "finish implementation");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
@@ -481,6 +520,28 @@ test("next identifies missing and failed ticket checks after implementation subm
     checkFailure: command,
     continuationRequired: false,
   });
+  for (const result of ["unavailable", "passed"] as const) {
+    const recorded = await execute(repo, (service) =>
+      service.checksService.checksRecord({
+        spec,
+        ticket: "T-0001",
+        command,
+        result,
+        ...(result === "unavailable" ? { details: "The test service is unavailable." } : {}),
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
+    const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+    expect(next.status, next.stderr).toBe(0);
+    const status = JSON.parse(next.stdout);
+    expect(status.actions).toContainEqual(
+      result === "unavailable"
+        ? { ticket: "T-0001", action: "checks", checkCommand: command }
+        : { ticket: "T-0001", action: "review" },
+    );
+    expect(nextSummary(status).join("\n")).not.toContain("--check-failure");
+  }
 });
 
 test("next and status guide unstarted work to implement without changing workflow state", async () => {
@@ -558,6 +619,7 @@ test("next prints named steps and submits a report only after it exists", async 
   const assignment = JSON.parse(dispatched.stdout).assignment as {
     id: string;
     report: string;
+    workspace: string;
   };
 
   const waiting = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
@@ -569,7 +631,13 @@ test("next prints named steps and submits a report only after it exists", async 
   const reportReady = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
   expect(reportReady.status, reportReady.stderr).toBe(0);
   expect(reportReady.stdout).toMatch(/report: present, not submitted/);
-  expect(reportReady.stdout).toContain(
+  expect(reportReady.stdout).toContain("before submitting the report");
+  expect(reportReady.stdout).not.toContain("sdd submit");
+  writeFileSync(join(assignment.workspace, "feature.ts"), "export const value = true;\n");
+  commitTicketWorkspace(assignment.workspace, "implement feature");
+  const committed = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(committed.status, committed.stderr).toBe(0);
+  expect(committed.stdout).toContain(
     `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
   );
 });

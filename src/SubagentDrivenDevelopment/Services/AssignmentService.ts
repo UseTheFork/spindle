@@ -27,7 +27,7 @@ import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/Wo
 import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
 import {
   CheckPolicy,
-  hasOnlyUnavailableDeliveryCheckIssue,
+  hasOnlyRetryableDeliveryCheckIssue,
 } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
@@ -205,6 +205,7 @@ export class AssignmentService extends Service {
         report,
         workspace: worktree.workspace,
         branch: worktree.branch,
+        startingHeadSha: worktree.baseSha,
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
@@ -419,7 +420,7 @@ export class AssignmentService extends Service {
         nextAction = "record-final-checks";
       } else if (
         delivery.execution === "changes-requested" &&
-        !hasOnlyUnavailableDeliveryCheckIssue(delivery, identity.headSha)
+        !hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)
       ) {
         nextAction = "correct";
       } else if (

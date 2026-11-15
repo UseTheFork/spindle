@@ -189,6 +189,21 @@ export class SubmissionService extends Service {
         }
         throw error;
       }
+      const startingHeadSha =
+        assignment.startingHeadSha ??
+        (assignment.action === "implement"
+          ? (progress.baseSha ?? progress.worktree?.baseSha)
+          : undefined);
+      if (!startingHeadSha) {
+        const recovery =
+          assignment.action === "correct"
+            ? "Rerun the same sdd correct command to record the current starting commit, then commit the correction and submit again."
+            : "Inspect the ticket ledger and worktree before submitting.";
+        throw new Error(
+          `Ticket ${ticketId} assignment ${assignment.id} has no recorded starting commit. ${recovery}`,
+        );
+      }
+      this.gitEvidence.assertTicketCommitSince(progress, startingHeadSha, identity.headSha);
       assignment.status = "submitted";
       assignment.reportSha256 = reportSha256;
       assignment.submittedAt = new Date().toISOString();

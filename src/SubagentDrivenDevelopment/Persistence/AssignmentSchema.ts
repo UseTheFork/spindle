@@ -26,6 +26,9 @@ export function isImplementationAssignment(value: unknown): value is Implementat
       (typeof value.workspace !== "string" || !isAbsolute(value.workspace))) ||
     (Object.hasOwn(value, "branch") &&
       (typeof value.branch !== "string" || !value.branch.trim())) ||
+    (Object.hasOwn(value, "startingHeadSha") &&
+      (typeof value.startingHeadSha !== "string" ||
+        !/^[0-9a-f]{40,64}$/i.test(value.startingHeadSha))) ||
     typeof value.requestedAt !== "string" ||
     !Number.isFinite(Date.parse(value.requestedAt)) ||
     !["pending", "submitted", "unavailable"].includes(String(value.status)) ||

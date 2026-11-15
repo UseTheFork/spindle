@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -15,7 +16,7 @@ import {
 } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
 import type { WorkflowServices } from "../../../Helpers/SubagentDrivenDevelopment/WorkflowServices";
 test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
-  const { repo, spec, assignment } = await prepareReviewAssignment();
+  const { repo, spec, assignment, ticketWorkspace } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Initial review\n\nA blocking ticket needs a fix.\n");
   const finding = await execute(repo, (service) =>
     service.findingService.findingCreate({
@@ -82,6 +83,46 @@ test("correct persists a finding-scoped attempt before returning an idempotent f
   expect(repeated.attempt.number).toBe(1);
   expect(repeated.assignment.id).toBe(first.assignment.id);
   expect(repeated.assignment.report).toBe(first.assignment.report);
+
+  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  delete ledger.tickets[0].assignment.startingHeadSha;
+  delete ledger.tickets[0].correctionAttempts[0].assignment.startingHeadSha;
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  execFileSync("git", ["add", ledgerPath], { cwd: repo });
+  execFileSync("git", ["commit", "-qm", "record legacy correction"], { cwd: repo });
+  writeFileSync(first.assignment.report, "# Correction report\n\nCorrected the finding.\n");
+  const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(next.status, next.stderr).toBe(0);
+  const nextText = nextSummary(JSON.parse(next.stdout)).join("\n");
+  expect(nextText).toContain(
+    "pnpm spindle sdd correct --feature .scratch/0001-ticket-flow --ticket T-0001 --findings F-0001 --details 'Preserve the accepted empty-input behavior.' --actor <acting-agent>",
+  );
+  expect(nextText).not.toContain("sdd submit");
+  const legacy = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: first.assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(legacy.status).not.toBe(0);
+  expect(legacy.stderr).toMatch(/rerun the same sdd correct command/i);
+  const recovered = await execute(repo, args);
+  expect(recovered.status, recovered.stderr).toBe(0);
+  expect(JSON.parse(recovered.stdout).assignment.startingHeadSha).toMatch(/^[a-f0-9]{40,64}$/);
+  writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'legacy fix';\n");
+  commitTicketWorkspace(ticketWorkspace, "commit legacy correction");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: first.assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
 });
 
 test("corrective implementation reports submit through the implementation evidence contract", async () => {
@@ -136,9 +177,19 @@ test("corrective implementation reports submit through the implementation eviden
     action: string;
     report: string;
   };
+  writeFileSync(fix.report, "# Correction report\n\nCorrected the finding.\n");
+  const withoutCommit = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: fix.id,
+      author: "controller",
+    }),
+  );
+  expect(withoutCommit.status).not.toBe(0);
+  expect(withoutCommit.stderr).toMatch(/no new commits/i);
   writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = 'corrected';\n");
   commitTicketWorkspace(ticketWorkspace, "correct feature behavior");
-  writeFileSync(fix.report, "# Correction report\n\nCorrected the finding.\n");
 
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({

@@ -1,3 +1,5 @@
+import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
+
 type SummaryRecord = Record<string, unknown>;
 
 export function statusSummary(data: unknown, spec: string, heading: string): string[] {
@@ -142,7 +144,31 @@ export function nextSummary(data: unknown): string[] {
       `${ticket} ${role} ${id}  dispatched ${age}  report: ${reportState}${assignmentState}`,
     );
     if (assignment.reportPresent === true) {
-      if (role === "review") {
+      if (assignment.submissionBlocker === "commit-required") {
+        const workspace = asText(assignment.workspace);
+        lines.push(
+          `Commit the implementation${workspace ? ` in ${workspace}` : " in the assigned worktree"} before submitting the report.`,
+        );
+      } else if (assignment.submissionBlocker === "baseline-required") {
+        if (assignment.action === "correct") {
+          const objective = asText(assignment.objective);
+          const findings = Array.isArray(assignment.findingIds)
+            ? assignment.findingIds.map(asText).filter((value): value is string => !!value)
+            : [];
+          const checkFailure = asText(assignment.checkFailure);
+          if (!objective || (findings.length === 0 && !checkFailure)) {
+            throw new Error("Existing correction is missing its objective or selection.");
+          }
+          const selection = findings.length > 0 ? ` --findings ${findings.join(" ")}` : "";
+          const check = checkFailure ? ` --check-failure ${quoteShellArgument(checkFailure)}` : "";
+          lines.push("Record the starting commit for this older correction, then commit its work:");
+          lines.push(
+            `  pnpm spindle sdd correct --feature ${featureDirectory} --ticket ${ticket}${selection}${check} --details ${quoteShellArgument(objective)} --actor <acting-agent>`,
+          );
+        } else {
+          lines.push("Inspect the ticket ledger and worktree; the assignment baseline is missing.");
+        }
+      } else if (role === "review") {
         addPendingReviewGuidance(lines, status, assignment, featureDirectory);
         addResultCommands(lines, assignmentSubmitCommand(assignment, featureDirectory), "  ");
       } else {
@@ -163,12 +189,19 @@ export function nextSummary(data: unknown): string[] {
     "controller-correction-decision",
   ].includes(asText(delivery?.action) ?? "");
   if (readyActions.length === 0 && assignments.length > 0 && !deliveryHasReadyActions) {
-    const reportsReady = assignments.some((assignment) => assignment.reportPresent === true);
+    const reportsReady = assignments.some(
+      (assignment) => assignment.reportPresent === true && !assignment.submissionBlocker,
+    );
+    const reportsBlocked = assignments.some(
+      (assignment) => assignment.reportPresent === true && !!assignment.submissionBlocker,
+    );
     const waiting = step.startsWith("delivery:") ? "delivery actions" : "tickets";
     lines.push(
       reportsReady
         ? `No ready ${waiting}. Submit available reports or wait for the remaining assignments.`
-        : `No ready ${waiting}. Wait for the open assignments.`,
+        : reportsBlocked
+          ? `No ready ${waiting}. Resolve the implementation submission blockers above.`
+          : `No ready ${waiting}. Wait for the open assignments.`,
     );
   } else if (readyActions.length === 0 && assignments.length === 0) {
     addRecordList(lines, "Blocker", status.blockers, (item) => {
@@ -554,11 +587,16 @@ function addDeliveryCorrectionGuidance(
       !["confirmed", "fixed", "dismissed"].includes(String(finding.status)),
   );
   const headSha = asText(delivery.headSha);
+  const checkRecords = records(delivery.checkRecords).filter(
+    (record): record is SummaryRecord & { command: string; headSha: string } =>
+      typeof record.command === "string" && typeof record.headSha === "string",
+  );
   const failedChecks = new Set(
-    records(delivery.checkRecords)
-      .filter((record) => record.result === "failed" && (!headSha || record.headSha === headSha))
-      .map((record) => asText(record.command))
-      .filter((command): command is string => command !== undefined),
+    headSha
+      ? latestCheckRecords(checkRecords, headSha)
+          .filter((record) => record.result === "failed")
+          .map((record) => record.command)
+      : [],
   );
   const attempts = records(delivery.correctionAttempts);
   const adjudication = asRecord(delivery.adjudication);

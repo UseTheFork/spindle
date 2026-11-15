@@ -10,6 +10,7 @@ import type {
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
+import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
 import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
@@ -92,9 +93,10 @@ export class DeliveryCorrectionService extends Service {
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      const currentFailedCheck = (delivery.checks?.records ?? []).some(
-        (record) => record.headSha === identity.headSha && record.result === "failed",
-      );
+      const currentFailedCheck = latestCheckRecords(
+        delivery.checks?.records ?? [],
+        identity.headSha,
+      ).some((record) => record.result === "failed");
       if (options.decision === "pause") {
         if (delivery.execution === "implementing" && delivery.assignment?.status !== "submitted") {
           throw new Error(

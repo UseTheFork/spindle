@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
 import type { DeliveryProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { hasOnlyUnavailableDeliveryCheckIssue } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { hasOnlyRetryableDeliveryCheckIssue } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 
 test("legacy unavailable checks do not hide an earlier unresolved failure", () => {
   const delivery: DeliveryProgress = {
@@ -35,11 +35,11 @@ test("legacy unavailable checks do not hide an earlier unresolved failure", () =
     },
   };
 
-  expect(hasOnlyUnavailableDeliveryCheckIssue(delivery, "current")).toBe(false);
+  expect(hasOnlyRetryableDeliveryCheckIssue(delivery, "current")).toBe(false);
   delivery.history.splice(1, 0, {
     at: "2026-01-01",
     author: "controller",
     action: "correction-report-submitted:assignment",
   });
-  expect(hasOnlyUnavailableDeliveryCheckIssue(delivery, "current")).toBe(true);
+  expect(hasOnlyRetryableDeliveryCheckIssue(delivery, "current")).toBe(true);
 });

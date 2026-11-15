@@ -12,6 +12,7 @@ import type {
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@/SubagentDrivenDevelopment/Models/Assignments";
+import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
 import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
@@ -119,9 +120,10 @@ export class CorrectionService extends Service {
           throw new Error("A pending implementation assignment must be resumed, not paused.");
         }
         const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
-        const hasCurrentFailure = (progress.checks?.records ?? []).some(
-          (record) => record.headSha === identity.headSha && record.result === "failed",
-        );
+        const hasCurrentFailure = latestCheckRecords(
+          progress.checks?.records ?? [],
+          identity.headSha,
+        ).some((record) => record.result === "failed");
         if (
           attempts.length === 0 &&
           progress.execution !== "changes-requested" &&
@@ -182,6 +184,26 @@ export class CorrectionService extends Service {
         const current = attempts.find((attempt) => attempt.number === progress.assignment?.attempt);
         if (!current) throw new Error("Corrective assignment has no persisted attempt record.");
         const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+        if (!progress.assignment.startingHeadSha) {
+          progress.assignment.startingHeadSha = identity.headSha;
+          current.assignment.startingHeadSha = identity.headSha;
+          const afterTicket = matter.stringify(
+            this.ticketRepository.appendAudit(
+              ticket.body,
+              options.author,
+              `Starting commit recorded for existing correction assignment ${progress.assignment.id}.`,
+            ),
+            this.ticketRepository.metadata(ticket),
+          );
+          this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+          return {
+            ticket: options.ticket,
+            execution: "implementing",
+            attempt: current,
+            assignment: progress.assignment,
+            ...identity,
+          };
+        }
         return {
           ticket: options.ticket,
           execution: "implementing",
@@ -350,6 +372,7 @@ export class CorrectionService extends Service {
         ...(progress.worktree
           ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
           : {}),
+        startingHeadSha: identity.headSha,
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],

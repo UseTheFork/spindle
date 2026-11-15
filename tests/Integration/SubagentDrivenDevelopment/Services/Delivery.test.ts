@@ -206,6 +206,50 @@ test("retrying an unavailable delivery check preserves a separate failed check",
   expect(nextSummary(status).join("\n")).toContain("--check-failure 'failed check'");
 });
 
+test("delivery next ignores a superseded failure on the same check", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await claimDelivery(repo, spec);
+  const command = "pnpm run test:delivery";
+  const required = await execute(repo, (service) =>
+    service.checksService.checksRequire({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      command,
+      author: "controller",
+    }),
+  );
+  expect(required.status, required.stderr).toBe(0);
+  for (const result of ["failed", "unavailable", "passed"] as const) {
+    const recorded = await execute(repo, (service) =>
+      service.checksService.checksRecord({
+        ticket: "",
+        spec,
+        scope: "delivery",
+        command,
+        result,
+        ...(result === "passed" ? {} : { details: `${result} result` }),
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
+    const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+    expect(next.status, next.stderr).toBe(0);
+    const state = JSON.parse(next.stdout);
+    const summary = nextSummary(state).join("\n");
+    if (result === "failed") {
+      expect(state.delivery.action).toBe("correct");
+      expect(summary).toContain("--check-failure 'pnpm run test:delivery'");
+    } else {
+      expect(summary).not.toContain("--check-failure 'pnpm run test:delivery'");
+      expect(state.delivery.action).toBe(
+        result === "unavailable" ? "record-final-checks" : "review",
+      );
+      if (result === "unavailable") expect(summary).toContain(`Run delivery check: ${command}`);
+    }
+  }
+});
+
 test("delivery review requires an exclusive delivery scope and assigns all required reviewers", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);

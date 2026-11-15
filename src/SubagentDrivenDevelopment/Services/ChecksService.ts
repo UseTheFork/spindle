@@ -21,7 +21,7 @@ import type {
 import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { hasOnlyUnavailableDeliveryCheckIssue } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { hasOnlyRetryableDeliveryCheckIssue } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import {
   validateAuthor,
   validateTicketId,
@@ -675,7 +675,6 @@ export class ChecksService extends Service {
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      const recoverUnavailable = hasOnlyUnavailableDeliveryCheckIssue(delivery, identity.headSha);
       const prior = [...delivery.checks.records]
         .reverse()
         .find((record) => record.command === command);
@@ -698,7 +697,7 @@ export class ChecksService extends Service {
       };
       delivery.checks.records.push(record);
       if (record.result === "failed") delivery.execution = "changes-requested";
-      else if (recoverUnavailable) {
+      else if (hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)) {
         delivery.execution =
           (delivery.reviewAssignments?.length ?? 0) > 0 ? "reviewing" : "unstarted";
       }

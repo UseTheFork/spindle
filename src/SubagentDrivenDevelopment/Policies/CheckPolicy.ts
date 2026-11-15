@@ -1,6 +1,7 @@
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
 import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { latestCheckRecords } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
@@ -9,13 +10,25 @@ import type {
   TicketDocument,
 } from "@/SubagentDrivenDevelopment/Models/Workflow";
 
-export function hasOnlyUnavailableDeliveryCheckIssue(
+export function hasOnlyRetryableDeliveryCheckIssue(
   delivery: DeliveryProgress,
   headSha: string,
 ): boolean {
   const records = (delivery.checks?.records ?? []).filter((record) => record.headSha === headSha);
-  // Old unavailable results set changes-requested; preserve any independent failure since the last reset.
-  const priorFailure = [...delivery.history].reverse().find(({ action }) => {
+  const latest = latestCheckRecords(records, headSha);
+  // Preserve independent failures when recovering old changes-requested states.
+  const priorFailure = [...delivery.history].reverse().find(({ action, at }) => {
+    if (action.startsWith("delivery-check-recorded:") && action.endsWith(":failed")) {
+      const failed = records.find(
+        (record) =>
+          record.result === "failed" &&
+          record.recordedAt === at &&
+          action === `delivery-check-recorded:${record.command}:failed`,
+      );
+      if (failed && latest.find((record) => record.command === failed.command) !== failed) {
+        return false;
+      }
+    }
     return (
       action === "aggregate-review-dispatched" ||
       action.startsWith("correction-report-submitted:") ||
@@ -28,8 +41,8 @@ export function hasOnlyUnavailableDeliveryCheckIssue(
   });
   return (
     delivery.execution === "changes-requested" &&
-    records.some((record) => record.result === "unavailable") &&
-    !records.some((record) => record.result === "failed") &&
+    records.some((record) => record.result === "unavailable" || record.result === "failed") &&
+    !latest.some((record) => record.result === "failed") &&
     (!priorFailure ||
       priorFailure.action === "aggregate-review-dispatched" ||
       priorFailure.action.startsWith("correction-report-submitted:") ||

@@ -97,7 +97,8 @@ not command syntax.
   the feature worktree. `--confirm-records` is removed from `implement`,
   `integrate`, and `finish`.
 - The SDD implementer always commits its code on the ticket branch. Implementation
-  `submit` rejects a report when the ticket branch has no new commits.
+  `submit` rejects a report when the ticket branch has no new commits since the
+  assignment started, or when the ticket worktree has uncommitted changes.
 - Reports stay in the feature worktree. Assignments give the absolute
   `REPORT_PATH`.
 - Assignment IDs remain UUIDs. The CLI prints the exact ID; documentation uses
