@@ -212,11 +212,6 @@ export class TicketIntegrationService extends Service {
       ) {
         throw new Error("Ticket inventory differs from its current review.");
       }
-      if (!alreadyIntegrated) {
-        this.assertNoOperation(root);
-        this.assertNoHooks(root);
-        this.workflowRecordsCommitter.commit(feature);
-      }
       const common = realpathSync(
         this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
       );
@@ -233,15 +228,26 @@ export class TicketIntegrationService extends Service {
         directory,
         `${feature.feature}-${options.ticket}-${identity.headSha}.json`,
       );
+      const existingJournal = lstatIfPresent(journalPath)
+        ? this.readJournal(journalPath, feature, progress, identity.headSha, accepted)
+        : undefined;
+      // An interruption after `merge --no-commit` leaves the journalled merge in progress.
+      const resumingMerge =
+        !alreadyIntegrated &&
+        !!existingJournal &&
+        this.pendingMergeHead(root) === existingJournal.ticketHead;
+      if (!alreadyIntegrated) {
+        this.assertNoOperation(root, resumingMerge);
+        this.assertNoHooks(root);
+        if (!resumingMerge) this.workflowRecordsCommitter.commit(feature);
+      }
       let journal: MergeJournal;
-      if (lstatIfPresent(journalPath)) {
-        journal = this.readJournal(journalPath, feature, progress, identity.headSha, accepted);
+      if (existingJournal) {
+        journal = existingJournal;
       } else {
         if (progress.execution === "integrated") {
           throw new Error(`Integration journal is missing: ${journalPath}.`);
         }
-        this.assertNoOperation(root);
-        this.assertNoHooks(root);
         this.assertClean(root, feature);
         const featureHead = this.run(root, ["rev-parse", "--verify", "HEAD"]);
         this.assertAncestor(
@@ -300,20 +306,22 @@ export class TicketIntegrationService extends Service {
         const currentHead = this.run(root, ["rev-parse", "--verify", "HEAD"]);
         let mergeSha: string;
         if (currentHead === journal.featureHead) {
-          this.assertNoOperation(root);
-          this.assertNoHooks(root);
-          this.assertClean(root, feature);
-          this.assertNoIgnoredCollisions(root, journal);
-          this.run(root, [
-            "-c",
-            "merge.autostash=false",
-            "merge",
-            "--no-ff",
-            "--no-commit",
-            "--no-autostash",
-            "--no-overwrite-ignore",
-            journal.ticketHead,
-          ]);
+          if (resumingMerge) {
+            this.assertMergeWorktreeMatchesIndex(root, feature);
+          } else {
+            this.assertClean(root, feature);
+            this.assertNoIgnoredCollisions(root, journal);
+            this.run(root, [
+              "-c",
+              "merge.autostash=false",
+              "merge",
+              "--no-ff",
+              "--no-commit",
+              "--no-autostash",
+              "--no-overwrite-ignore",
+              journal.ticketHead,
+            ]);
+          }
           const mergeHead = this.run(root, ["rev-parse", "--verify", "MERGE_HEAD"]);
           if (mergeHead !== journal.ticketHead)
             throw new Error("Unexpected merge input was preserved.");
@@ -709,7 +717,36 @@ export class TicketIntegrationService extends Service {
       );
   }
 
-  private assertNoOperation(root: string): void {
+  private assertMergeWorktreeMatchesIndex(root: string, feature: FeaturePaths): void {
+    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const unstaged = this.buffer(root, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--ignore-submodules=none",
+      "--",
+      ".",
+      `:(exclude,literal)${lock}`,
+    ])
+      .toString("utf8")
+      .split("\n")
+      .filter((line) => line && line[1] !== " ");
+    if (unstaged.length)
+      throw new Error(
+        `Interrupted merge has unstaged or untracked changes; preserve them for review:\n${unstaged.join("\n")}`,
+      );
+  }
+
+  private pendingMergeHead(root: string): string | undefined {
+    const path = resolve(root, this.run(root, ["rev-parse", "--git-path", "MERGE_HEAD"]));
+    const entry = lstatIfPresent(path);
+    if (!entry) return undefined;
+    if (!entry.isFile() || entry.isSymbolicLink())
+      throw new Error("In-progress MERGE_HEAD is unsafe; inspect it before continuing.");
+    return readFileSync(path, "utf8").trim();
+  }
+
+  private assertNoOperation(root: string, allowMerge = false): void {
     if (this.buffer(root, ["ls-files", "--unmerged", "-z"]).length) {
       throw new Error("Merge conflicts require reviewed resolution before continuing.");
     }
@@ -721,6 +758,7 @@ export class TicketIntegrationService extends Service {
       "rebase-apply",
       "sequencer",
     ]) {
+      if (allowMerge && operation === "MERGE_HEAD") continue;
       const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
       if (lstatIfPresent(path))
         throw new Error(

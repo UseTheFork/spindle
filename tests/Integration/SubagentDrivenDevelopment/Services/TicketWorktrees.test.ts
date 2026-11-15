@@ -16,6 +16,7 @@ import { nextSummary } from "@/SubagentDrivenDevelopment/Commands/StatusSummary"
 import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
 import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 import { applicationFixture } from "../../../Helpers/ApplicationFixture";
@@ -1604,6 +1605,82 @@ test("integration recovers a journaled merge after interruption before record wr
   expect(
     JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0].execution,
   ).toBe("integrated");
+});
+
+async function interruptAfterMergeNoCommit(root: string, spec: string) {
+  const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
+  await new LoadProjectSettings().bootstrap(app);
+  await app.boot();
+  const gitService = await app.make(GitService);
+  const originalRun = gitService.run.bind(gitService);
+  vi.spyOn(gitService, "run").mockImplementation(((args: string[], options: never) => {
+    const result = originalRun(args, options);
+    if (args.includes("merge") && args.includes("--no-commit") && result.status === 0)
+      throw new Error("fixture interruption after merge --no-commit");
+    return result;
+  }) as typeof gitService.run);
+  const service = await app.make(TicketIntegrationService);
+  const featureHead = gitAt(root, "rev-parse", "HEAD");
+  expect(() => service.integrate({ spec, ticket: "T-0001", author: "controller" })).toThrow(
+    /fixture interruption after merge --no-commit/,
+  );
+  const mergeHeadPath = gitAt(
+    root,
+    "rev-parse",
+    "--path-format=absolute",
+    "--git-path",
+    "MERGE_HEAD",
+  );
+  expect(existsSync(mergeHeadPath)).toBe(true);
+  expect(gitAt(root, "rev-parse", "HEAD")).toBe(featureHead);
+  return { featureHead, mergeHeadPath };
+}
+
+test("integration resumes a journalled merge interrupted after merge --no-commit", async () => {
+  const { root, spec, workspace } = await acceptedTicket();
+  const ticketHead = gitAt(workspace, "rev-parse", "HEAD");
+  const { featureHead, mergeHeadPath } = await interruptAfterMergeNoCommit(root, spec);
+  expect(readFileSync(mergeHeadPath, "utf8").trim()).toBe(ticketHead);
+  const resumed = await integrate(root, spec);
+  expect(resumed.status, resumed.stderr).toBe(0);
+  const output = cliOutput(resumed);
+  const mergeCommit = output.mergeCommit as string;
+  expect(gitAt(root, "merge-base", "--is-ancestor", mergeCommit, "HEAD")).toBe("");
+  expect(output.ticketCommit).toBe(ticketHead);
+  expect(gitAt(root, "rev-list", "--parents", "-n", "1", mergeCommit).split(" ")).toEqual([
+    mergeCommit,
+    featureHead,
+    ticketHead,
+  ]);
+  const journal = JSON.parse(readFileSync(output.journal as string, "utf8")) as { id: string };
+  expect(gitAt(root, "show", "-s", "--format=%B", mergeCommit)).toBe(
+    `spindle: merge T-0001 (${journal.id})`,
+  );
+  expect(existsSync(mergeHeadPath)).toBe(false);
+  expect(readFileSync(join(root, "first.ts"), "utf8")).toBe("ticket\n");
+  const progress = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0];
+  expect(progress.execution).toBe("integrated");
+  expect(progress.integration.commitSha).toBe(ticketHead);
+  expect(progress.integration.mergeSha).toBe(mergeCommit);
+  expect(progress.integration.postMerge).toMatchObject({
+    status: "pending",
+    mergeSha: mergeCommit,
+  });
+});
+
+test("integration rejects an unrelated in-progress merge even with a journal", async () => {
+  const { root, spec } = await acceptedTicket();
+  const { featureHead, mergeHeadPath } = await interruptAfterMergeNoCommit(root, spec);
+  const unrelated = gitAt(root, "rev-parse", "HEAD^");
+  writeFileSync(mergeHeadPath, `${unrelated}\n`);
+  const blocked = await integrate(root, spec);
+  expect(blocked.status).not.toBe(0);
+  expect(blocked.stderr).toMatch(/Existing Git operation MERGE_HEAD was preserved/);
+  expect(readFileSync(mergeHeadPath, "utf8").trim()).toBe(unrelated);
+  expect(gitAt(root, "rev-parse", "HEAD")).toBe(featureHead);
+  expect(
+    JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0].execution,
+  ).toBe("reviewing");
 });
 
 test("ticket dispatch preserves preexisting paths and branches", async () => {
