@@ -28,7 +28,7 @@ writing a report, validate these orchestrator-supplied fields:
 | `INITIAL_TASK_OR_FINAL_AGGREGATE` | Initial task or final aggregate review phase.                         |
 | `REVIEW_INPUTS`                   | Read-required package reference or equivalent inline review inputs.   |
 | `REPORT_PATHS_OR_NONE`            | Code-review report and controller rulings, or explicit `NONE`.        |
-| `REPORT_PATH`                     | Assigned `.scratch` report path, absolute or relative to `WORKSPACE`. |
+| `REPORT_PATH`                     | Assigned `.spindle/features` report path, absolute or relative to `WORKSPACE`. |
 
 Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 

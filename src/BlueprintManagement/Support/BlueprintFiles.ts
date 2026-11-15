@@ -6,6 +6,7 @@ import type {
   PlannedBlueprintFile,
   PreparedBlueprintFile,
 } from "@/BlueprintManagement/Types/Installation";
+import { projectSettingsPath } from "@/Settings/Services/ProjectSettingsService";
 import { RenderText, type RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
 // Only known text formats are rendered; all other files are copied unchanged.
@@ -46,30 +47,37 @@ export class BlueprintFiles {
     targetPath = (name: string) => join(destinationDirectory, name),
   ) {
     const installRoot = resolve(githubDirectory);
+    const workspaceRoot = resolve(installRoot, "..");
     const paths = [
-      githubDirectory,
-      destinationDirectory,
-      join(githubDirectory, "spindle.json"),
-      ...blueprintNames.map(targetPath),
+      ...[githubDirectory, destinationDirectory, ...blueprintNames.map(targetPath)].map((path) => ({
+        path,
+        root: installRoot,
+        scope: ".github",
+      })),
+      {
+        path: join(workspaceRoot, projectSettingsPath),
+        root: workspaceRoot,
+        scope: "the checkout",
+      },
     ];
 
-    for (const path of paths) {
+    for (const { path, root, scope } of paths) {
       const absolutePath = resolve(path);
-      const pathFromRoot = relative(installRoot, absolutePath);
+      const pathFromRoot = relative(root, absolutePath);
       if (
         pathFromRoot === ".." ||
         pathFromRoot.startsWith(`..${sep}`) ||
         isAbsolute(pathFromRoot)
       ) {
-        throw new Error(`Refusing to write '${path}': target is outside .github.`);
+        throw new Error(`Refusing to write '${path}': target is outside ${scope}.`);
       }
-      let current = installRoot;
+      let current = root;
       for (const segment of pathFromRoot === "" ? [] : pathFromRoot.split(sep)) {
         current = join(current, segment);
         try {
           if ((await lstat(current)).isSymbolicLink()) {
             throw new Error(
-              `Refusing to write through symbolic link '${current}'. Spindle writes only inside .github.`,
+              `Refusing to write through symbolic link '${current}'. Spindle writes only inside ${scope}.`,
             );
           }
         } catch (error) {
@@ -80,9 +88,7 @@ export class BlueprintFiles {
       try {
         if ((await lstat(path)).isSymbolicLink()) {
           throw new Error(
-            "Refusing to write through symbolic link '" +
-              path +
-              "'. Spindle writes only inside .github.",
+            `Refusing to write through symbolic link '${path}'. Spindle writes only inside ${scope}.`,
           );
         }
       } catch (error) {

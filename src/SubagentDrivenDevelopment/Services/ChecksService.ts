@@ -461,7 +461,7 @@ export class ChecksService extends Service {
       if (existsSync(resolve(root, git(["rev-parse", "--git-path", operation]))))
         throw new Error(`Post-merge checks cannot run during Git operation ${operation}.`);
     }
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const dirty = this.gitEvidence
       .allGitChangePaths()
       .filter((path) => path !== lock && !allowed.has(path));

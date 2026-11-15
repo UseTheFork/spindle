@@ -83,7 +83,7 @@ test("invalid JSON retains its original text and SyntaxError separately from com
   expect(state.data).toBe("{");
   expect(state.error).toBeInstanceOf(SyntaxError);
   expect(() => ProjectSettingsService.require(state)).toThrow(
-    ".github/spindle.json is not valid JSON. Fix .github/spindle.json",
+    ".spindle/config.json is not valid JSON. Fix .spindle/config.json",
   );
 });
 
@@ -126,11 +126,13 @@ test("unsupported and empty stack IDs retain the existing validation errors", ()
 
 test("missing configuration is absent while unexpected filesystem errors propagate", async () => {
   const { repo } = await serviceFixture();
-  const path = join(repo, "spindle.json");
+  const directory = join(repo, ".spindle");
+  mkdirSync(directory, { recursive: true });
+  const path = join(directory, "missing.json");
   const absent = await ProjectSettingsService.load(path);
   expect(absent).toEqual({ status: "absent" });
   expect(() => ProjectSettingsService.require(absent)).toThrow(
-    "This repository has no .github/spindle.json.",
+    "This repository has no .spindle/config.json.",
   );
   mkdirSync(path);
   await expect(ProjectSettingsService.load(path)).rejects.toMatchObject({ code: "EISDIR" });
@@ -138,7 +140,7 @@ test("missing configuration is absent while unexpected filesystem errors propaga
 
 test("bootstrap binds invalid project data independently from application configuration without rewriting", async () => {
   const { repo } = await serviceFixture();
-  const path = join(repo, ".github", "spindle.json");
+  const path = join(repo, ".spindle", "config.json");
   writeFileSync(path, '{"stacks":["unsupported"]}');
   const app = new Application({ basePath: repo });
   app.instance("path.workspace", repo);
@@ -155,12 +157,12 @@ test("bootstrap binds invalid project data independently from application config
 
 test("init still rejects an existing malformed file and update demands valid bootstrapped configuration", async () => {
   const { repo, app } = await serviceFixture();
-  writeFileSync(join(repo, ".github", "spindle.json"), "{");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{");
   await new LoadProjectSettings().bootstrap(app);
   await expect((await app.make(InitCommand)).run([], undefined, false, undefined)).rejects.toThrow(
     "not valid JSON",
   );
   await expect((await app.make(UpdateCommand)).run()).rejects.toThrow(
-    ".github/spindle.json is not valid JSON.",
+    ".spindle/config.json is not valid JSON.",
   );
 });

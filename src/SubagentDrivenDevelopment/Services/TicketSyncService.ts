@@ -217,7 +217,7 @@ export class TicketSyncService extends Service {
     this.checksService.assertPrerequisiteBaseline(ledger, progress, baseSha);
     if (
       this.gitEvidence.gitBuffer(
-        ["diff", "--name-only", baseSha, ticketHead, "--", ".scratch"],
+        ["diff", "--name-only", baseSha, ticketHead, "--", ".spindle/features"],
         workspace,
       ).length
     )
@@ -298,7 +298,8 @@ export class TicketSyncService extends Service {
   private assertCanonicalFeature(feature: FeaturePaths): string {
     const root = realpathSync(this.app.workspaceRoot);
     if (
-      realpathSync(feature.workspace) !== realpathSync(resolve(root, ".scratch", feature.feature))
+      realpathSync(feature.workspace) !==
+      realpathSync(resolve(root, ".spindle/features", feature.feature))
     )
       throw new Error("Run sync from the canonical feature worktree.");
     const branch = this.gitEvidence
@@ -311,7 +312,7 @@ export class TicketSyncService extends Service {
   }
 
   private assertFeatureCodeClean(feature: FeaturePaths, ledger: FeatureLedger): void {
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const allowed = this.gitEvidence.workflowDeliveryRecordPaths(feature, ledger);
     const dirty = this.gitEvidence
       .allGitChangePaths()

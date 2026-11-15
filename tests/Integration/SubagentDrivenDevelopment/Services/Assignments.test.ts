@@ -68,7 +68,7 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
   expect(conflict.stderr).toContain("Ticket T-0001 is owned by controller");
   expect(conflict.stderr).toContain("--actor replacement");
   expect(conflict.stderr).toContain(
-    "resume --ticket T-0001 --feature .scratch/0001-ticket-flow --actor <acting-agent> --confirm-handoff",
+    "resume --ticket T-0001 --feature .spindle/features/0001-ticket-flow --actor <acting-agent> --confirm-handoff",
   );
 
   const correctionConflict = await execute(repo, (service) =>
@@ -85,7 +85,7 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
   expect(correctionConflict.stderr).toContain("--actor replacement");
   expect(correctionConflict.stderr).toContain("--confirm-handoff");
 
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const ledgerBeforeConflicts = readFileSync(ledgerPath, "utf8");
   const selection = { spec, ticket: "T-0001", author: "replacement" };
   const otherConflicts: { name: string; run: Parameters<typeof execute>[1] }[] = [
@@ -166,7 +166,10 @@ test("implement refuses blocked and dependency-unready tickets without persistin
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
-  const before = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const before = readFileSync(
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+    "utf8",
+  );
 
   const unready = await execute(repo, (service) =>
     service.assignmentService.implement({
@@ -177,7 +180,9 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(unready.status).not.toBe(0);
   expect(unready.stderr).toMatch(/open dependencies: T-0001/);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(before);
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(before);
 
   const blocked = await execute(repo, (service) =>
     service.ticketService.ticketUpdate({
@@ -189,7 +194,7 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(blocked.status, blocked.stderr).toBe(0);
   const beforeBlockedDispatch = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
     "utf8",
   );
   const statusBeforeBlockedDispatch = git("status", "--porcelain=v1", "--untracked-files=all");
@@ -202,9 +207,9 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(notReady.status).not.toBe(0);
   expect(notReady.stderr).toMatch(/not open and unblocked/);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeBlockedDispatch,
-  );
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(beforeBlockedDispatch);
   expect(git("status", "--porcelain=v1", "--untracked-files=all")).toBe(
     statusBeforeBlockedDispatch,
   );
@@ -222,7 +227,7 @@ test("resume requires a confirmed controller handoff and preserves assignment id
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignment;
-  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const before = readFileSync(ledger, "utf8");
 
   const unconfirmed = await execute(repo, (service) =>
@@ -255,7 +260,7 @@ test("resume requires a confirmed controller handoff and preserves assignment id
 
 test("review, submission, integration, and sync share ticket ownership guidance", async () => {
   const { repo, spec, ticketId, assignment } = await prepareReviewAssignment();
-  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const before = readFileSync(ledger, "utf8");
   const selection = { spec, ticket: ticketId, author: "replacement" };
   const commands: { name: string; run: Parameters<typeof execute>[1] }[] = [
@@ -310,7 +315,7 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
   const { id: assignmentId, report } = assignment;
-  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const outside = join(repo, "outside.md");
   writeFileSync(outside, "Do not follow this link.\n");
   symlinkSync(outside, report);
@@ -409,7 +414,7 @@ test("submission derives implementation role and report from the assignment", as
   const committed = await execute(repo, (service) => service.deliveryService.next({ spec }));
   expect(committed.status, committed.stderr).toBe(0);
   expect(nextSummary(JSON.parse(committed.stdout)).join("\n")).toContain(
-    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
   );
   writeFileSync(
     join(assignment.workspace, "feature.ts"),
@@ -545,7 +550,10 @@ test("next identifies missing and failed ticket checks after implementation subm
 
 test("next and status guide unstarted work to implement without changing workflow state", async () => {
   const { repo, spec } = await prepareReadyTicket();
-  const before = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const before = readFileSync(
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+    "utf8",
+  );
   const [next, status] = await Promise.all([
     execute(repo, (service) => service.deliveryService.next({ spec })),
     execute(repo, (service) => service.featureInspectionService.status({ spec })),
@@ -554,7 +562,9 @@ test("next and status guide unstarted work to implement without changing workflo
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(next.stdout).actions).toEqual([{ ticket: "T-0001", action: "implement" }]);
   expect(JSON.parse(status.stdout).actions).toEqual(JSON.parse(next.stdout).actions);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(before);
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(before);
 });
 
 test("next reports assignment dispatch time and whether its report is ready to submit", async () => {
@@ -604,7 +614,9 @@ test("next prints named steps and submits a report only after it exists", async 
   expect(ready.status, ready.stderr).toBe(0);
   expect(ready.stdout).toContain("Feature 0001-ticket-flow: step tickets-in-progress");
   expect(ready.stdout).toContain("T-0001: step ticket:implement (ready)");
-  expect(ready.stdout).toContain("pnpm spindle sdd implement --feature .scratch/0001-ticket-flow");
+  expect(ready.stdout).toContain(
+    "pnpm spindle sdd implement --feature .spindle/features/0001-ticket-flow",
+  );
 
   const dispatched = await execute(repo, (service) =>
     service.assignmentService.implement({
@@ -637,6 +649,6 @@ test("next prints named steps and submits a report only after it exists", async 
   const committed = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
   expect(committed.status, committed.stderr).toBe(0);
   expect(committed.stdout).toContain(
-    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
   );
 });

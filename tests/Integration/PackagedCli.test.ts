@@ -66,7 +66,7 @@ function makeGitWorkspace(directory: string) {
   git("config", "user.name", "Packaged CLI fixture");
   git("config", "user.email", "packaged-cli@example.invalid");
 
-  const reportsRelative = ".scratch/2026-11-02-packaged-cli/reports";
+  const reportsRelative = ".spindle/features/2026-11-02-packaged-cli/reports";
   const reportsDirectory = join(directory, reportsRelative);
   mkdirSync(reportsDirectory, { recursive: true });
   writeFileSync(join(directory, "tracked.txt"), "fixture\n");
@@ -105,7 +105,7 @@ test("published tarball supplies assets for initialization and SDD documents", (
     "--with-design",
   ]);
   expect(created.status, created.stderr).toBe(0);
-  const feature = join(workspace, ".scratch", "0001-tarball-feature");
+  const feature = join(workspace, ".spindle/features", "0001-tarball-feature");
   const ticket = cli.run(workspace, [
     "sdd",
     "ticket",
@@ -161,7 +161,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
   ]);
   expect(created.status, created.stderr).toBe(0);
   expect(created.stderr).toBe("");
-  const featureDirectory = join(gitWorkspace, ".scratch", "0001-packaged-feature");
+  const featureDirectory = join(gitWorkspace, ".spindle/features", "0001-packaged-feature");
   const expected = {
     feature: "0001-packaged-feature",
     workspace: featureDirectory,
@@ -303,7 +303,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "pnpm test -- --run",
   );
   const registry = JSON.parse(
-    readFileSync(join(invocationWorkspace, ".github/spindle.json"), "utf8"),
+    readFileSync(join(invocationWorkspace, ".spindle/config.json"), "utf8"),
   );
   expect(registry.tooling).toContainEqual({
     key: "test-unit",
@@ -311,7 +311,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
     command: "pnpm test -- --run",
   });
   expect(
-    JSON.parse(readFileSync(join(invocationWorkspace, ".github/spindle.json"), "utf8")),
+    JSON.parse(readFileSync(join(invocationWorkspace, ".spindle/config.json"), "utf8")),
   ).toMatchObject({
     stacks: ["typescript"],
     tooling: registry.tooling,
@@ -416,7 +416,7 @@ test("packaged init from a nested directory targets the Git worktree root", () =
 
   const fromRoot = cli.run(project, args);
   expect(fromRoot.status, fromRoot.stderr).toBe(0);
-  const rootConfig = readFileSync(join(project, ".github", "spindle.json"), "utf8");
+  const rootConfig = readFileSync(join(project, ".spindle", "config.json"), "utf8");
   const rootSkill = readFileSync(
     join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
     "utf8",
@@ -426,7 +426,7 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   const fromNested = cli.run(nested, args);
   expect(fromNested.status, fromNested.stderr).toBe(0);
   expect(fromNested.stdout).toBe(fromRoot.stdout);
-  expect(readFileSync(join(project, ".github", "spindle.json"), "utf8")).toBe(rootConfig);
+  expect(readFileSync(join(project, ".spindle", "config.json"), "utf8")).toBe(rootConfig);
   expect(
     readFileSync(
       join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
@@ -472,7 +472,10 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   }
 
   const domainModelingSkill = matter(
-    readFileSync(join(project, ".github", "skills", "public-ref-domain-modeling", "SKILL.md"), "utf8"),
+    readFileSync(
+      join(project, ".github", "skills", "public-ref-domain-modeling", "SKILL.md"),
+      "utf8",
+    ),
   );
   expect(domainModelingSkill.data.name).toBe("public-ref-domain-modeling");
   expect(domainModelingSkill.data.description).toBe(

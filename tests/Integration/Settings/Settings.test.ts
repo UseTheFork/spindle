@@ -15,7 +15,7 @@ test("settings reads use the boot-bound snapshot", async () => {
   const { app, repo } = await serviceFixture();
   const service = new SettingsService(app);
   await writeFile(
-    join(repo, ".github", "spindle.json"),
+    join(repo, ".spindle", "config.json"),
     JSON.stringify({
       stacks: ["python"],
       spindle_package_manager: "pnpm",
@@ -31,7 +31,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   const run = (args: string[]) => runCli(project, args, process.env.PATH ?? "");
   const init = run(["init", "--stack", "typescript", "--spindle-package-manager", "pnpm"]);
   expect(init.status, init.stderr).toBe(0);
-  const configPath = join(project, ".github/spindle.json");
+  const configPath = join(project, ".spindle/config.json");
   const skillPath = join(project, ".github/skills/public-ref-commit-format/SKILL.md");
   const config = JSON.parse(await readFile(configPath, "utf8"));
   const { version } = JSON.parse(
@@ -97,7 +97,7 @@ test("invalid existing settings report fields and cannot be overwritten", async 
   const run = (args: string[]) => runCli(project, args, process.env.PATH ?? "");
   const init = run(["init", "--stack", "python", "--spindle-package-manager", "pnpm"]);
   expect(init.status, init.stderr).toBe(0);
-  const path = join(project, ".github/spindle.json");
+  const path = join(project, ".spindle/config.json");
   const config = JSON.parse(await readFile(path, "utf8"));
   config.commit.title_max_length = 1;
   const invalid = JSON.stringify(config);
@@ -111,8 +111,9 @@ test("invalid existing settings report fields and cannot be overwritten", async 
 
 test("init preserves unrecognized settings in an existing uninitialized configuration", async () => {
   const project = await makeTempDir("spindle-settings-legacy-");
-  const configPath = join(project, ".github/spindle.json");
+  const configPath = join(project, ".spindle/config.json");
   await mkdir(join(project, ".github"), { recursive: true });
+  await mkdir(join(project, ".spindle"), { recursive: true });
   await writeFile(configPath, JSON.stringify({ stacks: [], variables: { owner: "kept" } }));
   const result = runCli(
     project,
@@ -167,7 +168,7 @@ test(
       ],
     );
     expect(result.status, result.stdout + result.stderr).toBe(0);
-    const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"));
     expect(config.commit).toEqual({
       allow_body: true,
       title_max_length: 72,
@@ -205,7 +206,7 @@ test(
     ]);
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout).toContain("Settings saved");
-    const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"));
     expect(config.tooling).toEqual([{ key: "check", section: "Testing", command: "pnpm test" }]);
   },
 );

@@ -207,7 +207,7 @@ test("refuses recovery when journalled records have changed and preserves staged
   expect(() => committer.commit(feature)).toThrow("changed during recovery");
   expect(readFileSync(spec, "utf8")).toContain("Unexpected change.");
   expect(
-    execFileSync("git", ["show", ":.scratch/0001-record-recovery/spec.md"], {
+    execFileSync("git", ["show", ":.spindle/features/0001-record-recovery/spec.md"], {
       cwd: root,
       encoding: "utf8",
     }),
@@ -258,10 +258,14 @@ test("commits canonical report paths literally", async () => {
   const commit = committer.commit(feature);
   expect(commit).toBeTruthy();
   expect(
-    execFileSync("git", ["show", "HEAD:.scratch/0001-record-recovery/reports/[review].md"], {
-      cwd: root,
-      encoding: "utf8",
-    }),
+    execFileSync(
+      "git",
+      ["show", "HEAD:.spindle/features/0001-record-recovery/reports/[review].md"],
+      {
+        cwd: root,
+        encoding: "utf8",
+      },
+    ),
   ).toBe("Reviewed.\n");
 });
 
@@ -313,7 +317,7 @@ test("retrying implement after an interrupted record commit recovers it without 
   expect(ledger.tickets[0]?.assignment?.id).toBe(resumed.assignment.id);
   expect(gitOutput(root, "rev-list", "--count", `${before}..HEAD`)).toBe("1");
   expect(gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
-  expect(gitOutput(root, "show", "HEAD:.scratch/0001-ticket-flow/sdd.json")).toContain(
+  expect(gitOutput(root, "show", "HEAD:.spindle/features/0001-ticket-flow/sdd.json")).toContain(
     resumed.assignment.id,
   );
   expect(assignments.implement(options).assignment.id).toBe(resumed.assignment.id);

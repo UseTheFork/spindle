@@ -54,8 +54,8 @@ test("start commits only the feature records and creates an isolated worktree", 
   expect(git("rev-parse", "HEAD")).toBe(output.featureRevision);
   expect(git("status", "--porcelain")).toBe("");
   expect(git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").split("\n")).toEqual([
-    ".scratch/0001-worktree-feature/sdd.json",
-    ".scratch/0001-worktree-feature/spec.md",
+    ".spindle/features/0001-worktree-feature/sdd.json",
+    ".spindle/features/0001-worktree-feature/spec.md",
   ]);
   expect(
     execFileSync("git", ["branch", "--show-current"], {
@@ -64,12 +64,12 @@ test("start commits only the feature records and creates an isolated worktree", 
     }).trim(),
   ).toBe(output.featureBranch);
   expect(readFileSync(output.spec, "utf8")).toBe(readFileSync(spec, "utf8"));
-  expect(existsSync(join(output.featureWorkspace, ".scratch/0001-worktree-feature/tickets"))).toBe(
-    true,
-  );
-  expect(existsSync(join(output.featureWorkspace, ".scratch/0001-worktree-feature/reports"))).toBe(
-    true,
-  );
+  expect(
+    existsSync(join(output.featureWorkspace, ".spindle/features/0001-worktree-feature/tickets")),
+  ).toBe(true);
+  expect(
+    existsSync(join(output.featureWorkspace, ".spindle/features/0001-worktree-feature/reports")),
+  ).toBe(true);
   expect(JSON.parse(readFileSync(output.stateFile, "utf8"))).toMatchObject({
     originalBranch,
     originalRevision,
@@ -88,7 +88,7 @@ test("start commits only the feature records and creates an isolated worktree", 
 
 test("start uses the existing revision without creating an empty commit", async () => {
   const { repo, git, spec, parent } = await setup();
-  git("add", ".scratch/0001-worktree-feature");
+  git("add", ".spindle/features/0001-worktree-feature");
   git("commit", "-qm", "prepare feature records");
   const before = git("rev-parse", "HEAD");
   const result = await invokeAsync(repo, [
@@ -153,8 +153,8 @@ test("start refuses unrelated changes before creating a commit, branch, or state
 
 test("start preserves staged feature content that differs from the worktree", async () => {
   const { repo, git, spec, parent } = await setup();
-  git("add", ".scratch/0001-worktree-feature/spec.md");
-  const staged = git("show", ":.scratch/0001-worktree-feature/spec.md");
+  git("add", ".spindle/features/0001-worktree-feature/spec.md");
+  const staged = git("show", ":.spindle/features/0001-worktree-feature/spec.md");
   writeFileSync(spec, `${readFileSync(spec, "utf8")}\nUnstaged requirement.\n`);
   const result = await invokeAsync(repo, [
     "start",
@@ -166,7 +166,7 @@ test("start preserves staged feature content that differs from the worktree", as
   ]);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/staged feature records differ/i);
-  expect(git("show", ":.scratch/0001-worktree-feature/spec.md")).toBe(staged);
+  expect(git("show", ":.spindle/features/0001-worktree-feature/spec.md")).toBe(staged);
   expect(readFileSync(spec, "utf8")).toContain("Unstaged requirement.");
 });
 
@@ -197,7 +197,7 @@ test("start requires record confirmation and rejects unexpected or ignored featu
   expect(git("rev-parse", "HEAD")).toBe(before);
   expect(readFileSync(secret, "utf8")).toBe("credential-like data\n");
 
-  writeFileSync(join(repo, ".git/info/exclude"), ".scratch/0001-worktree-feature/.env\n");
+  writeFileSync(join(repo, ".git/info/exclude"), ".spindle/features/0001-worktree-feature/.env\n");
   const ignored = await invokeAsync(repo, [
     "start",
     "--feature",
@@ -260,16 +260,16 @@ test("start preserves ledgers that refer to reports in the original checkout", a
 
 test("start preserves unmerged feature entries without staging a conflict", async () => {
   const { repo, git, spec, parent } = await setup();
-  git("add", ".scratch/0001-worktree-feature");
+  git("add", ".spindle/features/0001-worktree-feature");
   git("commit", "-qm", "prepare feature records");
   const originalBranch = git("branch", "--show-current");
   git("checkout", "-qb", "conflict-side");
   writeFileSync(spec, "side version\n");
-  git("add", ".scratch/0001-worktree-feature/spec.md");
+  git("add", ".spindle/features/0001-worktree-feature/spec.md");
   git("commit", "-qm", "side");
   git("checkout", "-q", originalBranch);
   writeFileSync(spec, "original version\n");
-  git("add", ".scratch/0001-worktree-feature/spec.md");
+  git("add", ".spindle/features/0001-worktree-feature/spec.md");
   git("commit", "-qm", "original");
   expect(() => git("merge", "conflict-side")).toThrow();
   const before = git("ls-files", "--unmerged");

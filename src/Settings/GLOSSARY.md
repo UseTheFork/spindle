@@ -7,7 +7,7 @@ Template Rendering derives commit guidance from Project Settings.
 ## Language
 
 **Project Settings**:
-The `.github/spindle.json` file holding the project's selected Stacks, preferred
+The `.spindle/config.json` file holding the project's selected Stacks, preferred
 Spindle package-manager command, registered tooling commands, and commit
 guidance settings.
 

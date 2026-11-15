@@ -15,18 +15,25 @@ import { templateCatalog } from "@/Assets/Templates/Catalog";
 import { Service } from "@/Foundation/Service";
 import {
   ProjectSettingsService,
+  projectSettingsPath,
   type ProjectSettingsData,
 } from "@/Settings/Services/ProjectSettingsService";
 import { ResolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
 import { RenderText } from "@/TemplateRendering/Rendering/RenderText";
 import { ToolingService } from "@/Tooling/Services/ToolingService";
 
-const projectSettingsPath = ".github/spindle.json";
 const copilotPath = ".github/copilot-instructions.md";
 const startMarker = "<!-- spindle:start -->";
 const endMarker = "<!-- spindle:end -->";
-const initializationDirectories = ["docs", "docs/adr", ".scratch", "docs/agents", ".github"];
-const updateDirectories = ["docs", "docs/agents", ".github"];
+const initializationDirectories = [
+  "docs",
+  "docs/adr",
+  ".spindle",
+  ".spindle/features",
+  "docs/agents",
+  ".github",
+];
+const updateDirectories = ["docs", "docs/agents", ".github", ".spindle"];
 
 export interface ProjectInitializationResult {
   workspace: string;

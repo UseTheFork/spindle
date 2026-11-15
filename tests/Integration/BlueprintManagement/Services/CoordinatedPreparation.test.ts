@@ -21,7 +21,7 @@ test("update preparation failure leaves planned cross-kind changes untouched", a
   const blueprints = await makeTempDir("spindle-update-preparation-blueprints-");
   const project = await makeTempDir("spindle-update-preparation-project-");
   const github = join(project, ".github");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const agentPath = join(github, "agents", "new.agent.md");
   const currentSkill = join(github, "skills", "current");
   const skippedSkill = join(github, "skills", "skipped");
@@ -107,7 +107,7 @@ test("init preparation failure leaves planned Project Settings and target deleti
   const blueprints = await makeTempDir("spindle-init-preparation-blueprints-");
   const project = await makeTempDir("spindle-init-preparation-project-");
   const github = join(project, ".github");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const agentPath = join(github, "agents", "new.agent.md");
   const retiredSkill = join(github, "skills", "retired", "local.txt");
   const outsideSentinel = join(project, "outside-sentinel.txt");
@@ -149,7 +149,7 @@ test("Project Settings failure reports completed Blueprint installs", async () =
   const blueprints = await makeTempDir("spindle-config-progress-blueprints-");
   const project = await makeTempDir("spindle-config-progress-project-");
   const github = join(project, ".github");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const agentPath = join(github, "agents", "new.agent.md");
   const agentBytes = Buffer.from(
     `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
@@ -198,7 +198,7 @@ test("application write failure reports earlier cross-kind changes without claim
   const agents = join(github, "agents");
   const agentPath = join(agents, "write.agent.md");
   const skillPath = join(github, "skills", "demo", "SKILL.md");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const originalAgent = Buffer.from(
     `---\nname: write\nmetadata:\n  spindle:\n    version: 1.0.0\n---\ninstalled Agent\n`,
   );
@@ -258,7 +258,7 @@ test("partial Skill application reports each applied file and the exact later fa
   const skillEntry = join(skill, "SKILL.md");
   const firstFile = join(skill, "a-first.txt");
   const failingFile = join(skill, "z-failing.txt");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const configBytes = Buffer.from(
     '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
   );
@@ -331,7 +331,7 @@ test("application deletion failure stops before cross-kind installations", async
       `---\nname: new\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nnew Agent\n`,
     );
     await put(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
     );
     await put(firstRemoval, versioned("1.0.0", "first installed Agent"));
@@ -403,7 +403,7 @@ test("mixed reconciliation reports exact Blueprint writes, removals, and repeate
     await put(join(blueprints, "skills", "current", "asset.txt"), "source asset\n");
 
     await put(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
     );
     await put(join(github, "skills", "current", "SKILL.md"), currentSkillInstall);

@@ -6,7 +6,7 @@ test("ticket ownership errors identify both actors and a safe handoff command", 
   expect(() =>
     WorkflowPolicy.assertTicketOwner("controller", " replacement ", "0001-example", "T-0001"),
   ).toThrow(
-    "Ticket T-0001 is owned by controller, but this command used --actor replacement. If you are controller, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume --ticket T-0001 --feature .scratch/0001-example --actor <acting-agent> --confirm-handoff",
+    "Ticket T-0001 is owned by controller, but this command used --actor replacement. If you are controller, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume --ticket T-0001 --feature .spindle/features/0001-example --actor <acting-agent> --confirm-handoff",
   );
   expect(() =>
     WorkflowPolicy.assertTicketOwner("controller", " controller ", "0001-example", "T-0001"),
@@ -14,7 +14,7 @@ test("ticket ownership errors identify both actors and a safe handoff command", 
   expect(() =>
     WorkflowPolicy.assertTicketOwner(undefined, "controller", "0001-example", "T-0001"),
   ).toThrow(
-    "Ticket T-0001 has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .scratch/0001-example",
+    "Ticket T-0001 has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .spindle/features/0001-example",
   );
 });
 
@@ -22,13 +22,13 @@ test("delivery ownership errors identify both actors and a safe handoff command"
   expect(() =>
     WorkflowPolicy.assertDeliveryOwner("controller", "replacement", "0001-example"),
   ).toThrow(
-    "Delivery is owned by controller, but this command used --actor replacement. If you are controller, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume --scope delivery --feature .scratch/0001-example --actor <acting-agent> --confirm-handoff",
+    "Delivery is owned by controller, but this command used --actor replacement. If you are controller, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume --scope delivery --feature .spindle/features/0001-example --actor <acting-agent> --confirm-handoff",
   );
   expect(() =>
     WorkflowPolicy.assertDeliveryOwner("controller", " controller ", "0001-example"),
   ).not.toThrow();
   expect(() => WorkflowPolicy.assertDeliveryOwner(undefined, "controller", "0001-example")).toThrow(
-    "Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .scratch/0001-example --actor <acting-agent>",
+    "Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .spindle/features/0001-example --actor <acting-agent>",
   );
 });
 

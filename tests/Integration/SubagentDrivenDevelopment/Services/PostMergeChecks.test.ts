@@ -188,7 +188,7 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(uncommitted.status).not.toBe(0);
   expect(uncommitted.stderr).toMatch(/uncommitted changes/i);
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].status).not.toBe("closed");
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit updated feature requirements");
   const retry = await cli(root, spec, "require", ["--command", "test"]);
   expect(retry.status, retry.stderr).toBe(0);
@@ -249,7 +249,7 @@ test("pending unavailable results survive interruption and changed feature state
   expect(unavailable.status, unavailable.stderr).toBe(0);
   const specContent = readFileSync(spec, "utf8");
   writeFileSync(spec, `${specContent}\nUpdated feature requirements.\n`);
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit updated requirements");
   const redeclared = await cli(root, spec, "require", [
     "--command",
@@ -340,7 +340,7 @@ test("post-merge identity ignores independent ticket and report activity but tra
     ticket.replace("## Requirements", "## Requirements\n\nCommitted ticket requirement."),
   );
   writeFileSync(spec, `${originalSpec}\nCommitted feature requirement.\n`);
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit changed requirements");
   const updatedCommit = git(root, "rev-parse", "HEAD");
   const staleRecord = await cli(root, spec, "record", args);

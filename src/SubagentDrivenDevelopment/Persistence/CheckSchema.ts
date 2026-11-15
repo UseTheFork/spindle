@@ -65,8 +65,8 @@ export class CheckSchema {
       !isAbsolute(value) &&
       !value.includes("\\") &&
       value.split("/").every((segment) => !!segment && segment !== "." && segment !== "..") &&
-      value !== ".scratch" &&
-      !value.startsWith(".scratch/")
+      value !== ".spindle/features" &&
+      !value.startsWith(".spindle/features/")
     );
   }
 }

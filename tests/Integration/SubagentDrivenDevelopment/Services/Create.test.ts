@@ -21,7 +21,7 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
     title: "Command Driven SDD",
     author: "maintainer",
   });
-  const featureDirectory = join(repo, ".scratch", "0001-command-driven-sdd");
+  const featureDirectory = join(repo, ".spindle/features", "0001-command-driven-sdd");
   const expected = {
     feature: "0001-command-driven-sdd",
     workspace: featureDirectory,
@@ -63,13 +63,13 @@ test("sdd create renders spec and design titles while preserving unfilled author
     author: "maintainer",
     withDesign: true,
   });
-  const design = join(repo, ".scratch", "0001-command-driven-sdd", "design.md");
+  const design = join(repo, ".spindle/features", "0001-command-driven-sdd", "design.md");
 
   expect(readFileSync(result.spec, "utf8")).toContain("# Command Driven SDD");
   expect(readFileSync(design, "utf8")).toBe(
     "# Command Driven SDD\n\n## Intent\n\n[INTENT]\n\n## Success Criteria\n\n[SUCCESS CRITERIA]\n\n## Scope and Constraints\n\n[SCOPE AND CONSTRAINTS]\n\n## Approaches Considered\n\n[APPROACHES AND TRADE-OFFS]\n\n## Selected Direction\n\n[SELECTED DIRECTION]\n\n## Assumptions and Open Decisions\n\n[ASSUMPTIONS AND OPEN DECISIONS]\n",
   );
-  expect(readdirSync(join(repo, ".scratch", result.feature)).sort()).toEqual([
+  expect(readdirSync(join(repo, ".spindle/features", result.feature)).sort()).toEqual([
     "design.md",
     "reports",
     "sdd.json",
@@ -100,7 +100,7 @@ test("SDD input is rendered as Markdown data rather than parsed as another templ
   const feature = service.featureCreationService.create({ title, author: "maintainer" });
 
   expect(readFileSync(feature.spec, "utf8")).toContain(`# ${title}`);
-  expect(existsSync(join(repo, ".scratch", feature.feature))).toBe(true);
+  expect(existsSync(join(repo, ".spindle/features", feature.feature))).toBe(true);
 });
 
 test("computed provider failures leave no published feature or staging directory", async () => {
@@ -118,14 +118,14 @@ test("computed provider failures leave no published feature or staging directory
       withDesign: true,
     }),
   ).toThrow(/Computed Variable 'private_skill_description' failed: provider failed/);
-  expect(readdirSync(join(repo, ".scratch"))).toEqual([]);
-  expect(existsSync(join(repo, ".scratch", "0001-failed-feature"))).toBe(false);
+  expect(readdirSync(join(repo, ".spindle/features"))).toEqual([]);
+  expect(existsSync(join(repo, ".spindle/features", "0001-failed-feature"))).toBe(false);
   render.mockRestore();
 });
 
 test("sdd create allocates above matching IDs and ignores dated and unrelated directories", async () => {
   const { repo, service } = await serviceFixture();
-  const scratch = join(repo, ".scratch");
+  const scratch = join(repo, ".spindle/features");
   mkdirSync(join(scratch, "0007-older-feature"), { recursive: true });
   mkdirSync(join(scratch, "0012-another-feature"), { recursive: true });
   mkdirSync(join(scratch, "2026-11-06-historical-feature"), { recursive: true });
@@ -145,7 +145,9 @@ test("sdd create allocates above matching IDs and ignores dated and unrelated di
 
 test("sdd create compares large matching IDs without numeric precision loss", async () => {
   const { repo, service } = await serviceFixture();
-  mkdirSync(join(repo, ".scratch", "9007199254740993-previous-feature"), { recursive: true });
+  mkdirSync(join(repo, ".spindle/features", "9007199254740993-previous-feature"), {
+    recursive: true,
+  });
   expect(
     service.featureCreationService.create({ title: "Next Large Feature", author: "maintainer" })
       .feature,
@@ -154,7 +156,7 @@ test("sdd create compares large matching IDs without numeric precision loss", as
 
 test("sdd create reports abandoned staging content without overwriting or publishing it", async () => {
   const { repo, service } = await serviceFixture();
-  const abandoned = join(repo, ".scratch", ".sdd-create-interrupted");
+  const abandoned = join(repo, ".spindle/features", ".sdd-create-interrupted");
   mkdirSync(abandoned, { recursive: true });
   writeFileSync(join(abandoned, "spec.md"), "partial content\n");
   const create = () =>
@@ -163,12 +165,12 @@ test("sdd create reports abandoned staging content without overwriting or publis
     /(?=.*(?:incomplete.*creation|creation.*incomplete))(?=.*sdd-create-interrupted)/i,
   );
   expect(readFileSync(join(abandoned, "spec.md"), "utf8")).toBe("partial content\n");
-  expect(existsSync(join(repo, ".scratch", "0001-recoverable-feature"))).toBe(false);
+  expect(existsSync(join(repo, ".spindle/features", "0001-recoverable-feature"))).toBe(false);
 });
 
 test("sdd create preserves a stale lock and gives an explicit recovery instruction", async () => {
   const { repo, service } = await serviceFixture();
-  const scratch = join(repo, ".scratch");
+  const scratch = join(repo, ".spindle/features");
   mkdirSync(scratch);
   const lockPath = join(scratch, ".sdd-create.lock");
   const lock = JSON.stringify({ pid: 2_147_483_647, createdAt: Date.now() - 60_000 });
@@ -185,26 +187,26 @@ test("sdd create rejects symlinked and ignored destinations without overwriting 
   const outside = join(repo, "..", "outside-scratch");
   mkdirSync(outside);
   writeFileSync(join(outside, "keep.txt"), "outside content\n");
-  symlinkSync(outside, join(repo, ".scratch"));
+  symlinkSync(outside, join(repo, ".spindle/features"));
 
   const create = () =>
     service.featureCreationService.create({ title: "Unsafe Feature", author: "maintainer" });
   expect(create).toThrow();
   expect(readFileSync(join(outside, "keep.txt"), "utf8")).toBe("outside content\n");
-  rmSync(join(repo, ".scratch"));
-  writeFileSync(join(repo, ".gitignore"), ".scratch/\n");
+  rmSync(join(repo, ".spindle/features"));
+  writeFileSync(join(repo, ".gitignore"), ".spindle/features/\n");
   expect(create).toThrow();
-  expect(existsSync(join(repo, ".scratch"))).toBe(false);
-  writeFileSync(join(repo, ".gitignore"), ".scratch/*/sdd.json\n");
+  expect(existsSync(join(repo, ".spindle/features"))).toBe(false);
+  writeFileSync(join(repo, ".gitignore"), ".spindle/features/*/sdd.json\n");
   expect(create).toThrow();
-  expect(existsSync(join(repo, ".scratch", "0001-unsafe-feature"))).toBe(false);
-  writeFileSync(join(repo, ".gitignore"), ".scratch/*/design.md\n");
+  expect(existsSync(join(repo, ".spindle/features", "0001-unsafe-feature"))).toBe(false);
+  writeFileSync(join(repo, ".gitignore"), ".spindle/features/*/design.md\n");
   expect(() =>
     service.featureCreationService.create({
       title: "Unsafe Feature",
       author: "maintainer",
       withDesign: true,
     }),
-  ).toThrow(/Feature destination is ignored: .scratch\/0001-unsafe-feature\/design\.md/);
-  expect(existsSync(join(repo, ".scratch", "0001-unsafe-feature"))).toBe(false);
+  ).toThrow(/Feature destination is ignored: \.spindle\/features\/0001-unsafe-feature\/design\.md/);
+  expect(existsSync(join(repo, ".spindle/features", "0001-unsafe-feature"))).toBe(false);
 });

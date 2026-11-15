@@ -105,7 +105,7 @@ export class WorkflowPolicy extends Service {
   ): void {
     if (!owner) {
       throw new Error(
-        `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .scratch/${feature} --actor <acting-agent>`,
+        `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .spindle/features/${feature} --actor <acting-agent>`,
       );
     }
     WorkflowPolicy.assertOwner(owner, actor, feature, "Delivery", "--scope delivery");
@@ -119,7 +119,7 @@ export class WorkflowPolicy extends Service {
   ): void {
     if (!owner) {
       throw new Error(
-        `Ticket ${ticket} has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .scratch/${feature}`,
+        `Ticket ${ticket} has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .spindle/features/${feature}`,
       );
     }
     WorkflowPolicy.assertOwner(owner, actor, feature, `Ticket ${ticket}`, `--ticket ${ticket}`);
@@ -134,7 +134,7 @@ export class WorkflowPolicy extends Service {
   ): void {
     if (owner !== actor.trim()) {
       throw new Error(
-        `${scope} is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume ${selector} --feature .scratch/${feature} --actor <acting-agent> --confirm-handoff`,
+        `${scope} is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume ${selector} --feature .spindle/features/${feature} --actor <acting-agent> --confirm-handoff`,
       );
     }
   }

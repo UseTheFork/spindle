@@ -83,7 +83,7 @@ and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.
 its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
-project's `.github/spindle.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
+project's `.spindle/config.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
 adds a distinct Project Settings snapshot bootstrap adapter without populating `app.config`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,

@@ -38,8 +38,9 @@ function workspace() {
   const root = makeTempDirSync("spindle-bootstrap-test-");
   execFileSync("git", ["init", "-q"], { cwd: root });
   mkdirSync(join(root, ".github"), { recursive: true });
+  mkdirSync(join(root, ".spindle"), { recursive: true });
   writeFileSync(
-    join(root, ".github", "spindle.json"),
+    join(root, ".spindle", "config.json"),
     '{"stacks":["python"],"spindle_package_manager":"pnpm"}\n',
   );
   const nested = join(root, "packages", "nested");
@@ -140,7 +141,7 @@ test("non-init commands require Project Settings while init can bootstrap withou
   app.instance("console.args", args);
   app.instance("settings.project", { status: "absent" });
 
-  expect(() => new RequireProjectSettings().bootstrap(app)).toThrow(/no \.github\/spindle\.json/i);
+  expect(() => new RequireProjectSettings().bootstrap(app)).toThrow(/no \.spindle\/config\.json/i);
 
   const initApp = new Application({ basePath: "/project" });
   const initArgs = new Repository();

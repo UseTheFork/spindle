@@ -246,7 +246,7 @@ export class FeatureFinalizationService extends Service {
           this.real(source, "file");
           if (
             !this.inside(
-              join(startup.featureWorkspace, `.scratch/${feature.feature}/reports`),
+              join(startup.featureWorkspace, `.spindle/features/${feature.feature}/reports`),
               source,
             ) ||
             this.digest(readFileSync(source)) !== approval.retrospective.reportSha256
@@ -332,7 +332,7 @@ export class FeatureFinalizationService extends Service {
               "add",
               "-A",
               "--",
-              `:(literal).scratch/${feature.feature}`,
+              `:(literal).spindle/features/${feature.feature}`,
             ]);
             journal.recordTree = this.run(state.featureWorkspace, ["write-tree"]);
             this.persist(path, journal);
@@ -446,7 +446,7 @@ export class FeatureFinalizationService extends Service {
         feature: state.feature,
         mergeCommit: journal.mergeCommit,
         originalWorkspace: state.originalWorkspace,
-        spec: join(state.originalWorkspace, `.scratch/${state.feature}/spec.md`),
+        spec: join(state.originalWorkspace, `.spindle/features/${state.feature}/spec.md`),
         cleanup: "complete",
         checkedCommit: journal.finalIdentity?.headSha,
         metadataCommit: journal.metadataCommit,
@@ -522,7 +522,7 @@ export class FeatureFinalizationService extends Service {
   ): FeaturePaths | undefined {
     const absolute = isAbsolute(spec) ? resolve(spec) : resolve(this.app.workspaceRoot, spec);
     const path = relative(this.app.workspaceRoot, absolute);
-    const match = /^\.scratch\/(\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md$/.exec(path);
+    const match = /^\.spindle\/features\/(\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md$/.exec(path);
     if (!match || !isAvailable(match[1]!)) return undefined;
     this.real(absolute, "file");
     const workspace = dirname(absolute);
@@ -652,7 +652,7 @@ export class FeatureFinalizationService extends Service {
       this.validateStartup(startup, feature.feature);
       if (
         this.app.workspaceRoot !== startup.featureWorkspace ||
-        feature.workspace !== join(startup.featureWorkspace, `.scratch/${feature.feature}`)
+        feature.workspace !== join(startup.featureWorkspace, `.spindle/features/${feature.feature}`)
       ) {
         throw new Error(
           "Declare final checks from the recorded feature worktree before finishing.",
@@ -703,7 +703,9 @@ export class FeatureFinalizationService extends Service {
       ".",
     ])
       .split("\0")
-      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+      .filter(
+        (path) => path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"),
+      );
     if (changed.length > 0) {
       throw new Error("Aggregate approval became stale during finalization.");
     }
@@ -729,8 +731,11 @@ export class FeatureFinalizationService extends Service {
   } {
     const ledger = structuredClone(input);
     const mappings: Journal["mappings"] = [];
-    const sourceRecords = join(startup.featureWorkspace, `.scratch/${startup.feature}`);
-    const destinationRecords = join(startup.originalWorkspace, `.scratch/${startup.feature}`);
+    const sourceRecords = join(startup.featureWorkspace, `.spindle/features/${startup.feature}`);
+    const destinationRecords = join(
+      startup.originalWorkspace,
+      `.spindle/features/${startup.feature}`,
+    );
     // Historical worktree locations remain in the journal after cleanup.
     for (const ticket of ledger.tickets) delete ticket.worktree;
     const visit = (value: unknown): void => {
@@ -847,7 +852,7 @@ export class FeatureFinalizationService extends Service {
       ...journal.finalIdentity,
       originalSpec: join(
         journal.startup.originalWorkspace,
-        `.scratch/${journal.startup.feature}/spec.md`,
+        `.spindle/features/${journal.startup.feature}/spec.md`,
       ),
       required: journal.required,
       records: journal.records,
@@ -912,7 +917,7 @@ export class FeatureFinalizationService extends Service {
       journal.ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
     }
     this.ledgers.validateLedger(JSON.parse(journal.ledgerAfter), state.feature);
-    const ledgerPath = `.scratch/${state.feature}/sdd.json`;
+    const ledgerPath = `.spindle/features/${state.feature}/sdd.json`;
     const absoluteLedger = join(root, ledgerPath);
     if (journal.phase === "validation") {
       this.finalCheckout(journal);
@@ -993,7 +998,8 @@ export class FeatureFinalizationService extends Service {
       .split("\0")
       .filter(Boolean);
     if (
-      JSON.stringify(changed) !== JSON.stringify([`.scratch/${journal.startup.feature}/sdd.json`])
+      JSON.stringify(changed) !==
+      JSON.stringify([`.spindle/features/${journal.startup.feature}/sdd.json`])
     ) {
       throw new Error(
         "Metadata follow-up changed code or non-ledger records; it is not the checked merge.",
@@ -1001,7 +1007,7 @@ export class FeatureFinalizationService extends Service {
     }
     const actual = this.run(root, [
       "show",
-      `${commit}:.scratch/${journal.startup.feature}/sdd.json`,
+      `${commit}:.spindle/features/${journal.startup.feature}/sdd.json`,
     ]);
     if (actual !== journal.ledgerAfter.trim())
       throw new Error("Metadata commit differs from the validated relocation plan.");
@@ -1123,7 +1129,7 @@ export class FeatureFinalizationService extends Service {
     }
   }
   private recordFiles(root: string, feature: string): string[] {
-    const prefix = `:(literal).scratch/${feature}`;
+    const prefix = `:(literal).spindle/features/${feature}`;
     return [
       ...new Set(
         [
@@ -1157,7 +1163,7 @@ export class FeatureFinalizationService extends Service {
     }
   }
   private canonical(file: string, feature: string): boolean {
-    const prefix = `.scratch/${feature}/`;
+    const prefix = `.spindle/features/${feature}/`;
     return (
       file.startsWith(prefix) &&
       /^(?:spec\.md|design\.md|sdd\.json|tickets\/T-\d{4,}\.md|reports\/[^/]+\.md)$/.test(
@@ -1178,8 +1184,8 @@ export class FeatureFinalizationService extends Service {
         );
       if (this.exists(join(root, entry.slice(3)))) this.real(join(root, entry.slice(3)), "file");
     }
-    this.real(join(root, `.scratch/${feature}/sdd.json`), "file");
-    this.real(join(root, `.scratch/${feature}/spec.md`), "file");
+    this.real(join(root, `.spindle/features/${feature}/sdd.json`), "file");
+    this.real(join(root, `.spindle/features/${feature}/spec.md`), "file");
     const files = this.run(root, ["ls-files", "-z"]).split("\0").filter(Boolean);
     if (files.length) {
       const attributes = this.run(root, [

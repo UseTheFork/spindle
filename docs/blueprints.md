@@ -19,11 +19,11 @@ outside a valid pair is preserved. Unmarked files and files with invalid
 markers are replaced entirely.
 
 The `tool` subcommands maintain project-specific entries in
-`.github/spindle.json` and regenerate `docs/agents/tooling.md`. Spindle's three
+`.spindle/config.json` and regenerate `docs/agents/tooling.md`. Spindle's three
 built-in commands are always included in the guide and `tool list`; their keys
 are reserved and are not stored in the registry. A missing `tooling` array is
 initialized to an empty array by `init` or `update`; existing entries are
-preserved. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
+preserved. `sdd create` creates an ID-based feature workspace beneath `.spindle/features/` in the
 discovered root, copying the shared SDD spec template and optionally a design
 template with `--with-design`. Feature and ticket creation require valid Project
 Settings with `spindle_package_manager`, initialized by `spindle init`.
@@ -164,7 +164,7 @@ nonoverlapping paths, source types and existence, symbolic links, and required
 `src/Assets/Templates/Catalog.ts` declares typed source/destination pairs for
 project assets and shared SDD document templates. After installing selected
 Blueprints, `spindle init` initializes project assets and creates
-`.github/spindle.json` with the selected stacks and the tooling registry. The
+`.spindle/config.json` with the selected stacks and the tooling registry. The
 `spindle tool` commands list, add, update, and remove registry entries; they do
 not discover or execute project commands. Tooling owns the registry and its
 generated `docs/agents/tooling.md` guide. SDD feature documents use the numbered

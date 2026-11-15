@@ -301,13 +301,15 @@ test("dispatch automatically commits pending canonical records", async () => {
   const reportCommitPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD~1")
     .split("\n")
     .filter(Boolean);
-  expect(reportCommitPaths).toEqual([".scratch/0001-ticket-isolation/reports/T-0001-review.md"]);
+  expect(reportCommitPaths).toEqual([
+    ".spindle/features/0001-ticket-isolation/reports/T-0001-review.md",
+  ]);
   const committedPaths = gitAt(root, "show", "--format=", "--name-only", "HEAD")
     .split("\n")
     .filter(Boolean);
   expect(committedPaths).toEqual([
-    ".scratch/0001-ticket-isolation/sdd.json",
-    ".scratch/0001-ticket-isolation/tickets/T-0001.md",
+    ".spindle/features/0001-ticket-isolation/sdd.json",
+    ".spindle/features/0001-ticket-isolation/tickets/T-0001.md",
   ]);
   expect(gitAt(root, "rev-parse", "HEAD")).not.toBe(before);
   expect(JSON.parse(dispatched.stdout).assignment.workspace).toBe(
@@ -453,7 +455,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
   const review = JSON.parse(reviewed.stdout).assignments[0] as { id: string; report: string };
   writeFileSync(review.report, "# Review\n\nNo findings.\n");
   writeFileSync(join(root, "other-ticket.ts"), "export const otherTicket = 1;\n");
-  gitAt(root, "add", ".scratch", "other-ticket.ts");
+  gitAt(root, "add", ".spindle/features", "other-ticket.ts");
   gitAt(root, "commit", "-qm", "advance feature branch");
   const approval = await execute(root, (services) =>
     services.submissionService.submit({
@@ -1836,8 +1838,11 @@ test("ticket review rejects committed changes to requirements that differ from c
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
   writeFileSync(join(workspace, "first.ts"), "export const first = 1;\n");
-  writeFileSync(join(workspace, ".scratch/0001-ticket-isolation/spec.md"), "changed locally\n");
-  gitAt(workspace, "add", "first.ts", ".scratch");
+  writeFileSync(
+    join(workspace, ".spindle/features/0001-ticket-isolation/spec.md"),
+    "changed locally\n",
+  );
+  gitAt(workspace, "add", "first.ts", ".spindle/features");
   gitAt(workspace, "commit", "-qm", "code and wrong records");
   writeFileSync(first.assignment.report, "# Implementation report\n\nImplemented.\n");
   const submitted = await execute(root, (services) =>

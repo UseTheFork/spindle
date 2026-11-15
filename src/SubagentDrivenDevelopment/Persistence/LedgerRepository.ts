@@ -271,7 +271,7 @@ export class LedgerRepository extends Service {
               ticket.assignment.report ===
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   ticket.assignment.action === "implement"
@@ -287,7 +287,7 @@ export class LedgerRepository extends Service {
                   attempt.assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       `${ticket.id}-round-${attempt.number}-fix.md`,
@@ -296,7 +296,7 @@ export class LedgerRepository extends Service {
                     attempt.priorAssignment.report ===
                       join(
                         this.app.workspaceRoot,
-                        ".scratch",
+                        ".spindle/features",
                         feature,
                         "reports",
                         attempt.priorAssignment.action === "implement"
@@ -308,7 +308,7 @@ export class LedgerRepository extends Service {
                       assignment.report ===
                       join(
                         this.app.workspaceRoot,
-                        ".scratch",
+                        ".spindle/features",
                         feature,
                         "reports",
                         assignment.scope === "initial"
@@ -329,7 +329,7 @@ export class LedgerRepository extends Service {
                   assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       assignment.scope === "initial"
@@ -346,7 +346,7 @@ export class LedgerRepository extends Service {
                   assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       assignment.scope === "initial"
@@ -506,7 +506,7 @@ export class LedgerRepository extends Service {
               assignment.report ===
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   assignment.attempt
@@ -537,7 +537,7 @@ export class LedgerRepository extends Service {
           delivery.assignment.report !==
             join(
               this.app.workspaceRoot,
-              ".scratch",
+              ".spindle/features",
               feature,
               "reports",
               `final-round-${delivery.assignment.attempt}-fix.md`,
@@ -558,7 +558,7 @@ export class LedgerRepository extends Service {
               attempt.assignment.report !==
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   `final-round-${attempt.number}-fix.md`,
@@ -570,7 +570,7 @@ export class LedgerRepository extends Service {
                   assignment.report !==
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       `final-round-${attempt.number}-review-${assignment.id}.md`,

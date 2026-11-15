@@ -13,13 +13,13 @@ import { isDeepStrictEqual } from "node:util";
 import { Service } from "@/Foundation/Service";
 import {
   ProjectSettingsService,
+  projectSettingsPath,
   type ProjectSettingsData,
 } from "@/Settings/Services/ProjectSettingsService";
 import { BuiltInTooling, builtInTooling } from "@/Tooling/Models/BuiltInTooling";
 import type { ToolingEntry } from "@/Tooling/Models/ToolingEntry";
 
 const toolingPath = "docs/agents/tooling.md";
-const projectSettingsPath = ".github/spindle.json";
 const toolingKeyPattern = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 export interface ToolingEntryInput {

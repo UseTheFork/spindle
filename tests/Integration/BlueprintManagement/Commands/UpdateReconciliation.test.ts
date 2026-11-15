@@ -31,7 +31,7 @@ test("update overwrites catalog paths and preserves unrelated unmanaged items", 
     },
   });
   await put(
-    join(github, "spindle.json"),
+    join(github, "..", ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await put(join(blueprints, "agents/group/new.agent.md"), managed("2.0.0", "new agent"));
@@ -112,7 +112,7 @@ test("malformed metadata stops all changes including obsolete removals", async (
   });
   await put(join(blueprints, "skills/fresh/SKILL.md"), managed("1.0.0", "new"));
   await put(
-    join(github, "spindle.json"),
+    join(github, "..", ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await put(join(github, "agents/obsolete.agent.md"), managed("1.0.0", "keep until valid"));
@@ -137,7 +137,7 @@ test("updating an empty catalog remains successful after obsolete items are remo
   const github = join(project, ".github");
   writeCatalogFixture(blueprints, { agents: {}, instructions: {}, skills: {} });
   await put(
-    join(github, "spindle.json"),
+    join(github, "..", ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await put(join(github, "agents/old.agent.md"), managed("1.0.0", "old"));
@@ -161,7 +161,7 @@ test("update reconciles catalog and obsolete skills in nested directories", asyn
     skills: { nested: { path: "group/current/", stacks: [] } },
   });
   await put(
-    join(github, "spindle.json"),
+    join(github, "..", ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await put(join(blueprints, "skills/group/current/SKILL.md"), managed("2.0.0", "new"));

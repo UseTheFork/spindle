@@ -38,7 +38,7 @@ test("source Blueprint roots resolve from the module location, independent of Ap
       context: { stacks: config.stacks, variables: {} },
       settings: config,
     });
-    expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
+    expect(JSON.parse(await readFile(join(workspace, ".spindle", "config.json"), "utf8"))).toEqual(
       config,
     );
   }
@@ -98,7 +98,12 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
   const sourceRoot = fileURLToPath(new URL("../../../../assets/Blueprints/", import.meta.url));
   const firstSourceRoot = join(sourceParent, "first");
-  const skillSource = join(firstSourceRoot, "skills", "private-test-driven-development", "SKILL.md");
+  const skillSource = join(
+    firstSourceRoot,
+    "skills",
+    "private-test-driven-development",
+    "SKILL.md",
+  );
   const skillTarget = (workspace: string) =>
     join(workspace, ".github", "skills", "private-test-driven-development", "SKILL.md");
   const firstConfig = projectSettingsSchema.parse({
@@ -148,10 +153,10 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     await ProjectSettingsService.refresh(secondApp);
 
     expect(
-      JSON.parse(await readFile(join(firstWorkspace, ".github", "spindle.json"), "utf8")),
+      JSON.parse(await readFile(join(firstWorkspace, ".spindle", "config.json"), "utf8")),
     ).toEqual(firstConfig);
     expect(
-      JSON.parse(await readFile(join(secondWorkspace, ".github", "spindle.json"), "utf8")),
+      JSON.parse(await readFile(join(secondWorkspace, ".spindle", "config.json"), "utf8")),
     ).toEqual(secondConfig);
 
     const sourceText = await readFile(skillSource, "utf8");

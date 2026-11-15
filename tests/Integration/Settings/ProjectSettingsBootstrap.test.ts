@@ -16,7 +16,7 @@ test("external providers observe malformed configuration after discovery without
   const nested = join(repo, "nested");
   mkdirSync(nested);
   mkdirSync(join(repo, ".github"), { recursive: true });
-  writeFileSync(join(repo, ".github", "spindle.json"), "{");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{");
   const app = new Application({ basePath: nested });
   const observations: unknown[] = [];
   class ConfigurationObserver extends ServiceProvider {

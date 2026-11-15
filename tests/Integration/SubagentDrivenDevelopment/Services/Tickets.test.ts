@@ -155,7 +155,7 @@ test("ticket creation requires valid Project Settings", async () => {
   const { repo, app, service, feature } = await ticketFixture("Invalid Project Settings");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
-  writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{ invalid");
   await ProjectSettingsService.refresh(app);
 
   expect(() =>
@@ -173,7 +173,7 @@ test("ticket creation requires valid Project Settings", async () => {
 
 test("ticket creation rejects ignored destinations without changing ticket or ledger files", async () => {
   const { repo, service, feature } = await ticketFixture("Ignored Ticket");
-  writeFileSync(join(repo, ".gitignore"), ".scratch/*/tickets/T-*.md\n");
+  writeFileSync(join(repo, ".gitignore"), ".spindle/features/*/tickets/T-*.md\n");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
   expect(() => createTicket(service, feature.spec, "Must not be ignored")).toThrow(/ignored/i);

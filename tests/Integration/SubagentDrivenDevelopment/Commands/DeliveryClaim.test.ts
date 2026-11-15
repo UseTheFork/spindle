@@ -18,7 +18,7 @@ function sdd(repo: string, ...args: string[]) {
 test("next identifies unclaimed delivery as the next step", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   const feature = spec.replace(/\/spec\.md$/, "");
-  const settingsPath = join(repo, ".github", "spindle.json");
+  const settingsPath = join(repo, ".spindle", "config.json");
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
   settings.spindle_package_manager = "npm run";
   writeFileSync(settingsPath, JSON.stringify(settings));
@@ -103,11 +103,11 @@ test("claim records delivery ownership and requires an explicit confirmed handof
       (item: { action: string }) => item.action === "controller-claimed",
     ),
   ).toHaveLength(1);
-  const settingsPath = join(repo, ".github", "spindle.json");
+  const settingsPath = join(repo, ".spindle", "config.json");
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
   settings.spindle_package_manager = "npm run";
   writeFileSync(settingsPath, JSON.stringify(settings));
-  git("add", ".github/spindle.json");
+  git("add", ".spindle/config.json");
   git("commit", "-qm", "configure package manager");
   const handoff = sdd(
     repo,

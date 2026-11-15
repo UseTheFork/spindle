@@ -51,7 +51,7 @@ const existingAlpha = {
 
 test("existing config: init initializes project guidance and points to update", async () => {
   const files = {
-    ".github/spindle.json":
+    ".spindle/config.json":
       '{"stacks":["python"],"spindle_package_manager":"pnpm","variables":{}}\n',
   };
   await withProject(
@@ -63,7 +63,7 @@ test("existing config: init initializes project guidance and points to update", 
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain("Initialized project guidance and tooling documentation.");
       expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
-      const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+      const config = JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"));
       expect(config.stacks).toEqual(["python"]);
       expect(config.variables).toEqual({});
       expect(config.spindle_package_manager).toBe("pnpm");
@@ -75,14 +75,13 @@ test("existing config: init initializes project guidance and points to update", 
 test("invalid stack is rejected before the existing-config workflow check", async () => {
   const config = "{}\n";
   await withProject(
-    (project) => seed(project, { ".github/spindle.json": config }),
+    (project) => seed(project, { ".spindle/config.json": config }),
     ["--stack", "ruby"],
     async (project, result) => {
       expect(result.status).not.toBe(0);
       expect(result.stderr).toMatch(/Invalid stack 'ruby'/);
       expect(result.stdout).toBe("");
-      expect(await readdir(join(project, ".github"))).toEqual(["spindle.json"]);
-      expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(config);
+      expect(await readFile(join(project, ".spindle/config.json"), "utf8")).toBe(config);
     },
   );
 });
@@ -103,7 +102,7 @@ test("--on-conflict overwrite re-renders and removes stale files", async () => {
       expect(await readFile(join(project, ".github/skills/beta/SKILL.md"), "utf8")).toBe(
         "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nfresh beta\n",
       );
-      expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBeTruthy();
+      expect(await readFile(join(project, ".spindle/config.json"), "utf8")).toBeTruthy();
       expect(result.stdout).toMatch(/Installed 2 skill\(s\)/);
     },
   );
@@ -125,7 +124,7 @@ test("--on-conflict skip leaves existing skills untouched and installs new ones"
         "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nfresh beta\n",
       );
       expect(
-        JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+        JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8")),
       ).toMatchObject({
         stacks: ["python"],
         spindle_package_manager: "pnpm",
@@ -145,7 +144,7 @@ test("non-interactive conflict without a policy fails naming the flag and writes
       expect(result.stderr).toMatch(/--on-conflict/);
       expect(await readFile(join(project, ".github/skills/alpha/SKILL.md"), "utf8")).toBe("mine\n");
       expect(await readdir(join(project, ".github/skills"))).toEqual(["alpha"]);
-      await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+      await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
     },
   );
 });
@@ -157,7 +156,7 @@ test("invalid --on-conflict value is rejected", async () => {
     async (project, result) => {
       expect(result.status).not.toBe(0);
       expect(result.stderr).toMatch(/--on-conflict.*overwrite.*skip/);
-      await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+      await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
     },
   );
 });

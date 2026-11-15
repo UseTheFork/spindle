@@ -367,7 +367,7 @@ async function readyFeature(
   }
   const report = join(dirname(spec), "reports", "retrospective.md");
   writeFileSync(report, "# Retrospective\nReviewed implementation and tests.\n");
-  const originalSpec = join(original, ".scratch", feature, "spec.md");
+  const originalSpec = join(original, ".spindle/features", feature, "spec.md");
   const journal = join(original, ".git", "spindle-feature-finalization", `${feature}.json`);
   const finish = () =>
     invokeAsync(root, [
@@ -627,7 +627,7 @@ test("a configured failing signer blocks finalization and preserves staged recor
   expect(readFileSync(join(dirname(f.spec), "sdd.json"), "utf8")).toBe(ledgerBefore);
   const staged = git(f.root, "diff", "--cached", "--name-only").split("\n").filter(Boolean);
   expect(staged.length).toBeGreaterThan(0);
-  expect(staged.every((path) => path.startsWith(`.scratch/${f.feature}/`))).toBe(true);
+  expect(staged.every((path) => path.startsWith(`.spindle/features/${f.feature}/`))).toBe(true);
   expect(JSON.parse(readFileSync(f.journal, "utf8")).phase).toBe("records");
   expect(existsSync(f.root)).toBe(true);
   expect(existsSync(f.ticketRoot)).toBe(true);
@@ -692,7 +692,7 @@ test("real complete flow preserves exact preparation guard, relocates reports, r
   expect(complete.checkedCommit).toBe(pending.mergeCommit);
   expect(complete.metadataCommitChecked).toBe(false);
   expect(git(f.original, "diff", "--name-only", pending.mergeCommit, complete.metadataCommit)).toBe(
-    `.scratch/${f.feature}/sdd.json`,
+    `.spindle/features/${f.feature}/sdd.json`,
   );
   expect(existsSync(f.root)).toBe(false);
   expect(existsSync(f.ticketRoot)).toBe(false);

@@ -648,13 +648,16 @@ export class FeatureInspectionService extends Service {
     const relativeSpec = relative(root, specPath);
     const segments = relativeSpec.split(sep);
     if (
-      segments.length !== 3 ||
-      segments[0] !== ".scratch" ||
-      segments[2] !== "spec.md" ||
-      HISTORICAL_DATE_DIRECTORY.test(segments[1] ?? "") ||
-      !FEATURE_DIRECTORY.test(segments[1] ?? "")
+      segments.length !== 4 ||
+      segments[0] !== ".spindle" ||
+      segments[1] !== "features" ||
+      segments[3] !== "spec.md" ||
+      HISTORICAL_DATE_DIRECTORY.test(segments[2] ?? "") ||
+      !FEATURE_DIRECTORY.test(segments[2] ?? "")
     ) {
-      throw new Error("Spec must be spec.md in a numbered feature workspace under .scratch.");
+      throw new Error(
+        "Spec must be spec.md in a numbered feature workspace under .spindle/features.",
+      );
     }
     return this.featureWorkspace.statusFromPaths(root, specPath, relativeSpec, segments);
   }

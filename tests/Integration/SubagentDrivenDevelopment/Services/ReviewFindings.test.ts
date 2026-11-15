@@ -44,7 +44,7 @@ test("implement records the ticket baseline and controller while creating an iso
   expect(output.assignment.branch).toBe("tickets/0001-ticket-flow/T-0001");
   expect(output.headSha).toMatch(/^[0-9a-f]{40,64}$/);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.tickets[0]).toMatchObject({
     id: "T-0001",
@@ -79,7 +79,7 @@ test("review requires current passing checks, derives inventory, and reuses its 
 
   const passingCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(passingCheck.status, passingCheck.stderr).toBe(0);
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].reviewAssignments).toBe(undefined);
 
   const dispatched = await review();
@@ -137,7 +137,7 @@ test("review requires current passing checks, derives inventory, and reuses its 
   const persisted = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(persisted.tickets[0].reviewAssignments.length).toBe(1);
   const ticketText = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "tickets", "T-0001.md"),
     "utf8",
   );
   expect(ticketText.match(/Initial review assignment recorded/g)?.length).toBe(1);
@@ -169,7 +169,7 @@ test("rework requires fresh checks and a new review with the prior committed com
   expect(rework.reworkBaseSha).toBe(assignment.headSha);
   expect(rework.status).toBe("pending");
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.tickets[0].reviewHistory[0].id).toBe(assignment.id);
   expect(ledger.tickets[0].reviewAssignments[0].id).toBe(rework.id);
@@ -187,8 +187,8 @@ test("rework requires fresh checks and a new review with the prior committed com
 
 test("required specialist reviews are justified, distinct, provenance-bound, and gate integration", async () => {
   const { repo, spec, command, submission } = await prepareImplementationForReview();
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
-  const ticketPath = join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
+  const ticketPath = join(repo, ".spindle/features", "0001-ticket-flow", "tickets", "T-0001.md");
   const requireReview = async (agent: string, details: string) =>
     await execute(repo, (service) =>
       service.reviewService.reviewRequire({
@@ -336,7 +336,7 @@ test("required specialist reviews are justified, distinct, provenance-bound, and
     postMerge: "pending",
   });
   const integratedTicket = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   ).tickets[0];
   expect(integratedTicket.execution).toBe("integrated");
   expect(integratedTicket.acceptedEvidence.commitSha).toBe(submission.headSha);
@@ -381,7 +381,7 @@ test("unavailable specialist submissions preserve the pinned objective separatel
   );
   expect(submitted.status, submitted.stderr).toBe(0);
   const stored = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   ).tickets[0].reviewAssignments.find(
     (candidate: { agent: string }) => candidate.agent === "sdd-code-reviewer",
   );
@@ -489,7 +489,7 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(cliOutput(cliRegistered).finding.provenance[0].report).toBe(assignment.report);
 
   const beforeLegacyOptions = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
     "utf8",
   );
   const legacyOptions = await invokeAsync(repo, [
@@ -515,9 +515,9 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   ]);
   expect(legacyOptions.status).not.toBe(0);
   expect(legacyOptions.stderr).toMatch(/unknown option.*--source/i);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeLegacyOptions,
-  );
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(beforeLegacyOptions);
   const legacySeverity = await invokeAsync(repo, [
     "finding",
     "create",
@@ -539,17 +539,17 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   ]);
   expect(legacySeverity.status).not.toBe(0);
   expect(legacySeverity.stderr).toMatch(/unknown option.*--severity/i);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeLegacyOptions,
-  );
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(beforeLegacyOptions);
 
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.tickets[0].findings.length).toBe(2);
   expect(ledger.tickets[0].findings[0].id).toBe("F-0001");
   const ticketText = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "tickets", "T-0001.md"),
     "utf8",
   );
   expect(ticketText).toMatch(/Finding F-0001 registered by controller/);
@@ -567,8 +567,9 @@ test("finding registration is explicit, canonical, ticket-local, and idempotent"
   expect(missingBlockingChoice.status).not.toBe(0);
   expect(missingBlockingChoice.stderr).toMatch(/--blocking or --non-blocking/);
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
-      .tickets[0].findings.length,
+    JSON.parse(
+      readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+    ).tickets[0].findings.length,
   ).toBe(2);
 });
 
@@ -773,7 +774,7 @@ test("review submission derives canonical findings and cannot bypass unresolved 
     );
 
   const wrongAssignment = await createFinding(
-    join(repo, ".scratch", "0001-ticket-flow", "reports", "T-0001-implementation.md"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "reports", "T-0001-implementation.md"),
   );
   expect(wrongAssignment.status).not.toBe(0);
   expect(wrongAssignment.stderr).toMatch(/review assignment not found for ticket T-0001/i);
@@ -791,7 +792,7 @@ test("review submission derives canonical findings and cannot bypass unresolved 
   expect(repeatedSubmission.status, repeatedSubmission.stderr).toBe(0);
   expect(JSON.parse(repeatedSubmission.stdout).idempotent).toBe(true);
 
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   expect(ledger.tickets[0].reviewAssignments[0].findingIds).toEqual(["F-0001"]);
   const accepted = await execute(repo, (service) =>
@@ -925,15 +926,15 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
   ).toMatch(/F-0001/);
 
   const beforeInvalidFix = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
     "utf8",
   );
   const prematureFix = await update("F-0001", "fixed");
   expect(prematureFix.status).not.toBe(0);
   expect(prematureFix.stderr).toMatch(/committed change since every finding observation/i);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeInvalidFix,
-  );
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(beforeInvalidFix);
 
   writeFileSync(join(ticketWorkspace, "feature.ts"), "export const feature = false;\n");
   commitTicketWorkspace(ticketWorkspace, "change finding evidence");
@@ -991,7 +992,7 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
   expect(repeated.status, repeated.stderr).toBe(0);
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   const persisted = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(persisted.tickets[0].findings[0].status).toBe("dismissed");
   expect(persisted.tickets[0].findings[1].status).toBe("deferred");
@@ -1000,12 +1001,12 @@ test("finding rulings persist, require evidence or rationale, and keep deferral 
 
 test("finding duplicates link explicitly while preserving every source report provenance", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const secondId = "review-two";
   const secondReport = join(
     repo,
-    ".scratch",
+    ".spindle/features",
     "0001-ticket-flow",
     "reports",
     `T-0001-review-${secondId}.md`,
@@ -1019,7 +1020,7 @@ test("finding duplicates link explicitly while preserving every source report pr
   const thirdId = "review-three";
   const thirdReport = join(
     repo,
-    ".scratch",
+    ".spindle/features",
     "0001-ticket-flow",
     "reports",
     `T-0001-review-${thirdId}.md`,
@@ -1240,7 +1241,7 @@ test("a fresh linked observation reopens resolved findings and blocks integratio
 
 test("a failed review needs a registered finding and an unavailable review re-dispatches its reviewer", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   writeFileSync(assignment.report, "# Review report\n\nThe reviewer stopped early.\n");
   const submit = async (id: string, result: "passed" | "failed" | "unavailable") =>
     await execute(repo, (service) =>
@@ -1275,7 +1276,7 @@ test("a failed review needs a registered finding and an unavailable review re-di
     `Review ${assignment.id} (${assignment.agent}) was unavailable; dispatch a new review round for that reviewer.`,
   );
   expect(guidance).toContain(
-    "Next: pnpm spindle sdd review --feature .scratch/0001-ticket-flow --ticket T-0001 --actor <acting-agent>",
+    "Next: pnpm spindle sdd review --feature .spindle/features/0001-ticket-flow --ticket T-0001 --actor <acting-agent>",
   );
   expect(guidance).not.toContain("cannot accept findings");
   expect(guidance).not.toContain("sdd correct");
@@ -1310,13 +1311,13 @@ test("a failed review needs a registered finding and an unavailable review re-di
   const passed = await submit(replacement.id, "passed");
   expect(passed.status, passed.stderr).toBe(0);
   expect(await next()).toContain(
-    "Next: pnpm spindle sdd integrate --feature .scratch/0001-ticket-flow --ticket T-0001 --actor <acting-agent>",
+    "Next: pnpm spindle sdd integrate --feature .spindle/features/0001-ticket-flow --ticket T-0001 --actor <acting-agent>",
   );
 });
 
 test("parallel ticket reviews all submit before the failed result requests correction", async () => {
   const { repo, spec, command } = await prepareImplementationForReview();
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const required = await execute(repo, (service) =>
     service.reviewService.reviewRequire({
       spec,
@@ -1377,7 +1378,7 @@ test("parallel ticket reviews all submit before the failed result requests corre
   const waiting = await next();
   expect(waiting).toContain("T-0001: step ticket:review (awaiting report)");
   expect(waiting).toContain(
-    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --ticket T-0001 --assignment ${specialist.id} --result passed --actor <acting-agent>`,
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --ticket T-0001 --assignment ${specialist.id} --result passed --actor <acting-agent>`,
   );
   expect(waiting).not.toContain("sdd correct");
   const earlyCorrection = await execute(repo, (service) =>

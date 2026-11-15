@@ -123,7 +123,7 @@ test("retries dispatch after worktree creation without duplicating the branch or
   expect(ledger.tickets[0].assignment.id).toBe(resumed.assignment.id);
   expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe("");
   expect(
-    execFileSync("git", ["show", "HEAD:.scratch/0001-recover-dispatch/sdd.json"], {
+    execFileSync("git", ["show", "HEAD:.spindle/features/0001-recover-dispatch/sdd.json"], {
       cwd: root,
       encoding: "utf8",
     }),

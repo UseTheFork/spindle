@@ -117,7 +117,7 @@ export class TicketWorktreeService extends Service {
       throw new Error("Ticket worktrees must start from the canonical feature branch.");
     }
     const currentSha = this.run(root, ["rev-parse", "--verify", "HEAD"]);
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     if (allowPendingRecords) {
       if (this.gitEvidence.cleanDispatchBaseline(feature, true) !== currentSha) {
         throw new Error("Feature HEAD changed during ticket dispatch.");

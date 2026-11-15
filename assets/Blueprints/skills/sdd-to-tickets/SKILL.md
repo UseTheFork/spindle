@@ -23,7 +23,7 @@ Before drafting tickets, read and apply:
 ## Process
 
 1. **Select the feature and confirm sequence.**
-   - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.scratch/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
+   - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.spindle/features/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
    - If `design.md` exists in the feature workspace, read it and confirm it was completed and approved before the spec. If the spec is not approved or a present design is unfinished, stop and resolve that before ticket planning.
    - A design is optional. Do not require or create one when the approved spec was intentionally written without a design.
    - For local SDD tracker work, use the feature workspace directory with `{{ computed.spindle_package_manager }} spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.

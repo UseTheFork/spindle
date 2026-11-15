@@ -38,7 +38,7 @@ the committed target.
 Approved project checks and test working directory:
 [CHECKS_AND_DIRECTORY]
 
-Assigned `.scratch` report path:
+Assigned `.spindle/features` report path:
 [REPORT_PATH]
 
 ## Correction context (CORRECTIVE only; omit for INITIAL)

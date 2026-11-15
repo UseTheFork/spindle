@@ -22,8 +22,9 @@ export function fixture() {
   git("config", "user.name", "Fixture");
   git("config", "user.email", "fixture@example.invalid");
   mkdirSync(join(repo, ".github"), { recursive: true });
+  mkdirSync(join(repo, ".spindle"), { recursive: true });
   writeFileSync(
-    join(repo, ".github", "spindle.json"),
+    join(repo, ".spindle", "config.json"),
     `${JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }, null, 2)}\n`,
   );
   writeFileSync(join(repo, "tracked.txt"), "base\n");

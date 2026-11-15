@@ -56,7 +56,10 @@ export class WorkflowRecordsCommitter extends Service {
       }
     }
     const root = realpathSync(this.app.workspaceRoot);
-    if (realpathSync(feature.workspace) !== realpathSync(join(root, ".scratch", feature.feature))) {
+    if (
+      realpathSync(feature.workspace) !==
+      realpathSync(join(root, ".spindle/features", feature.feature))
+    ) {
       throw new Error("Canonical workflow records do not belong to this feature worktree.");
     }
     const branch = this.run(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).trim();
@@ -72,8 +75,8 @@ export class WorkflowRecordsCommitter extends Service {
     this.assertNoHooks(root);
 
     const transient = new Set([
-      `.scratch/${feature.feature}/.sdd-tickets.lock`,
-      `.scratch/${feature.feature}/.sdd-write-recovery.json`,
+      `.spindle/features/${feature.feature}/.sdd-tickets.lock`,
+      `.spindle/features/${feature.feature}/.sdd-write-recovery.json`,
     ]);
     const staged = this.paths(root, ["diff", "--cached", "--name-only", "--no-renames", "-z"]);
     const unstaged = this.paths(root, ["diff", "--name-only", "--no-renames", "-z"]);
@@ -287,7 +290,7 @@ export class WorkflowRecordsCommitter extends Service {
     const feature = basename(featureWorkspace);
     if (
       !FEATURE_DIRECTORY.test(feature) ||
-      featureWorkspace !== realpathSync(join(root, ".scratch", feature))
+      featureWorkspace !== realpathSync(join(root, ".spindle/features", feature))
     ) {
       return undefined;
     }
@@ -434,7 +437,7 @@ export class WorkflowRecordsCommitter extends Service {
   }
 
   private isCanonicalRecord(feature: FeaturePaths, path: string): boolean {
-    const prefix = `.scratch/${feature.feature}/`;
+    const prefix = `.spindle/features/${feature.feature}/`;
     if (!path.startsWith(prefix)) return false;
     const relative = path.slice(prefix.length);
     return (

@@ -29,7 +29,7 @@ test("sdd create requires named non-empty title and actor options", async () => 
     expect(result.status, args.join(" ")).not.toBe(0);
     expect(result.stdout, args.join(" ")).toBe("");
     expect(result.stderr.trim(), args.join(" ")).not.toBe("");
-    expect(existsSync(join(repo, ".scratch")), args.join(" ")).toBe(false);
+    expect(existsSync(join(repo, ".spindle/features")), args.join(" ")).toBe(false);
   }
 });
 
@@ -43,7 +43,7 @@ test("SDD commands select a feature directory and attribute actions with --actor
     "controller",
   ]);
   expect(created.status, created.stderr).toBe(0);
-  const feature = join(repo, ".scratch", "0001-feature-directory-cli");
+  const feature = join(repo, ".spindle/features", "0001-feature-directory-cli");
 
   const status = await invokeAsync(repo, ["status", "--feature", feature]);
   expect(status.status, status.stderr).toBe(0);
@@ -64,7 +64,7 @@ test("SDD commands select a feature directory and attribute actions with --actor
 
 test("SDD creation requires valid Project Settings", async () => {
   const { repo } = await serviceFixture();
-  writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{ invalid");
   const result = runCli(
     repo,
     ["sdd", "create", "--title", "Project Settings Independent", "--actor", "maintainer"],
@@ -72,8 +72,8 @@ test("SDD creation requires valid Project Settings", async () => {
   );
 
   expect(result.status).not.toBe(0);
-  expect(result.stderr).toMatch(/invalid JSON|spindle\.json/i);
-  expect(existsSync(join(repo, ".scratch", "0001-config-independent"))).toBe(false);
+  expect(result.stderr).toMatch(/not valid JSON|\.spindle\/config\.json/i);
+  expect(existsSync(join(repo, ".spindle/features", "0001-config-independent"))).toBe(false);
 });
 
 test("concurrent sdd create commands allocate distinct consecutive feature IDs", async () => {
@@ -108,7 +108,7 @@ test("concurrent sdd create commands allocate distinct consecutive feature IDs",
     "sixth-concurrent",
     "third-concurrent",
   ]);
-  expect(existsSync(join(repo, ".scratch", ".sdd-create.lock"))).toBe(false);
+  expect(existsSync(join(repo, ".spindle/features", ".sdd-create.lock"))).toBe(false);
 });
 
 test("sdd ticket review require accepts a catalog reviewer through --type", async () => {
@@ -205,16 +205,16 @@ test("sdd create and status expose JSON results and report path errors through t
   expect(created.stderr).toBe("");
   const expected = {
     feature: "0001-cli-feature",
-    workspace: join(repo, ".scratch", "0001-cli-feature"),
-    spec: join(repo, ".scratch", "0001-cli-feature", "spec.md"),
-    ledger: join(repo, ".scratch", "0001-cli-feature", "sdd.json"),
+    workspace: join(repo, ".spindle/features", "0001-cli-feature"),
+    spec: join(repo, ".spindle/features", "0001-cli-feature", "spec.md"),
+    ledger: join(repo, ".spindle/features", "0001-cli-feature", "sdd.json"),
   };
   expect(created.stdout).toBe(`${JSON.stringify({ ok: true, data: expected })}\n`);
   const createdEnvelope = JSON.parse(created.stdout);
   expect(createdEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
   expect(createdEnvelope.data).toEqual(expected);
   expect(readFileSync(expected.spec, "utf8")).toContain("# CLI Feature");
-  expect(existsSync(join(repo, ".scratch", "0001-cli-feature", "design.md"))).toBe(true);
+  expect(existsSync(join(repo, ".spindle/features", "0001-cli-feature", "design.md"))).toBe(true);
   const status = runCli(
     repo,
     ["--json", "sdd", "status", "--feature", expected.workspace],
@@ -245,7 +245,12 @@ test("sdd create and status expose JSON results and report path errors through t
   );
   const invalid = runCli(
     repo,
-    ["sdd", "status", "--feature", `${repo}/.scratch/../.scratch/0001-cli-feature`],
+    [
+      "sdd",
+      "status",
+      "--feature",
+      `${repo}/.spindle/features/../.spindle/features/0001-cli-feature`,
+    ],
     searchPath,
   );
   expect(invalid.status).not.toBe(0);
@@ -277,7 +282,7 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   ]);
   expect(feature.status, feature.stderr).toBe(0);
   expect(JSON.parse(feature.stdout)).toMatchObject({ ok: true, data: expect.any(Object) });
-  const spec = join(repo, ".scratch", "0001-ticket-feature", "spec.md");
+  const spec = join(repo, ".spindle/features", "0001-ticket-feature", "spec.md");
   const created = await invokeAsync(repo, [
     "ticket",
     "create",
@@ -298,10 +303,10 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   expect(ticketEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
   expect(ticketEnvelope.data).toEqual({
     ticket: "T-0001",
-    path: join(repo, ".scratch", "0001-ticket-feature", "tickets", "T-0001.md"),
+    path: join(repo, ".spindle/features", "0001-ticket-feature", "tickets", "T-0001.md"),
   });
   const ticket = readFileSync(
-    join(repo, ".scratch", "0001-ticket-feature", "tickets", "T-0001.md"),
+    join(repo, ".spindle/features", "0001-ticket-feature", "tickets", "T-0001.md"),
     "utf8",
   );
   expect(ticket).toMatch(/^id: T-0001$/m);
@@ -313,7 +318,7 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
   expect(ticket).toContain("## Acceptance Criteria\n\n[ACCEPTANCE CRITERIA]");
   expect(ticket).toContain("## Comments");
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-feature", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-feature", "sdd.json"), "utf8"),
   );
   expect(ledger).not.toHaveProperty("issues");
   expect(ledger.tickets).toEqual([

@@ -10,7 +10,7 @@ metadata:
 
 # Setup Project
 
-Curate the commands agents should use and establish project domain documentation. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.github/spindle.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
+Curate the commands agents should use and establish project domain documentation. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.spindle/config.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
 
 ## Prerequisite
 

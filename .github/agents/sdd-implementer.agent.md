@@ -24,7 +24,7 @@ Before entering the flowchart, loading implementation skills, inspecting the che
 | `ABSOLUTE_SOURCE_POINTERS` | For ticket scope, canonical ticket, comments, and spec/brief. For delivery scope, feature spec and assigned correction, finding/check, and prior-attempt/ruling sources. Explicitly identify any source that does not apply. |
 | `CRITERIA_AND_SEAMS` | Ticket acceptance criteria and test seams, or the delivery correction objective and assigned evidence/test seams. |
 | `DEPENDENCIES_AND_REQUIREMENTS` | Completed ticket dependencies and committed requirements; explicitly state `NONE` when ticket dependencies do not apply to delivery scope. |
-| `FILE_SCOPE` | Allowed code, test, and `.scratch` files in the assigned checkout. |
+| `FILE_SCOPE` | Allowed code, test, and `.spindle/features` files in the assigned checkout. |
 | `CHECKS_AND_DIRECTORY` | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker. |
 | `PERMISSIONS` | Allowed actions, including explicit commit authorization or denial. |
 | `REPORT_PATH` | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`. |

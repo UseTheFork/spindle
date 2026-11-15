@@ -57,7 +57,7 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     }
     await writeFile(join(github, "agents", "old.agent.md"), "old path content\n");
     await writeFile(join(github, "agents", "unlisted.agent.md"), "unlisted content\n");
-    const configPath = join(github, "spindle.json");
+    const configPath = join(github, "..", ".spindle", "config.json");
     await writeFile(
       configPath,
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
@@ -109,7 +109,7 @@ test("update rejects unsafe deletion targets before changing any target or outsi
     await writeFile(outside, "outside target must remain\n");
     await symlink(outside, secondTarget);
     await writeFile(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 
@@ -140,7 +140,7 @@ test("update reports a failed removal and already completed deletions", async ()
     await writeFile(firstTarget, versioned("first", "first target"));
     await writeFile(secondTarget, versioned("second", "second target"));
     await writeFile(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 

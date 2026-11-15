@@ -110,7 +110,7 @@ export class StatusSummaryFormatter {
 
     const feature = StatusSummaryFormatter.asText(status.feature);
     if (!feature) throw new Error("Workflow status is missing its feature identifier.");
-    const featureDirectory = `.scratch/${feature}`;
+    const featureDirectory = `.spindle/features/${feature}`;
     const delivery = StatusSummaryFormatter.asRecord(status.delivery);
     const phase = StatusSummaryFormatter.asText(status.phase);
     const step = StatusSummaryFormatter.deliveryStep(delivery, phase, status.finished === true);

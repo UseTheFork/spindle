@@ -31,7 +31,7 @@ vi.setConfig({ testTimeout: 60_000 });
 test("finish reports pending final validation without claiming the feature is complete", async () => {
   const prepared = await prepareDeliveryReady();
   await beginDeliveryFinalization(prepared);
-  const settingsPath = join(prepared.repo, ".github", "spindle.json");
+  const settingsPath = join(prepared.repo, ".spindle", "config.json");
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
   settings.spindle_package_manager = "npm run";
   writeFileSync(settingsPath, JSON.stringify(settings));
@@ -83,10 +83,10 @@ test("delivery checks retry unavailable results and recover legacy unavailable s
   expect(state.delivery.execution).toBe("unstarted");
   expect(state.delivery.action).toBe("record-final-checks");
   expect(nextSummary(state).join("\n")).toContain(
-    "pnpm spindle sdd checks record --feature .scratch/0001-ticket-flow --scope delivery --command 'pnpm run test:delivery' --result passed --actor <acting-agent>",
+    "pnpm spindle sdd checks record --feature .spindle/features/0001-ticket-flow --scope delivery --command 'pnpm run test:delivery' --result passed --actor <acting-agent>",
   );
 
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const setLegacyState = () => {
     const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
     ledger.delivery.execution = "changes-requested";
@@ -317,7 +317,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
   expect(output.assignments.every(({ headSha }) => /^[0-9a-f]{40,64}$/.test(headSha))).toBeTruthy();
 
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.reviewAssignments.length).toBe(2);
   expect(
@@ -330,7 +330,7 @@ test("delivery review requires an exclusive delivery scope and assigns all requi
 test("delivery review requires passing post-merge evidence for each ticket's current merge", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   await claimDelivery(repo, spec);
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const validLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const validIntegration = JSON.parse(JSON.stringify(validLedger.tickets[0].integration));
   expect(validIntegration.postMerge.status).toBe("passed");
@@ -472,7 +472,7 @@ test("blocking delivery findings reopen their related ticket after all required 
   expect(confirmed.status, confirmed.stderr).toBe(0);
   expect(JSON.parse(confirmed.stdout).finding.status).toBe("confirmed");
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.findings.map((item: { id: string }) => item.id)).toEqual(["F-0001"]);
   expect(ledger.delivery.findings[0].relatedTicket).toBe("T-0001");
@@ -550,7 +550,7 @@ test("delivery checks use their own current commit and stale aggregate checks bl
   expect(staleReview.status).not.toBe(0);
   expect(staleReview.stderr).toMatch(/delivery check .*stale|current.*checks/i);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.checks.records.length).toBe(2);
   expect(ledger.delivery.reviewAssignments).toBe(undefined);
@@ -589,10 +589,10 @@ test("pending delivery review waits for its report and guides finding registrati
     "register each accepted finding against this assignment before submission",
   );
   expect(summary).toContain(
-    `pnpm spindle sdd finding create --feature .scratch/0001-ticket-flow --scope delivery --assignment ${assignment.id} --blocking --summary <summary> --details <impact> --actor <acting-agent>`,
+    `pnpm spindle sdd finding create --feature .spindle/features/0001-ticket-flow --scope delivery --assignment ${assignment.id} --blocking --summary <summary> --details <impact> --actor <acting-agent>`,
   );
   expect(summary).toContain(
-    `pnpm spindle sdd finding create --feature .scratch/0001-ticket-flow --scope delivery --assignment ${assignment.id} --non-blocking --summary <summary> --details <impact> --actor <acting-agent>`,
+    `pnpm spindle sdd finding create --feature .spindle/features/0001-ticket-flow --scope delivery --assignment ${assignment.id} --non-blocking --summary <summary> --details <impact> --actor <acting-agent>`,
   );
   expect(summary.indexOf("finding create")).toBeLessThan(summary.indexOf("sdd submit"));
   expect(summary).not.toContain("sdd review --feature");
@@ -775,7 +775,7 @@ test("delivery correction attempts resume independently with the same assignment
   const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
   expect(present.status, present.stderr).toBe(0);
   expect(nextSummary(JSON.parse(present.stdout)).join("\n")).toContain(
-    `pnpm spindle sdd submit --feature .scratch/0001-ticket-flow --scope delivery --assignment ${output.assignment.id} --actor <acting-agent>`,
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --scope delivery --assignment ${output.assignment.id} --actor <acting-agent>`,
   );
   const implementation = await execute(repo, (service) =>
     service.submissionService.submit({
@@ -871,7 +871,7 @@ test("delivery correction attempts resume independently with the same assignment
   expect(resumedSecond.status, resumedSecond.stderr).toBe(0);
   expect(JSON.parse(resumedSecond.stdout).assignment.id).toBe(secondAttempt.assignment.id);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.correctionAttempts.length).toBe(2);
   expect(ledger.delivery.correctionAttempts[0].progressAssessment.result).toBe("productive");
@@ -964,7 +964,11 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
     spec,
     `${readFileSync(spec, "utf8")}\n## Approved delivery change\n\nThe affected behavior is out of scope.\n`,
   );
-  commitRequirement(repo, ".scratch/0001-ticket-flow/spec.md", "revise delivery requirements");
+  commitRequirement(
+    repo,
+    ".spindle/features/0001-ticket-flow/spec.md",
+    "revise delivery requirements",
+  );
 
   const unapprovedDeferral = await execute(repo, (service) =>
     service.findingService.findingUpdate({
@@ -1072,7 +1076,7 @@ test("delivery requirements rulings authorize only a freshly reviewed deferral",
   const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
   expect(next.status, next.stderr).toBe(0);
   expect(nextSummary(JSON.parse(next.stdout)).join("\n")).toContain(
-    `pnpm spindle sdd finding update --feature .scratch/0001-ticket-flow --scope delivery --finding ${findingId} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
+    `pnpm spindle sdd finding update --feature .spindle/features/0001-ticket-flow --scope delivery --finding ${findingId} --status deferred --details <deferral-rationale> --follow-up <follow-up-reference> --requirements-decision <approved-decision-id> --actor <acting-agent>`,
   );
   const deferred = await execute(repo, (service) =>
     service.findingService.findingUpdate({
@@ -1099,7 +1103,10 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(optionalFinalization.completed).toMatchObject({ finished: true, cleanup: "complete" });
   expect(optionalFinalization.completed).not.toHaveProperty("retrospective");
   const optionalLedger = JSON.parse(
-    readFileSync(join(optional.originalRepo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(
+      join(optional.originalRepo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+      "utf8",
+    ),
   );
   expect(optionalLedger.retrospectiveRequired).toBe(false);
   const repeatedOptional = await invokeAsync(optional.originalRepo, [
@@ -1118,7 +1125,7 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   const optionalWithReport = await prepareDeliveryReady();
   const optionalReport = join(
     optionalWithReport.repo,
-    ".scratch",
+    ".spindle/features",
     "0001-ticket-flow",
     "reports",
     "optional-retrospective.md",
@@ -1128,7 +1135,7 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(attachedOptional.completed.retrospective).toMatchObject({
     report: join(
       optionalWithReport.originalRepo,
-      ".scratch",
+      ".spindle/features",
       "0001-ticket-flow",
       "reports",
       "optional-retrospective.md",
@@ -1156,14 +1163,20 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   expect(unsafeReport.status).not.toBe(0);
   expect(unsafeReport.stderr).toMatch(/inside feature reports/i);
 
-  const report = join(required.repo, ".scratch", "0001-ticket-flow", "reports", "retrospective.md");
+  const report = join(
+    required.repo,
+    ".spindle/features",
+    "0001-ticket-flow",
+    "reports",
+    "retrospective.md",
+  );
   writeFileSync(report, "# Retrospective\n\nEvidence and outcomes are summarized here.\n");
   const requiredFinalization = await finalizeDelivery(required, { report });
   expect(requiredFinalization.completed).toMatchObject({ finished: true, cleanup: "complete" });
   expect(requiredFinalization.completed.retrospective).toMatchObject({
     report: join(
       required.originalRepo,
-      ".scratch",
+      ".spindle/features",
       "0001-ticket-flow",
       "reports",
       "retrospective.md",
@@ -1174,7 +1187,10 @@ test("finish gates integrated delivery on current aggregate evidence and stored 
   ).toMatch(/^[0-9a-f]{64}$/);
 
   const ledger = JSON.parse(
-    readFileSync(join(required.originalRepo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(
+      join(required.originalRepo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+      "utf8",
+    ),
   );
   expect(ledger.retrospectiveRequired).toBe(true);
   expect(ledger.tickets[0].worktree).toBe(undefined);
@@ -1316,7 +1332,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
 
   const secondTicketPath = join(
     first.repo,
-    ".scratch",
+    ".spindle/features",
     "0001-ticket-flow",
     "tickets",
     `${secondId}.md`,
@@ -1331,7 +1347,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
   );
   commitRequirement(
     first.repo,
-    ".scratch/0001-ticket-flow/tickets/T-0002.md",
+    ".spindle/features/0001-ticket-flow/tickets/T-0002.md",
     "revise second ticket requirements",
   );
   const staleFinish = await execute(first.repo, (service) =>
@@ -1347,7 +1363,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
   writeFileSync(secondTicketPath, originalTicket);
   commitRequirement(
     first.repo,
-    ".scratch/0001-ticket-flow/tickets/T-0002.md",
+    ".spindle/features/0001-ticket-flow/tickets/T-0002.md",
     "restore second ticket requirements",
   );
   const finished = await finalizeDelivery(first);
@@ -1356,7 +1372,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
 
 test("status and next expose delivery assignments, blockers, and finish action without mutation", async () => {
   const { repo, git, spec } = await prepareDeliveryReady();
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const gitStatusBefore = git("status", "--porcelain");
   const status = await execute(repo, (service) =>
@@ -1392,7 +1408,7 @@ test("status and next expose delivery assignments, blockers, and finish action w
   expect(statusDelivery.blockers).toEqual([]);
   expect(nextDelivery).toEqual(statusDelivery);
   expect(nextSummary(JSON.parse(next.stdout)).join("\n")).toContain(
-    "checks require --feature .scratch/0001-ticket-flow --scope final --command <check>",
+    "checks require --feature .spindle/features/0001-ticket-flow --scope final --command <check>",
   );
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
   expect(git("status", "--porcelain")).toBe(gitStatusBefore);
@@ -1492,7 +1508,13 @@ test("finalization cleanup remains bound to its recorded controller", async () =
 
 test("finalization status and next expose pending checks and completed cleanup", async () => {
   const prepared = await prepareDeliveryReady();
-  const report = join(prepared.repo, ".scratch", "0001-ticket-flow", "reports", "retrospective.md");
+  const report = join(
+    prepared.repo,
+    ".spindle/features",
+    "0001-ticket-flow",
+    "reports",
+    "retrospective.md",
+  );
   writeFileSync(report, "# Retrospective\n\nCompletion evidence.\n");
   const command = "fixture final check";
   const pending = await beginDeliveryFinalization(prepared, {
@@ -1700,7 +1722,7 @@ test("delivery continuation from a pause before any attempt resolves adjudicatio
   expect(secondOutput.attempt.number).toBe(2);
   expect(secondOutput.assignment.report).toMatch(/final-round-2-fix\.md$/);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(
     ledger.delivery.correctionAttempts.map(({ number }: { number: number }) => number),
@@ -1748,7 +1770,7 @@ test("parallel delivery reviews stay submittable after a failed review and requi
         author: "controller",
       }),
     );
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
 
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const unregistered = await submit(comprehensive.id, "failed");
@@ -1829,7 +1851,9 @@ test("an unavailable delivery review re-dispatches the same reviewer", async () 
   expect(text).toContain(
     `Review ${assignment.id} (${assignment.agent}) was unavailable; dispatch a new review round for that reviewer.`,
   );
-  expect(text).toContain("sdd review --feature .scratch/0001-ticket-flow --scope delivery");
+  expect(text).toContain(
+    "sdd review --feature .spindle/features/0001-ticket-flow --scope delivery",
+  );
   expect(text).not.toContain("cannot accept findings");
 
   const redispatched = await execute(repo, (service) =>
@@ -1840,7 +1864,7 @@ test("an unavailable delivery review re-dispatches the same reviewer", async () 
   expect(replacement.id).not.toBe(assignment.id);
   expect(replacement.agent).toBe(assignment.agent);
   const ledger = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   );
   expect(ledger.delivery.reviewHistory.map(({ id }: { id: string }) => id)).toEqual([
     assignment.id,

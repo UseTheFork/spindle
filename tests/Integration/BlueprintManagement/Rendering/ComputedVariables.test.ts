@@ -122,7 +122,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
     );
 
     expect(result.status, result.stderr).toBe(0);
-    const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"));
     expect(config).toMatchObject({
       stacks: ["python"],
       spindle_package_manager: "pnpm",
@@ -201,7 +201,7 @@ test("update reuses computed output and leaves Project Settings and version meta
     });
 
     const github = join(project, ".github");
-    await put(join(github, "spindle.json"), configBytes.toString("utf8"));
+    await put(join(github, "..", ".spindle", "config.json"), configBytes.toString("utf8"));
     await put(
       join(github, "skills/demo/SKILL.md"),
       "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nOld content\n",
@@ -221,7 +221,9 @@ test("update reuses computed output and leaves Project Settings and version meta
     expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
       `Update: ${description}\n`,
     );
-    expect(JSON.parse(await readFile(join(github, "spindle.json"), "utf8"))).toMatchObject({
+    expect(
+      JSON.parse(await readFile(join(github, "..", ".spindle", "config.json"), "utf8")),
+    ).toMatchObject({
       ...JSON.parse(configBytes.toString("utf8")),
       commit: { title_max_length: 72 },
       $schema: expect.stringMatching(
@@ -276,7 +278,7 @@ test("init restores the prior Project Settings state when Blueprint rendering fa
   await expect(init.run(["python"], "pnpm", false, "overwrite")).rejects.toThrow();
 
   expect(ProjectSettingsService.current(app)).toEqual({ status: "absent" });
-  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toMatchObject({
+  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toMatchObject({
     code: "ENOENT",
   });
 });
@@ -285,7 +287,7 @@ test("update identifies a missing computed output and applies no planned changes
   const blueprints = await makeTempDir("spindle-computed-missing-blueprints-");
   const project = await makeTempDir("spindle-computed-missing-project-");
   const github = join(project, ".github");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const currentEntry = join(github, "skills/current/SKILL.md");
   const currentBytes = Buffer.from(
     "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nExisting Skill\n",
@@ -373,7 +375,7 @@ test("repeated updates through one App render updated Project Settings with comp
       expect(generated.data.description).toBe(description);
       expect(generated.data.metadata.spindle.version).toBe(version);
       expect(generated.content).toContain(`Run manager=${manager}`);
-      const config = await readFile(join(github, "spindle.json"), "utf8");
+      const config = await readFile(join(github, "..", ".spindle", "config.json"), "utf8");
       expect(config).not.toMatch(/computed|private_skill_description/);
     };
 

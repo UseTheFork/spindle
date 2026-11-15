@@ -43,14 +43,14 @@ export class GitEvidence extends Service {
     feature: FeaturePaths,
     ledger = this.ledgerRepository.readLedger(feature),
   ): string[] {
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
     return this.allGitChangePaths().filter((path) => path !== lockPath && allowed.has(path));
   }
 
   public workflowDeliveryRecordPaths(feature: FeaturePaths, ledger: FeatureLedger): Set<string> {
     const root = realpathSync(this.app.workspaceRoot);
-    const featurePrefix = `.scratch/${feature.feature}/`;
+    const featurePrefix = `.spindle/features/${feature.feature}/`;
     const paths = new Set([
       relative(root, feature.spec),
       relative(root, feature.ledger),
@@ -204,7 +204,7 @@ export class GitEvidence extends Service {
       .split("\0")
       .filter(Boolean);
     const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     for (const entry of status) {
       const state = entry.slice(0, 2);
       const path = entry.slice(3);
@@ -386,7 +386,9 @@ export class GitEvidence extends Service {
     )
       .toString("utf8")
       .split("\0")
-      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+      .filter(
+        (path) => path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"),
+      );
   }
 
   public requirementsMatchAtCommits(
@@ -462,7 +464,8 @@ export class GitEvidence extends Service {
     ]) {
       const output = this.gitBuffer(args, workspace).toString("utf8");
       for (const path of output.split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          paths.add(path);
       }
     }
     this.assertStableSubmodules(baseSha, paths, workspace);
@@ -479,7 +482,13 @@ export class GitEvidence extends Service {
       .toString("utf8")
       .split("\0")) {
       const [metadata, path] = record.split("\t", 2);
-      if (!metadata || !path || path === ".scratch" || path.startsWith(".scratch/")) continue;
+      if (
+        !metadata ||
+        !path ||
+        path === ".spindle/features" ||
+        path.startsWith(".spindle/features/")
+      )
+        continue;
       const [mode, sha, stage] = metadata.split(" ");
       if (mode === "160000" && sha && stage === "0") gitlinks.set(path, sha);
     }
@@ -492,8 +501,8 @@ export class GitEvidence extends Service {
       if (
         metadata?.startsWith("160000 commit ") &&
         path &&
-        path !== ".scratch" &&
-        !path.startsWith(".scratch/")
+        path !== ".spindle/features" &&
+        !path.startsWith(".spindle/features/")
       ) {
         knownPaths.add(path);
       }
@@ -664,7 +673,7 @@ export class GitEvidence extends Service {
     const workspace = this.ticketWorkspace(progress);
     if (!workspace) return;
     const scratchStatus = this.gitBuffer(
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".scratch"],
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".spindle/features"],
       workspace,
     );
     if (scratchStatus.length) {
@@ -677,7 +686,8 @@ export class GitEvidence extends Service {
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]) {
       for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          changed.add(path);
       }
     }
     if (changed.size > 0)
@@ -692,7 +702,8 @@ export class GitEvidence extends Service {
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]) {
       for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          changed.add(path);
       }
     }
     if (changed.size > 0)
@@ -736,7 +747,7 @@ export class GitEvidence extends Service {
     const records = this.workflowDeliveryRecordPaths(feature, ledger);
     records.delete(relative(root, feature.spec));
     for (const ticket of ledger.tickets) {
-      records.delete(`.scratch/${feature.feature}/tickets/${ticket.id}.md`);
+      records.delete(`.spindle/features/${feature.feature}/tickets/${ticket.id}.md`);
     }
     return this.headBeforeCommitsChangingOnly(root, headSha, records);
   }
@@ -751,7 +762,7 @@ export class GitEvidence extends Service {
     const root = realpathSync(this.app.workspaceRoot);
     const records = this.workflowDeliveryRecordPaths(feature, ledger);
     records.delete(relative(root, feature.spec));
-    const ticketPath = `.scratch/${feature.feature}/tickets/${ticket}.md`;
+    const ticketPath = `.spindle/features/${feature.feature}/tickets/${ticket}.md`;
     return this.headBeforeCommitsChangingOnly(
       root,
       headSha,
@@ -854,7 +865,7 @@ export class GitEvidence extends Service {
   ): void {
     const allowed = new Set(acceptedFiles);
     for (const path of this.workflowDeliveryRecordPaths(feature, ledger)) allowed.add(path);
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const unrelated = this.allGitChangePaths().filter(
       (path) => path !== lockPath && !allowed.has(path),
     );

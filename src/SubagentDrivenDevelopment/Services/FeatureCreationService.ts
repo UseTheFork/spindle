@@ -41,16 +41,16 @@ export class FeatureCreationService extends Service {
     const root = realpathSync(this.app.workspaceRoot);
     if (!statSync(root).isDirectory()) throw new Error("Workspace root must be a directory.");
 
-    const scratch = join(root, ".scratch");
-    if (this.pathSafety.isIgnored(root, ".scratch/.sdd-create.lock")) {
-      throw new Error("Feature destination is ignored: .scratch");
+    const featureDirectory = join(root, ".spindle", "features");
+    if (this.pathSafety.isIgnored(root, ".spindle/features/.sdd-create.lock")) {
+      throw new Error("Feature destination is ignored: .spindle/features");
     }
-    const scratchEntry = FileSystem.lstatIfPresent(scratch);
-    if (scratchEntry) {
-      FileSystem.assertRealDirectory(scratch, ".scratch");
+    const featureDirectoryEntry = FileSystem.lstatIfPresent(featureDirectory);
+    if (featureDirectoryEntry) {
+      FileSystem.assertRealDirectory(featureDirectory, ".spindle/features");
     } else {
       try {
-        mkdirSync(scratch);
+        mkdirSync(featureDirectory);
       } catch (error) {
         if (
           typeof error !== "object" ||
@@ -60,24 +60,24 @@ export class FeatureCreationService extends Service {
         ) {
           throw error;
         }
-        FileSystem.assertRealDirectory(scratch, ".scratch");
+        FileSystem.assertRealDirectory(featureDirectory, ".spindle/features");
       }
     }
-    if (!FileSystem.isPathInside(root, realpathSync(scratch))) {
-      throw new Error(".scratch must remain inside this checkout.");
+    if (!FileSystem.isPathInside(root, realpathSync(featureDirectory))) {
+      throw new Error(".spindle/features must remain inside this checkout.");
     }
 
-    const release = this.workspaceTransaction.acquireCreationLock(scratch);
+    const release = this.workspaceTransaction.acquireCreationLock(featureDirectory);
     try {
-      this.featureWorkspace.rejectAbandonedStaging(scratch);
-      const id = this.featureWorkspace.nextFeatureId(scratch);
+      this.featureWorkspace.rejectAbandonedStaging(featureDirectory);
+      const id = this.featureWorkspace.nextFeatureId(featureDirectory);
       const feature = `${id}-${InputValidation.featureSlug(options.title)}`;
-      const workspace = join(scratch, feature);
+      const workspace = join(featureDirectory, feature);
       if (FileSystem.lstatIfPresent(workspace)) {
         throw new Error(`Feature workspace already exists: ${feature}`);
       }
 
-      const relativeBase = `.scratch/${feature}`;
+      const relativeBase = `.spindle/features/${feature}`;
       const targets = [
         `${relativeBase}/spec.md`,
         `${relativeBase}/sdd.json`,
@@ -91,7 +91,7 @@ export class FeatureCreationService extends Service {
         }
       }
 
-      const staging = mkdtempSync(join(scratch, ".sdd-create-"));
+      const staging = mkdtempSync(join(featureDirectory, ".sdd-create-"));
       try {
         mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));

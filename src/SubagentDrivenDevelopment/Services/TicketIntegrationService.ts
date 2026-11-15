@@ -700,7 +700,7 @@ export class TicketIntegrationService extends Service {
   }
 
   private assertClean(root: string, feature: FeaturePaths): void {
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const status = this.run(root, [
       "status",
       "--porcelain=v1",
@@ -717,7 +717,7 @@ export class TicketIntegrationService extends Service {
   }
 
   private assertMergeWorktreeMatchesIndex(root: string, feature: FeaturePaths): void {
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const unstaged = this.buffer(root, [
       "status",
       "--porcelain=v1",

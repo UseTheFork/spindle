@@ -118,7 +118,7 @@ test("startup recovery preserves records changed after staging", async () => {
   expect(() => service.start(options)).toThrow("Staged feature records differ");
   expect(readFileSync(spec, "utf8")).toContain("Unsaved changes.");
   expect(
-    execFileSync("git", ["show", ":.scratch/0001-resume-start/spec.md"], {
+    execFileSync("git", ["show", ":.spindle/features/0001-resume-start/spec.md"], {
       cwd: repo,
       encoding: "utf8",
     }),
@@ -130,7 +130,7 @@ test("startup recovery preserves new work in an interrupted feature worktree", a
   git.interrupt = "worktree";
   expect(() => service.start(options)).toThrow("simulated interruption");
   const statePath = join(
-    dirname(dirname(dirname(spec))),
+    dirname(dirname(dirname(dirname(spec)))),
     ".git",
     "spindle-feature-start",
     "0001-resume-start.json",

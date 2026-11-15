@@ -14,8 +14,8 @@ Challenge and refine an existing design through an interview, keeping the select
 ## Select the design
 
 - **The user supplies a design:** read that file. For a supplied numbered SDD feature directory, read its `design.md`. An explicit target takes precedence over discovery and may have `spec.md`, `sdd.json`, and issue data alongside it. If the target is missing or unreadable, report the problem and ask for a corrected path; keep the target unresolved.
-- **No design supplied:** scan numbered feature directories directly under `.scratch/` for `design.md` files whose sibling `spec.md` is still an unfilled template. Do not require `design.md` to be the directory's only file; SDD workspaces also contain their spec template, ledger, and tracker folders. Inspect candidates and present their paths; ask the user which design to grill, even when there is only one. Never automatically pick the newest.
-- If `.scratch/` is absent or no candidates qualify, explain that no unfilled SDD design was found and ask for a design path. Do not substitute an ineligible design or create a new one.
+- **No design supplied:** scan numbered feature directories directly under `.spindle/features/` for `design.md` files whose sibling `spec.md` is still an unfilled template. Do not require `design.md` to be the directory's only file; SDD workspaces also contain their spec template, ledger, and tracker folders. Inspect candidates and present their paths; ask the user which design to grill, even when there is only one. Never automatically pick the newest.
+- If `.spindle/features/` is absent or no candidates qualify, explain that no unfilled SDD design was found and ask for a design path. Do not substitute an ineligible design or create a new one.
 
 **Complete when:** the user has supplied or selected one readable design.
 

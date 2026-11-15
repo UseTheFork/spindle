@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { test, expect, vi } from "vitest";
@@ -27,16 +27,6 @@ test("init from a nested directory installs into the Git worktree root", async (
   const env = {
     SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
   };
-  const rootResult = runCli(
-    project,
-    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
-    process.env.PATH ?? "",
-    env,
-  );
-  expect(rootResult.status, rootResult.stderr).toBe(0);
-  const rootConfig = await readFile(join(project, ".github", "spindle.json"), "utf8");
-  await rm(join(project, ".github"), { recursive: true, force: true });
-
   const nestedResult = runCli(
     nested,
     ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
@@ -45,11 +35,11 @@ test("init from a nested directory installs into the Git worktree root", async (
   );
 
   expect(nestedResult.status, nestedResult.stderr).toBe(0);
-  expect(nestedResult.stdout).toBe(rootResult.stdout);
-  expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toMatch(
-    /"stacks": \[\s*"python"\s*\]/,
+  const rootConfig = await readFile(join(project, ".spindle", "config.json"), "utf8");
+  expect(rootConfig).toMatch(/"stacks": \[\s*"python"\s*\]/);
+  expect(await readFile(join(project, ".github", "skills", "demo", "SKILL.md"), "utf8")).toContain(
+    "Demo",
   );
-  expect(rootConfig).toBe(await readFile(join(project, ".github", "spindle.json"), "utf8"));
   expect(await readdir(nested)).toEqual([]);
 });
 
@@ -67,8 +57,9 @@ test("update from a nested directory reads Project Settings and reconciles at th
     "---\nmetadata:\n  spindle:\n    version: 2.0.0\n---\nUpdated\n",
   );
   await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
+  await mkdir(join(project, ".spindle"), { recursive: true });
   await writeFile(
-    join(project, ".github", "spindle.json"),
+    join(project, ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   await writeFile(
@@ -127,13 +118,13 @@ test("init and SDD status fail without Git discovery", async () => {
 
     const sdd = runCliRaw(
       invocation,
-      ["sdd", "status", "--feature", join(workspace, ".scratch/feature")],
+      ["sdd", "status", "--feature", join(workspace, ".spindle/features/feature")],
       searchPath,
     );
     expect(sdd.status).not.toBe(0);
     expect(sdd.stdout).toBe("");
     expect(sdd.stderr).toMatch(/Git working-tree root/i);
-    expect(existsSync(join(workspace, ".scratch"))).toBe(false);
+    expect(existsSync(join(workspace, ".spindle/features"))).toBe(false);
   }
 });
 
@@ -163,7 +154,7 @@ test("help and version work outside Git when Git is unavailable", async () => {
     expect(result.stderr).toBe("");
     expect(result.stdout.trim()).not.toBe("");
     if (args[0] === "--version") expect(result.stdout).toBe(`${packageMetadata.version}\n`);
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   }
   expect(await readdir(project)).toEqual([]);
 });
@@ -178,7 +169,7 @@ test("CLI argument errors take precedence over Git-root discovery", async () => 
       "--workspace",
       join(project, "target"),
       "--reports-dir",
-      ".scratch/reports",
+      ".spindle/features/reports",
       "--ticket",
       "invalid",
     ],
@@ -188,7 +179,7 @@ test("CLI argument errors take precedence over Git-root discovery", async () => 
       "--workspace",
       join(project, "target"),
       "--reports-dir",
-      ".scratch/reports",
+      ".spindle/features/reports",
       "--ticket",
       "03",
       "unexpected",

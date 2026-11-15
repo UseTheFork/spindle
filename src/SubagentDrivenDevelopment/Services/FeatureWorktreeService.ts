@@ -84,8 +84,8 @@ export class FeatureWorktreeService extends Service {
     }
     const target = join(parent, feature.feature);
     const branch = `features/${feature.feature}`;
-    const prefix = `.scratch/${feature.feature}/`;
-    const featurePath = `.scratch/${feature.feature}`;
+    const prefix = `.spindle/features/${feature.feature}/`;
+    const featurePath = `.spindle/features/${feature.feature}`;
     const lockPath = `${prefix}.sdd-tickets.lock`;
     return this.transaction.run(feature.workspace, () => {
       const featureLedger: unknown = JSON.parse(readFileSync(feature.ledger, "utf8"));
@@ -342,9 +342,9 @@ export class FeatureWorktreeService extends Service {
     const paths = value.records.paths.map((entry: unknown) => {
       if (
         typeof entry !== "string" ||
-        !entry.startsWith(`.scratch/${feature}/`) ||
+        !entry.startsWith(`.spindle/features/${feature}/`) ||
         !/^(?:spec\.md|design\.md|sdd\.json|tickets\/T-\d{4,}\.md|reports\/[^/]+\.md)$/.test(
-          entry.slice(`.scratch/${feature}/`.length),
+          entry.slice(`.spindle/features/${feature}/`.length),
         )
       ) {
         throw new Error(`Feature startup state contains an invalid record path: ${path}.`);

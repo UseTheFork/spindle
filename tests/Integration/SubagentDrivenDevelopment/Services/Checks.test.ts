@@ -101,7 +101,7 @@ test("checks record the exact ticket commit without accepting a caller-supplied 
     git("-C", ticketWorkspace, "rev-parse", "HEAD"),
   );
   const records = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   ).tickets[0].checks.records;
   expect(records.map((record: { headSha: string }) => record.headSha)).toEqual([
     before.headSha,
@@ -157,7 +157,7 @@ test("legacy path-scoped records remain readable and are not reused for new resu
   const initial = await recordReviewCheck(repo, spec, command, "passed");
   expect(initial.status, initial.stderr).toBe(0);
 
-  const ledgerPath = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   ledger.tickets[0].checks.records[0].coveredPaths = ["feature.ts"];
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
@@ -247,8 +247,9 @@ test("checks reject uncommitted nested repositories", async () => {
   expect(recorded.status).not.toBe(0);
   expect(recorded.stderr).toMatch(/commit ticket code/i);
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
-      .tickets[0].checks.records,
+    JSON.parse(
+      readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+    ).tickets[0].checks.records,
   ).toEqual([]);
 });
 
@@ -263,8 +264,9 @@ test("recording the same ticket check twice is idempotent", async () => {
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   expect(JSON.parse(repeated.stdout).record).toEqual(firstRecord);
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
-      .tickets[0].checks.records,
+    JSON.parse(
+      readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+    ).tickets[0].checks.records,
   ).toHaveLength(1);
 });
 
@@ -272,7 +274,7 @@ test("committed requirements must reach the ticket branch before review", async 
   const { repo, git, spec, command, ticketWorkspace } = await prepareImplementationForReview();
   const originalCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(originalCheck.status, originalCheck.stderr).toBe(0);
-  const ticketPath = join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md");
+  const ticketPath = join(repo, ".spindle/features", "0001-ticket-flow", "tickets", "T-0001.md");
   const ticketContent = readFileSync(ticketPath, "utf8");
   writeFileSync(
     ticketPath,

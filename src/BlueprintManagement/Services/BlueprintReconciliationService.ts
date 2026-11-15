@@ -34,7 +34,10 @@ import type {
 import { BlueprintVersion } from "@/BlueprintManagement/Versioning/BlueprintVersion";
 import type { Application } from "@/Foundation/Application";
 import { Service } from "@/Foundation/Service";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import {
+  ProjectSettingsService,
+  projectSettingsPath,
+} from "@/Settings/Services/ProjectSettingsService";
 import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
 import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
 
@@ -538,7 +541,7 @@ export class BlueprintReconciliationService extends Service {
       options.mode === "init" ||
       (options.mode === "update" && options.persistSettings && options.settings)
         ? {
-            path: join(options.githubDirectory, "spindle.json"),
+            path: options.app.workspacePath(projectSettingsPath),
             content: `${JSON.stringify(options.settings, null, 2)}\n`,
           }
         : undefined;
@@ -619,9 +622,9 @@ export class BlueprintReconciliationService extends Service {
       );
       if (settingsWrite !== undefined) {
         try {
-          await mkdir(options.githubDirectory, { recursive: true });
+          await mkdir(options.app.workspacePath(".spindle"), { recursive: true });
           await writeFile(settingsWrite.path, settingsWrite.content);
-          recordAppliedChange("wrote Project Settings '.github/spindle.json'");
+          recordAppliedChange(`wrote Project Settings '${projectSettingsPath}'`);
         } catch (error) {
           throw new Error(
             `Failed to write Project Settings '${settingsWrite.path}': ${error instanceof Error ? error.message : String(error)}`,

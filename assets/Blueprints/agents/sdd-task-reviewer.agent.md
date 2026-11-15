@@ -27,7 +27,7 @@ Before loading review skills, inspecting the checkout, running commands, or writ
 | `REPORT_FILE`               | Implementation report path.                                                                                                    |
 | `CONCERNS_AND_DEPENDENCIES` | Known concerns and dependencies, or explicit `NONE`.                                                                           |
 | `PRIOR_REVIEW_STATE`        | Prior code-review evidence, finding IDs, rulings, and fix-round count; explicitly identify absent history.                     |
-| `REPORT_PATH`               | Assigned `.scratch` report path, absolute or relative to the supplied workspace.                                               |
+| `REPORT_PATH`               | Assigned `.spindle/features` report path, absolute or relative to the supplied workspace.                                               |
 
 Read `references/review-inputs.md` in the `private-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 
