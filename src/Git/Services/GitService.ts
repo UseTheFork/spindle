@@ -32,6 +32,30 @@ export class GitService extends Service {
     return spawnSync("git", args, options);
   }
 
+  public gitPaths(
+    workspace: string,
+    names: readonly string[],
+    options: { env?: NodeJS.ProcessEnv } = {},
+  ): string[] {
+    if (names.length === 0) return [];
+
+    const args = ["rev-parse", ...names.flatMap((name) => ["--git-path", name])];
+    const result = this.run(args, { cwd: workspace, encoding: "utf8", ...options });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`git rev-parse --git-path failed: ${result.stderr.trim()}`);
+    }
+
+    const paths = result.stdout.split(/\r?\n/);
+    if (paths.at(-1) === "") paths.pop();
+    if (paths.length !== names.length) {
+      throw new Error(
+        `git rev-parse --git-path returned ${paths.length} paths for ${names.length} names.`,
+      );
+    }
+    return paths;
+  }
+
   private discoveryError(): Error {
     return new Error(
       "Unable to discover the Git working-tree root. Ensure Git is available and run Spindle inside a Git working tree.",

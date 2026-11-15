@@ -749,16 +749,17 @@ export class TicketIntegrationService extends Service {
     if (this.buffer(root, ["ls-files", "--unmerged", "-z"]).length) {
       throw new Error("Merge conflicts require reviewed resolution before continuing.");
     }
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (allowMerge && operation === "MERGE_HEAD") continue;
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
+    ].filter((operation) => !allowMerge || operation !== "MERGE_HEAD");
+    const paths = this.git.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      const path = resolve(root, paths[index]);
       if (FileSystem.lstatIfPresent(path))
         throw new Error(
           `Existing Git operation ${operation} was preserved; inspect and review before continuing.`,
@@ -767,7 +768,7 @@ export class TicketIntegrationService extends Service {
   }
 
   private assertNoHooks(root: string): void {
-    for (const hook of [
+    const hooks = [
       "pre-merge-commit",
       "pre-commit",
       "prepare-commit-msg",
@@ -777,8 +778,12 @@ export class TicketIntegrationService extends Service {
       "post-rewrite",
       "pre-auto-gc",
       "reference-transaction",
-    ]) {
-      const path = this.run(root, ["rev-parse", "--git-path", `hooks/${hook}`]);
+    ];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+    );
+    for (const path of paths) {
       try {
         accessSync(isAbsolute(path) ? path : join(root, path), constants.X_OK);
       } catch {

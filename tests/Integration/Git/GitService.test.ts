@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -60,4 +61,43 @@ test("Git execution preserves binary bytes, process statuses, and text output", 
   expect(failure.status).toBe(128);
   expect(typeof failure.stderr).toBe("string");
   expect(failure.stderr).toContain("fatal:");
+});
+
+test("Git path lookup batches names in order and reports failures", async () => {
+  const { repo } = fixture();
+  const git = await new Application({ basePath: repo }).make(GitService);
+  const run = vi.spyOn(git, "run");
+
+  try {
+    const names = ["MERGE_HEAD", "hooks/pre-commit"];
+    const paths = git.gitPaths(repo, names);
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith(
+      ["rev-parse", "--git-path", names[0], "--git-path", names[1]],
+      { cwd: repo, encoding: "utf8" },
+    );
+    expect(paths).toEqual(
+      names.map((name) =>
+        execFileSync("git", ["rev-parse", "--git-path", name], {
+          cwd: repo,
+          encoding: "utf8",
+        }).trim(),
+      ),
+    );
+  } finally {
+    run.mockRestore();
+  }
+
+  const emptyRun = vi.spyOn(git, "run");
+  try {
+    expect(git.gitPaths(repo, [])).toEqual([]);
+    expect(emptyRun).not.toHaveBeenCalled();
+  } finally {
+    emptyRun.mockRestore();
+  }
+
+  expect(() => git.gitPaths(join(repo, ".."), ["MERGE_HEAD"])).toThrow(
+    /git rev-parse --git-path failed/,
+  );
 });

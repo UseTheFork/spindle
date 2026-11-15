@@ -158,12 +158,7 @@ export class GitEvidence extends Service {
       this.workflowDeliveryRecordPaths(feature, ledger),
       "Feature code changed after the recorded merge; post-merge checks are stale.",
     );
-    const gitPath = (name: string) =>
-      resolve(
-        root,
-        this.gitBuffer(["rev-parse", "--git-path", name], root).toString("utf8").trim(),
-      );
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -171,8 +166,10 @@ export class GitEvidence extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (FileSystem.lstatIfPresent(gitPath(operation))) {
+    ];
+    const paths = this.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      if (FileSystem.lstatIfPresent(resolve(root, paths[index]))) {
         throw new Error(
           `Existing Git operation ${operation} was preserved; inspect it before dispatch.`,
         );
@@ -826,6 +823,12 @@ export class GitEvidence extends Service {
       throw new Error(`git ${args[0]} failed: ${result.stderr.toString("utf8").trim()}`);
     }
     return result.stdout;
+  }
+
+  public gitPaths(workspace: string, names: readonly string[]): string[] {
+    return this.git.gitPaths(workspace, names, {
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
   }
 
   public gitChangeSummary(feature: FeaturePaths): string {

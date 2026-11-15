@@ -16,6 +16,7 @@ import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/Revie
 import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
+import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
 
 export async function workflowServices(app: Application) {
   const assignments = await app.make(AssignmentService);
@@ -41,6 +42,7 @@ export async function workflowServices(app: Application) {
     findingService: await app.make(FindingService),
     ticketService: await app.make(TicketService),
     ticketIntegrationService: ticketIntegration,
+    ticketSyncService: await app.make(TicketSyncService),
     readinessService: await app.make(ReadinessService),
     requirementsService: await app.make(RequirementsService),
     reviewService: await app.make(ReviewService),

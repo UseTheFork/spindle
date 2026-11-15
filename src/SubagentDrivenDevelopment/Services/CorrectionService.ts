@@ -258,19 +258,17 @@ export class CorrectionService extends Service {
           throw new Error(
             "Ticket worktree must be clean before post-merge correction; changes were preserved.",
           );
-        for (const operation of [
+        const operations = [
           "MERGE_HEAD",
           "CHERRY_PICK_HEAD",
           "REVERT_HEAD",
           "rebase-merge",
           "rebase-apply",
           "sequencer",
-        ]) {
-          const path = this.gitEvidence
-            .gitBuffer(["rev-parse", "--git-path", operation], workspace)
-            .toString("utf8")
-            .trim();
-          if (FileSystem.lstatIfPresent(resolve(workspace, path)))
+        ];
+        const paths = this.gitEvidence.gitPaths(workspace, operations);
+        for (const [index, operation] of operations.entries()) {
+          if (FileSystem.lstatIfPresent(resolve(workspace, paths[index])))
             throw new Error(
               `Ticket Git operation ${operation} must be resolved before correction.`,
             );

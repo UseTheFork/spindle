@@ -332,31 +332,30 @@ export class TicketSyncService extends Service {
   }
 
   private assertNoOperations(...workspaces: string[]): void {
+    const operations = [
+      "MERGE_HEAD",
+      "CHERRY_PICK_HEAD",
+      "REVERT_HEAD",
+      "rebase-merge",
+      "rebase-apply",
+      "sequencer",
+    ];
     for (const workspace of workspaces) {
-      for (const operation of [
-        "MERGE_HEAD",
-        "CHERRY_PICK_HEAD",
-        "REVERT_HEAD",
-        "rebase-merge",
-        "rebase-apply",
-        "sequencer",
-      ]) {
-        const gitPath = this.gitEvidence
-          .gitBuffer(["rev-parse", "--git-path", operation], workspace)
-          .toString("utf8")
-          .trim();
-        if (FileSystem.lstatIfPresent(resolve(workspace, gitPath)))
+      const paths = this.gitEvidence.gitPaths(workspace, operations);
+      for (const [index, operation] of operations.entries()) {
+        if (FileSystem.lstatIfPresent(resolve(workspace, paths[index])))
           throw new Error(`Resolve Git operation ${operation} before synchronizing.`);
       }
     }
   }
 
   private assertNoHooks(workspace: string): void {
-    for (const hook of ["post-merge", "reference-transaction"]) {
-      const configuredPath = this.gitEvidence
-        .gitBuffer(["rev-parse", "--git-path", `hooks/${hook}`], workspace)
-        .toString("utf8")
-        .trim();
+    const hooks = ["post-merge", "reference-transaction"];
+    const paths = this.gitEvidence.gitPaths(
+      workspace,
+      hooks.map((hook) => `hooks/${hook}`),
+    );
+    for (const configuredPath of paths) {
       const path = isAbsolute(configuredPath) ? configuredPath : resolve(workspace, configuredPath);
       try {
         accessSync(path, constants.X_OK);

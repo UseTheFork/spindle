@@ -1419,7 +1419,7 @@ export class FeatureFinalizationService extends Service {
     return undefined;
   }
   private noOperation(root: string, allowMerge = false): void {
-    for (const name of [
+    const names = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -1427,13 +1427,15 @@ export class FeatureFinalizationService extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (!(allowMerge && name === "MERGE_HEAD") && this.exists(this.gitPath(root, name)))
+    ].filter((name) => !allowMerge || name !== "MERGE_HEAD");
+    const paths = this.git.gitPaths(root, names);
+    for (const [index, name] of names.entries()) {
+      if (this.exists(resolve(root, paths[index])))
         throw new Error(`Preserve existing Git operation ${name}.`);
     }
   }
   private noHooks(root: string): void {
-    for (const hook of [
+    const hooks = [
       "pre-commit",
       "prepare-commit-msg",
       "commit-msg",
@@ -1442,8 +1444,12 @@ export class FeatureFinalizationService extends Service {
       "post-merge",
       "post-checkout",
       "reference-transaction",
-    ]) {
-      const path = this.gitPath(root, `hooks/${hook}`);
+    ];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+    );
+    for (const path of paths.map((configuredPath) => resolve(root, configuredPath))) {
       try {
         accessSync(path, constants.X_OK);
       } catch (error) {

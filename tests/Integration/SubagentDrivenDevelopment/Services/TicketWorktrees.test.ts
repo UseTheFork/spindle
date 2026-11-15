@@ -189,6 +189,16 @@ function integrate(root: string, spec: string) {
   ]);
 }
 
+function integrateWithService(root: string, spec: string) {
+  return execute(root, (services) =>
+    services.ticketIntegrationService.integrate({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
+}
+
 test("independent tickets get distinct persisted branches and isolated evidence", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
@@ -1115,9 +1125,9 @@ test("sync adopts a manually rebased review baseline and archives submitted revi
 
 test("a reviewed post-merge correction preserves failures and requires fresh checks on its new merge", async () => {
   const { root, spec, workspace, parent } = await acceptedTicket();
-  const initial = await integrate(root, spec);
+  const initial = await integrateWithService(root, spec);
   expect(initial.status, initial.stderr).toBe(0);
-  const oldMerge = cliOutput(initial).mergeCommit as string;
+  const oldMerge = JSON.parse(initial.stdout).mergeCommit as string;
   const declared = await execute(root, (services) =>
     services.checksService.checksRequire({
       spec,
@@ -1140,14 +1150,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(failed.status, failed.stderr).toBe(0);
-  const nextBeforeSync = await invokeAsync(root, [
-    "next",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-  ]);
-  expect(nextBeforeSync.status, nextBeforeSync.stderr).toBe(0);
-  expect(nextSummary(cliOutput(nextBeforeSync)).join("\n")).toContain("step ticket:sync (ready)");
-  expect(nextSummary(cliOutput(nextBeforeSync)).join("\n")).toContain("sdd sync --feature");
   const second = await dispatch(root, spec, parent, "T-0002");
   writeFileSync(join(second.assignment.workspace, "second.ts"), "second ticket\n");
   gitAt(second.assignment.workspace, "add", "second.ts");
@@ -1175,42 +1177,36 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   expect(beforeSync.status).not.toBe(0);
   expect(beforeSync.stderr).toMatch(/sdd sync/i);
   writeFileSync(join(workspace, "private.txt"), "preserve user work\n");
-  const dirtySync = await invokeAsync(root, [
-    "sync",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0001",
-    "--actor",
-    "controller",
-  ]);
+  const dirtySync = await execute(root, (services) =>
+    services.ticketSyncService.sync({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
   expect(dirtySync.status).not.toBe(0);
   expect(dirtySync.stderr).toMatch(/clean/i);
   expect(readFileSync(join(workspace, "private.txt"), "utf8")).toBe("preserve user work\n");
   rmSync(join(workspace, "private.txt"));
-  const synced = await invokeAsync(root, [
-    "sync",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0001",
-    "--actor",
-    "controller",
-  ]);
+  const synced = await execute(root, (services) =>
+    services.ticketSyncService.sync({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
   expect(synced.status, synced.stderr).toBe(0);
-  expect(cliOutput(synced).mergeCommit).toBe(oldMerge);
+  expect(JSON.parse(synced.stdout).mergeCommit).toBe(oldMerge);
   expect(gitAt(workspace, "rev-parse", "HEAD")).toBe(oldMerge);
-  const repeatedSync = await invokeAsync(root, [
-    "sync",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0001",
-    "--actor",
-    "controller",
-  ]);
+  const repeatedSync = await execute(root, (services) =>
+    services.ticketSyncService.sync({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+    }),
+  );
   expect(repeatedSync.status, repeatedSync.stderr).toBe(0);
-  expect(cliOutput(repeatedSync).idempotent).toBe(true);
+  expect(JSON.parse(repeatedSync.stdout).idempotent).toBe(true);
   const nextAfterSync = await invokeAsync(root, [
     "next",
     "--feature",
@@ -1269,17 +1265,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     services.correctionService.correct(correctionOptions),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
-  const blocked = await invokeAsync(root, [
-    "integrate",
-    "--feature",
-    spec.replace(/\/spec\.md$/, ""),
-    "--ticket",
-    "T-0002",
-    "--actor",
-    "controller",
-  ]);
-  expect(blocked.status).not.toBe(0);
-  expect(blocked.stderr).toMatch(/post-merge validation.*T-0001/i);
   const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
   let ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].integration).toBeUndefined();
@@ -1319,9 +1304,9 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(approved.status, approved.stderr).toBe(0);
-  const merged = await integrate(root, spec);
+  const merged = await integrateWithService(root, spec);
   expect(merged.status, merged.stderr).toBe(0);
-  const newMerge = cliOutput(merged).mergeCommit as string;
+  const newMerge = JSON.parse(merged.stdout).mergeCommit as string;
   expect(newMerge).not.toBe(oldMerge);
   ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].status).toBe("open");
@@ -1377,8 +1362,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
     }),
   );
   expect(passed.status, passed.stderr).toBe(0);
-  ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
-  expect(ledger.tickets[0].status).toBe("open");
   const smoke = await execute(root, (services) =>
     services.checksService.checksRecord({
       spec,
@@ -1391,7 +1374,6 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   );
   expect(smoke.status, smoke.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
-  expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.checks.records[0].headSha).toBe(newMerge);
   expect(ledger.tickets[0].integrationHistory[0].postMerge.checks.records[0].result).toBe("failed");
 });

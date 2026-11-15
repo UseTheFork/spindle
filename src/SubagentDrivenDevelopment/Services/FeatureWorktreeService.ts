@@ -465,14 +465,19 @@ export class FeatureWorktreeService extends Service {
   }
 
   private assertNoHooks(root: string): void {
-    for (const hook of [
+    const hooks = [
       "pre-commit",
       "prepare-commit-msg",
       "commit-msg",
       "post-commit",
       "post-checkout",
-    ]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", `hooks/${hook}`]));
+    ];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+    );
+    for (const configuredPath of paths) {
+      const path = resolve(root, configuredPath);
       try {
         accessSync(path, constants.X_OK);
       } catch (error) {
@@ -494,7 +499,7 @@ export class FeatureWorktreeService extends Service {
     if (this.runBuffer(root, ["ls-files", "--unmerged", "-z"]).length > 0) {
       throw new Error("Resolve unmerged index entries before starting a feature worktree.");
     }
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -502,8 +507,10 @@ export class FeatureWorktreeService extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
+    ];
+    const paths = this.git.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      const path = resolve(root, paths[index]);
       if (FileSystem.lstatIfPresent(path)) {
         throw new Error(`Complete the existing Git operation (${operation}) before starting.`);
       }

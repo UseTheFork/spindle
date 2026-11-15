@@ -369,7 +369,7 @@ export class WorkflowRecordsCommitter extends Service {
     if (this.paths(root, ["ls-files", "--unmerged", "-z"]).length > 0) {
       throw new Error("Resolve unmerged index entries before committing workflow records.");
     }
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -377,8 +377,12 @@ export class WorkflowRecordsCommitter extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
+    ];
+    const paths = this.git.gitPaths(root, operations, {
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    for (const [index, operation] of operations.entries()) {
+      const path = resolve(root, paths[index]);
       if (FileSystem.lstatIfPresent(path)) {
         throw new Error(
           `Complete the existing Git operation (${operation}) before committing records.`,
@@ -388,8 +392,14 @@ export class WorkflowRecordsCommitter extends Service {
   }
 
   private assertNoHooks(root: string): void {
-    for (const hook of ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", `hooks/${hook}`]));
+    const hooks = ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+      { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } },
+    );
+    for (const configuredPath of paths) {
+      const path = resolve(root, configuredPath);
       try {
         accessSync(path, constants.X_OK);
       } catch (error) {

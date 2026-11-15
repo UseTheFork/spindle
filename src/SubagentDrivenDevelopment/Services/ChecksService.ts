@@ -450,15 +450,17 @@ export class ChecksService extends Service {
       currentHead,
       mergeSha,
     );
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (existsSync(resolve(root, git(["rev-parse", "--git-path", operation]))))
+    ];
+    const paths = this.gitEvidence.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      if (existsSync(resolve(root, paths[index])))
         throw new Error(`Post-merge checks cannot run during Git operation ${operation}.`);
     }
     const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
