@@ -1,5 +1,3 @@
-import matter from "gray-matter";
-
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
 import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
@@ -18,9 +16,11 @@ import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPo
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { DeliverySubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import matter from "gray-matter";
 
 export class SubmissionService extends Service {
   public constructor(
@@ -111,6 +111,7 @@ export class SubmissionService extends Service {
           `Ticket ${ticketId} owner ${progress.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
         );
       }
+      TaskPlanPolicy.assertAllAccepted(progress);
       if (unavailable) {
         const details = options.details!.trim();
         if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {

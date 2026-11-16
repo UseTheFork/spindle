@@ -1,12 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import {
-  git,
-  readyFeature,
-} from "@test/Helpers/SubagentDrivenDevelopment/FeatureFinalizationFixture";
 import { invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test, vi } from "vitest";
+
+import { git, readyFeature } from "../Fixtures/FeatureFinalizationFixture";
 
 vi.setConfig({ testTimeout: 60_000 });
 

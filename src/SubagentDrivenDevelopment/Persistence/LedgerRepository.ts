@@ -27,6 +27,7 @@ import { TaskSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/TaskS
 import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
+const TASK_LEDGER_ROLLOUT_FEATURE = "0001-ticket-task-dispatch";
 
 export class LedgerRepository extends Service {
   public constructor(app: Application) {
@@ -41,9 +42,30 @@ export class LedgerRepository extends Service {
   }
 
   public validateLedger(value: unknown, feature: string): FeatureLedger {
-    const normalized = this.normalizeLegacyFields(value);
+    const migrated = this.migrateActiveTaskLedgerInMemory(value, feature);
+    const normalized = this.normalizeLegacyFields(migrated);
     this.assertLedger(normalized, feature);
     return normalized;
+  }
+
+  private migrateActiveTaskLedgerInMemory(value: unknown, feature: string): unknown {
+    // This rollout exception recognizes only this feature's active schema-v3 ledger.
+    if (!isRecord(value) || feature !== TASK_LEDGER_ROLLOUT_FEATURE || value.schemaVersion !== 3) {
+      return value;
+    }
+    return {
+      ...value,
+      schemaVersion: 4,
+      ...(Array.isArray(value.tickets)
+        ? {
+            tickets: value.tickets.map((ticket) =>
+              isRecord(ticket) && !Object.hasOwn(ticket, "tasks")
+                ? { ...ticket, tasks: [] }
+                : ticket,
+            ),
+          }
+        : {}),
+    };
   }
 
   private normalizeLegacyFields(value: unknown): unknown {
@@ -144,7 +166,7 @@ export class LedgerRepository extends Service {
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {
     if (!isRecord(value)) throw new Error("Feature ledger must contain a JSON object.");
     const id = FEATURE_DIRECTORY.exec(feature)?.[1];
-    if (value.schemaVersion !== 3) {
+    if (value.schemaVersion !== 4) {
       throw new Error(`Unsupported feature ledger schema version: ${String(value.schemaVersion)}.`);
     }
     if (typeof value.featureId !== "string" || value.featureId !== id) {
@@ -199,6 +221,7 @@ export class LedgerRepository extends Service {
           TRACKER_STATUSES.includes(ticket.status as (typeof TRACKER_STATUSES)[number]) &&
           Array.isArray(ticket.blockedBy) &&
           ticket.blockedBy.every((dependency) => typeof dependency === "string") &&
+          Array.isArray(ticket.tasks) &&
           (!Object.hasOwn(ticket, "blocker") ||
             (typeof ticket.blocker === "string" && !!ticket.blocker.trim())) &&
           ((!Object.hasOwn(ticket, "owner") && !Object.hasOwn(ticket, "baseSha")) ||
@@ -375,7 +398,7 @@ export class LedgerRepository extends Service {
       throw new Error("Feature ledger ticket IDs must be unique.");
     }
     for (const ticket of value.tickets as TicketProgress[]) {
-      if (Object.hasOwn(ticket, "tasks")) TaskSchema.validate(ticket.tasks);
+      TaskSchema.validate(ticket.tasks);
       for (const requirement of ticket.reviewRequirements ?? []) {
         if (blueprintCatalog.agents[requirement.agent]?.canReview !== true) {
           throw new Error(

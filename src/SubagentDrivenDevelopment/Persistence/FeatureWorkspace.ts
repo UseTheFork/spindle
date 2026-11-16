@@ -7,7 +7,10 @@ import {
   FEATURE_DIRECTORY,
   HISTORICAL_DATE_DIRECTORY,
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
-import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type {
+  FeatureLedger,
+  FeaturePaths,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
@@ -58,8 +61,8 @@ export class FeatureWorkspace extends Service {
         `Feature ledger is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const state = this.ledgerRepository.validateLedger(parsed, segments[2]!);
     const feature = segments[2]!;
+    const state = this.ledgerRepository.validateLedger(parsed, feature);
     return {
       feature,
       workspace,

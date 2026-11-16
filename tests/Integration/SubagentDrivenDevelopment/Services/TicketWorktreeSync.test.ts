@@ -17,6 +17,8 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures";
 import { expect, test } from "vitest";
 
+import { acceptTaskPlan } from "../Fixtures/TaskPlans";
+
 test("sync refuses a divergent ticket branch without moving it", async () => {
   const { root, spec, workspace } = await acceptedTicket();
   const integrated = await integrate(root, spec);
@@ -157,6 +159,7 @@ test("a reviewed post-merge correction preserves failures and requires fresh che
   );
   expect(failed.status, failed.stderr).toBe(0);
   const second = await dispatch(root, spec, parent, "T-0002");
+  await acceptTaskPlan(root, spec, "T-0002");
   writeFileSync(join(second.assignment.workspace, "second.ts"), "second ticket\n");
   gitAt(second.assignment.workspace, "add", "second.ts");
   gitAt(second.assignment.workspace, "commit", "-qm", "second ticket");

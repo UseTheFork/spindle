@@ -2,14 +2,15 @@ import { readFileSync } from "node:fs";
 
 import { GitService } from "@spindle/Git/Services/GitService";
 import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test, vi } from "vitest";
+
 import {
   appAt,
   originalIgnoredArtifacts,
   readyFeature,
   recordFinal,
-} from "@test/Helpers/SubagentDrivenDevelopment/FeatureFinalizationFixture";
-import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
-import { expect, test, vi } from "vitest";
+} from "../Fixtures/FeatureFinalizationFixture";
 
 vi.setConfig({ testTimeout: 60_000 });
 

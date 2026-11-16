@@ -19,7 +19,7 @@ export function gitAt(directory: string, ...args: string[]): string {
   }).trim();
 }
 
-export async function setup() {
+export async function setup(options: { taskPlan?: boolean } = {}) {
   const { repo } = fixture();
   const feature = await execute(repo, (services) =>
     services.featureCreationService.create({ title: "Ticket isolation", author: "controller" }),
@@ -51,6 +51,24 @@ export async function setup() {
       }),
     );
     expect(created.status, created.stderr).toBe(0);
+    if (options.taskPlan !== false) {
+      const ticketId = JSON.parse(created.stdout).ticket as string;
+      const plan = await execute(root, (services) =>
+        services.taskService.create({
+          spec,
+          ticket: ticketId,
+          author: "controller",
+          title: `Implement ${ticketId}`,
+          instructions: "Implement the assigned ticket change.",
+          acceptanceCriteria: ["The ticket behavior is complete."],
+          editPaths: ["src/feature.ts"],
+          createPaths: [],
+          referencePaths: [],
+          dependencies: [],
+        }),
+      );
+      expect(plan.status, plan.stderr).toBe(0);
+    }
   }
   for (const ticket of ["T-0001", "T-0002"]) {
     const check = await execute(root, (services) =>
@@ -92,6 +110,41 @@ export async function acceptedTicket(file = "first.ts", content = "ticket\n", ba
   }
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
+  const acceptedTask = await execute(root, (services) =>
+    services.taskService.assign({
+      spec,
+      ticket: "T-0001",
+      task: "TASK-0001",
+      worker: "task-worker",
+      author: "controller",
+    }),
+  );
+  expect(acceptedTask.status, acceptedTask.stderr).toBe(0);
+  const taskAssignment = JSON.parse(acceptedTask.stdout).assignment as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(taskAssignment.report, "# Task report\n\nTask completed.\n");
+  const taskSubmitted = await execute(root, (services) =>
+    services.taskService.submit({
+      spec,
+      ticket: "T-0001",
+      task: "TASK-0001",
+      assignment: taskAssignment.id,
+      author: "controller",
+    }),
+  );
+  expect(taskSubmitted.status, taskSubmitted.stderr).toBe(0);
+  const taskAccepted = await execute(root, (services) =>
+    services.taskService.accept({
+      spec,
+      ticket: "T-0001",
+      task: "TASK-0001",
+      assignment: taskAssignment.id,
+      author: "controller",
+    }),
+  );
+  expect(taskAccepted.status, taskAccepted.stderr).toBe(0);
   mkdirSync(dirname(join(workspace, file)), { recursive: true });
   writeFileSync(join(workspace, file), content);
   gitAt(workspace, "add", file);

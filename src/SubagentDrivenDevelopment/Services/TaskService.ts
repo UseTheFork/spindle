@@ -31,6 +31,7 @@ import { TaskSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/TaskS
 import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
@@ -55,6 +56,8 @@ export class TaskService extends Service {
       this.tickets.requireTicket(this.tickets.readTickets(feature.workspace), options.ticket);
       const ticket = ledger.tickets.find((item) => item.id === options.ticket);
       if (!ticket) throw new Error(`Ticket ${options.ticket} has no ledger record.`);
+      const progress = this.progressFor(ledger, options.ticket);
+      TaskPlanPolicy.assertEditable(progress);
       const recovered = this.recoveredTask(feature, ledger, options);
       if (recovered) return recovered;
       const tasks = ticket.tasks ?? [];
@@ -121,6 +124,12 @@ export class TaskService extends Service {
     return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 
+  private progressFor(ledger: FeatureLedger, ticketId: string): TicketProgress {
+    const progress = ledger.tickets.find((item) => item.id === ticketId);
+    if (!progress) throw new Error(`Ticket ${ticketId} has no ledger execution record.`);
+    return progress;
+  }
+
   private samePathSet(left: readonly string[], right: readonly string[]): boolean {
     const rightPaths = new Set(right);
     return left.length === right.length && left.every((path) => rightPaths.has(path));
@@ -148,6 +157,7 @@ export class TaskService extends Service {
       this.tickets.requireTicket(this.tickets.readTickets(feature.workspace), options.ticket);
       const ticket = ledger.tickets.find((item) => item.id === options.ticket);
       if (!ticket) throw new Error(`Ticket ${options.ticket} has no ledger record.`);
+      TaskPlanPolicy.assertEditable(this.progressFor(ledger, options.ticket));
       const tasks = ticket.tasks ?? [];
       const current = tasks.find((task) => task.id === options.task);
       if (!current)

@@ -6,11 +6,19 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.6.0
+    version: 1.7.0
 ---
 # SDD implementer
 
 Implement one orchestrator-assigned ticket or delivery correction in its assigned worktree. The orchestrator owns dispatch, execution states, acceptance, and broader ticket or feature checks. Other tickets may run concurrently in their own worktrees.
+
+For task-based ticket work, the controller starts or resumes the shared ticket
+worktree and assigns each task with its own file scope and report destination.
+Work only within the assigned task scope. Return a task report to the controller;
+do not update the SDD ledger or commit changes. The controller accepts task
+reports, commits the combined ticket changes after all tasks are accepted, and
+submits one ticket-level implementation report. Ticket-level checks, review,
+integration, and post-merge validation remain required.
 
 ## Required assignment gate
 

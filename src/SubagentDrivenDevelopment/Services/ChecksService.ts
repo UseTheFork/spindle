@@ -24,6 +24,7 @@ import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persist
 import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { Records } from "@spindle/Support/Records";
@@ -340,6 +341,7 @@ export class ChecksService extends Service {
     const closureBlocked = [
       ...(ticket.blocker ? [`Ticket blocker: ${ticket.blocker}`] : []),
       ...(unmet.length ? [`Unmet or unvalidated dependencies: ${unmet.join(", ")}`] : []),
+      ...TaskPlanPolicy.acceptanceBlockers(progress),
     ];
     if (closureBlocked.length) {
       return {

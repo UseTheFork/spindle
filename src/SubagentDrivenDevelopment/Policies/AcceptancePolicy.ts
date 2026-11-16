@@ -12,6 +12,7 @@ import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPo
 import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
 import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 
 export class AcceptancePolicy extends Service {
   public constructor(
@@ -32,6 +33,7 @@ export class AcceptancePolicy extends Service {
     identity: CommitIdentity,
   ): string[] {
     const blockers = this.checkPolicy.reviewCheckBlockers(feature, ticket, progress, identity);
+    blockers.push(...TaskPlanPolicy.acceptanceBlockers(progress));
     blockers.push(...this.findingPolicy.findingBlockers(feature, ticket, progress, identity));
     for (const decision of progress.requirementsDecisions ?? []) {
       if (decision.status === "rejected" && decision.commitSha === identity.headSha) {

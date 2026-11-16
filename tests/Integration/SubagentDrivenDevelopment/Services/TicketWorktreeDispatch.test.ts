@@ -112,6 +112,25 @@ test("implement reserves a ready ticket and creates its worktree and assignment 
   expect(gitAt(output.assignment.workspace, "rev-parse", "HEAD")).toBe(baseSha);
 });
 
+test("implement rejects a ticket without a task plan before creating its worktree", async () => {
+  const { root, spec, parent } = await setup({ taskPlan: false });
+  const ledgerPath = join(dirname(spec), "sdd.json");
+  const before = readFileSync(ledgerPath, "utf8");
+  const result = await execute(root, (services) =>
+    services.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: parent,
+    }),
+  );
+
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toMatch(/task plan.*define tasks first/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(before);
+  expect(existsSync(join(parent, "0001-ticket-isolation-T-0001"))).toBe(false);
+});
+
 test("dispatch automatically commits pending canonical records", async () => {
   const { root, spec, parent } = await setup();
   const report = join(dirname(spec), "reports", "T-0001-review.md");

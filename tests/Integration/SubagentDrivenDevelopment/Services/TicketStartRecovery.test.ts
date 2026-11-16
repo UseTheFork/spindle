@@ -2,15 +2,12 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { expect, test, vi } from "vitest";
-
 import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
-
 import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
@@ -19,6 +16,7 @@ import {
   invokeAsync,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { expect, test, vi } from "vitest";
 
 async function preparedDispatch() {
   const { repo } = fixture();
@@ -51,6 +49,21 @@ async function preparedDispatch() {
     }),
   );
   expect(ticket.status, ticket.stderr).toBe(0);
+  const plan = await execute(root, (services) =>
+    services.taskService.create({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      title: "Recover the ticket start",
+      instructions: "Recover implementation dispatch after interruption.",
+      acceptanceCriteria: ["The ticket worktree assignment can be resumed."],
+      editPaths: ["src/recovery.ts"],
+      createPaths: [],
+      referencePaths: [],
+      dependencies: [],
+    }),
+  );
+  expect(plan.status, plan.stderr).toBe(0);
   const app = applicationFixture(root, join(repoRoot, "assets/Blueprints"));
   await new LoadProjectSettings().bootstrap(app);
   await app.boot();
