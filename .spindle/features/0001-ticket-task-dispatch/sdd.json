@@ -1317,7 +1317,16 @@
                 "addedBy": "Copilot"
               }
             ],
-            "records": []
+            "records": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "result": "passed",
+                "author": "Copilot",
+                "headSha": "c05fde1d7cf1dffc255c5419db477fbe00e17845",
+                "recordedAt": "2026-11-16T19:37:32.936Z",
+                "details": "Post-merge controller run in canonical feature worktree: Vitest passed 282 tests across 52 files; both TypeScript checks and oxlint exited 0."
+              }
+            ]
           }
         },
         "integratedAt": "2026-11-16T19:31:43.879Z",
