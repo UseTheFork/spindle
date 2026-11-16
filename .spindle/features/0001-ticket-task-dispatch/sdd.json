@@ -75,6 +75,14 @@
             "headSha": "6e92072871cf1ef26991106e4578d259086f1026",
             "recordedAt": "2026-11-16T16:04:53.218Z",
             "details": "Worker-run final-commit check: 51 test files, 264 tests, both type checks and SDD lint passed; evidence in reports/T-0001-round-1-fix.md."
+          },
+          {
+            "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
+            "recordedAt": "2026-11-16T16:23:51.773Z",
+            "details": "Controller run on committed correction target 12bf8d1cc47c320fc655bdfc8176a26153b6b28a exited 0. Vitest: 51 files and 265 tests passed; both tsc checks and SDD oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed."
           }
         ]
       },
@@ -205,7 +213,17 @@
             "details": "Prior check-failure correction resolved provider registration and lint; full declared check passed. Independent initial review found a different recovery defect requiring this focused correction.",
             "recordedAt": "2026-11-16T16:08:06.171Z",
             "recordedBy": "Copilot"
-          }
+          },
+          "checks": [
+            {
+              "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
+              "recordedAt": "2026-11-16T16:23:51.773Z",
+              "details": "Controller run on committed correction target 12bf8d1cc47c320fc655bdfc8176a26153b6b28a exited 0. Vitest: 51 files and 265 tests passed; both tsc checks and SDD oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed."
+            }
+          ]
         }
       ],
       "reviewAssignments": [
