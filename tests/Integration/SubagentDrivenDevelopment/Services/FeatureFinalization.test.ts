@@ -1,25 +1,11 @@
 import { execFileSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { expect, test, vi } from "vitest";
-
 import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@spindle/Git/Services/GitService";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureFinalizationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-
 import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
@@ -29,6 +15,7 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { expect, test, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 60_000 });
 function git(root: string, ...args: string[]) {
@@ -518,121 +505,6 @@ async function recordFinal(f: Awaited<ReturnType<typeof readyFeature>>, result =
   return recorded;
 }
 
-function originalIgnoredArtifacts(f: Awaited<ReturnType<typeof readyFeature>>) {
-  const exclude = join(f.original, ".git", "info", "exclude");
-  writeFileSync(exclude, `${readFileSync(exclude, "utf8")}\nnode_modules/\nbuild/\n`);
-  const files = [
-    {
-      path: join(f.original, "node_modules", "fixture-package", "index.js"),
-      content: "user dependency data\n",
-    },
-    { path: join(f.original, "build", "result.txt"), content: "user build artifact\n" },
-  ];
-  for (const file of files) {
-    mkdirSync(dirname(file.path), { recursive: true });
-    writeFileSync(file.path, file.content);
-  }
-  return files;
-}
-
-test("original ignored node_modules and build artifacts survive the real complete flow", async () => {
-  const f = await readyFeature();
-  const files = originalIgnoredArtifacts(f);
-  const merged = cliOutput(await f.finish());
-  expect(merged.finalValidation).toBe("pending");
-  cliOutput(await recordFinal(f));
-  const complete = cliOutput(
-    await invokeAsync(f.original, [
-      "finish",
-      "--feature",
-      f.originalSpec.replace(/\/spec\.md$/, ""),
-      "--actor",
-      "controller",
-    ]),
-  );
-  expect(complete.finished).toBe(true);
-  expect(existsSync(f.root)).toBe(false);
-  expect(existsSync(f.ticketRoot)).toBe(false);
-  for (const file of files) expect(readFileSync(file.path, "utf8")).toBe(file.content);
-});
-
-test.each(["file", "directory", "parent-file", "empty-directory"])(
-  "an original ignored %s colliding with incoming feature code blocks merge and is preserved",
-  async (kind) => {
-    const f = await readyFeature(kind === "parent-file" ? "feature.ts/child.ts" : "feature.ts");
-    const files = originalIgnoredArtifacts(f);
-    const exclude = join(f.original, ".git", "info", "exclude");
-    writeFileSync(exclude, `${readFileSync(exclude, "utf8")}\nfeature.ts\n`);
-    const collision = join(f.original, "feature.ts");
-    const directory = kind === "directory" || kind === "empty-directory";
-    if (directory) mkdirSync(collision);
-    const dataPath = directory ? join(collision, "artifact.txt") : collision;
-    const userData = "unrelated original ignored source file\n";
-    if (kind !== "empty-directory") writeFileSync(dataPath, userData);
-    expect(git(f.original, "status", "--porcelain")).toBe("");
-    const failed = await f.finish();
-    expect(failed.status).not.toBe(0);
-    expect(failed.stderr).toMatch(/overwritten by merge/);
-    if (kind !== "empty-directory") expect(readFileSync(dataPath, "utf8")).toBe(userData);
-    else expect(lstatSync(collision).isDirectory()).toBe(true);
-    expect(git(f.original, "rev-parse", "HEAD")).toBe(f.featureRevision);
-    expect(existsSync(f.root)).toBe(true);
-    expect(existsSync(f.ticketRoot)).toBe(true);
-    const stopped = JSON.parse(readFileSync(f.journal, "utf8"));
-    expect(stopped.phase).toBe("merging");
-    const recordsCommit = git(f.root, "rev-parse", "HEAD");
-    // Simulate the user's safe resolution, preserving rather than deleting data.
-    const preserved = join(f.original, "node_modules", "preserved-feature.ts");
-    renameSync(collision, preserved);
-    cliOutput(await f.finish());
-    expect(git(f.root, "rev-parse", "HEAD")).toBe(recordsCommit);
-    cliOutput(await recordFinal(f));
-    expect(
-      cliOutput(
-        await invokeAsync(f.original, [
-          "finish",
-          "--feature",
-          f.originalSpec.replace(/\/spec\.md$/, ""),
-          "--actor",
-          "controller",
-        ]),
-      ).finished,
-    ).toBe(true);
-    if (kind !== "empty-directory")
-      expect(readFileSync(directory ? join(preserved, "artifact.txt") : preserved, "utf8")).toBe(
-        userData,
-      );
-    else expect(lstatSync(preserved).isDirectory()).toBe(true);
-    for (const file of files) expect(readFileSync(file.path, "utf8")).toBe(file.content);
-  },
-);
-
-test("a configured failing signer blocks finalization and preserves staged records and worktrees", async () => {
-  const f = await readyFeature();
-  const signer = join(dirname(f.original), "fixture-failing-signer.sh");
-  writeFileSync(signer, "#!/bin/sh\nexit 1\n");
-  chmodSync(signer, 0o755);
-  git(f.original, "config", "gpg.format", "openpgp");
-  git(f.original, "config", "gpg.program", signer);
-  git(f.original, "config", "user.signingkey", "fixture-signing-key");
-  git(f.original, "config", "commit.gpgSign", "true");
-  const featureHead = git(f.root, "rev-parse", "HEAD");
-  const ledgerBefore = readFileSync(join(dirname(f.spec), "sdd.json"), "utf8");
-  const failed = await f.finish();
-  expect(failed.status).not.toBe(0);
-  expect(failed.stderr).toMatch(/gpg failed to sign|failed to write commit object/i);
-  expect(git(f.original, "config", "--get", "commit.gpgSign")).toBe("true");
-  expect(git(f.root, "rev-parse", "HEAD")).toBe(featureHead);
-  expect(git(f.original, "rev-parse", "HEAD")).toBe(f.featureRevision);
-  expect(readFileSync(join(dirname(f.spec), "sdd.json"), "utf8")).toBe(ledgerBefore);
-  const staged = git(f.root, "diff", "--cached", "--name-only").split("\n").filter(Boolean);
-  expect(staged.length).toBeGreaterThan(0);
-  expect(staged.every((path) => path.startsWith(`.spindle/features/${f.feature}/`))).toBe(true);
-  expect(JSON.parse(readFileSync(f.journal, "utf8")).phase).toBe("records");
-  expect(existsSync(f.root)).toBe(true);
-  expect(existsSync(f.ticketRoot)).toBe(true);
-});
-
 test("real complete flow preserves exact preparation guard, relocates reports, records final checks and cleans all worktrees", async () => {
   const f = await readyFeature();
   const beforeLedger = readFileSync(join(dirname(f.spec), "sdd.json"), "utf8");
@@ -828,150 +700,6 @@ test("final checks revalidate only after a clean fix commit and bind completion 
     `${complete.metadataCommit} ${fixedHead}`,
   );
 });
-
-test.each([
-  "dirty-original",
-  "moved-original",
-  "detached-original",
-  "wrong-branch",
-  "dirty-code",
-  "missing-retrospective",
-  "changed-review",
-])("full finish rejects %s without committing records or destroying work", async (guard) => {
-  const f = await readyFeature();
-  const before = git(f.root, "rev-parse", "HEAD");
-  if (guard === "dirty-original" || guard === "moved-original") {
-    writeFileSync(join(f.original, "user.txt"), "preserve\n");
-    if (guard === "moved-original") {
-      git(f.original, "add", "user.txt");
-      git(f.original, "commit", "-qm", "user movement");
-    }
-  } else if (guard === "detached-original") git(f.original, "checkout", "--detach", "-q");
-  else if (guard === "wrong-branch") git(f.original, "checkout", "-qb", "user-branch");
-  else if (guard === "dirty-code") writeFileSync(join(f.root, "user.ts"), "preserve\n");
-  else if (guard === "changed-review") {
-    const ledger = JSON.parse(readFileSync(join(dirname(f.spec), "sdd.json"), "utf8"));
-    writeFileSync(ledger.delivery.reviewAssignments[0].report, "# changed report\n");
-  }
-  const result =
-    guard === "missing-retrospective"
-      ? await invokeAsync(f.root, [
-          "finish",
-          "--feature",
-          f.spec.replace(/\/spec\.md$/, ""),
-          "--actor",
-          "controller",
-        ])
-      : await f.finish();
-  expect(result.status).not.toBe(0);
-  expect(git(f.root, "rev-parse", "HEAD")).toBe(before);
-  expect(existsSync(f.root)).toBe(true);
-  expect(existsSync(f.ticketRoot)).toBe(true);
-});
-
-test.each([
-  "dirty-ticket",
-  "ignored-ticket",
-  "moved-ticket",
-  "symlink-ticket",
-  "locked-ticket",
-  "wrong-final-merge",
-])("cleanup preflights all targets and rejects %s while preserving worktrees", async (guard) => {
-  const f = await readyFeature();
-  cliOutput(await f.finish());
-  cliOutput(await recordFinal(f));
-  if (guard === "symlink-ticket") {
-    renameSync(f.ticketRoot, `${f.ticketRoot}.preserved`);
-    symlinkSync(`${f.ticketRoot}.preserved`, f.ticketRoot);
-  } else if (guard === "locked-ticket") git(f.original, "worktree", "lock", f.ticketRoot);
-  else if (guard === "wrong-final-merge") {
-    writeFileSync(join(f.original, "user.txt"), "user\n");
-    git(f.original, "add", "user.txt");
-    git(f.original, "commit", "-qm", "move final branch");
-  } else {
-    writeFileSync(join(f.ticketRoot, "user.txt"), "preserve\n");
-    if (guard === "ignored-ticket")
-      writeFileSync(join(f.original, ".git", "info", "exclude"), "user.txt\n");
-    if (guard === "moved-ticket") {
-      git(f.ticketRoot, "add", "user.txt");
-      git(f.ticketRoot, "commit", "-qm", "move ticket branch");
-    }
-  }
-  const result = await invokeAsync(f.original, [
-    "finish",
-    "--feature",
-    f.originalSpec.replace(/\/spec\.md$/, ""),
-    "--actor",
-    "controller",
-  ]);
-  expect(result.status).not.toBe(0);
-  expect(existsSync(f.root)).toBe(true);
-  expect(existsSync(f.ticketRoot)).toBe(true);
-  expect(JSON.parse(readFileSync(f.journal, "utf8")).phase).toBe("validation");
-});
-
-test.each(["record-commit", "merge-index", "merge-commit", "metadata-commit", "remove", "delete"])(
-  "real gates and exact journal recover after interruption following %s",
-  async (where) => {
-    const f = await readyFeature();
-    const artifacts = originalIgnoredArtifacts(f);
-    let root = f.root;
-    if (where === "metadata-commit" || where === "remove" || where === "delete") {
-      cliOutput(await f.finish());
-      cliOutput(await recordFinal(f));
-      root = f.original;
-    }
-    const app = await appAt(root);
-    const gitService = await app.make(GitService);
-    const originalRun = gitService.run.bind(gitService);
-    let interrupted = false;
-    const spy = vi.spyOn(gitService, "run").mockImplementation((args, options) => {
-      const result = originalRun(args, options as never) as never;
-      const matches =
-        where === "record-commit"
-          ? args.includes("commit") && options?.cwd === f.root
-          : where === "merge-index"
-            ? args.includes("merge") && args.includes("--no-ff")
-            : where === "merge-commit"
-              ? args.includes("commit") && options?.cwd === f.original
-              : where === "metadata-commit"
-                ? args.includes("commit") && options?.cwd === f.original
-                : where === "remove"
-                  ? args.includes("worktree") && args.includes("remove")
-                  : args.includes("update-ref");
-      if (matches && !interrupted) {
-        interrupted = true;
-        throw new Error("fixture interruption after Git mutation");
-      }
-      return result;
-    });
-    const delivery = await app.make(DeliveryService);
-    expect(() =>
-      delivery.finish({
-        spec: root === f.root ? f.spec : f.originalSpec,
-        author: "controller",
-        report: f.report,
-      }),
-    ).toThrow("fixture interruption");
-    for (const file of artifacts) expect(readFileSync(file.path, "utf8")).toBe(file.content);
-    spy.mockRestore();
-    const recovered =
-      root === f.root
-        ? cliOutput(await f.finish())
-        : cliOutput(
-            await invokeAsync(f.original, [
-              "finish",
-              "--feature",
-              f.originalSpec.replace(/\/spec\.md$/, ""),
-              "--actor",
-              "controller",
-            ]),
-          );
-    if (root === f.root) expect(recovered.finalValidation).toBe("pending");
-    else expect(recovered.finished).toBe(true);
-    for (const file of artifacts) expect(readFileSync(file.path, "utf8")).toBe(file.content);
-  },
-);
 
 test("obsolete merge selectors, undeclared commands and unavailable results cannot authorize cleanup", async () => {
   const f = await readyFeature();

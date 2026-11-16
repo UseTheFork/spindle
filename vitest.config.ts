@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   test: {
+    maxWorkers: 4,
     environment: "node",
     include: ["tests/**/*.test.ts"],
     exclude: ["src/Assets/**", "build/**", "**/node_modules/**"],
