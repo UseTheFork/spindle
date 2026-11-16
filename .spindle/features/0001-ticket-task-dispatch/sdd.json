@@ -446,24 +446,25 @@
       "blockedBy": [
         "T-0001"
       ],
-      "execution": "reviewing",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
       "assignment": {
-        "id": "deea80cc-3f4b-4259-89ae-4be94fe1578d",
+        "id": "a06c5d4c-bf3d-4e98-8c32-413d4c4a9afe",
         "role": "implementation",
-        "action": "implement",
+        "action": "correct",
         "controller": "Copilot",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-implementation.md",
+        "attempt": 1,
+        "findingIds": [],
+        "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+        "objective": "Fix Provider.test.ts expectations and coverage for the five newly registered task lifecycle commands (assign, instructions, submit, accept, request-changes), preserving explicit uniqueness, singleton binding, and command schema assertions.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
         "branch": "tickets/0001-ticket-task-dispatch/T-0002",
-        "startingHeadSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
-        "requestedAt": "2026-11-16T16:42:43.836Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "731f5a2bd4f475b6cda6744f2a8c00a3ffd2efe9fec8a4b82e6bfc7731a029ae",
-        "submittedAt": "2026-11-16T16:51:55.784Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
+        "requestedAt": "2026-11-16T17:02:12.708Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
@@ -496,7 +497,61 @@
             "details": "Controller run failed in tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts: 50 files passed, 1 failed; 267 tests passed, 2 failed. The expected command count was 26 but actual was 31, and the task subcommand expectation omitted assign, instructions, submit, accept, request-changes. The && chain stopped, so type checks and lint did not run. See current check output; failure is on the T-0002 committed target."
           }
         ]
-      }
+      },
+      "correctionAttempts": [
+        {
+          "number": 1,
+          "findingIds": [],
+          "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+          "objective": "Fix Provider.test.ts expectations and coverage for the five newly registered task lifecycle commands (assign, instructions, submit, accept, request-changes), preserving explicit uniqueness, singleton binding, and command schema assertions.",
+          "startedAt": "2026-11-16T17:02:12.708Z",
+          "startedBy": "Copilot",
+          "assignmentId": "a06c5d4c-bf3d-4e98-8c32-413d4c4a9afe",
+          "assignment": {
+            "id": "a06c5d4c-bf3d-4e98-8c32-413d4c4a9afe",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [],
+            "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "objective": "Fix Provider.test.ts expectations and coverage for the five newly registered task lifecycle commands (assign, instructions, submit, accept, request-changes), preserving explicit uniqueness, singleton binding, and command schema assertions.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0002",
+            "startingHeadSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
+            "requestedAt": "2026-11-16T17:02:12.708Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "deea80cc-3f4b-4259-89ae-4be94fe1578d",
+            "role": "implementation",
+            "action": "implement",
+            "controller": "Copilot",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-implementation.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0002",
+            "startingHeadSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
+            "requestedAt": "2026-11-16T16:42:43.836Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "731f5a2bd4f475b6cda6744f2a8c00a3ffd2efe9fec8a4b82e6bfc7731a029ae",
+            "submittedAt": "2026-11-16T16:51:55.784Z",
+            "submittedBy": "Copilot"
+          },
+          "checks": [
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "failed",
+              "author": "Copilot",
+              "headSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
+              "recordedAt": "2026-11-16T17:02:00.760Z",
+              "details": "Controller run failed in tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts: 50 files passed, 1 failed; 267 tests passed, 2 failed. The expected command count was 26 but actual was 31, and the task subcommand expectation omitted assign, instructions, submit, accept, request-changes. The && chain stopped, so type checks and lint did not run. See current check output; failure is on the T-0002 committed target."
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "T-0003",
