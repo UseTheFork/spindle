@@ -744,7 +744,7 @@
       "blockedBy": [
         "T-0002"
       ],
-      "execution": "reviewing",
+      "execution": "changes-requested",
       "owner": "Copilot",
       "baseSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb",
       "assignment": {
@@ -801,7 +801,15 @@
           ],
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md",
           "requestedAt": "2026-11-16T17:55:48.946Z",
-          "status": "pending"
+          "status": "submitted",
+          "result": "failed",
+          "findingIds": [
+            "F-0001"
+          ],
+          "reportSha256": "18785f50549b390704ee1067901e380844c6e7fbb513f6427e9f9a2aa876b9fe",
+          "submittedAt": "2026-11-16T17:59:09.928Z",
+          "submittedBy": "Copilot",
+          "details": "Accepted blocking finding F-0001: active task edit/create scope updates through TaskService.update can bypass reservation checks and create conflicting active reservations. The report's corrective action and regression test are registered in F-0001. No other findings."
         }
       ],
       "findings": [
