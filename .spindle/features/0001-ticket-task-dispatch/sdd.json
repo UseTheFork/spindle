@@ -1446,7 +1446,47 @@
       "category": "enhancement",
       "status": "open",
       "blockedBy": [],
-      "tasks": [],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Implement the approved T-0004 correction path",
+          "instructions": "Implement the T-0005 requirements as one narrow, auditable corrective transition. Prefer an explicit mode of the existing sdd correct flow that accepts no finding and no failed-check claim, records the user-approved T-0004-only one-use exception, and creates a fresh correction assignment atomically. Enforce the fixed feature/ticket/scope, controller ownership, prior integrated state, and single use. Preserve existing reports, findings, checks, review history, assignment history, integration, and post-merge evidence; do not mark nonexistent tasks accepted or create placeholder tasks. Ensure the correction cannot submit or close without fresh normal checks, independent focused review, new integration, and passing post-merge validation. Keep default task-plan gates unchanged for all ordinary work and other tickets. Add focused service/CLI tests and update operator guidance outside .github. Commit only implementation changes in the assigned ticket worktree and return the assigned task report; do not change SDD state or commit canonical records.",
+          "acceptanceCriteria": [
+            "Only the explicitly approved exception for feature 0001-ticket-task-dispatch T-0004 can start one correction without tasks; repeat, wrong-ticket, wrong-feature, wrong-owner, and wrong-lifecycle use is rejected.",
+            "The exception and correction assignment are recorded atomically with actor, timestamp, fixed scope, approval reference, and correction objective; a retry after interruption is safe and idempotent.",
+            "All pre-existing evidence remains inspectable as history and is not treated as fresh evidence for the correction.",
+            "The new correction cannot pass ticket acceptance without fresh checks, independent corrective review, integration, and post-merge checks.",
+            "Normal task-plan requirements remain effective, with no task fabrication or acceptance."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+            "src/SubagentDrivenDevelopment/Models/Options.ts",
+            "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+            "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+            "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+            "src/SubagentDrivenDevelopment/Services/SubmissionService.ts",
+            "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+            "src/SubagentDrivenDevelopment/Policies/AcceptancePolicy.ts",
+            "docs/agents/ticket-tracker.md",
+            "src/SubagentDrivenDevelopment/GLOSSARY.md",
+            "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            ".spindle/features/0001-ticket-task-dispatch/tickets/T-0004.md",
+            "docs/agents/ticket-tracker.md",
+            "docs/adr/0014-controller-owned-ticket-task-commits.md",
+            "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+            "src/SubagentDrivenDevelopment/Services/SubmissionService.ts",
+            "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+            "src/SubagentDrivenDevelopment/Policies/AcceptancePolicy.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        }
+      ],
       "execution": "unstarted"
     }
   ],
