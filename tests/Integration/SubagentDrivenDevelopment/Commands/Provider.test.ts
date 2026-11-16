@@ -1,6 +1,11 @@
 import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
 import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartCommand";
+import { TaskAcceptCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAcceptCommand";
+import { TaskAssignCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAssignCommand";
 import { TaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskCreateCommand";
+import { TaskInstructionsCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskInstructionsCommand";
+import { TaskRequestChangesCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskRequestChangesCommand";
+import { TaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskSubmitCommand";
 import { TaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskUpdateCommand";
 import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
@@ -17,11 +22,16 @@ test("every executable operation is explicitly bound once as an application sing
   const { app } = await serviceFixture();
   app.register(SubagentDrivenDevelopmentServiceProvider);
   const commands = SubagentDrivenDevelopmentServiceProvider.commands();
-  expect(commands).toHaveLength(26);
+  expect(commands).toHaveLength(31);
   expect(new Set(commands).size).toBe(commands.length);
   expect(commands).toContain(StartCommand);
   expect(commands).toContain(TaskCreateCommand);
   expect(commands).toContain(TaskUpdateCommand);
+  expect(commands).toContain(TaskAssignCommand);
+  expect(commands).toContain(TaskInstructionsCommand);
+  expect(commands).toContain(TaskSubmitCommand);
+  expect(commands).toContain(TaskAcceptCommand);
+  expect(commands).toContain(TaskRequestChangesCommand);
   for (const command of commands) {
     expect(app.bound(command)).toBe(true);
     const instance = await app.make(command);
@@ -59,11 +69,26 @@ test("schema-only registration reuses groups and preserves positional review req
       .find((command) => command.name() === "ticket")!
       .commands.map((command) => command.name()),
   ).toEqual(["create", "update", "comment"]);
-  expect(
-    sdd.commands
-      .find((command) => command.name() === "task")!
-      .commands.map((command) => command.name()),
-  ).toEqual(["create", "update"]);
+  const taskCommands = sdd.commands.find((command) => command.name() === "task")!.commands;
+  expect(taskCommands.map((command) => command.name())).toEqual([
+    "create",
+    "update",
+    "assign",
+    "instructions",
+    "submit",
+    "accept",
+    "request-changes",
+  ]);
+  const taskCommandOptions = Object.fromEntries(
+    taskCommands.map((command) => [command.name(), command.options.map((option) => option.long)]),
+  );
+  expect(taskCommandOptions).toMatchObject({
+    assign: ["--feature", "--ticket", "--task", "--worker", "--actor"],
+    instructions: ["--feature", "--ticket", "--task"],
+    submit: ["--feature", "--ticket", "--task", "--assignment", "--actor"],
+    accept: ["--feature", "--ticket", "--task", "--assignment", "--details", "--actor"],
+    "request-changes": ["--feature", "--ticket", "--task", "--assignment", "--details", "--actor"],
+  });
   expect(
     sdd.commands
       .find((command) => command.name() === "checks")!

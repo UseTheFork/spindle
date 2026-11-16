@@ -22,7 +22,12 @@ import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartC
 import { StatusCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SubmitCommand";
 import { SyncCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SyncCommand";
+import { TaskAcceptCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAcceptCommand";
+import { TaskAssignCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAssignCommand";
 import { TaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskCreateCommand";
+import { TaskInstructionsCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskInstructionsCommand";
+import { TaskRequestChangesCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskRequestChangesCommand";
+import { TaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskSubmitCommand";
 import { TaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskUpdateCommand";
 import { TicketCommentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
 import { TicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
@@ -76,6 +81,11 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       TicketCommentCommand,
       TaskCreateCommand,
       TaskUpdateCommand,
+      TaskAssignCommand,
+      TaskInstructionsCommand,
+      TaskSubmitCommand,
+      TaskAcceptCommand,
+      TaskRequestChangesCommand,
       ReadyCommand,
       ChecksRequireCommand,
       ChecksRecordCommand,
@@ -199,6 +209,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(FeatureInspectionService),
+          await app.make(ReportEvidence),
         ),
     );
     this.app.singleton(
