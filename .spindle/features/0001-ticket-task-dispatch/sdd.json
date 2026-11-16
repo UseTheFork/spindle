@@ -744,24 +744,26 @@
       "blockedBy": [
         "T-0002"
       ],
-      "execution": "changes-requested",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb",
       "assignment": {
-        "id": "77b8139d-391c-4477-82ce-83fc279f67c1",
+        "id": "d13a5861-f526-4465-a237-98e849bcc7ad",
         "role": "implementation",
-        "action": "implement",
+        "action": "correct",
         "controller": "Copilot",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-implementation.md",
+        "attempt": 1,
+        "findingIds": [
+          "F-0001"
+        ],
+        "objective": "Fix active task edit/create scope updates so they cannot create overlapping reservations. Either reject edit/create path changes while a task is assigned, submitted, or changes-requested, or validate the update transactionally against all other active tasks. Add a regression test that attempts an overlapping active-task scope update and verifies rejection leaves the ledger unchanged. Preserve current readiness, reservation, reference-path, accepted-release, and dependency-cycle behavior.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
         "branch": "tickets/0001-ticket-task-dispatch/T-0003",
-        "startingHeadSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb",
-        "requestedAt": "2026-11-16T17:38:13.699Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "2a70e7c8a3cd93d8ef0121a2e83403ca1dfcb7cdfaa2d5f8f4c97929ef288adf",
-        "submittedAt": "2026-11-16T17:44:01.655Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
+        "requestedAt": "2026-11-16T17:59:35.827Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
@@ -844,6 +846,52 @@
               "details": "Confirmed blocking. Task scope updates can mutate edit/create paths of assigned, submitted, or changes-requested tasks without comparing other active reservations, bypassing the assignment-time exclusivity check. Require active scope immutability or transactionally validate updates against all other active reservations; add a no-ledger-change overlap regression."
             }
           ]
+        }
+      ],
+      "correctionAttempts": [
+        {
+          "number": 1,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Fix active task edit/create scope updates so they cannot create overlapping reservations. Either reject edit/create path changes while a task is assigned, submitted, or changes-requested, or validate the update transactionally against all other active tasks. Add a regression test that attempts an overlapping active-task scope update and verifies rejection leaves the ledger unchanged. Preserve current readiness, reservation, reference-path, accepted-release, and dependency-cycle behavior.",
+          "startedAt": "2026-11-16T17:59:35.827Z",
+          "startedBy": "Copilot",
+          "assignmentId": "d13a5861-f526-4465-a237-98e849bcc7ad",
+          "assignment": {
+            "id": "d13a5861-f526-4465-a237-98e849bcc7ad",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [
+              "F-0001"
+            ],
+            "objective": "Fix active task edit/create scope updates so they cannot create overlapping reservations. Either reject edit/create path changes while a task is assigned, submitted, or changes-requested, or validate the update transactionally against all other active tasks. Add a regression test that attempts an overlapping active-task scope update and verifies rejection leaves the ledger unchanged. Preserve current readiness, reservation, reference-path, accepted-release, and dependency-cycle behavior.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0003",
+            "startingHeadSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
+            "requestedAt": "2026-11-16T17:59:35.827Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "77b8139d-391c-4477-82ce-83fc279f67c1",
+            "role": "implementation",
+            "action": "implement",
+            "controller": "Copilot",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-implementation.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0003",
+            "startingHeadSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb",
+            "requestedAt": "2026-11-16T17:38:13.699Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "2a70e7c8a3cd93d8ef0121a2e83403ca1dfcb7cdfaa2d5f8f4c97929ef288adf",
+            "submittedAt": "2026-11-16T17:44:01.655Z",
+            "submittedBy": "Copilot"
+          }
         }
       ]
     },
