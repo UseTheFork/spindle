@@ -1026,6 +1026,16 @@
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
         "branch": "tickets/0001-ticket-task-dispatch/T-0004",
         "baseSha": "f6ffe7a6ac5238b0feb42d8605aa73ccdb08d7a7"
+      },
+      "checks": {
+        "required": [
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "addedAt": "2026-11-16T18:38:47.117Z",
+            "addedBy": "Copilot"
+          }
+        ],
+        "records": []
       }
     }
   ],
