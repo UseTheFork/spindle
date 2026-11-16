@@ -1,11 +1,11 @@
-import type { Command } from "commander";
-
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Command } from "commander";
 
 const normalizedPrograms = new WeakSet<Command>();
 
 const descriptions: Record<string, string> = {
   ticket: "Create and maintain feature tickets.",
+  task: "Create and maintain ticket task definitions.",
   finding: "Register canonical review findings and explicit rulings.",
   requirements: "Record explicit requirements decisions before fresh review.",
   checks: "Declare and record required checks.",

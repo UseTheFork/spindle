@@ -23,6 +23,7 @@ import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/Chec
 import { FindingSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/FindingSchema";
 import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
 import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { TaskSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/TaskSchema";
 import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
@@ -374,6 +375,7 @@ export class LedgerRepository extends Service {
       throw new Error("Feature ledger ticket IDs must be unique.");
     }
     for (const ticket of value.tickets as TicketProgress[]) {
+      if (Object.hasOwn(ticket, "tasks")) TaskSchema.validate(ticket.tasks);
       for (const requirement of ticket.reviewRequirements ?? []) {
         if (blueprintCatalog.agents[requirement.agent]?.canReview !== true) {
           throw new Error(

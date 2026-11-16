@@ -22,6 +22,8 @@ import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartC
 import { StatusCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SubmitCommand";
 import { SyncCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SyncCommand";
+import { TaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskCreateCommand";
+import { TaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskUpdateCommand";
 import { TicketCommentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
 import { TicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
 import { TicketUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
@@ -57,6 +59,7 @@ import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services
 import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
 import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
 import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TaskService } from "@spindle/SubagentDrivenDevelopment/Services/TaskService";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
@@ -71,6 +74,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       TicketCreateCommand,
       TicketUpdateCommand,
       TicketCommentCommand,
+      TaskCreateCommand,
+      TaskUpdateCommand,
       ReadyCommand,
       ChecksRequireCommand,
       ChecksRecordCommand,
@@ -181,6 +186,17 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(TicketRepository),
           await app.make(LedgerRepository),
           await app.make(PathSafety),
+          await app.make(WorkspaceTransaction),
+          await app.make(FeatureInspectionService),
+        ),
+    );
+    this.app.singleton(
+      TaskService,
+      async (app) =>
+        new TaskService(
+          app,
+          await app.make(TicketRepository),
+          await app.make(LedgerRepository),
           await app.make(WorkspaceTransaction),
           await app.make(FeatureInspectionService),
         ),
