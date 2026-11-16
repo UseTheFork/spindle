@@ -146,7 +146,7 @@ test("project initialization preserves a project-owned constitution after creati
   const first = await service.initialize();
   const constitutionPath = join(workspace, "docs/agents/constitution.md");
   expect(first.created).toContain("docs/agents/constitution.md");
-  expect(readFileSync(constitutionPath, "utf8")).toContain("Status:** Draft");
+  expect(readFileSync(constitutionPath, "utf8")).toContain("Draft scaffold.");
 
   const ratifiedConstitution = "# Ratified constitution\n";
   writeFileSync(constitutionPath, ratifiedConstitution);

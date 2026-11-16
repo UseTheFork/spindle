@@ -43,6 +43,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
       reviewRequirements: [],
       reviewAssignments: [],
       requiredChecks: [],
+      finalChecks: [],
       checkRecords: [],
       blockers: ["Tickets are not closed: feature has no tickets."],
     },

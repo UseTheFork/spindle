@@ -39,6 +39,14 @@ test("the management catalog validates shipped asset metadata without changing r
 });
 
 test("installed SDD reviewers match their shipped report contracts", async () => {
+  const project = await makeTempDir("spindle-reviewer-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+
   for (const name of [
     "sdd-task-reviewer",
     "sdd-reviewer",
@@ -46,7 +54,7 @@ test("installed SDD reviewers match their shipped report contracts", async () =>
     "sdd-code-slop-reviewer",
   ]) {
     const installed = await readFile(
-      join(repoRoot, ".github", "agents", `${name}.agent.md`),
+      join(project, ".github", "agents", `${name}.agent.md`),
       "utf8",
     );
     const shipped = await readFile(

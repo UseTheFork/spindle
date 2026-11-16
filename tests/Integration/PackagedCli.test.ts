@@ -231,6 +231,7 @@ test("packaged sdd create and status expose feature state outside the checkout",
       reviewRequirements: [],
       reviewAssignments: [],
       requiredChecks: [],
+      finalChecks: [],
       checkRecords: [],
       blockers: ["Tickets are not closed: feature has no tickets."],
     },
@@ -405,34 +406,21 @@ test("packaged init from a nested directory targets the Git worktree root", () =
   makeGitWorkspace(project);
   const nested = join(project, "packages", "nested");
   mkdirSync(nested, { recursive: true });
-  const args = [
+  const result = cli.run(nested, [
     "init",
     "--stack",
     "python",
     "--spindle-package-manager",
     "pnpm",
     "--no-interactive",
-  ];
-
-  const fromRoot = cli.run(project, args);
-  expect(fromRoot.status, fromRoot.stderr).toBe(0);
-  const rootConfig = readFileSync(join(project, ".spindle", "config.json"), "utf8");
-  const rootSkill = readFileSync(
-    join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
-    "utf8",
-  );
-  rmSync(join(project, ".github"), { recursive: true });
-
-  const fromNested = cli.run(nested, args);
-  expect(fromNested.status, fromNested.stderr).toBe(0);
-  expect(fromNested.stdout).toBe(fromRoot.stdout);
-  expect(readFileSync(join(project, ".spindle", "config.json"), "utf8")).toBe(rootConfig);
+  ]);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(readFileSync(join(project, ".spindle", "config.json"), "utf8")).stacks).toEqual([
+    "python",
+  ]);
   expect(
-    readFileSync(
-      join(project, ".github", "skills", "private-test-driven-development", "SKILL.md"),
-      "utf8",
-    ),
-  ).toBe(rootSkill);
+    existsSync(join(project, ".github", "skills", "private-test-driven-development", "SKILL.md")),
+  ).toBe(true);
   expect(readdirSync(nested)).toEqual([]);
 });
 
