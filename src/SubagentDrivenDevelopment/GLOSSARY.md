@@ -20,6 +20,9 @@ _Avoid_: Issue
 **Task**:
 A bounded unit of work within a ticket, assigned to one subagent in the shared ticket worktree and considered complete when the controller accepts its submitted work.
 
+**Approved task-plan exception**:
+A one-use, auditable authorization for the approved T-0004 correction in feature `0001-ticket-task-dispatch`. It does not create tasks or remove the correction's fresh completion gates.
+
 **Task report**:
 A worker's report of the result for one assigned Task. The controller uses it to accept the Task or request changes.
 

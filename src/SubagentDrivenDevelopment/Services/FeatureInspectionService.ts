@@ -41,6 +41,7 @@ import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/Findi
 import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
 import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
 import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class FeatureInspectionService extends Service {
@@ -490,6 +491,16 @@ export class FeatureInspectionService extends Service {
       if (!progressById.has(ticket.id)) {
         blockers.push({ ticket: ticket.id, reason: "Ticket has no ledger execution record." });
       }
+    }
+    const approvedExceptionTarget = TaskPlanPolicy.approvedExceptionCandidate(
+      feature.feature,
+      feature.state,
+    );
+    if (approvedExceptionTarget && byId.get(approvedExceptionTarget.id)?.status === "open") {
+      actions.push({
+        ticket: approvedExceptionTarget.id,
+        action: "approved-exception-correction",
+      });
     }
     const delivery = this.deliveryStatus(feature, feature.state, tickets);
     if (

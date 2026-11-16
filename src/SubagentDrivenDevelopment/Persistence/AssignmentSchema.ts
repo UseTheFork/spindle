@@ -1,10 +1,12 @@
 import { isAbsolute } from "node:path";
 
 import type {
+  ApprovedTaskPlanException,
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
 } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/CheckSchema";
 import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
 import { Records } from "@spindle/Support/Records";
@@ -30,6 +32,11 @@ export class AssignmentSchema {
       (Object.hasOwn(value, "startingHeadSha") &&
         (typeof value.startingHeadSha !== "string" ||
           !/^[0-9a-f]{40,64}$/i.test(value.startingHeadSha))) ||
+      (Object.hasOwn(value, "approvedExceptionId") &&
+        (typeof value.approvedExceptionId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            value.approvedExceptionId,
+          ))) ||
       typeof value.requestedAt !== "string" ||
       !Number.isFinite(Date.parse(value.requestedAt)) ||
       !["pending", "submitted", "unavailable"].includes(String(value.status)) ||
@@ -56,7 +63,14 @@ export class AssignmentSchema {
         !value.findingIds.every((id) => typeof id === "string" && /^F-\d{4,}$/.test(id)) ||
         new Set(value.findingIds).size !== value.findingIds.length ||
         (value.findingIds.length === 0 &&
-          (typeof value.checkFailure !== "string" || !value.checkFailure.trim())) ||
+          !(
+            (typeof value.checkFailure === "string" && !!value.checkFailure.trim()) ||
+            (typeof value.approvedExceptionId === "string" && value.findingIds.length === 0)
+          )) ||
+        (typeof value.approvedExceptionId === "string" &&
+          (value.findingIds.length > 0 ||
+            Object.hasOwn(value, "checkFailure") ||
+            value.approvedExceptionId.trim() === "")) ||
         typeof value.objective !== "string" ||
         !value.objective.trim()
       ) {
@@ -66,7 +80,8 @@ export class AssignmentSchema {
       Object.hasOwn(value, "attempt") ||
       Object.hasOwn(value, "findingIds") ||
       Object.hasOwn(value, "checkFailure") ||
-      Object.hasOwn(value, "objective")
+      Object.hasOwn(value, "objective") ||
+      Object.hasOwn(value, "approvedExceptionId")
     ) {
       return false;
     }
@@ -97,7 +112,15 @@ export class AssignmentSchema {
       ) ||
       new Set(value.findingIds).size !== value.findingIds.length ||
       (value.findingIds.length === 0 &&
-        (typeof value.checkFailure !== "string" || !value.checkFailure.trim())) ||
+        !(
+          (typeof value.checkFailure === "string" && !!value.checkFailure.trim()) ||
+          (typeof value.approvedExceptionId === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              value.approvedExceptionId,
+            ))
+        )) ||
+      (typeof value.approvedExceptionId === "string" &&
+        (value.findingIds.length > 0 || Object.hasOwn(value, "checkFailure"))) ||
       typeof value.objective !== "string" ||
       !value.objective.trim() ||
       typeof value.startedAt !== "string" ||
@@ -110,6 +133,7 @@ export class AssignmentSchema {
       value.assignment.id !== value.assignmentId ||
       value.assignment.action !== "correct" ||
       value.assignment.attempt !== value.number ||
+      value.approvedExceptionId !== value.assignment.approvedExceptionId ||
       (Object.hasOwn(value, "priorAssignment") &&
         !AssignmentSchema.isImplementationAssignment(value.priorAssignment)) ||
       (Object.hasOwn(value, "checks") &&
@@ -152,6 +176,42 @@ export class AssignmentSchema {
       }
     }
     return true;
+  }
+
+  public static isApprovedTaskPlanException(value: unknown): value is ApprovedTaskPlanException {
+    const approval = isRecord(value) ? value.approval : undefined;
+    return (
+      isRecord(value) &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        String(value.id),
+      ) &&
+      value.feature === APPROVED_TASK_PLAN_EXCEPTION.feature &&
+      value.ticket === APPROVED_TASK_PLAN_EXCEPTION.ticket &&
+      value.recoveryTicket === APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket &&
+      value.scope === APPROVED_TASK_PLAN_EXCEPTION.scope &&
+      isRecord(approval) &&
+      approval.author === APPROVED_TASK_PLAN_EXCEPTION.approvalAuthor &&
+      approval.date === APPROVED_TASK_PLAN_EXCEPTION.approvalDate &&
+      approval.commentAt === APPROVED_TASK_PLAN_EXCEPTION.approvalCommentAt &&
+      approval.quote === APPROVED_TASK_PLAN_EXCEPTION.approvalQuote &&
+      approval.comment === APPROVED_TASK_PLAN_EXCEPTION.approvalComment &&
+      approval.source === APPROVED_TASK_PLAN_EXCEPTION.approvalSource &&
+      Object.keys(approval).every((key) =>
+        ["author", "date", "commentAt", "quote", "comment", "source"].includes(key),
+      ) &&
+      typeof value.controller === "string" &&
+      !!value.controller.trim() &&
+      typeof value.recordedAt === "string" &&
+      Number.isFinite(Date.parse(value.recordedAt)) &&
+      typeof value.objective === "string" &&
+      !!value.objective.trim() &&
+      typeof value.assignmentId === "string" &&
+      !!value.assignmentId.trim() &&
+      Number.isSafeInteger(value.attempt) &&
+      Number(value.attempt) > 0 &&
+      isRecord(value.priorIntegration) &&
+      isRecord(value.priorAcceptedEvidence)
+    );
   }
 
   public static isCorrectionAdjudication(value: unknown): value is CorrectionAdjudication {

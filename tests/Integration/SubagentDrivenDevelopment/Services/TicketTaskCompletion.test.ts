@@ -1,6 +1,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type {
+  FeatureLedger,
+  TicketProgress,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { commitTicketWorkspace, execute } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import {
   acceptedTicket,
@@ -9,6 +15,88 @@ import {
   setup,
 } from "@test/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures";
 import { expect, test } from "vitest";
+
+test("the approved recovery choice appears only for its eligible one-pending-ticket state", () => {
+  const timestamp = "2026-11-16T20:00:00.000Z";
+  const mergeSha = "d".repeat(40);
+  const required = [{ command: "pnpm test", addedAt: timestamp, addedBy: "controller" }];
+  const currentTarget: TicketProgress = {
+    id: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    title: "Existing integrated ticket",
+    reporter: "requester",
+    category: "enhancement",
+    status: "open",
+    blockedBy: [],
+    tasks: [],
+    execution: "integrated",
+    integration: {
+      commitSha: "a".repeat(40),
+      mergeSha: "b".repeat(40),
+      postMerge: { status: "pending", mergeSha: "b".repeat(40) },
+      integratedAt: timestamp,
+      integratedBy: "controller",
+      files: ["feature.ts"],
+    },
+  };
+  const recovery: TicketProgress = {
+    id: APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket,
+    title: "Recovery ticket",
+    reporter: "requester",
+    category: "enhancement",
+    status: "closed",
+    blockedBy: [],
+    tasks: [],
+    execution: "integrated",
+    integration: {
+      commitSha: "c".repeat(40),
+      mergeSha,
+      postMerge: {
+        status: "passed",
+        mergeSha,
+        checks: {
+          required,
+          records: [
+            {
+              command: "pnpm test",
+              result: "passed",
+              author: "controller",
+              headSha: mergeSha,
+              recordedAt: timestamp,
+            },
+          ],
+        },
+      },
+      integratedAt: timestamp,
+      integratedBy: "controller",
+      files: ["recovery.ts"],
+    },
+  };
+  const ledger: FeatureLedger = {
+    schemaVersion: 4,
+    featureId: "0001",
+    title: "Ticket Task Dispatch",
+    createdBy: "controller",
+    createdAt: timestamp,
+    retrospectiveRequired: false,
+    reviewPolicy: { version: 1, ticket: ["reviewer"], delivery: ["reviewer"] },
+    tickets: [currentTarget, recovery],
+    delivery: { execution: "unstarted", history: [] },
+  };
+
+  expect(
+    TaskPlanPolicy.approvedExceptionCandidate(APPROVED_TASK_PLAN_EXCEPTION.feature, ledger),
+  ).toBe(currentTarget);
+  expect(TaskPlanPolicy.approvedExceptionCandidate("0002-another-feature", ledger)).toBeUndefined();
+  recovery.status = "open";
+  expect(
+    TaskPlanPolicy.approvedExceptionCandidate(APPROVED_TASK_PLAN_EXCEPTION.feature, ledger),
+  ).toBeUndefined();
+  recovery.status = "closed";
+  currentTarget.taskPlanException = {} as NonNullable<TicketProgress["taskPlanException"]>;
+  expect(
+    TaskPlanPolicy.approvedExceptionCandidate(APPROVED_TASK_PLAN_EXCEPTION.feature, ledger),
+  ).toBeUndefined();
+});
 
 test.each(["unassigned", "assigned", "submitted", "changes-requested"] as const)(
   "ticket implementation submission is blocked while a task is %s",

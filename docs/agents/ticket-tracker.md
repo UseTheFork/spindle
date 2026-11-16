@@ -44,6 +44,25 @@ are accepted, the controller commits the combined ticket changes and submits
 one ticket-level implementation report. Existing ticket checks, review,
 integration, and post-merge validation remain required.
 
+## Approved T-0004 recovery
+
+The task-plan exception is a one-use recovery path only for T-0004 in feature
+`0001-ticket-task-dispatch`. It becomes available only after T-0005 is closed
+with passing post-merge checks and `sdd next` offers the explicit recovery
+choice. The controller must use `sdd correct --approved-exception` with a clear
+objective. The operation records the exact approval, controller, time, feature,
+ticket, fixed one-correction scope, and corrective assignment atomically. It
+does not create tasks, findings, or failed-check claims.
+
+Do not use the exception for another ticket, feature, owner, or lifecycle state,
+or repeat it after use. T-0004 remains taskless. Existing reports, findings,
+checks, review history, integration, and post-merge evidence remain historical;
+they do not satisfy any gate for the correction. The correction still requires a
+fresh implementation report, the normal ticket checks, an independent focused
+corrective review, a new integration, and passing post-merge checks before
+closure. Ordinary implementation and all other ticket/task gates still require
+an accepted task plan.
+
 ## Delivery
 
 Use `sdd next` as the source of the next workflow step and exact command. Run it at the start, after a handoff, and after each completed command or decision. Use `status` and `ready` only for additional state details.

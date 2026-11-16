@@ -13,26 +13,33 @@ import {
 } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
-import matter from "gray-matter";
-
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
 import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { AcceptedEvidence, CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type {
+  AcceptedEvidence,
+  CommitIdentity,
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type { IntegrateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
-import type { FeaturePaths, TicketProgress } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type {
+  FeaturePaths,
+  TicketProgress,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
 import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import { Records } from "@spindle/Support/Records";
+import matter from "gray-matter";
 
 interface MergeJournal {
   version: 1;
@@ -137,7 +144,28 @@ export class TicketIntegrationService extends Service {
         previousFailure.headSha === previousIntegration.mergeSha &&
         progress.assignment?.action === "correct" &&
         progress.assignment.attempt === correction?.number;
-      if (outstandingPostMerge.length > 0 && !idempotentPendingValidation && !failedCorrection) {
+      const recoveryBootstrap = this.isRecoveryBootstrap(
+        feature.feature,
+        options.ticket,
+        ledger,
+        progress,
+        outstandingPostMerge,
+      );
+      const approvedExceptionCorrection = this.isApprovedExceptionCorrection(
+        feature.feature,
+        options.ticket,
+        ledger,
+        progress,
+        previousIntegration,
+        outstandingPostMerge,
+      );
+      if (
+        outstandingPostMerge.length > 0 &&
+        !idempotentPendingValidation &&
+        !failedCorrection &&
+        !recoveryBootstrap &&
+        !approvedExceptionCorrection
+      ) {
         throw new Error(
           `Ticket integration is blocked while post-merge validation is pending or failed for: ${outstandingPostMerge.map((item) => item.id).join(", ")}.`,
         );
@@ -350,7 +378,10 @@ export class TicketIntegrationService extends Service {
         this.assertMergeCommit(root, journal, mergeSha);
         this.assertClean(root, feature);
         progress.execution = "integrated";
-        const carriedChecks = failedCorrection ? previousIntegration?.postMerge?.checks : undefined;
+        const carriedChecks =
+          failedCorrection || approvedExceptionCorrection
+            ? previousIntegration?.postMerge?.checks
+            : undefined;
         progress.integration = {
           commitSha: journal.ticketHead,
           mergeSha,
@@ -393,6 +424,58 @@ export class TicketIntegrationService extends Service {
         );
       }
     });
+  }
+
+  private isRecoveryBootstrap(
+    feature: string,
+    ticketId: string,
+    ledger: ReturnType<LedgerRepository["readLedger"]>,
+    progress: TicketProgress,
+    outstanding: TicketProgress[],
+  ): boolean {
+    const target = ledger.tickets.find(
+      (candidate) => candidate.id === APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    );
+    return (
+      feature === APPROVED_TASK_PLAN_EXCEPTION.feature &&
+      ticketId === APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket &&
+      progress.id === APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket &&
+      progress.status === "open" &&
+      outstanding.length === 1 &&
+      outstanding[0]?.id === APPROVED_TASK_PLAN_EXCEPTION.ticket &&
+      target?.status === "open" &&
+      target.execution === "integrated" &&
+      target.tasks.length === 0 &&
+      !target.taskPlanException &&
+      target.integration?.postMerge?.status === "pending"
+    );
+  }
+
+  private isApprovedExceptionCorrection(
+    feature: string,
+    ticketId: string,
+    ledger: ReturnType<LedgerRepository["readLedger"]>,
+    progress: TicketProgress,
+    previousIntegration: TicketProgress["integration"],
+    outstanding: TicketProgress[],
+  ): boolean {
+    const exception = progress.taskPlanException;
+    const prior = exception?.priorIntegration;
+    const lastHistory = progress.integrationHistory?.at(-1);
+    return (
+      feature === APPROVED_TASK_PLAN_EXCEPTION.feature &&
+      ticketId === APPROVED_TASK_PLAN_EXCEPTION.ticket &&
+      TaskPlanPolicy.recoveryTicketValidated(ledger) &&
+      TaskPlanPolicy.isApprovedTasklessCorrection(progress) &&
+      progress.status === "open" &&
+      !progress.integration &&
+      !!prior &&
+      previousIntegration === lastHistory &&
+      JSON.stringify(prior) === JSON.stringify(lastHistory) &&
+      prior.postMerge?.status === "pending" &&
+      outstanding.length === 1 &&
+      outstanding[0]?.id === APPROVED_TASK_PLAN_EXCEPTION.ticket
+    );
   }
 
   private assertCanonical(root: string, feature: FeaturePaths): void {
