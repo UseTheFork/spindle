@@ -20,7 +20,7 @@
       "title": "Manage task plans",
       "reporter": "User",
       "category": "enhancement",
-      "status": "open",
+      "status": "closed",
       "blockedBy": [],
       "execution": "integrated",
       "owner": "Copilot",
@@ -378,7 +378,7 @@
         "commitSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
         "mergeSha": "b510892e824de1ff66e1e0788bae24c07324edab",
         "postMerge": {
-          "status": "pending",
+          "status": "passed",
           "mergeSha": "b510892e824de1ff66e1e0788bae24c07324edab",
           "checks": {
             "required": [
@@ -388,7 +388,16 @@
                 "addedBy": "Copilot"
               }
             ],
-            "records": []
+            "records": [
+              {
+                "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "result": "passed",
+                "author": "Copilot",
+                "headSha": "b510892e824de1ff66e1e0788bae24c07324edab",
+                "recordedAt": "2026-11-16T16:40:16.950Z",
+                "details": "Controller post-merge run on the integrated feature branch exited 0. Vitest: 51 files and 265 tests passed; both tsc checks and SDD oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed."
+              }
+            ]
           }
         },
         "integratedAt": "2026-11-16T16:34:31.460Z",
