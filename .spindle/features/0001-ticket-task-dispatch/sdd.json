@@ -223,6 +223,36 @@
               "recordedAt": "2026-11-16T16:23:51.773Z",
               "details": "Controller run on committed correction target 12bf8d1cc47c320fc655bdfc8176a26153b6b28a exited 0. Vitest: 51 files and 265 tests passed; both tsc checks and SDD oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed."
             }
+          ],
+          "reviewAssignments": [
+            {
+              "id": "d9963513-b640-4844-b37d-f9e549659e9d",
+              "agent": "sdd-task-reviewer",
+              "role": "review",
+              "scope": "corrective",
+              "attempt": 2,
+              "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
+              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
+              "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+              "inventory": [
+                "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
+                "src/SubagentDrivenDevelopment/Commands/TaskCommandFields.ts",
+                "src/SubagentDrivenDevelopment/Commands/TaskCreateCommand.ts",
+                "src/SubagentDrivenDevelopment/Commands/TaskUpdateCommand.ts",
+                "src/SubagentDrivenDevelopment/Models/Options.ts",
+                "src/SubagentDrivenDevelopment/Models/Tasks.ts",
+                "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+                "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+                "src/SubagentDrivenDevelopment/Persistence/TaskSchema.ts",
+                "src/SubagentDrivenDevelopment/Services/TaskService.ts",
+                "src/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
+              ],
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md",
+              "requestedAt": "2026-11-16T16:24:06.306Z",
+              "status": "pending"
+            }
           ]
         }
       ],
