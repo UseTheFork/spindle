@@ -14,7 +14,50 @@
       "sdd-reviewer"
     ]
   },
-  "tickets": [],
+  "tickets": [
+    {
+      "id": "T-0001",
+      "title": "Manage task plans",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0002",
+      "title": "Dispatch and accept tasks",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0001"
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0003",
+      "title": "Coordinate parallel tasks",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0002"
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0004",
+      "title": "Complete tickets through task execution",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0003"
+      ],
+      "execution": "unstarted"
+    }
+  ],
   "delivery": {
     "status": "active",
     "execution": "unstarted",

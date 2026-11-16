@@ -58,7 +58,7 @@ As a feature controller, I want the existing ticket-level review and integration
 - The task plan is required before ticket implementation starts. The ticket implementation command establishes or resumes the shared ticket worktree for the controller; it does not dispatch a whole-ticket implementation worker.
 - Task state changes use SDD commands. Direct edits to the feature ledger are not supported.
 - The ticket task workflow changes ticket implementation commit ownership. Delivery assignments and other workflows remain unchanged.
-- Follow the existing SDD ledger compatibility policy when introducing the task schema: prior ledger schemas are not migrated or supported, and a fresh feature workspace is required.
+- Do not add general migration or compatibility support for prior SDD ledger schemas. As a rollout exception, convert this feature's active schema-version-3 ledger once when the new schema is introduced, so this feature workspace can continue tracking its own delivery.
 
 ## Testing Decisions
 
@@ -79,4 +79,4 @@ As a feature controller, I want the existing ticket-level review and integration
 
 ## Further Notes
 
-No unresolved requirements decisions remain. The task ledger changes follow the repository's existing policy of not migrating or supporting prior SDD ledger schemas.
+No unresolved requirements decisions remain. Prior SDD ledger schemas remain unsupported; only this feature's active ledger receives a one-time conversion during rollout.
