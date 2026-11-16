@@ -1003,24 +1003,25 @@
       "blockedBy": [
         "T-0003"
       ],
-      "execution": "reviewing",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "f6ffe7a6ac5238b0feb42d8605aa73ccdb08d7a7",
       "assignment": {
-        "id": "69a3ade8-2121-4c93-876d-1dcbad2da2d6",
+        "id": "81629a3b-35d0-438b-ab64-40933950e0d5",
         "role": "implementation",
-        "action": "implement",
+        "action": "correct",
         "controller": "Copilot",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-implementation.md",
+        "attempt": 1,
+        "findingIds": [],
+        "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+        "objective": "Correct the regressions from task-plan gates: update existing integration fixtures and expectations to satisfy T-0004's required plan/accepted-task gates without weakening production guards. Ensure cases asserting pre-task-plan rejection still verify it. Run the full required command and report each stage accurately.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
         "branch": "tickets/0001-ticket-task-dispatch/T-0004",
-        "startingHeadSha": "f6ffe7a6ac5238b0feb42d8605aa73ccdb08d7a7",
-        "requestedAt": "2026-11-16T18:21:30.970Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "147499f7c8dd9236ab7d935f6dc78debcdca114d15c5f66edbaf2d0a83c9aad5",
-        "submittedAt": "2026-11-16T18:38:40.113Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
+        "requestedAt": "2026-11-16T18:44:13.753Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
@@ -1045,7 +1046,61 @@
             "details": "Integration suite failed: 61 tests in 20 files, primarily legacy fixtures with no accepted task plans now blocked by T-0004 task-plan gates; TypeScript and lint stages did not run because the command uses &&."
           }
         ]
-      }
+      },
+      "correctionAttempts": [
+        {
+          "number": 1,
+          "findingIds": [],
+          "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+          "objective": "Correct the regressions from task-plan gates: update existing integration fixtures and expectations to satisfy T-0004's required plan/accepted-task gates without weakening production guards. Ensure cases asserting pre-task-plan rejection still verify it. Run the full required command and report each stage accurately.",
+          "startedAt": "2026-11-16T18:44:13.753Z",
+          "startedBy": "Copilot",
+          "assignmentId": "81629a3b-35d0-438b-ab64-40933950e0d5",
+          "assignment": {
+            "id": "81629a3b-35d0-438b-ab64-40933950e0d5",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [],
+            "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "objective": "Correct the regressions from task-plan gates: update existing integration fixtures and expectations to satisfy T-0004's required plan/accepted-task gates without weakening production guards. Ensure cases asserting pre-task-plan rejection still verify it. Run the full required command and report each stage accurately.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "startingHeadSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
+            "requestedAt": "2026-11-16T18:44:13.753Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "69a3ade8-2121-4c93-876d-1dcbad2da2d6",
+            "role": "implementation",
+            "action": "implement",
+            "controller": "Copilot",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-implementation.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "startingHeadSha": "f6ffe7a6ac5238b0feb42d8605aa73ccdb08d7a7",
+            "requestedAt": "2026-11-16T18:21:30.970Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "147499f7c8dd9236ab7d935f6dc78debcdca114d15c5f66edbaf2d0a83c9aad5",
+            "submittedAt": "2026-11-16T18:38:40.113Z",
+            "submittedBy": "Copilot"
+          },
+          "checks": [
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "failed",
+              "author": "Copilot",
+              "headSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
+              "recordedAt": "2026-11-16T18:43:42.603Z",
+              "details": "Integration suite failed: 61 tests in 20 files, primarily legacy fixtures with no accepted task plans now blocked by T-0004 task-plan gates; TypeScript and lint stages did not run because the command uses &&."
+            }
+          ]
+        }
+      ]
     }
   ],
   "delivery": {
