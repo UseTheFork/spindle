@@ -15,6 +15,8 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures";
 import { expect, test } from "vitest";
 
+import { acceptTaskPlan } from "../Fixtures/TaskPlans";
+
 test("integration preserves ignored collisions and permits unrelated ignored files on retry", async () => {
   const { root, spec, parent, workspace } = await acceptedTicket();
   const ticketHead = gitAt(workspace, "rev-parse", "HEAD");
@@ -160,6 +162,7 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   expect(failed.status, failed.stderr).toBe(0);
 
   const second = await dispatch(root, spec, parent, "T-0002");
+  await acceptTaskPlan(root, spec, "T-0002");
   writeFileSync(join(second.assignment.workspace, "second.ts"), "export const second = 2;\n");
   gitAt(second.assignment.workspace, "add", "second.ts");
   gitAt(second.assignment.workspace, "commit", "-qm", "implement second");

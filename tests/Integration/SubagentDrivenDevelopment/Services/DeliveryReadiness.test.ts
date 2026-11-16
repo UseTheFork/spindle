@@ -17,10 +17,13 @@ import {
 import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { expect, test, vi } from "vitest";
 
+import { acceptTaskPlan, useExternalTaskWorktreeReference } from "../Fixtures/TaskPlans";
+
 vi.setConfig({ testTimeout: 60_000 });
 
 test("finish reports pending final validation without claiming the feature is complete", async () => {
   const prepared = await prepareDeliveryReady();
+  useExternalTaskWorktreeReference(prepared.spec, "T-0001", prepared.originalRepo);
   await beginDeliveryFinalization(prepared);
   const settingsPath = join(prepared.repo, ".spindle", "config.json");
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
@@ -78,6 +81,7 @@ test("aggregate review covers every closed ticket and stale requirements block f
     report: string;
     workspace: string;
   };
+  await acceptTaskPlan(first.repo, first.spec, secondId);
   writeFileSync(
     join(implementationAssignment.workspace, secondFile),
     "export const secondFeature = true;\n",
@@ -209,6 +213,8 @@ test("aggregate review covers every closed ticket and stale requirements block f
     ".spindle/features/0001-ticket-flow/tickets/T-0002.md",
     "restore second ticket requirements",
   );
+  useExternalTaskWorktreeReference(first.spec, "T-0001", first.originalRepo);
+  useExternalTaskWorktreeReference(first.spec, "T-0002", first.originalRepo);
   const finished = await finalizeDelivery(first);
   expect(finished.completed).toMatchObject({ finished: true, cleanup: "complete" });
 });

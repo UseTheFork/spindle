@@ -1,8 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import { runCli } from "@test/Helpers/Cli";
 import {
   execute,
@@ -10,6 +8,7 @@ import {
   prepareReadyTicket,
   serviceFixture,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test } from "vitest";
 
 test("sdd create requires named non-empty title and actor options", async () => {
   const { repo } = await serviceFixture();
@@ -330,6 +329,7 @@ test("sdd ticket create writes T IDs, ticket storage, and the shared fill-in tem
       status: "open",
       blockedBy: [],
       execution: "unstarted",
+      tasks: [],
     },
   ]);
   const legacyCommand = await invokeAsync(repo, ["issue", "create"]);

@@ -13,10 +13,18 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test, vi } from "vitest";
 
+import { useExternalTaskWorktreeReference } from "../Fixtures/TaskPlans";
+
 vi.setConfig({ testTimeout: 60_000 });
 
-test("failed final-merge checks preserve worktrees until passing evidence is recorded", async () => {
+async function prepareFinalization() {
   const prepared = await prepareDeliveryReady();
+  useExternalTaskWorktreeReference(prepared.spec, "T-0001", prepared.originalRepo);
+  return prepared;
+}
+
+test("failed final-merge checks preserve worktrees until passing evidence is recorded", async () => {
+  const prepared = await prepareFinalization();
   const command = "fixture final check";
   const pending = await beginDeliveryFinalization(prepared, { finalChecks: [command] });
   await declareFinalDeliveryChecks(pending, [command]);
@@ -53,7 +61,7 @@ test("failed final-merge checks preserve worktrees until passing evidence is rec
 });
 
 test("final-merge check requirements are frozen after their initial declaration", async () => {
-  const prepared = await prepareDeliveryReady();
+  const prepared = await prepareFinalization();
   const command = "fixture final check";
   const pending = await beginDeliveryFinalization(prepared, { finalChecks: [command] });
   await declareFinalDeliveryChecks(pending, [command]);
@@ -85,7 +93,7 @@ test("final-merge check requirements are frozen after their initial declaration"
 });
 
 test("finalization cleanup remains bound to its recorded controller", async () => {
-  const prepared = await prepareDeliveryReady();
+  const prepared = await prepareFinalization();
   const finalization = await finalizeDelivery(prepared);
   const journalBefore = readFileSync(finalization.pending.journal, "utf8");
 
@@ -108,7 +116,7 @@ test("finalization cleanup remains bound to its recorded controller", async () =
 });
 
 test("finalization status and next expose pending checks and completed cleanup", async () => {
-  const prepared = await prepareDeliveryReady();
+  const prepared = await prepareFinalization();
   const report = join(
     prepared.repo,
     ".spindle/features",

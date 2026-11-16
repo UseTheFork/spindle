@@ -2,8 +2,6 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import {
   commitAll,
   execute,
@@ -12,6 +10,9 @@ import {
   prepareReadyTicket,
   recordReviewCheck,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test } from "vitest";
+
+import { acceptTaskPlan } from "../Fixtures/TaskPlans";
 
 test("required checks are declared before implementation and accept only explicit results", async () => {
   const { repo, git, spec, worktreeParent } = await prepareReadyTicket();
@@ -47,6 +48,7 @@ test("required checks are declared before implementation and accept only explici
     };
   };
   const assignment = dispatch.assignment;
+  await acceptTaskPlan(repo, spec, "T-0001");
   writeFileSync(join(assignment.workspace, "feature.ts"), "export const feature = true;\n");
   commitTicketWorkspace(assignment.workspace, "implement feature");
   writeFileSync(assignment.report, "# Implementation report\n\nCompleted.\n");

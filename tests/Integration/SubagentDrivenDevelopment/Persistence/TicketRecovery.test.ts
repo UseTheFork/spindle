@@ -1,13 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import matter from "gray-matter";
-import { expect, test } from "vitest";
-
 import {
   createTicket,
   ticketFixture,
 } from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import matter from "gray-matter";
+import { expect, test } from "vitest";
 
 test("ticket comment recovers an interrupted ticket/ledger write without losing history", async () => {
   const { service, feature } = await ticketFixture("Ticket Recovery");
@@ -22,6 +21,7 @@ test("ticket comment recovers an interrupted ticket/ledger write without losing 
     status: "open",
     blockedBy: [],
     execution: "unstarted",
+    tasks: [],
   });
   const ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
   const ticketContent = [
