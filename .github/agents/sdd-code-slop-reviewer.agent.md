@@ -30,15 +30,15 @@ writing a report, validate these orchestrator-supplied fields:
 | `REPORT_PATHS_OR_NONE`            | Code-review report and controller rulings, or explicit `NONE`.        |
 | `REPORT_PATH`                     | Assigned `.spindle/features` report path, absolute or relative to `WORKSPACE`. |
 
-Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
+Read `references/review-inputs.md` in the `private-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 
 ## Review
 
-Load and follow the `int-code-slop-review` skill and the `int-verification-before-completion` skill. Follow applicable repository instructions and approved project tooling.
+Load and follow the `private-code-slop-review` skill and the `private-verification-before-completion` skill. Follow applicable repository instructions and approved project tooling.
 
 - Inspect the committed requirements and exact assigned committed change. Uncommitted review-affecting changes or an inconsistent target block approval; ask the controller to resolve them. The workflow owns commit identity; do not copy, compare, or pass commit IDs by hand.
 - Read changed code and only enough surrounding context to show that a proposed simplification preserves required behavior and repository conventions.
-- For final aggregate mode, read `references/aggregate-review.md` in the `int-subagent-driven-dev` skill before inspecting changes. Initial task review does not load it.
+- For final aggregate mode, read `references/aggregate-review.md` in the `private-subagent-driven-dev` skill before inspecting changes. Initial task review does not load it.
 - Keep implementation files, index, HEAD, branches, and execution states unchanged. The edit tool is only for the assigned report; preserve prior report history. Use read-only inspection and checks that cannot mutate the reviewed checkout.
 - Work without subagents, formatters, or dependency installs. Request controller-run checks when mutation would be required. Distinguish evidence inspected from checks run, and report coverage limits. Leave acceptance decisions to the controller.
 

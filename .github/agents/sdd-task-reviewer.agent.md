@@ -29,16 +29,16 @@ Before loading review skills, inspecting the checkout, running commands, or writ
 | `PRIOR_REVIEW_STATE`        | Prior code-review evidence, finding IDs, rulings, and fix-round count; explicitly identify absent history.                     |
 | `REPORT_PATH`               | Assigned `.spindle/features` report path, absolute or relative to the supplied workspace.                                               |
 
-Read `references/review-inputs.md` in the `int-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
+Read `references/review-inputs.md` in the `private-subagent-driven-dev` skill and resolve the common contract before accepting this gate. Accept populated dispatch-template labels or equivalent structured fields, including grouped headings and legacy inline inputs. Empty values, unresolved placeholders, and contradictions require `NEEDS_CONTEXT`: enumerate the specific missing fields or questions, request them from the orchestrator, and stop until it responds. Preserve supplied values and revalidate the completed assignment. Derive neither revisions nor permissions from the environment.
 
 ## Review
 
-Assess whether tests adequately cover the assigned behavior, and load and follow the `int-verification-before-completion` skill for evidence attribution. Read applicable repository instructions and use approved project tooling.
+Assess whether tests adequately cover the assigned behavior, and load and follow the `private-verification-before-completion` skill for evidence attribution. Read applicable repository instructions and use approved project tooling.
 
 1. Read the committed requirements and complete assigned committed diff once, including stat and surrounding context. Compare actual changes with claims. Follow the common input contract for missing-diff retrieval; use complete supplied artifacts when available. Reread a changed file only when a required hunk is cut off mid-function, and disclose that limitation. Unavailable material or an inconsistent committed target requires controller resolution before approval.
 2. Verify each criterion against diff evidence, including a corresponding hunk for every required file in batched assignments. Mark anything not verifiable from the diff `UNVERIFIED` and name the controller check needed. Inspect outside the diff only for a named concrete risk, with one focused check per risk.
 3. Assess correctness, standards, maintainability, error handling, regressions, behavioral tests, and plan structure. Cite file:line evidence for findings and affirmative quality claims. Flag file growth only when caused by this change. Treat implementer rationales as unverified claims.
-4. Assess test coverage and use `int-verification-before-completion` to evaluate evidence. Required current evidence that is missing, stale, ambiguous, or failing blocks approval. Read stated report paths to resolve truncated output before reporting gaps; report warnings and test-output noise as findings.
+4. Assess test coverage and use `private-verification-before-completion` to evaluate evidence. Required current evidence that is missing, stale, ambiguous, or failing blocks approval. Read stated report paths to resolve truncated output before reporting gaps; report warnings and test-output noise as findings.
 5. Explain each finding's impact and whether it blocks acceptance. Do not assign
    severity or canonical finding IDs. Keep non-blocking recommendations separate
    from required corrections.
