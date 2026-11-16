@@ -50,6 +50,22 @@ export interface TicketCommentOptions extends TicketSelection {
   details: string;
 }
 
+export interface TaskFields {
+  title: string;
+  instructions: string;
+  acceptanceCriteria: string[];
+  editPaths: string[];
+  createPaths: string[];
+  referencePaths: string[];
+  dependencies: string[];
+}
+
+export interface TaskCreateOptions extends TicketSelection, TaskFields {}
+
+export interface TaskUpdateOptions extends TicketSelection, Partial<TaskFields> {
+  task: string;
+}
+
 export interface ReadyOptions {
   spec: string;
 }

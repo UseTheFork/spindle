@@ -15,6 +15,7 @@ import type {
   RequirementsDecision,
   ReviewFinding,
 } from "@spindle/SubagentDrivenDevelopment/Models/Findings";
+import type { TaskDefinition } from "@spindle/SubagentDrivenDevelopment/Models/Tasks";
 
 export const FEATURE_DIRECTORY = /^(\d{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
@@ -47,6 +48,7 @@ export interface TicketProgress {
   category: (typeof TICKET_CATEGORIES)[number];
   status: TrackerStatus;
   blockedBy: string[];
+  tasks?: TaskDefinition[];
   blocker?: string;
   execution: ExecutionState;
   owner?: string;
