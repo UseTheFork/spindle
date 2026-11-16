@@ -379,7 +379,17 @@
         "mergeSha": "b510892e824de1ff66e1e0788bae24c07324edab",
         "postMerge": {
           "status": "pending",
-          "mergeSha": "b510892e824de1ff66e1e0788bae24c07324edab"
+          "mergeSha": "b510892e824de1ff66e1e0788bae24c07324edab",
+          "checks": {
+            "required": [
+              {
+                "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "addedAt": "2026-11-16T16:34:46.303Z",
+                "addedBy": "Copilot"
+              }
+            ],
+            "records": []
+          }
         },
         "integratedAt": "2026-11-16T16:34:31.460Z",
         "integratedBy": "Copilot",
