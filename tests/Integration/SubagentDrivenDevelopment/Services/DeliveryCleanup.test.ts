@@ -13,13 +13,13 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test, vi } from "vitest";
 
-import { useExternalTaskWorktreeReference } from "../Fixtures/TaskPlans";
+import { rehomeTaskWorktreeForFinalizationFixture } from "../Fixtures/TaskPlans";
 
 vi.setConfig({ testTimeout: 60_000 });
 
 async function prepareFinalization() {
   const prepared = await prepareDeliveryReady();
-  useExternalTaskWorktreeReference(prepared.spec, "T-0001", prepared.originalRepo);
+  rehomeTaskWorktreeForFinalizationFixture(prepared.spec, "T-0001", prepared.originalRepo);
   return prepared;
 }
 

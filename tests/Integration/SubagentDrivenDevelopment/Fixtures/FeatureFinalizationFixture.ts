@@ -15,7 +15,7 @@ import {
   invokeAsync,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
-import { acceptTaskPlan, createTaskPlan, useExternalTaskWorktreeReference } from "./TaskPlans";
+import { acceptTaskPlan, createTaskPlan } from "./TaskPlans";
 
 export { appAt, git, originalIgnoredArtifacts, output, recordFinal };
 
@@ -84,7 +84,6 @@ export async function readyFeature(
   );
   const ticketRoot = implemented.assignment.workspace as string;
   await acceptTaskPlan(root, spec, "T-0001");
-  useExternalTaskWorktreeReference(spec, "T-0001", original);
   mkdirSync(dirname(join(ticketRoot, codeFile)), { recursive: true });
   writeFileSync(join(ticketRoot, codeFile), "export const feature = 1;\n");
   git(ticketRoot, "add", codeFile);

@@ -23,52 +23,47 @@ export async function createTaskPlan(root: string, spec: string, ticket: string)
   return JSON.parse(created.stdout).task as string;
 }
 
-export async function acceptTaskPlan(
+export function acceptTaskPlan(
   root: string,
   spec: string,
   ticket: string,
   task = "TASK-0001",
-): Promise<void> {
-  const assigned = await execute(root, (services) =>
-    services.taskService.assign({
-      spec,
-      ticket,
-      task,
-      worker: "task-worker",
-      author: "controller",
-    }),
-  );
-  expect(assigned.status, assigned.stderr).toBe(0);
-  const assignment = JSON.parse(assigned.stdout).assignment as {
-    id: string;
-    report: string;
+): void {
+  const ledgerPath = join(dirname(spec), "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const progress = ledger.tickets.find((item: { id: string }) => item.id === ticket);
+  expect(progress).toBeDefined();
+  const definition = progress.tasks?.find((item: { id: string }) => item.id === task);
+  expect(definition).toBeDefined();
+
+  // These downstream-gate fixtures begin after task review; task lifecycle tests exercise the
+  // real assignment, report, and acceptance commands separately.
+  const at = new Date().toISOString();
+  const assignment = `fixture-${ticket}-${task}`;
+  definition.status = "accepted";
+  definition.assignment = {
+    id: assignment,
+    controller: "controller",
+    worker: "task-worker",
+    worktree: root,
+    report: join(root, "reports", `${ticket}-${task}-fixture.md`),
+    assignedAt: at,
+    submittedAt: at,
+    submittedBy: "controller",
+    reportSha256: "a".repeat(64),
   };
-  writeFileSync(assignment.report, "# Task report\n\nCompleted the assigned task.\n");
-
-  const submitted = await execute(root, (services) =>
-    services.taskService.submit({
-      spec,
-      ticket,
-      task,
-      assignment: assignment.id,
-      author: "controller",
-    }),
-  );
-  expect(submitted.status, submitted.stderr).toBe(0);
-
-  const accepted = await execute(root, (services) =>
-    services.taskService.accept({
-      spec,
-      ticket,
-      task,
-      assignment: assignment.id,
-      author: "controller",
-    }),
-  );
-  expect(accepted.status, accepted.stderr).toBe(0);
+  definition.review = {
+    assignment,
+    result: "accepted",
+    details: "Task accepted in the downstream fixture.",
+    controller: "controller",
+    recordedAt: at,
+  };
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
 }
 
-export function useExternalTaskWorktreeReference(
+/** Keep finalization fixtures' historical task worktree outside the cleanup target. */
+export function rehomeTaskWorktreeForFinalizationFixture(
   spec: string,
   ticket: string,
   worktree: string,
