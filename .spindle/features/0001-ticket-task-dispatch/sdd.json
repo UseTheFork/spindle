@@ -1438,6 +1438,16 @@
         ]
       },
       "tasks": []
+    },
+    {
+      "id": "T-0005",
+      "title": "Record approved T-0004 corrective task-plan exception",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [],
+      "tasks": [],
+      "execution": "unstarted"
     }
   ],
   "delivery": {
