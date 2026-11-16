@@ -297,7 +297,7 @@
         {
           "id": "F-0001",
           "blocking": true,
-          "status": "confirmed",
+          "status": "fixed",
           "summary": "Interrupted task creation can create a duplicate",
           "details": "A failed or interrupted create can be recovered and then retried as a second task, leaving an unintended duplicate plan entry and returning a different ID. TaskService.ts:31-57 always allocates and writes a new task after entering the transaction. WorkspaceTransaction.ts:37,115-166 first replays any pending ledger write and commits it before the operation runs. Unlike TicketService.ts:43,99-114, task creation does not inspect recovered writes to recognize its already-recovered operation. Existing task tests do not exercise this recovery path. Make an interrupted task-create retry recognize the recovered creation and return its original ID without creating another task. Add an interruption/recovery regression test, while retaining distinct IDs for genuinely separate creates.",
           "author": "Copilot",
@@ -323,8 +323,22 @@
               "author": "Copilot",
               "action": "status:confirmed",
               "details": "Confirmed: create ignores recovered ledger writes and can duplicate an interrupted operation. Preserve transactional retry behavior and add a regression test."
+            },
+            {
+              "at": "2026-11-16T16:30:13.739Z",
+              "author": "Copilot",
+              "action": "status:fixed",
+              "details": "Accepted the passed corrective review at reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md. The correction returns the matching task restored by recovery; interruption/retry regression and independent-ID coverage pass, and the declared full SDD integration, type, and lint check passed on the reviewed target."
             }
-          ]
+          ],
+          "verification": {
+            "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
+            "checkCommands": [
+              "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment"
+            ],
+            "verifiedAt": "2026-11-16T16:30:13.676Z",
+            "verifiedBy": "Copilot"
+          }
         }
       ]
     },
