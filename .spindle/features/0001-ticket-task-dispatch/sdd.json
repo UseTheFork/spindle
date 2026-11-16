@@ -475,7 +475,10 @@
           {
             "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "addedAt": "2026-11-16T16:52:08.334Z",
-            "addedBy": "Copilot"
+            "addedBy": "Copilot",
+            "removedAt": "2026-11-16T16:56:12.061Z",
+            "removedBy": "Copilot",
+            "removalDetails": "The assigned SDD worktree is nested under the authorized external worktree parent, so the declared ../node_modules path is absent. User policy forbids node_modules symlinks. Dependencies were installed in this worktree with pnpm install --frozen-lockfile; replace this command with the equivalent pnpm exec command using worktree-local dependencies."
           }
         ],
         "records": []
