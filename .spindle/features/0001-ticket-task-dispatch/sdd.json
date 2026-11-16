@@ -22,28 +22,26 @@
       "category": "enhancement",
       "status": "open",
       "blockedBy": [],
-      "execution": "changes-requested",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
       "assignment": {
-        "id": "8abf4e2f-5dfe-4c7c-afe6-b23393393edd",
+        "id": "c85e6b7f-38ca-4dd3-af9f-3e93d35021ff",
         "role": "implementation",
         "action": "correct",
         "controller": "Copilot",
-        "attempt": 1,
-        "findingIds": [],
-        "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
-        "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
+        "attempt": 2,
+        "findingIds": [
+          "F-0001"
+        ],
+        "objective": "Fix duplicate task creation after transaction recovery and add interruption/retry regression coverage.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
         "branch": "tickets/0001-ticket-task-dispatch/T-0001",
-        "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
-        "requestedAt": "2026-11-16T15:51:41.201Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "f92b79c56f7d94380778a4a209dcaa757108a34f867aae2c9d4336c1e22e6f26",
-        "submittedAt": "2026-11-16T16:04:44.887Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "6e92072871cf1ef26991106e4578d259086f1026",
+        "requestedAt": "2026-11-16T16:08:06.219Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
@@ -139,7 +137,69 @@
               "recordedAt": "2026-11-16T16:04:53.218Z",
               "details": "Worker-run final-commit check: 51 test files, 264 tests, both type checks and SDD lint passed; evidence in reports/T-0001-round-1-fix.md."
             }
-          ]
+          ],
+          "progressAssessment": {
+            "decision": "continue",
+            "result": "productive",
+            "details": "Prior check-failure correction resolved provider registration and lint; full declared check passed. Independent initial review found a different recovery defect requiring this focused correction.",
+            "recordedAt": "2026-11-16T16:08:06.171Z",
+            "recordedBy": "Copilot"
+          }
+        },
+        {
+          "number": 2,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Fix duplicate task creation after transaction recovery and add interruption/retry regression coverage.",
+          "startedAt": "2026-11-16T16:08:06.219Z",
+          "startedBy": "Copilot",
+          "assignmentId": "c85e6b7f-38ca-4dd3-af9f-3e93d35021ff",
+          "assignment": {
+            "id": "c85e6b7f-38ca-4dd3-af9f-3e93d35021ff",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 2,
+            "findingIds": [
+              "F-0001"
+            ],
+            "objective": "Fix duplicate task creation after transaction recovery and add interruption/retry regression coverage.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "startingHeadSha": "6e92072871cf1ef26991106e4578d259086f1026",
+            "requestedAt": "2026-11-16T16:08:06.219Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "8abf4e2f-5dfe-4c7c-afe6-b23393393edd",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [],
+            "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
+            "requestedAt": "2026-11-16T15:51:41.201Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "f92b79c56f7d94380778a4a209dcaa757108a34f867aae2c9d4336c1e22e6f26",
+            "submittedAt": "2026-11-16T16:04:44.887Z",
+            "submittedBy": "Copilot"
+          },
+          "progressAssessment": {
+            "decision": "continue",
+            "result": "productive",
+            "details": "Prior check-failure correction resolved provider registration and lint; full declared check passed. Independent initial review found a different recovery defect requiring this focused correction.",
+            "recordedAt": "2026-11-16T16:08:06.171Z",
+            "recordedBy": "Copilot"
+          }
         }
       ],
       "reviewAssignments": [
