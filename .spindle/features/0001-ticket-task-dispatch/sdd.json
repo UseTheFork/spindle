@@ -1047,6 +1047,14 @@
             "headSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
             "recordedAt": "2026-11-16T18:43:42.603Z",
             "details": "Integration suite failed: 61 tests in 20 files, primarily legacy fixtures with no accepted task plans now blocked by T-0004 task-plan gates; TypeScript and lint stages did not run because the command uses &&."
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
+            "recordedAt": "2026-11-16T19:21:50.291Z",
+            "details": "Controller re-run on the corrected assigned T-0004 commit: 52 test files and 282 tests passed; both TypeScript checks and oxlint exited 0."
           }
         ]
       },
@@ -1103,6 +1111,14 @@
               "headSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
               "recordedAt": "2026-11-16T18:43:42.603Z",
               "details": "Integration suite failed: 61 tests in 20 files, primarily legacy fixtures with no accepted task plans now blocked by T-0004 task-plan gates; TypeScript and lint stages did not run because the command uses &&."
+            },
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
+              "recordedAt": "2026-11-16T19:21:50.291Z",
+              "details": "Controller re-run on the corrected assigned T-0004 commit: 52 test files and 282 tests passed; both TypeScript checks and oxlint exited 0."
             }
           ]
         }
