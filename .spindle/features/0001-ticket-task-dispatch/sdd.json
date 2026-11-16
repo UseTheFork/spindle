@@ -442,7 +442,7 @@
       "title": "Dispatch and accept tasks",
       "reporter": "User",
       "category": "enhancement",
-      "status": "open",
+      "status": "closed",
       "blockedBy": [
         "T-0001"
       ],
@@ -677,7 +677,7 @@
         "commitSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
         "mergeSha": "4a380fecf0a7013d14c6fdf19a84523160299814",
         "postMerge": {
-          "status": "pending",
+          "status": "passed",
           "mergeSha": "4a380fecf0a7013d14c6fdf19a84523160299814",
           "checks": {
             "required": [
@@ -687,7 +687,15 @@
                 "addedBy": "Copilot"
               }
             ],
-            "records": []
+            "records": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "result": "passed",
+                "author": "Copilot",
+                "headSha": "4a380fecf0a7013d14c6fdf19a84523160299814",
+                "recordedAt": "2026-11-16T17:37:56.572Z"
+              }
+            ]
           }
         },
         "integratedAt": "2026-11-16T17:25:40.415Z",
