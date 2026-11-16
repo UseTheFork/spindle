@@ -48,7 +48,7 @@ export interface TicketProgress {
   category: (typeof TICKET_CATEGORIES)[number];
   status: TrackerStatus;
   blockedBy: string[];
-  tasks?: TaskDefinition[];
+  tasks: TaskDefinition[];
   blocker?: string;
   execution: ExecutionState;
   owner?: string;
@@ -82,7 +82,7 @@ export interface TicketBaselineChange {
 }
 
 export interface FeatureLedger {
-  schemaVersion: 3;
+  schemaVersion: 4;
   featureId: string;
   title: string;
   createdBy: string;

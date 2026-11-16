@@ -74,7 +74,7 @@ test("create and update persist only task fields, with IDs local to each ticket"
   expect(tasks.create({ ...base, ticket: "T-0002" }).task).toBe("TASK-0001");
 
   const before = JSON.parse(readFileSync(feature.ledger, "utf8"));
-  expect(before.schemaVersion).toBe(3);
+  expect(before.schemaVersion).toBe(4);
   expect(before.tickets[0].tasks[0]).toEqual({
     id: "TASK-0001",
     title: base.title,
@@ -121,7 +121,7 @@ test("retry after interrupted task creation returns the recovered task ID withou
     applyWrites.mockRestore();
   }
 
-  expect(JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks).toBeUndefined();
+  expect(JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks).toEqual([]);
   expect(tasks.create(base)).toEqual({ ticket: "T-0001", task: "TASK-0001" });
   const recoveredTasks = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks;
   expect(recoveredTasks).toHaveLength(1);

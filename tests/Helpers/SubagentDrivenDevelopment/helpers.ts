@@ -2,13 +2,14 @@ import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { expect, onTestFinished, vi } from "vitest";
-
 import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
-
 import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import {
+  workflowServices,
+  type WorkflowServices,
+} from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
-import { workflowServices, type WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
+import { expect, onTestFinished, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -208,6 +209,22 @@ export async function prepareReadyTicket(
       }),
     );
     expect(ticket.status, ticket.stderr).toBe(0);
+    const ticketId = JSON.parse(ticket.stdout).ticket as string;
+    const planned = await execute(repo, (service) =>
+      service.taskService.create({
+        spec,
+        ticket: ticketId,
+        author: "maintainer",
+        title: `Implement ticket ${ticketId}`,
+        instructions: "Implement the ticket within the shared ticket worktree.",
+        acceptanceCriteria: ["The ticket behavior is implemented."],
+        editPaths: ["src/feature.ts"],
+        createPaths: [],
+        referencePaths: [],
+        dependencies: [],
+      }),
+    );
+    expect(planned.status, planned.stderr).toBe(0);
   }
   const baseSha = git("rev-parse", "HEAD");
   return { repo, git, spec, baseSha, originalRepo, worktreeParent };
@@ -241,6 +258,7 @@ export async function prepareImplementationForReview(
   const implementation = JSON.parse(implemented.stdout) as {
     assignment: { id: string; report: string; workspace: string };
   };
+  await acceptTaskPlan(repo, spec, ticketId);
   writeFileSync(
     join(implementation.assignment.workspace, file),
     `export const feature = ${JSON.stringify(ticketId)};\n`,
@@ -269,6 +287,45 @@ export async function prepareImplementationForReview(
     report: implementation.assignment.report,
     submission: JSON.parse(submitted.stdout) as { headSha: string },
   };
+}
+
+export async function acceptTaskPlan(repo: string, spec: string, ticket: string): Promise<void> {
+  const task = "TASK-0001";
+  const assigned = await execute(repo, (service) =>
+    service.taskService.assign({
+      spec,
+      ticket,
+      task,
+      worker: "task-worker",
+      author: "controller",
+    }),
+  );
+  expect(assigned.status, assigned.stderr).toBe(0);
+  const assignment = JSON.parse(assigned.stdout).assignment as {
+    id: string;
+    report: string;
+  };
+  writeFileSync(assignment.report, "# Task report\n\nCompleted the assigned task.\n");
+  const submitted = await execute(repo, (service) =>
+    service.taskService.submit({
+      spec,
+      ticket,
+      task,
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+  const accepted = await execute(repo, (service) =>
+    service.taskService.accept({
+      spec,
+      ticket,
+      task,
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(accepted.status, accepted.stderr).toBe(0);
 }
 
 export async function recordReviewCheck(

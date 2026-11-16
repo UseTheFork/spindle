@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import matter from "gray-matter";
-
 import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
@@ -12,7 +10,10 @@ import type {
   TicketCommentOptions,
 } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import { TICKET_CATEGORIES, TICKET_ID } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
-import type { FeatureLedger, TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type {
+  FeatureLedger,
+  TicketDocument,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
@@ -22,6 +23,7 @@ import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/Inp
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
 import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
+import matter from "gray-matter";
 
 export class TicketService extends Service {
   public constructor(
@@ -82,6 +84,7 @@ export class TicketService extends Service {
       );
       ledger.tickets.push({
         ...ticket,
+        tasks: [],
         execution: "unstarted",
       });
       this.workspaceTransaction.applyWrites(feature.workspace, [
