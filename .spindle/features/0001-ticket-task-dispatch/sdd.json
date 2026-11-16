@@ -602,6 +602,34 @@
           "requestedAt": "2026-11-16T17:15:25.033Z",
           "status": "pending"
         }
+      ],
+      "findings": [
+        {
+          "id": "F-0001",
+          "blocking": false,
+          "status": "open",
+          "summary": "Expected negative-CLI output is noisy",
+          "details": "Accepted as a non-blocking T-0002 observation. Expected unknown-option messages from negative CLI cases are printed during the passing regression selection. This is benign output noise; no T-0002 correction is required. The same issue is already tracked separately as T-0001 F-0002; the ticket-scoped ledger does not permit linking that finding here.",
+          "author": "Copilot",
+          "createdAt": "2026-11-16T17:20:17.048Z",
+          "provenance": [
+            {
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md",
+              "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
+              "author": "Copilot",
+              "summary": "Expected negative-CLI output is noisy",
+              "details": "Accepted as a non-blocking T-0002 observation. Expected unknown-option messages from negative CLI cases are printed during the passing regression selection. This is benign output noise; no T-0002 correction is required. The same issue is already tracked separately as T-0001 F-0002; the ticket-scoped ledger does not permit linking that finding here."
+            }
+          ],
+          "history": [
+            {
+              "at": "2026-11-16T17:20:17.048Z",
+              "author": "Copilot",
+              "action": "registered",
+              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md at commit 0262f4f86062ddb0b632157e979a188fc183bb30."
+            }
+          ]
+        }
       ]
     },
     {
