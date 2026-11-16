@@ -1187,6 +1187,34 @@
           "requestedAt": "2026-11-16T19:22:03.343Z",
           "status": "pending"
         }
+      ],
+      "findings": [
+        {
+          "id": "F-0001",
+          "blocking": false,
+          "status": "open",
+          "summary": "Expected unknown-option CLI diagnostics add noise to passing tests",
+          "details": "The passing integration suite emits expected unknown-option error messages from tests that verify CLI rejection. This causes no functional defect or test failure; no correction is required for acceptance. Optionally capture/suppress expected stderr while retaining rejection assertions. Location: tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts:55-105.",
+          "author": "Copilot",
+          "createdAt": "2026-11-16T19:27:21.188Z",
+          "provenance": [
+            {
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md",
+              "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
+              "author": "Copilot",
+              "summary": "Expected unknown-option CLI diagnostics add noise to passing tests",
+              "details": "The passing integration suite emits expected unknown-option error messages from tests that verify CLI rejection. This causes no functional defect or test failure; no correction is required for acceptance. Optionally capture/suppress expected stderr while retaining rejection assertions. Location: tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts:55-105."
+            }
+          ],
+          "history": [
+            {
+              "at": "2026-11-16T19:27:21.188Z",
+              "author": "Copilot",
+              "action": "registered",
+              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md at commit 590e9da23c97b0ded32c10ab5cc044c200609b2a."
+            }
+          ]
+        }
       ]
     }
   ],
