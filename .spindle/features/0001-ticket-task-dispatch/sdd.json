@@ -498,6 +498,14 @@
             "headSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
             "recordedAt": "2026-11-16T17:02:00.760Z",
             "details": "Controller run failed in tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts: 50 files passed, 1 failed; 267 tests passed, 2 failed. The expected command count was 26 but actual was 31, and the task subcommand expectation omitted assign, instructions, submit, accept, request-changes. The && chain stopped, so type checks and lint did not run. See current check output; failure is on the T-0002 committed target."
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
+            "recordedAt": "2026-11-16T17:15:13.816Z",
+            "details": "Controller fresh run on committed T-0002 correction exited 0. Vitest: 51 files and 269 tests passed; both tsc checks and Oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed. Dependencies were installed in the assigned worktree with pnpm install --frozen-lockfile; no symlinks used."
           }
         ]
       },
@@ -554,6 +562,14 @@
               "headSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
               "recordedAt": "2026-11-16T17:02:00.760Z",
               "details": "Controller run failed in tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts: 50 files passed, 1 failed; 267 tests passed, 2 failed. The expected command count was 26 but actual was 31, and the task subcommand expectation omitted assign, instructions, submit, accept, request-changes. The && chain stopped, so type checks and lint did not run. See current check output; failure is on the T-0002 committed target."
+            },
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
+              "recordedAt": "2026-11-16T17:15:13.816Z",
+              "details": "Controller fresh run on committed T-0002 correction exited 0. Vitest: 51 files and 269 tests passed; both tsc checks and Oxlint completed in the && chain. Expected negative CLI tests printed unknown-option errors; test suite passed. Dependencies were installed in the assigned worktree with pnpm install --frozen-lockfile; no symlinks used."
             }
           ]
         }
