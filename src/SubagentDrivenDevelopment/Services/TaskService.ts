@@ -121,6 +121,11 @@ export class TaskService extends Service {
     return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 
+  private samePathSet(left: readonly string[], right: readonly string[]): boolean {
+    const rightPaths = new Set(right);
+    return left.length === right.length && left.every((path) => rightPaths.has(path));
+  }
+
   public update(options: TaskUpdateOptions): { ticket: string; task: string } {
     InputValidation.validateTicketId(options.ticket);
     InputValidation.validateAuthor(options.author);
@@ -147,6 +152,19 @@ export class TaskService extends Service {
       const current = tasks.find((task) => task.id === options.task);
       if (!current)
         throw new Error(`Task ${options.task} does not exist in ticket ${options.ticket}.`);
+      if (
+        (current.status === "assigned" ||
+          current.status === "submitted" ||
+          current.status === "changes-requested") &&
+        ((options.editPaths !== undefined &&
+          !this.samePathSet(current.editPaths, options.editPaths)) ||
+          (options.createPaths !== undefined &&
+            !this.samePathSet(current.createPaths, options.createPaths)))
+      ) {
+        throw new Error(
+          `Task ${current.id} cannot change edit/create paths while active (${current.status}).`,
+        );
+      }
       const updated = { ...current };
       for (const field of fields) {
         const value = options[field];

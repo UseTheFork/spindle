@@ -430,6 +430,128 @@ test("active assigned, submitted, and changes-requested tasks reserve edit and c
   }
 });
 
+test("active task scopes cannot change and rejected updates leave the ledger unchanged", async () => {
+  for (const status of ["assigned", "submitted", "changes-requested"] as const) {
+    const { feature, tasks, base } = await setup();
+    prepareTaskController(feature);
+    tasks.create(base);
+    tasks.create({
+      ...base,
+      title: "Second task",
+      editPaths: ["src/second.ts"],
+      createPaths: ["tests/second.test.ts"],
+    });
+    tasks.assign({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0001",
+      author: "controller",
+      worker: "worker-one",
+    });
+    const second = tasks.assign({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0002",
+      author: "controller",
+      worker: "worker-two",
+    });
+    if (status !== "assigned") {
+      writeFileSync(second.reportDestination, "Reserved task report.");
+      tasks.submit({
+        spec: base.spec,
+        ticket: base.ticket,
+        task: "TASK-0002",
+        assignment: second.assignment.id,
+        author: "controller",
+      });
+    }
+    if (status === "changes-requested") {
+      tasks.requestChanges({
+        spec: base.spec,
+        ticket: base.ticket,
+        task: "TASK-0002",
+        assignment: second.assignment.id,
+        author: "controller",
+        details: "Keep the reservation while changes are pending.",
+      });
+    }
+
+    const before = readFileSync(feature.ledger, "utf8");
+    expect(() =>
+      tasks.update({
+        spec: base.spec,
+        ticket: base.ticket,
+        author: base.author,
+        task: "TASK-0002",
+        editPaths: ["src/index.ts"],
+      }),
+    ).toThrow(`Task TASK-0002 cannot change edit/create paths while active (${status}).`);
+    expect(readFileSync(feature.ledger, "utf8")).toBe(before);
+    expect(() =>
+      tasks.update({
+        spec: base.spec,
+        ticket: base.ticket,
+        author: base.author,
+        task: "TASK-0002",
+        createPaths: ["tests/new.test.ts"],
+      }),
+    ).toThrow(`Task TASK-0002 cannot change edit/create paths while active (${status}).`);
+    expect(readFileSync(feature.ledger, "utf8")).toBe(before);
+  }
+});
+
+test("unassigned and accepted tasks can update edit and create paths", async () => {
+  const { feature, tasks, base } = await setup();
+  tasks.create(base);
+  tasks.update({
+    spec: base.spec,
+    ticket: base.ticket,
+    author: base.author,
+    task: "TASK-0001",
+    editPaths: ["src/unassigned.ts"],
+    createPaths: [],
+  });
+
+  prepareTaskController(feature);
+  const assignment = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    author: "controller",
+    worker: "worker-one",
+  });
+  writeFileSync(assignment.reportDestination, "Task report.");
+  tasks.submit({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    assignment: assignment.assignment.id,
+    author: "controller",
+  });
+  tasks.accept({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    assignment: assignment.assignment.id,
+    author: "controller",
+  });
+  tasks.update({
+    spec: base.spec,
+    ticket: base.ticket,
+    author: base.author,
+    task: "TASK-0001",
+    editPaths: ["src/accepted.ts"],
+    createPaths: ["tests/accepted.test.ts"],
+  });
+
+  const task = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks[0];
+  expect(task).toMatchObject({
+    status: "accepted",
+    editPaths: ["src/accepted.ts"],
+    createPaths: ["tests/accepted.test.ts"],
+  });
+});
+
 test("disjoint write paths can be assigned when reference paths are shared", async () => {
   const { feature, tasks, base } = await setup();
   prepareTaskController(feature);
