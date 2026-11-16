@@ -678,7 +678,17 @@
         "mergeSha": "4a380fecf0a7013d14c6fdf19a84523160299814",
         "postMerge": {
           "status": "pending",
-          "mergeSha": "4a380fecf0a7013d14c6fdf19a84523160299814"
+          "mergeSha": "4a380fecf0a7013d14c6fdf19a84523160299814",
+          "checks": {
+            "required": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "addedAt": "2026-11-16T17:32:09.418Z",
+                "addedBy": "Copilot"
+              }
+            ],
+            "records": []
+          }
         },
         "integratedAt": "2026-11-16T17:25:40.415Z",
         "integratedBy": "Copilot",
