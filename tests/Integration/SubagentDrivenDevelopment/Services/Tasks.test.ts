@@ -1,8 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { TaskCreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { TaskService } from "@spindle/SubagentDrivenDevelopment/Services/TaskService";
 import { runCli } from "@test/Helpers/Cli";
 import { cliOutput } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
@@ -10,7 +11,7 @@ import {
   createTicket,
   ticketFixture,
 } from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 async function setup() {
   const fixture = await ticketFixture("Task plans");
@@ -70,6 +71,35 @@ test("create and update persist only task fields, with IDs local to each ticket"
   expect(after.tickets[0].tasks[0]).toEqual(before.tickets[0].tasks[0]);
   expect(after.tickets[1]).toEqual(before.tickets[1]);
   expect(readFileSync(ticketPath, "utf8")).toBe(ticketBefore);
+});
+
+test("retry after interrupted task creation returns the recovered task ID without duplicating it", async () => {
+  const { app, feature, tasks, base } = await setup();
+  const transaction = await app.make(WorkspaceTransaction);
+  const recoveryPath = join(feature.workspace, ".sdd-write-recovery.json");
+  const applyWrites = vi
+    .spyOn(transaction, "applyWrites")
+    .mockImplementation((_workspace, writes) => {
+      writeFileSync(recoveryPath, `${JSON.stringify({ version: 1, writes }, null, 2)}\n`);
+      throw new Error("simulated interruption after writing the recovery journal");
+    });
+  try {
+    expect(() => tasks.create(base)).toThrow("simulated interruption");
+  } finally {
+    applyWrites.mockRestore();
+  }
+
+  expect(JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks).toBeUndefined();
+  expect(tasks.create(base)).toEqual({ ticket: "T-0001", task: "TASK-0001" });
+  const recoveredTasks = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks;
+  expect(recoveredTasks).toHaveLength(1);
+  expect(recoveredTasks[0]).toMatchObject({
+    id: "TASK-0001",
+    title: base.title,
+    instructions: base.instructions,
+    status: "unassigned",
+  });
+  expect(() => readFileSync(recoveryPath, "utf8")).toThrow();
 });
 
 test("invalid task fields and graph changes reject without changing the ledger", async () => {

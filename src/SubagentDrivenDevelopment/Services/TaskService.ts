@@ -6,6 +6,10 @@ import type {
 } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import { TASK_ID } from "@spindle/SubagentDrivenDevelopment/Models/Tasks";
 import type { TaskDefinition } from "@spindle/SubagentDrivenDevelopment/Models/Tasks";
+import type {
+  FeatureLedger,
+  FeaturePaths,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { TaskSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/TaskSchema";
 import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
@@ -33,6 +37,8 @@ export class TaskService extends Service {
       this.tickets.requireTicket(this.tickets.readTickets(feature.workspace), options.ticket);
       const ticket = ledger.tickets.find((item) => item.id === options.ticket);
       if (!ticket) throw new Error(`Ticket ${options.ticket} has no ledger record.`);
+      const recovered = this.recoveredTask(feature, ledger, options);
+      if (recovered) return recovered;
       const tasks = ticket.tasks ?? [];
       let highest = 0n;
       for (const task of tasks) {
@@ -57,6 +63,44 @@ export class TaskService extends Service {
       this.transaction.writeLedger(feature, ledger);
       return { ticket: ticket.id, task: id };
     });
+  }
+
+  private recoveredTask(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    options: TaskCreateOptions,
+  ): { ticket: string; task: string } | undefined {
+    const ticket = ledger.tickets.find((item) => item.id === options.ticket);
+    if (!ticket) return undefined;
+    const tasks = ticket.tasks ?? [];
+    for (const write of this.transaction.recoveredWrites(feature.workspace)) {
+      if (write.path !== "sdd.json" || write.before === null) continue;
+      const previous = this.ledger.validateLedger(
+        JSON.parse(write.before) as unknown,
+        feature.feature,
+      );
+      const previousTasks =
+        previous.tickets.find((item) => item.id === options.ticket)?.tasks ?? [];
+      const previousIds = new Set(previousTasks.map((task) => task.id));
+      const matches = tasks.filter(
+        (task) =>
+          !previousIds.has(task.id) &&
+          task.status === "unassigned" &&
+          task.title === options.title &&
+          task.instructions === options.instructions &&
+          this.sameValues(task.acceptanceCriteria, options.acceptanceCriteria) &&
+          this.sameValues(task.editPaths, options.editPaths) &&
+          this.sameValues(task.createPaths, options.createPaths) &&
+          this.sameValues(task.referencePaths, options.referencePaths) &&
+          this.sameValues(task.dependencies, options.dependencies),
+      );
+      if (matches.length === 1) return { ticket: ticket.id, task: matches[0]!.id };
+    }
+    return undefined;
+  }
+
+  private sameValues(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every((value, index) => value === right[index]);
   }
 
   public update(options: TaskUpdateOptions): { ticket: string; task: string } {
