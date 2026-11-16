@@ -446,7 +446,7 @@
       "blockedBy": [
         "T-0001"
       ],
-      "execution": "implementing",
+      "execution": "reviewing",
       "owner": "Copilot",
       "baseSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
       "assignment": {
@@ -459,8 +459,11 @@
         "branch": "tickets/0001-ticket-task-dispatch/T-0002",
         "startingHeadSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
         "requestedAt": "2026-11-16T16:42:43.836Z",
-        "status": "pending",
-        "handoffs": []
+        "status": "submitted",
+        "handoffs": [],
+        "reportSha256": "731f5a2bd4f475b6cda6744f2a8c00a3ffd2efe9fec8a4b82e6bfc7731a029ae",
+        "submittedAt": "2026-11-16T16:51:55.784Z",
+        "submittedBy": "Copilot"
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
