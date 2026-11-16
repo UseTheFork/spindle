@@ -22,24 +22,25 @@
       "category": "enhancement",
       "status": "open",
       "blockedBy": [],
-      "execution": "reviewing",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
       "assignment": {
-        "id": "41b2f9ab-356b-423c-a481-7bbbb59bbc80",
+        "id": "8abf4e2f-5dfe-4c7c-afe6-b23393393edd",
         "role": "implementation",
-        "action": "implement",
+        "action": "correct",
         "controller": "Copilot",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-implementation.md",
+        "attempt": 1,
+        "findingIds": [],
+        "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+        "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
         "branch": "tickets/0001-ticket-task-dispatch/T-0001",
-        "startingHeadSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
-        "requestedAt": "2026-11-16T15:40:48.264Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "e225e6815b49d62f08e48d1a07fc197572b2f72fa1655e969a0e09996a5319b7",
-        "submittedAt": "2026-11-16T15:45:37.430Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
+        "requestedAt": "2026-11-16T15:51:41.201Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
@@ -64,7 +65,61 @@
             "details": "Vitest: 50 files passed, 1 failed, 262 tests passed, 1 failed; Commands/Provider.test.ts expects 24 registered commands but received 26. The && chain stopped; type checks and lint did not run."
           }
         ]
-      }
+      },
+      "correctionAttempts": [
+        {
+          "number": 1,
+          "findingIds": [],
+          "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+          "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
+          "startedAt": "2026-11-16T15:51:41.201Z",
+          "startedBy": "Copilot",
+          "assignmentId": "8abf4e2f-5dfe-4c7c-afe6-b23393393edd",
+          "assignment": {
+            "id": "8abf4e2f-5dfe-4c7c-afe6-b23393393edd",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [],
+            "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
+            "requestedAt": "2026-11-16T15:51:41.201Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "41b2f9ab-356b-423c-a481-7bbbb59bbc80",
+            "role": "implementation",
+            "action": "implement",
+            "controller": "Copilot",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-implementation.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "startingHeadSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
+            "requestedAt": "2026-11-16T15:40:48.264Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "e225e6815b49d62f08e48d1a07fc197572b2f72fa1655e969a0e09996a5319b7",
+            "submittedAt": "2026-11-16T15:45:37.430Z",
+            "submittedBy": "Copilot"
+          },
+          "checks": [
+            {
+              "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "failed",
+              "author": "Copilot",
+              "headSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
+              "recordedAt": "2026-11-16T15:51:30.359Z",
+              "details": "Vitest: 50 files passed, 1 failed, 262 tests passed, 1 failed; Commands/Provider.test.ts expects 24 registered commands but received 26. The && chain stopped; type checks and lint did not run."
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "T-0002",
