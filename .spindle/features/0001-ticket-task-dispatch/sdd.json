@@ -54,7 +54,16 @@
             "addedBy": "Copilot"
           }
         ],
-        "records": []
+        "records": [
+          {
+            "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
+            "recordedAt": "2026-11-16T15:51:30.359Z",
+            "details": "Vitest: 50 files passed, 1 failed, 262 tests passed, 1 failed; Commands/Provider.test.ts expects 24 registered commands but received 26. The && chain stopped; type checks and lint did not run."
+          }
+        ]
       }
     },
     {
