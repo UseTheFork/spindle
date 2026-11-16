@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "featureId": "0001",
   "title": "Ticket Task Dispatch",
   "createdBy": "Copilot",
@@ -435,7 +435,8 @@
           "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
         ]
-      }
+      },
+      "tasks": []
     },
     {
       "id": "T-0002",
@@ -733,7 +734,8 @@
           "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
         ]
-      }
+      },
+      "tasks": []
     },
     {
       "id": "T-0003",
@@ -992,7 +994,8 @@
           "src/SubagentDrivenDevelopment/Services/TaskService.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
         ]
-      }
+      },
+      "tasks": []
     },
     {
       "id": "T-0004",
@@ -1305,7 +1308,17 @@
         "mergeSha": "c05fde1d7cf1dffc255c5419db477fbe00e17845",
         "postMerge": {
           "status": "pending",
-          "mergeSha": "c05fde1d7cf1dffc255c5419db477fbe00e17845"
+          "mergeSha": "c05fde1d7cf1dffc255c5419db477fbe00e17845",
+          "checks": {
+            "required": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "addedAt": "2026-11-16T19:31:56.008Z",
+                "addedBy": "Copilot"
+              }
+            ],
+            "records": []
+          }
         },
         "integratedAt": "2026-11-16T19:31:43.879Z",
         "integratedBy": "Copilot",
@@ -1414,7 +1427,8 @@
           "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
         ]
-      }
+      },
+      "tasks": []
     }
   ],
   "delivery": {
