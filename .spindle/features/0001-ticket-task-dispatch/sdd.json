@@ -959,7 +959,17 @@
         "mergeSha": "645116751fa6c8a68bd1978345a828a5f6a8559b",
         "postMerge": {
           "status": "pending",
-          "mergeSha": "645116751fa6c8a68bd1978345a828a5f6a8559b"
+          "mergeSha": "645116751fa6c8a68bd1978345a828a5f6a8559b",
+          "checks": {
+            "required": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "addedAt": "2026-11-16T18:15:26.052Z",
+                "addedBy": "Copilot"
+              }
+            ],
+            "records": []
+          }
         },
         "integratedAt": "2026-11-16T18:15:17.128Z",
         "integratedBy": "Copilot",
