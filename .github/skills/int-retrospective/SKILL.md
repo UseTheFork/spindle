@@ -53,7 +53,7 @@ Read the [assessment reference](./references/assessment.md). Reuse an existing r
 
 ### C. Present proposals
 
-Rank by impact and show stable IDs with their evidence and verification criteria. Delivery writes `.scratch/YYYY-MM-DD-<feature-slug>/retrospective.md` in the work's existing dated directory. Maintainer presents the report; reuse that destination when one exists, otherwise present in chat.
+Rank by impact and show stable IDs with their evidence and verification criteria. Delivery writes `.spindle/features/YYYY-MM-DD-<feature-slug>/retrospective.md` in the work's existing dated directory. Maintainer presents the report; reuse that destination when one exists, otherwise present in chat.
 
 **Complete when:** proposals (or "None") and assessment limitations are visible, selecting D; delivery's report exists and no environment or domain files have changed.
 

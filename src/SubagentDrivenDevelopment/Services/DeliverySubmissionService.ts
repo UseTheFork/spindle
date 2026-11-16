@@ -1,21 +1,23 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   ReviewResult,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { SubmitOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliverySubmissionService extends Service {
   public constructor(
@@ -42,40 +44,36 @@ export class DeliverySubmissionService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    if (
-      options.assignment !== undefined ||
-      options.result !== undefined ||
-      options.noFindings ||
-      options.findings !== undefined
-    ) {
-      throw new Error("Review assignment, result, and findings options require role review.");
+    if (options.result !== undefined && options.result !== "unavailable") {
+      throw new Error("Implementation submission only accepts --result unavailable.");
     }
-    if (options.unavailable && !options.details?.trim()) {
+    const unavailable = options.result === "unavailable";
+    if (unavailable && !options.details?.trim()) {
       throw new Error(
         "--details is required when the delivery implementation report is unavailable.",
       );
     }
-    if (options.unavailable && options.report !== undefined) {
-      throw new Error("--report cannot be combined with --unavailable.");
+    if (!unavailable && options.details !== undefined) {
+      throw new Error("--details is only valid with --result unavailable.");
     }
-    if (!options.unavailable && options.details !== undefined) {
-      throw new Error("--details is only valid with --unavailable.");
-    }
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.assignment;
-      if (!assignment || assignment.action !== "correct" || assignment.role !== "implementation") {
+      if (
+        !assignment ||
+        assignment.id !== options.assignment ||
+        assignment.action !== "correct" ||
+        assignment.role !== "implementation"
+      ) {
         throw new Error("No matching delivery correction implementation assignment is pending.");
       }
-      if (
-        delivery.owner !== options.author.trim() ||
-        assignment.controller !== options.author.trim()
-      ) {
+      if (assignment.controller !== options.author.trim()) {
         throw new Error(
-          "Only the current delivery controller may submit this implementation report.",
+          `Delivery owner ${delivery.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
         );
       }
       const attempt = delivery.correctionAttempts?.find(
@@ -89,7 +87,7 @@ export class DeliverySubmissionService extends Service {
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      if (options.unavailable) {
+      if (unavailable) {
         const details = options.details!.trim();
         if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
           return {
@@ -115,11 +113,10 @@ export class DeliverySubmissionService extends Service {
           ...identity,
         };
       }
-      if (!options.report) throw new Error("Delivery implementation submission requires --report.");
       if (assignment.status === "submitted") {
         const digest = this.reportEvidence.readReportDigest(
           feature,
-          this.reportEvidence.submissionReportPath(feature, assignment, options.report),
+          this.reportEvidence.submissionReportPath(feature, assignment),
         );
         if (digest !== assignment.reportSha256) {
           throw new Error(
@@ -139,7 +136,7 @@ export class DeliverySubmissionService extends Service {
       if (!["pending", "unavailable"].includes(assignment.status)) {
         throw new Error("The delivery implementation assignment is not awaiting a report.");
       }
-      const report = this.reportEvidence.submissionReportPath(feature, assignment, options.report);
+      const report = this.reportEvidence.submissionReportPath(feature, assignment);
       const reportSha256 = this.reportEvidence.readReportDigest(feature, report);
       assignment.status = "submitted";
       assignment.reportSha256 = reportSha256;
@@ -174,31 +171,11 @@ export class DeliverySubmissionService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    if (options.role !== "review") {
-      throw new Error(
-        "Delivery implementation submissions require an active corrective assignment.",
-      );
-    }
-    if (!options.assignment?.trim()) throw new Error("Review submission requires --assignment.");
-    if (!options.report) throw new Error("Review submission requires --report.");
+    const assignmentId = options.assignment.trim();
+    if (!assignmentId) throw new Error("--assignment must not be empty.");
     if (!options.result) throw new Error("Review submission requires explicit --result.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
       throw new Error(`Invalid review result: ${options.result}.`);
-    }
-    const findingIds = options.findingIds?.map((id) => id.trim());
-    if (options.noFindings === true && findingIds !== undefined) {
-      throw new Error("--findings and --no-findings cannot be combined.");
-    }
-    if (
-      findingIds !== undefined &&
-      (findingIds.length === 0 ||
-        findingIds.some((id) => !/^F-\d{4,}$/.test(id)) ||
-        new Set(findingIds).size !== findingIds.length)
-    ) {
-      throw new Error("--findings must contain unique canonical finding IDs.");
-    }
-    if (options.noFindings !== true && findingIds === undefined) {
-      throw new Error("Review submission requires either --findings or exclusive --no-findings.");
     }
     if (options.result === "passed" && options.details !== undefined) {
       throw new Error("--details is only valid for failed or unavailable review results.");
@@ -206,19 +183,17 @@ export class DeliverySubmissionService extends Service {
     if (options.result !== "passed" && !options.details?.trim()) {
       throw new Error("--details is required for failed or unavailable reviews.");
     }
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (!delivery.owner || delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may submit aggregate review.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.reviewAssignments?.find(
-        (candidate) => candidate.id === options.assignment,
+        (candidate) => candidate.id === assignmentId,
       );
       if (!assignment || assignment.scope !== "delivery") {
-        throw new Error(`No delivery review assignment matches ID ${options.assignment}.`);
+        throw new Error(`No delivery review assignment matches ID ${assignmentId}.`);
       }
       const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
@@ -239,7 +214,7 @@ export class DeliverySubmissionService extends Service {
         identity,
       );
       if (commitBlocker) throw new Error(commitBlocker);
-      const report = this.reportEvidence.submissionReportPath(feature, assignment, options.report);
+      const report = this.reportEvidence.submissionReportPath(feature, assignment);
       const reportSha256 = this.reportEvidence.readReportDigest(feature, report);
       const reported = (delivery.findings ?? [])
         .filter((finding) =>
@@ -249,25 +224,10 @@ export class DeliverySubmissionService extends Service {
           ),
         )
         .map((finding) => finding.id);
-      if (options.noFindings === true && reported.length > 0) {
-        throw new Error(
-          `Review report has registered findings and cannot declare --no-findings: ${reported.join(", ")}.`,
-        );
-      }
-      if (findingIds !== undefined) {
-        const missing = reported.filter((id) => !findingIds.includes(id));
-        const unknown = findingIds.filter((id) => !reported.includes(id));
-        if (missing.length > 0 || unknown.length > 0) {
-          throw new Error(
-            `--findings must exactly list canonical findings registered from this delivery report and commit; missing=${missing.join(",") || "none"}; invalid provenance=${unknown.join(",") || "none"}.`,
-          );
-        }
-      }
       if (assignment.status === "submitted") {
         if (
           assignment.result === options.result &&
-          assignment.noFindings === (options.noFindings === true ? true : undefined) &&
-          JSON.stringify(assignment.findingIds) === JSON.stringify(findingIds) &&
+          JSON.stringify(assignment.findingIds ?? []) === JSON.stringify(reported) &&
           assignment.submittedBy === options.author.trim() &&
           assignment.details === options.details?.trim() &&
           assignment.reportSha256 === reportSha256
@@ -287,6 +247,9 @@ export class DeliverySubmissionService extends Service {
       if (assignment.status !== "pending") {
         throw new Error("The delivery review assignment is not awaiting a report.");
       }
+      if (options.result === "failed" && reported.length === 0) {
+        throw new Error(ReviewBatch.failedReviewWithoutFindings(assignmentId, "--scope delivery"));
+      }
       if (
         JSON.stringify(this.gitEvidence.changedPaths(delivery.baseSha!)) !==
         JSON.stringify(assignment.inventory)
@@ -295,24 +258,13 @@ export class DeliverySubmissionService extends Service {
       }
       assignment.status = "submitted";
       assignment.result = options.result as ReviewResult;
-      if (options.noFindings === true) assignment.noFindings = true;
-      else delete assignment.noFindings;
-      if (findingIds !== undefined) assignment.findingIds = findingIds;
-      else delete assignment.findingIds;
+      assignment.findingIds = reported;
       assignment.reportSha256 = reportSha256;
       assignment.submittedAt = new Date().toISOString();
       assignment.submittedBy = options.author.trim();
       if (options.details?.trim()) assignment.details = options.details.trim();
-      const unresolvedBlocking = (assignment.findingIds ?? []).some((id) =>
-        delivery.findings?.some(
-          (finding) =>
-            finding.id === id &&
-            finding.blocking &&
-            finding.status !== "fixed" &&
-            finding.status !== "dismissed",
-        ),
-      );
-      if (assignment.result !== "passed" || unresolvedBlocking) {
+      const batch = delivery.reviewAssignments ?? [];
+      if (ReviewBatch.reviewBatchRequestsChanges(batch, delivery.findings ?? [])) {
         delivery.execution = "changes-requested";
       }
       delivery.history.push({
@@ -320,7 +272,7 @@ export class DeliverySubmissionService extends Service {
         author: options.author.trim(),
         action: `aggregate-review-submitted:${assignment.id}:${assignment.result}`,
       });
-      if (delivery.reviewAssignments?.every((item) => item.status === "submitted")) {
+      if (ReviewBatch.reviewBatchComplete(batch)) {
         for (const finding of delivery.findings ?? []) {
           if (
             !finding.blocking ||

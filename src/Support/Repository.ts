@@ -1,12 +1,6 @@
 type Default<T> = T | (() => T);
 type Lookup = { found: false } | { found: true; value: unknown };
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object") return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-
 export class Repository {
   private readonly items: Record<string, unknown> = {};
 
@@ -177,7 +171,7 @@ export class Repository {
     key: string,
     traversed: readonly string[],
   ): Record<string, unknown> {
-    if (!isPlainObject(value)) {
+    if (!Repository.isPlainObject(value)) {
       throw new TypeError(
         `Cannot traverse repository key "${key}": "${traversed.join(".")}" is not a plain object.`,
       );
@@ -192,5 +186,11 @@ export class Repository {
       configurable: true,
       writable: true,
     });
+  }
+
+  private static isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (value === null || typeof value !== "object") return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
   }
 }

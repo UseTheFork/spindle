@@ -1,20 +1,24 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { ChecksRequireOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
-import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { ChecksRequireOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { ChecksService } from "@spindle/SubagentDrivenDevelopment/Services/ChecksService";
+import { FeatureFinalizationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
 
 export class ChecksRequireCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "checks")
+    SddCommandGroups.group(root, "checks")
       .command("require")
       .description("Add or remove a required external check.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery, post-merge or final")
       .requiredOption(
@@ -24,12 +28,8 @@ export class ChecksRequireCommand extends Command {
         [],
       )
       .option("--remove", "Remove the requirement; requires --details rationale")
-      .option(
-        "--rebase-baseline",
-        "Adopt current feature HEAD after manually rebasing the ticket worktree",
-      )
       .option("--details <details>", "Removal rationale")
-      .requiredOption("--author <author>", "Acting controller", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting controller", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: Omit<ChecksRequireOptions, "command"> & { command: string[] }) => {
         if (
@@ -76,10 +76,8 @@ export class ChecksRequireCommand extends Command {
   ) {
     this.assertApplicationBooted();
     if (options.scope === "final") {
-      if (options.ticket || options.remove || options.details || options.rebaseBaseline) {
-        throw new Error(
-          "Final declarations do not accept ticket, removal, rebase or coverage options.",
-        );
+      if (options.ticket || options.remove || options.details) {
+        throw new Error("Final declarations do not accept ticket, removal or coverage options.");
       }
       return (await this.app.make(FeatureFinalizationService)).declare({
         spec: options.spec,

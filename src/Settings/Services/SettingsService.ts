@@ -1,12 +1,12 @@
-import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import { Service } from "@/Foundation/Service";
-import { commitSettingsSchema } from "@/Settings/Models/CommitSettings";
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
+import { Service } from "@spindle/Foundation/Service";
+import { commitSettingsSchema } from "@spindle/Settings/Models/CommitSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { Records } from "@/Support/Records";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { Records } from "@spindle/Support/Records";
 
 const keys = new Set([
   ...Object.keys(projectSettingsSchema.shape).filter((key) => key !== "$schema"),

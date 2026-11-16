@@ -4,13 +4,13 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { cliOutput, invokeAsync } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import {
   createTicket,
   ticketFixture,
   workspaceSnapshot,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function waitForFile(path: string, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
@@ -20,22 +20,24 @@ async function waitForFile(path: string, timeoutMs: number) {
   expect(existsSync(path), `Timed out waiting for ${path}`).toBe(true);
 }
 
-test("ready does not combine tracker states from interleaved serialized updates", async () => {
+test("ready reflects ticket blockers and dependencies changed during its read", async () => {
   const { repo, service, feature } = await ticketFixture("Coherent Ready Queue");
   createTicket(service, feature.spec, "Ticket A");
   createTicket(service, feature.spec, "Ticket B");
-  const updateStatus = (ticket: string, status: string) =>
+  const updateTicket = (
+    ticket: string,
+    fields: { blocker?: string; blockedBy?: string[] },
+  ) =>
     service.ticketService.ticketUpdate({
       spec: feature.spec,
       ticket,
-      status,
+      ...fields,
       author: "maintainer",
     });
-  updateStatus("T-0001", "open");
   const pausePath = join(repo, "ready-paused");
   const resumePath = join(repo, "ready-resume");
   const preloadPath = join(repoRoot, "tests/Helpers/Preloads/ready-pause.ts");
-  const ready = invokeAsync(repo, ["ready", "--spec", feature.spec], {
+  const ready = invokeAsync(repo, ["ready", "--feature", feature.spec.replace(/\/spec\.md$/, "")], {
     preload: preloadPath,
     env: {
       SPINDLE_TEST_READY_TARGET: join(feature.workspace, "tickets", "T-0002.md"),
@@ -45,13 +47,16 @@ test("ready does not combine tracker states from interleaved serialized updates"
   });
   try {
     await waitForFile(pausePath, 10_000);
-    updateStatus("T-0001", "in-progress");
-    updateStatus("T-0002", "open");
+    updateTicket("T-0001", { blocker: "Waiting for a decision." });
+    updateTicket("T-0002", { blockedBy: ["T-0001"] });
     const afterTriage = workspaceSnapshot(feature.workspace);
     writeFileSync(resumePath, "resume");
     const result = await ready;
     expect(result.status, result.stderr).toBe(0);
-    expect(cliOutput(result)).toEqual({ ready: ["T-0002"], unready: [] });
+    expect(cliOutput(result)).toEqual({
+      ready: [],
+      unready: [{ ticket: "T-0002", blockedBy: ["T-0001"] }],
+    });
     expect(workspaceSnapshot(feature.workspace)).toEqual(afterTriage);
   } finally {
     writeFileSync(resumePath, "resume");
@@ -66,15 +71,15 @@ test("concurrent ticket creation serializes per-feature IDs and ledger updates",
       invokeAsync(repo, [
         "ticket",
         "create",
-        "--spec",
-        feature.spec,
+        "--feature",
+        feature.spec.replace(/\/spec\.md$/, ""),
         "--title",
         title,
         "--reporter",
         "maintainer",
         "--category",
         "enhancement",
-        "--author",
+        "--actor",
         "controller",
       ]),
     ),
@@ -116,13 +121,13 @@ test("concurrent ticket updates preserve both attributed history entries", async
       invokeAsync(repo, [
         "ticket",
         "update",
-        "--spec",
-        feature.spec,
+        "--feature",
+        feature.spec.replace(/\/spec\.md$/, ""),
         "--ticket",
         "T-0001",
         "--title",
         title,
-        "--author",
+        "--actor",
         title,
       ]),
     ),

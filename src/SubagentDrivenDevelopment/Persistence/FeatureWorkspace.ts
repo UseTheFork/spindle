@@ -1,20 +1,16 @@
 import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import {
   FEATURE_DIRECTORY,
   HISTORICAL_DATE_DIRECTORY,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  assertRealDirectory,
-  lstatIfPresent,
-  isPathInside,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
 
 export class FeatureWorkspace extends Service {
   public constructor(
@@ -31,21 +27,21 @@ export class FeatureWorkspace extends Service {
     relativeSpec: string,
     segments: string[],
   ): FeaturePaths & { state: FeatureLedger } {
-    const scratch = join(root, ".scratch");
-    const workspace = join(scratch, segments[1]!);
+    const featureDirectory = join(root, ".spindle", "features");
+    const workspace = join(featureDirectory, segments[2]!);
     const ledgerPath = join(workspace, "sdd.json");
-    assertRealDirectory(scratch, ".scratch");
-    assertRealDirectory(workspace, "Feature workspace");
+    FileSystem.assertRealDirectory(featureDirectory, ".spindle/features");
+    FileSystem.assertRealDirectory(workspace, "Feature workspace");
     for (const directory of ["tickets", "reports"]) {
-      assertRealDirectory(join(workspace, directory), `Feature ${directory} directory`);
+      FileSystem.assertRealDirectory(join(workspace, directory), `Feature ${directory} directory`);
     }
-    const specEntry = lstatIfPresent(specPath);
+    const specEntry = FileSystem.lstatIfPresent(specPath);
     if (!specEntry?.isFile()) throw new Error("Feature spec must be a regular file.");
-    const ledgerEntry = lstatIfPresent(ledgerPath);
+    const ledgerEntry = FileSystem.lstatIfPresent(ledgerPath);
     if (!ledgerEntry?.isFile()) throw new Error("Feature ledger must be a regular file.");
     if (
-      !isPathInside(root, realpathSync(specPath)) ||
-      !isPathInside(root, realpathSync(ledgerPath))
+      !FileSystem.isPathInside(root, realpathSync(specPath)) ||
+      !FileSystem.isPathInside(root, realpathSync(ledgerPath))
     ) {
       throw new Error("Feature files must remain inside this checkout.");
     }
@@ -62,8 +58,8 @@ export class FeatureWorkspace extends Service {
         `Feature ledger is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const state = this.ledgerRepository.validateLedger(parsed, segments[1]!);
-    const feature = segments[1]!;
+    const state = this.ledgerRepository.validateLedger(parsed, segments[2]!);
+    const feature = segments[2]!;
     return {
       feature,
       workspace,
@@ -73,9 +69,9 @@ export class FeatureWorkspace extends Service {
     };
   }
 
-  public nextFeatureId(scratch: string): string {
+  public nextFeatureId(featureDirectory: string): string {
     let highest = 0n;
-    for (const entry of readdirSync(scratch, { withFileTypes: true })) {
+    for (const entry of readdirSync(featureDirectory, { withFileTypes: true })) {
       if (!entry.isDirectory() || HISTORICAL_DATE_DIRECTORY.test(entry.name)) continue;
       const match = FEATURE_DIRECTORY.exec(entry.name);
       if (!match) continue;
@@ -85,10 +81,10 @@ export class FeatureWorkspace extends Service {
     return String(highest + 1n).padStart(4, "0");
   }
 
-  public rejectAbandonedStaging(scratch: string): void {
-    const abandoned = readdirSync(scratch, { withFileTypes: true })
+  public rejectAbandonedStaging(featureDirectory: string): void {
+    const abandoned = readdirSync(featureDirectory, { withFileTypes: true })
       .filter((entry) => entry.name.startsWith(".sdd-create-"))
-      .map((entry) => join(scratch, entry.name));
+      .map((entry) => join(featureDirectory, entry.name));
     if (abandoned.length > 0) {
       throw new Error(
         `Incomplete feature creation staging content was preserved at ${abandoned.join(", ")}. Inspect and remove it before retrying.`,

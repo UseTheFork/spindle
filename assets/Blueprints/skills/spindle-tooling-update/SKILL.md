@@ -11,7 +11,7 @@ metadata:
 
 # Update Tooling
 
-Keep the tooling registry in `.github/spindle.json` and generated `docs/agents/tooling.md` aligned with verified project commands. These entries document commands; Spindle does not execute them. Do not install tools, change tooling configuration, initialize project guidance, or update glossaries.
+Keep the tooling registry in `.spindle/config.json` and generated `docs/agents/tooling.md` aligned with verified project commands. These entries document commands; Spindle does not execute them. Do not install tools, change tooling configuration, initialize project guidance, or update glossaries.
 
 ## Input
 

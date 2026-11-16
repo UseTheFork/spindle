@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { Application } from "@/Foundation/Application";
-import { bootService, Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 
 export type Constructor<T = unknown> = new (...args: never[]) => T;
 export type AbstractConstructor<T = unknown> = abstract new (...args: never[]) => T;
@@ -32,32 +32,6 @@ type Binding =
       classKey?: AbstractConstructor<unknown>;
     };
 
-function isClassConstructor(value: unknown): value is AbstractConstructor<unknown> {
-  return (
-    typeof value === "function" &&
-    /^class(?:\s|\{)/.test(Function.prototype.toString.call(value)) &&
-    typeof value.prototype === "object"
-  );
-}
-
-function normalizeKey(key: Key): NormalizedKey {
-  if (typeof key === "string") {
-    if (key.length === 0) throw new TypeError("Dependency keys must be non-empty strings.");
-    return { name: key };
-  }
-  if (!isClassConstructor(key)) {
-    throw new TypeError("Dependency keys must be strings or class constructors.");
-  }
-  if (key.name.length === 0) {
-    throw new TypeError("Class dependency keys must have a name.");
-  }
-  return { name: key.name, classKey: key };
-}
-
-function isServiceConstructor(key: AbstractConstructor<unknown>): key is ServiceConstructor {
-  return key === Service || key.prototype instanceof Service;
-}
-
 export abstract class Container {
   private readonly bindings = new Map<string, Binding>();
   private readonly singletons = new Map<string, unknown>();
@@ -86,7 +60,7 @@ export abstract class Container {
   public instance<T>(key: AbstractConstructor<T>, value: NoInfer<T>): void;
   public instance(key: string, value: unknown): void;
   public instance(key: Key, value: unknown): void {
-    const normalized = normalizeKey(key);
+    const normalized = Container.normalizeKey(key);
     this.assertUnbound(normalized);
     this.assertInstanceType(normalized, value);
     if (value instanceof Service && !value.isBooted) {
@@ -100,11 +74,11 @@ export abstract class Container {
   }
 
   public bound(key: Key): boolean {
-    return this.bindings.has(normalizeKey(key).name);
+    return this.bindings.has(Container.normalizeKey(key).name);
   }
 
   public value(key: Key): unknown {
-    const normalized = normalizeKey(key);
+    const normalized = Container.normalizeKey(key);
     const binding = this.binding(normalized);
     if (binding.kind !== "instance") {
       throw new Error(
@@ -118,7 +92,7 @@ export abstract class Container {
   public make<T>(key: AbstractConstructor<T>): Promise<T>;
   public make(key: string): Promise<unknown>;
   public async make(key: Key): Promise<unknown> {
-    const normalized = normalizeKey(key);
+    const normalized = Container.normalizeKey(key);
     const binding = this.binding(normalized);
     if (binding.kind === "instance") {
       this.assertInstanceType(normalized, binding.value);
@@ -193,10 +167,10 @@ export abstract class Container {
     kind: "singleton" | "transient",
     factory?: Factory<unknown>,
   ): void {
-    const normalized = normalizeKey(key);
+    const normalized = Container.normalizeKey(key);
     this.assertUnbound(normalized);
     if (!factory) {
-      if (!normalized.classKey || !isServiceConstructor(normalized.classKey)) {
+      if (!normalized.classKey || !Container.isServiceConstructor(normalized.classKey)) {
         throw new Error(`Dependency '${normalized.name}' requires an explicit factory.`);
       }
       const ServiceType = normalized.classKey;
@@ -257,8 +231,36 @@ export abstract class Container {
     return this.resolution.run([...parentChain, token], async () => {
       const value = await factory(this.owner);
       this.assertInstanceType({ name: token.key, classKey: constructor }, value);
-      if (value instanceof Service && !value.isBooted) await bootService(value);
+      if (value instanceof Service && !value.isBooted) await Service.bootService(value);
       return value;
     });
+  }
+
+  private static isClassConstructor(value: unknown): value is AbstractConstructor<unknown> {
+    return (
+      typeof value === "function" &&
+      /^class(?:\s|\{)/.test(Function.prototype.toString.call(value)) &&
+      typeof value.prototype === "object"
+    );
+  }
+
+  private static normalizeKey(key: Key): NormalizedKey {
+    if (typeof key === "string") {
+      if (key.length === 0) throw new TypeError("Dependency keys must be non-empty strings.");
+      return { name: key };
+    }
+    if (!Container.isClassConstructor(key)) {
+      throw new TypeError("Dependency keys must be strings or class constructors.");
+    }
+    if (key.name.length === 0) {
+      throw new TypeError("Class dependency keys must have a name.");
+    }
+    return { name: key.name, classKey: key };
+  }
+
+  private static isServiceConstructor(
+    key: AbstractConstructor<unknown>,
+  ): key is ServiceConstructor {
+    return key === Service || key.prototype instanceof Service;
   }
 }

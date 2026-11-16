@@ -1,19 +1,23 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { RequirementsDecideOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { RequirementsDecideOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services/RequirementsService";
 
 export class RequirementsDecideCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "requirements")
+    SddCommandGroups.group(root, "requirements")
       .command("decide")
       .description("Approve or reject a requirements change and invalidate prior review.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption(
@@ -23,7 +27,7 @@ export class RequirementsDecideCommand extends Command {
       )
       .requiredOption("--decision <decision>", "Decision: approved or rejected")
       .requiredOption("--details <details>", "Decision rationale", CommandOptions.once("--details"))
-      .requiredOption("--author <author>", "Decision author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Decision author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: RequirementsDecideOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

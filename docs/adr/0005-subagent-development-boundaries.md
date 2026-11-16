@@ -50,7 +50,7 @@ providers. Blueprint assets derive from
 `Application.assetsPath("Blueprints")`.
 
 `settings.project` contains a discriminated absent, valid, or invalid snapshot of
-`.github/spindle.json`. It is not the mutable `app.config` repository. Project
+`.spindle/config.json`. It is not the mutable `app.config` repository. Project
 Settings operations are shared through the Settings context. Consumers use the
 boot-bound snapshot rather than rereading the file, and successful writes refresh
 that snapshot. The current schema, defaults, and resolved-state contract are

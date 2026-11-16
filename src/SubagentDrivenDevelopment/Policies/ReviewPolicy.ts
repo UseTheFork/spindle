@@ -1,16 +1,16 @@
 import { join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { ReviewAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { ReviewAssignment } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   DeliveryProgress,
   FeaturePaths,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export class ReviewPolicy extends Service {
   public constructor(
@@ -43,7 +43,7 @@ export class ReviewPolicy extends Service {
     if (assignment.result !== "passed") {
       return `Review assignment ${assignment.id} is ${assignment.result}.${assignment.details ? ` Details: ${assignment.details}` : ""}`;
     }
-    if (assignment.noFindings !== true && (assignment.findingIds?.length ?? 0) === 0) {
+    if (!Array.isArray(assignment.findingIds)) {
       return `Review assignment ${assignment.id} has no explicit findings declaration.`;
     }
     return undefined;

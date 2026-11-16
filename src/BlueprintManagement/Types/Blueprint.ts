@@ -2,8 +2,8 @@ import type {
   CatalogDeletion,
   CatalogKind,
   CatalogSelection,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { RenderContext } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintUpdateInput {
   name: string;

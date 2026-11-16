@@ -1,16 +1,16 @@
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { CommandConstructor } from "@/Commands/Command";
-import { ApplicationBuilder } from "@/Foundation/ApplicationBuilder";
-import { ApplicationConfiguration } from "@/Foundation/ApplicationConfiguration";
-import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
-import { Container } from "@/Foundation/Container";
-import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
-import type { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { GitServiceProvider } from "@/Git/GitServiceProvider";
+import type { CommandConstructor } from "@spindle/Commands/Command";
+import { ApplicationBuilder } from "@spindle/Foundation/ApplicationBuilder";
+import { ApplicationConfiguration } from "@spindle/Foundation/ApplicationConfiguration";
+import type { BootstrapperConstructor } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { Container } from "@spindle/Foundation/Container";
+import { FoundationServiceProvider } from "@spindle/Foundation/FoundationServiceProvider";
+import type { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { GitServiceProvider } from "@spindle/Git/GitServiceProvider";
 
-export type { ServiceConstructor } from "@/Foundation/Container";
+export type { ServiceConstructor } from "@spindle/Foundation/Container";
 
 export interface ApplicationOptions {
   basePath: string;

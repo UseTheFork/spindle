@@ -1,19 +1,23 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { ReadyOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { ReadyOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { ReadinessService } from "@spindle/SubagentDrivenDevelopment/Services/ReadinessService";
 
 export class ReadyCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("ready")
       .description("List ready tickets and tickets waiting on dependencies.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .allowExcessArguments(false)
       .action(async (options: ReadyOptions) => {
         const app = await createApp();

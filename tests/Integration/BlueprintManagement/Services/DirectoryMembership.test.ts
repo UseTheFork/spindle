@@ -3,11 +3,11 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 const versioned = (version: string, body: string) =>
   `---\nmetadata:\n  spindle:\n    version: ${version}\n---\n${body}\n`;
@@ -53,7 +53,7 @@ async function absent(path: string) {
 async function makeProject() {
   const project = await makeTempDir("spindle-directory-membership-");
   await put(
-    join(project, ".github", "spindle.json"),
+    join(project, ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
   );
   return project;
@@ -65,7 +65,7 @@ test("init removes destination-only files within selected directories only", asy
   const github = join(project, ".github");
   const target = join(github, "agents", "grouped");
   {
-    await rm(join(github, "spindle.json"));
+    await rm(join(github, "..", ".spindle", "config.json"));
     writeCatalogFixture(blueprints, catalog);
     await put(join(blueprints, "agents/grouped/keep.agent.md"), versioned("1.0.0", "source"));
     await put(

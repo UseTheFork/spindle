@@ -5,28 +5,28 @@ import { join, resolve } from "node:path";
 import type { Command as CommanderCommand } from "commander";
 import { afterEach, expect, test, vi } from "vitest";
 
-import { BlueprintManagementServiceProvider } from "@/BlueprintManagement/BlueprintManagementServiceProvider";
-import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
-import { dispatch } from "@/cli";
-import { Command, type CommandConstructor } from "@/Commands/Command";
-import { Application } from "@/Foundation/Application";
-import { Bootstrapper, type BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
-import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
-import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { RequireProjectSettings } from "@/Foundation/Bootstrap/RequireProjectSettings";
-import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
-import { FoundationServiceProvider } from "@/Foundation/FoundationServiceProvider";
-import { Kernel } from "@/Foundation/Kernel";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
-import { SubagentDrivenDevelopmentServiceProvider } from "@/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-import { Repository } from "@/Support/Repository";
-import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
+import { BlueprintManagementServiceProvider } from "@spindle/BlueprintManagement/BlueprintManagementServiceProvider";
+import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
+import { Cli } from "@spindle/Cli";
+import { Command, type CommandConstructor } from "@spindle/Commands/Command";
+import { Application } from "@spindle/Foundation/Application";
+import { Bootstrapper, type BootstrapperConstructor } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { DiscoverGitRoot } from "@spindle/Foundation/Bootstrap/DiscoverGitRoot";
+import { LoadConsoleArgs } from "@spindle/Foundation/Bootstrap/LoadConsoleArgs";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { RegisterProviders } from "@spindle/Foundation/Bootstrap/RegisterProviders";
+import { RequireProjectSettings } from "@spindle/Foundation/Bootstrap/RequireProjectSettings";
+import type { ConsoleInvocation } from "@spindle/Foundation/ConsoleInvocation";
+import { FoundationServiceProvider } from "@spindle/Foundation/FoundationServiceProvider";
+import { Kernel } from "@spindle/Foundation/Kernel";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
+import { Repository } from "@spindle/Support/Repository";
+import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
 
-import { makeTempDirSync, repoRoot } from "../../Helpers/TemporaryDirectories.ts";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 afterEach(() => {
   RegisterProviders.merge([]);
@@ -38,8 +38,9 @@ function workspace() {
   const root = makeTempDirSync("spindle-bootstrap-test-");
   execFileSync("git", ["init", "-q"], { cwd: root });
   mkdirSync(join(root, ".github"), { recursive: true });
+  mkdirSync(join(root, ".spindle"), { recursive: true });
   writeFileSync(
-    join(root, ".github", "spindle.json"),
+    join(root, ".spindle", "config.json"),
     '{"stacks":["python"],"spindle_package_manager":"pnpm"}\n',
   );
   const nested = join(root, "packages", "nested");
@@ -48,7 +49,7 @@ function workspace() {
 }
 
 const invocation: ConsoleInvocation = {
-  raw: ["sdd", "create", "--title", "Feature", "--author", "maintainer"],
+  raw: ["sdd", "create", "--title", "Feature", "--actor", "maintainer"],
   script: "/bin/spindle",
   commandPath: ["sdd", "create"],
   options: { title: "Feature", author: "maintainer" },
@@ -140,7 +141,7 @@ test("non-init commands require Project Settings while init can bootstrap withou
   app.instance("console.args", args);
   app.instance("settings.project", { status: "absent" });
 
-  expect(() => new RequireProjectSettings().bootstrap(app)).toThrow(/no \.github\/spindle\.json/i);
+  expect(() => new RequireProjectSettings().bootstrap(app)).toThrow(/no \.spindle\/config\.json/i);
 
   const initApp = new Application({ basePath: "/project" });
   const initArgs = new Repository();
@@ -234,7 +235,7 @@ test("Commander alone supplies validated repeated options to the executable comp
     outcomes: [],
     guidanceInitialized: true,
   });
-  await dispatch(
+  await Cli.dispatch(
     raw,
     () => {
       application = Application.configure(nested, [
@@ -281,19 +282,19 @@ test("Commander preserves a real positional action and nested command path witho
     "sdd",
     "review",
     "require",
-    "--spec",
-    "/spec.md",
+    "--feature",
+    "/",
     "--scope",
     "delivery",
-    "--agent",
+    "--type",
     "reviewer",
     "--details",
     "Required",
-    "--author",
+    "--actor",
     "maintainer",
   ];
   await expect(
-    dispatch(
+    Cli.dispatch(
       raw,
       () => {
         application = Application.configure(nested, [
@@ -324,7 +325,7 @@ test("Commander preserves a real positional action and nested command path witho
 test("semantic invalid input fails before Application construction or Git bootstrap", async () => {
   let constructions = 0;
   await expect(
-    dispatch(
+    Cli.dispatch(
       ["init", "--stack", "unsupported", "--no-interactive"],
       () => {
         constructions++;
@@ -381,7 +382,7 @@ test("provider declarations supply CLI schemas and singleton services without ca
     public async boot(): Promise<void> {}
   }
   const supplied = [CustomProvider, AnotherProvider, CustomProvider];
-  await dispatch(
+  await Cli.dispatch(
     ["custom", "--value", "hello"],
     (_invocation, providers) => Application.configure(nested, providers).create(),
     "custom-cli",
@@ -420,7 +421,7 @@ test("foundation command declarations participate in both parsing and registrati
     }
   }
   vi.spyOn(FoundationServiceProvider, "commands").mockReturnValue([FoundationCommand]);
-  await dispatch(["foundation-test"], () => Application.configure(nested).create());
+  await Cli.dispatch(["foundation-test"], () => Application.configure(nested).create());
   expect(resolved).toBe(true);
 });
 
@@ -444,7 +445,7 @@ test("distinct declared commands cannot define the same Commander command", asyn
     public async boot(): Promise<void> {}
   }
   await expect(
-    dispatch(
+    Cli.dispatch(
       ["duplicate"],
       () => {
         constructed = true;
@@ -495,8 +496,8 @@ test("concurrent dispatches retain their own provider selections", async () => {
     providers: readonly (typeof FirstProvider)[],
   ) => Application.configure(nested, providers).create();
   await Promise.all([
-    dispatch(["first"], createApp, "spindle", [FirstProvider]),
-    dispatch(["second"], createApp, "spindle", [SecondProvider]),
+    Cli.dispatch(["first"], createApp, "spindle", [FirstProvider]),
+    Cli.dispatch(["second"], createApp, "spindle", [SecondProvider]),
   ]);
   expect(resolved.sort()).toEqual(["first", "second"]);
 });

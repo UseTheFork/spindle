@@ -3,36 +3,38 @@ import { join } from "node:path";
 
 import matter from "gray-matter";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import { blueprintCatalog } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ReviewAssignment,
   SpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   ReviewOptions,
   ReviewRequireOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import {
-  requiredTicketReviewers,
-  requiredDeliveryReviewers,
-} from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type {
+  FeatureLedger,
+  FeaturePaths,
+  TicketDocument,
+  TicketProgress,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class ReviewService extends Service {
   public constructor(
@@ -57,8 +59,8 @@ export class ReviewService extends Service {
     requirement: SpecialistReviewRequirement;
     idempotent?: boolean;
   } {
-    validateAuthor(options.author);
-    const agent = (options.type ?? options.agent ?? "").trim();
+    InputValidation.validateAuthor(options.author);
+    const agent = options.type.trim();
     const details = options.details.trim();
     if (!agent) throw new Error("Review agent must not be empty.");
     if (!details) throw new Error("Specialist review details must not be empty.");
@@ -76,6 +78,7 @@ export class ReviewService extends Service {
       return this.workspaceTransaction.run(feature.workspace, () => {
         const ledger = this.ledgerRepository.readLedger(feature);
         const delivery = ledger.delivery;
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         if (delivery.execution === "reviewing" || (delivery.reviewHistory?.length ?? 0) > 0) {
           throw new Error("Delivery review assignments are already frozen.");
         }
@@ -95,10 +98,6 @@ export class ReviewService extends Service {
             `Review agent '${agent}' is already required by the pinned delivery policy.`,
           );
         }
-        if (delivery.owner && delivery.owner !== options.author.trim()) {
-          throw new Error("Only the recorded delivery controller may require specialist reviews.");
-        }
-        delivery.owner = options.author.trim();
         const requirement: SpecialistReviewRequirement = {
           agent,
           details,
@@ -117,7 +116,7 @@ export class ReviewService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("Review require needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
@@ -128,9 +127,7 @@ export class ReviewService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      if (!progress.owner || progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded ticket controller may require specialist reviews.");
-      }
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
 
       const existing = (progress.reviewRequirements ?? []).find(
         (requirement) => requirement.agent === agent,
@@ -183,25 +180,12 @@ export class ReviewService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (options.scope === "delivery") return this.deliveryReview(options);
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("Review requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
-    let confirmedInventory: unknown;
-    try {
-      confirmedInventory = JSON.parse(options.inventory) as unknown;
-    } catch {
-      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
-    }
-    if (
-      !Array.isArray(confirmedInventory) ||
-      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
-      new Set(confirmedInventory).size !== confirmedInventory.length
-    ) {
-      throw new Error("--inventory must be a JSON string array without duplicate paths.");
-    }
 
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
@@ -214,9 +198,7 @@ export class ReviewService extends Service {
       if (progress.execution !== "reviewing" || !progress.assignment) {
         throw new Error(`Ticket ${ticketId} must have a submitted implementation before review.`);
       }
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded controller may dispatch review.");
-      }
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const implementationBlocker = this.assignmentPolicy.implementationReportBlocker(
         feature,
         progress.assignment,
@@ -235,17 +217,8 @@ export class ReviewService extends Service {
       );
       if (reviewCheckBlockers.length > 0) throw new Error(reviewCheckBlockers.join("\n"));
       const inventory = this.gitEvidence.changedPaths(progress.baseSha, ticketWorkspace);
-      const suppliedPaths = new Set(confirmedInventory);
-      if (
-        suppliedPaths.size !== inventory.length ||
-        inventory.some((path) => !suppliedPaths.has(path))
-      ) {
-        throw new Error(
-          `Controller-confirmed inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
-        );
-      }
 
-      const requiredReviewers = requiredTicketReviewers(ledger, progress);
+      const requiredReviewers = RequiredReviewers.requiredTicketReviewers(ledger, progress);
       let existing = progress.reviewAssignments ?? [];
       if (progress.assignment.action === "correct") {
         const completeInitialCoverage = requiredReviewers.every(({ agent, details }) => {
@@ -264,6 +237,19 @@ export class ReviewService extends Service {
           );
           if (!attempt) throw new Error("Corrective assignment has no persisted attempt record.");
           const correctionAssignments = attempt.reviewAssignments ?? [];
+          if (
+            ReviewBatch.reviewBatchNeedsRedispatch(correctionAssignments, progress.findings ?? [])
+          ) {
+            return this.redispatchUnavailableTicketReviews(
+              { feature, ledger, ticket, progress, ticketId, author: options.author },
+              correctionAssignments,
+              identity,
+              inventory,
+              (assignments) => {
+                attempt.reviewAssignments = assignments;
+              },
+            );
+          }
           if (correctionAssignments.length > 0) {
             if (
               correctionAssignments.length !== requiredReviewers.length ||
@@ -299,38 +285,20 @@ export class ReviewService extends Service {
             };
           }
 
-          const assignments = requiredReviewers.map(({ agent, details }) => {
-            const catalogEntry = blueprintCatalog.agents[agent];
-            if (!catalogEntry || catalogEntry.canReview !== true) {
-              throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
-            }
-            const id = randomUUID();
-            const report = join(
-              feature.workspace,
-              "reports",
-              `${ticketId}-round-${attempt.number}-review-${id}.md`,
-            );
-            this.reportEvidence.assertReportPath(feature, report, false);
-            if (lstatIfPresent(report)) {
-              throw new Error(`Assigned report already exists and was preserved: ${report}.`);
-            }
-            return {
-              id,
-              agent,
-              role: "review" as const,
-              scope: "corrective" as const,
-              attempt: attempt.number,
-              ...(details ? { objective: details } : {}),
-              headSha: identity.headSha,
-              ...(progress.worktree
-                ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
-                : {}),
+          const assignments = requiredReviewers.map((reviewer) =>
+            this.newTicketReviewAssignment(
+              feature,
+              progress,
+              ticketId,
+              reviewer,
+              identity,
               inventory,
-              report,
-              requestedAt: new Date().toISOString(),
-              status: "pending" as const,
-            };
-          });
+              {
+                scope: "corrective",
+                attempt: attempt.number,
+              },
+            ),
+          );
           attempt.reviewAssignments = assignments;
           const confirmedIdentity = this.gitEvidence.commitIdentity(
             feature,
@@ -389,6 +357,18 @@ export class ReviewService extends Service {
         existing = [];
       }
 
+      if (ReviewBatch.reviewBatchNeedsRedispatch(existing, progress.findings ?? [])) {
+        return this.redispatchUnavailableTicketReviews(
+          { feature, ledger, ticket, progress, ticketId, author: options.author },
+          existing,
+          identity,
+          inventory,
+          (assignments) => {
+            progress.reviewAssignments = assignments;
+          },
+        );
+      }
+
       if (existing.length > 0) {
         if (
           existing.length !== requiredReviewers.length ||
@@ -423,16 +403,6 @@ export class ReviewService extends Service {
       }
 
       const assignments = requiredReviewers.map(({ agent, details }) => {
-        const catalogEntry = blueprintCatalog.agents[agent];
-        if (!catalogEntry || catalogEntry.canReview !== true) {
-          throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
-        }
-        const id = randomUUID();
-        const report = join(feature.workspace, "reports", `${ticketId}-review-${id}.md`);
-        this.reportEvidence.assertReportPath(feature, report, false);
-        if (lstatIfPresent(report)) {
-          throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
-        }
         const priorReview = [...(progress.reviewHistory ?? [])]
           .reverse()
           .find((assignment) => assignment.agent === agent && assignment.objective === details);
@@ -443,22 +413,15 @@ export class ReviewService extends Service {
           !this.reviewPolicy.reviewReportIntegrityBlocker(feature, priorReview)
             ? priorReview.headSha
             : undefined;
-        return {
-          id,
-          agent,
-          role: "review" as const,
-          scope: "initial" as const,
-          ...(details ? { objective: details } : {}),
-          headSha: identity.headSha,
-          ...(reworkBaseSha ? { reworkBaseSha } : {}),
-          ...(progress.worktree
-            ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
-            : {}),
+        return this.newTicketReviewAssignment(
+          feature,
+          progress,
+          ticketId,
+          { agent, details },
+          identity,
           inventory,
-          report,
-          requestedAt: new Date().toISOString(),
-          status: "pending" as const,
-        };
+          { scope: "initial", ...(reworkBaseSha ? { reworkBaseSha } : {}) },
+        );
       });
 
       const confirmedTicket = this.ticketRepository.requireTicket(
@@ -510,23 +473,11 @@ export class ReviewService extends Service {
     headSha: string;
   } {
     if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
-    let confirmedInventory: unknown;
-    try {
-      confirmedInventory = JSON.parse(options.inventory) as unknown;
-    } catch {
-      throw new Error("--inventory must be a JSON string array of Git-derived paths.");
-    }
-    if (
-      !Array.isArray(confirmedInventory) ||
-      !confirmedInventory.every((path) => typeof path === "string" && path.length > 0) ||
-      new Set(confirmedInventory).size !== confirmedInventory.length
-    ) {
-      throw new Error("--inventory must be a JSON string array without duplicate paths.");
-    }
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const tickets = this.ticketRepository.readTickets(feature.workspace);
+      WorkflowPolicy.assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
       const incomplete = ledger.tickets
         .filter((progress) => progress.status !== "closed")
         .map((progress) => progress.id);
@@ -561,7 +512,6 @@ export class ReviewService extends Service {
       if (delivery.adjudication?.status === "pending") {
         throw new Error("Delivery correction is paused for adjudication.");
       }
-      delivery.owner = options.author.trim();
       const identity = this.gitEvidence.deliveryCommitIdentity(feature, ledger, tickets);
       const blockers = this.checkPolicy.deliveryCheckBlockers(feature, tickets, delivery, identity);
       if (blockers.length > 0) throw new Error(blockers.join("\n"));
@@ -572,19 +522,12 @@ export class ReviewService extends Service {
         );
       }
       const inventory = this.gitEvidence.changedPaths(baseline);
-      const suppliedPaths = new Set(confirmedInventory);
-      if (
-        suppliedPaths.size !== inventory.length ||
-        inventory.some((path) => !suppliedPaths.has(path))
-      ) {
-        throw new Error(
-          `Controller-confirmed delivery inventory does not match the current Git-derived inventory: ${JSON.stringify(inventory)}.`,
-        );
-      }
-      const required = requiredDeliveryReviewers(ledger, delivery);
+      const required = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
       const correctionNumber =
         delivery.assignment?.action === "correct" ? delivery.assignment.attempt : undefined;
-      let existing = delivery.reviewAssignments ?? [];
+      const existing = delivery.reviewAssignments ?? [];
+      let assignments: ReviewAssignment[] | undefined;
+      let action = "aggregate-review-dispatched";
       if (existing.length > 0) {
         if (
           existing.length === required.length &&
@@ -598,57 +541,50 @@ export class ReviewService extends Service {
               JSON.stringify(assignment.inventory) === JSON.stringify(inventory),
           )
         ) {
-          for (const assignment of existing) {
-            const blocker = this.reviewPolicy.reviewCommitBlocker(
-              feature,
-              delivery,
-              assignment,
-              identity,
+          if (
+            delivery.execution === "reviewing" &&
+            ReviewBatch.reviewBatchNeedsRedispatch(existing, delivery.findings ?? [])
+          ) {
+            const retired = existing.filter((assignment) => assignment.result === "unavailable");
+            delivery.reviewHistory = [...(delivery.reviewHistory ?? []), ...retired];
+            assignments = existing.map((assignment) =>
+              assignment.result === "unavailable"
+                ? this.newDeliveryReviewAssignment(
+                    feature,
+                    { agent: assignment.agent, details: assignment.objective },
+                    identity,
+                    inventory,
+                    correctionNumber,
+                  )
+                : assignment,
             );
-            if (blocker) throw new Error(blocker);
+            action = `aggregate-review-redispatched:${retired.map((assignment) => assignment.id).join(",")}`;
+          } else {
+            for (const assignment of existing) {
+              const blocker = this.reviewPolicy.reviewCommitBlocker(
+                feature,
+                delivery,
+                assignment,
+                identity,
+              );
+              if (blocker) throw new Error(blocker);
+            }
+            return {
+              scope: "delivery",
+              execution: "reviewing",
+              assignments: existing,
+              idempotent: true,
+              ...identity,
+            };
           }
-          return {
-            scope: "delivery",
-            execution: "reviewing",
-            assignments: existing,
-            idempotent: true,
-            ...identity,
-          };
+        } else {
+          delivery.reviewHistory = [...(delivery.reviewHistory ?? []), ...existing];
+          delivery.reviewAssignments = [];
         }
-        delivery.reviewHistory = [...(delivery.reviewHistory ?? []), ...existing];
-        delivery.reviewAssignments = [];
-        existing = [];
       }
-      const assignments = required.map(({ agent, details }) => {
-        if (blueprintCatalog.agents[agent]?.canReview !== true) {
-          throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
-        }
-        const id = randomUUID();
-        const report = join(
-          feature.workspace,
-          "reports",
-          correctionNumber
-            ? `final-round-${correctionNumber}-review-${id}.md`
-            : `final-review-${id}.md`,
-        );
-        this.reportEvidence.assertReportPath(feature, report, false);
-        if (lstatIfPresent(report)) {
-          throw new Error(`Assigned report already exists and was preserved: ${report}.`);
-        }
-        return {
-          id,
-          agent,
-          role: "review" as const,
-          scope: "delivery" as const,
-          ...(correctionNumber ? { attempt: correctionNumber } : {}),
-          ...(details ? { objective: details } : {}),
-          headSha: identity.headSha,
-          inventory,
-          report,
-          requestedAt: new Date().toISOString(),
-          status: "pending" as const,
-        };
-      });
+      assignments ??= required.map((reviewer) =>
+        this.newDeliveryReviewAssignment(feature, reviewer, identity, inventory, correctionNumber),
+      );
       delivery.reviewAssignments = assignments;
       if (correctionNumber) {
         const attempt = delivery.correctionAttempts?.find(
@@ -661,7 +597,7 @@ export class ReviewService extends Service {
       delivery.history.push({
         at: new Date().toISOString(),
         author: options.author.trim(),
-        action: "aggregate-review-dispatched",
+        action,
       });
       const confirmed = this.gitEvidence.deliveryCommitIdentity(
         feature,
@@ -682,5 +618,173 @@ export class ReviewService extends Service {
       this.workspaceTransaction.writeLedger(feature, ledger);
       return { scope: "delivery", execution: "reviewing", assignments, ...identity };
     });
+  }
+
+  private newTicketReviewAssignment(
+    feature: FeaturePaths,
+    progress: TicketProgress,
+    ticketId: string,
+    reviewer: { agent: string; details?: string },
+    identity: CommitIdentity,
+    inventory: string[],
+    round: { scope: "initial"; reworkBaseSha?: string } | { scope: "corrective"; attempt: number },
+  ): ReviewAssignment {
+    const { agent, details } = reviewer;
+    if (blueprintCatalog.agents[agent]?.canReview !== true) {
+      throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+    }
+    const id = randomUUID();
+    const report = join(
+      feature.workspace,
+      "reports",
+      round.scope === "corrective"
+        ? `${ticketId}-round-${round.attempt}-review-${id}.md`
+        : `${ticketId}-review-${id}.md`,
+    );
+    this.reportEvidence.assertReportPath(feature, report, false);
+    if (FileSystem.lstatIfPresent(report)) {
+      throw new Error(`Assigned review report already exists and was preserved: ${report}.`);
+    }
+    return {
+      id,
+      agent,
+      role: "review",
+      scope: round.scope,
+      ...(round.scope === "corrective" ? { attempt: round.attempt } : {}),
+      ...(details ? { objective: details } : {}),
+      headSha: identity.headSha,
+      ...(round.scope === "initial" && round.reworkBaseSha
+        ? { reworkBaseSha: round.reworkBaseSha }
+        : {}),
+      ...(progress.worktree
+        ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
+        : {}),
+      inventory,
+      report,
+      requestedAt: new Date().toISOString(),
+      status: "pending",
+    };
+  }
+
+  private redispatchUnavailableTicketReviews(
+    context: {
+      feature: FeaturePaths;
+      ledger: FeatureLedger;
+      ticket: TicketDocument;
+      progress: TicketProgress;
+      ticketId: string;
+      author: string;
+    },
+    batch: ReviewAssignment[],
+    identity: CommitIdentity,
+    inventory: string[],
+    store: (assignments: ReviewAssignment[]) => void,
+  ): {
+    ticket: string;
+    execution: "reviewing";
+    assignments: ReviewAssignment[];
+    headSha: string;
+  } {
+    const { feature, ledger, ticket, progress, ticketId, author } = context;
+    if (
+      batch.some(
+        (assignment) =>
+          assignment.headSha !== identity.headSha ||
+          JSON.stringify(assignment.inventory) !== JSON.stringify(inventory),
+      )
+    ) {
+      throw new Error("The frozen review assignment no longer matches the current ticket commit.");
+    }
+    const retired = batch.filter((assignment) => assignment.result === "unavailable");
+    const assignments = batch.map((assignment) =>
+      assignment.result !== "unavailable"
+        ? assignment
+        : this.newTicketReviewAssignment(
+            feature,
+            progress,
+            ticketId,
+            { agent: assignment.agent, details: assignment.objective },
+            identity,
+            inventory,
+            assignment.scope === "corrective"
+              ? { scope: "corrective", attempt: assignment.attempt! }
+              : {
+                  scope: "initial",
+                  ...(assignment.reworkBaseSha ? { reworkBaseSha: assignment.reworkBaseSha } : {}),
+                },
+          ),
+    );
+    const confirmedIdentity = this.gitEvidence.commitIdentity(
+      feature,
+      this.ticketRepository.requireTicket(
+        this.ticketRepository.readTickets(feature.workspace),
+        ticketId,
+      ),
+      progress.baseSha,
+    );
+    this.gitEvidence.assertTicketCodeCommitted(progress);
+    if (
+      confirmedIdentity.headSha !== identity.headSha ||
+      JSON.stringify(
+        this.gitEvidence.changedPaths(
+          progress.baseSha!,
+          this.gitEvidence.ticketWorkspace(progress),
+        ),
+      ) !== JSON.stringify(inventory)
+    ) {
+      throw new Error(
+        "Ticket content changed while freezing review; retry with a fresh inventory.",
+      );
+    }
+    progress.reviewHistory = [...(progress.reviewHistory ?? []), ...retired];
+    store(assignments);
+    const afterTicket = matter.stringify(
+      this.ticketRepository.appendAudit(
+        ticket.body,
+        author,
+        `Review re-dispatched after unavailable report${retired.length === 1 ? "" : "s"} ${retired.map((assignment) => assignment.id).join(", ")} for ${identity.headSha}.`,
+      ),
+      this.ticketRepository.metadata(ticket),
+    );
+    this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+    return { ticket: ticketId, execution: "reviewing", assignments, ...identity };
+  }
+
+  private newDeliveryReviewAssignment(
+    feature: FeaturePaths,
+    reviewer: { agent: string; details?: string },
+    identity: CommitIdentity,
+    inventory: string[],
+    correctionNumber: number | undefined,
+  ): ReviewAssignment {
+    const { agent, details } = reviewer;
+    if (blueprintCatalog.agents[agent]?.canReview !== true) {
+      throw new Error(`Review agent '${agent}' is not explicitly marked review-eligible.`);
+    }
+    const id = randomUUID();
+    const report = join(
+      feature.workspace,
+      "reports",
+      correctionNumber
+        ? `final-round-${correctionNumber}-review-${id}.md`
+        : `final-review-${id}.md`,
+    );
+    this.reportEvidence.assertReportPath(feature, report, false);
+    if (FileSystem.lstatIfPresent(report)) {
+      throw new Error(`Assigned report already exists and was preserved: ${report}.`);
+    }
+    return {
+      id,
+      agent,
+      role: "review",
+      scope: "delivery",
+      ...(correctionNumber ? { attempt: correctionNumber } : {}),
+      ...(details ? { objective: details } : {}),
+      headSha: identity.headSha,
+      inventory,
+      report,
+      requestedAt: new Date().toISOString(),
+      status: "pending",
+    };
   }
 }

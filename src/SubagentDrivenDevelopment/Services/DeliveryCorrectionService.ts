@@ -1,23 +1,25 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CorrectOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class DeliveryCorrectionService extends Service {
   public constructor(
@@ -42,7 +44,7 @@ export class DeliveryCorrectionService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
     if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
       throw new Error("--findings must contain canonical finding IDs.");
@@ -84,18 +86,17 @@ export class DeliveryCorrectionService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may dispatch a correction.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const attempts = (delivery.correctionAttempts ??= []);
       const identity = this.gitEvidence.deliveryCommitIdentity(
         feature,
         ledger,
         this.ticketRepository.readTickets(feature.workspace),
       );
-      const currentFailedCheck = (delivery.checks?.records ?? []).some(
-        (record) => record.headSha === identity.headSha && record.result === "failed",
-      );
+      const currentFailedCheck = CheckRecords.latestForHead(
+        delivery.checks?.records ?? [],
+        identity.headSha,
+      ).some((record) => record.result === "failed");
       if (options.decision === "pause") {
         if (delivery.execution === "implementing" && delivery.assignment?.status !== "submitted") {
           throw new Error(
@@ -184,20 +185,23 @@ export class DeliveryCorrectionService extends Service {
           "The current delivery correction assignment must be resumed, not replaced.",
         );
       }
+      let progressAssessment: CorrectionAttempt["progressAssessment"];
       if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
         if (options.decision !== "continue" || !options.assessment?.trim()) {
           throw new Error(
             "A subsequent delivery correction requires --decision continue and --assessment.",
           );
         }
-        const previous = attempts.at(-1)!;
-        previous.progressAssessment = {
+        progressAssessment = {
           decision: "continue",
           result: "productive",
           details: options.assessment.trim(),
           recordedAt: new Date().toISOString(),
           recordedBy: options.author.trim(),
         };
+        // A pause before the first attempt leaves no previous attempt; the adjudication resolution records the assessment.
+        const previous = attempts.at(-1);
+        if (previous) previous.progressAssessment = { ...progressAssessment };
       } else if (options.decision || options.assessment) {
         throw new Error("The first delivery correction does not accept a continuation assessment.");
       }
@@ -239,7 +243,7 @@ export class DeliveryCorrectionService extends Service {
         handoffs: [],
       };
       this.reportEvidence.assertReportPath(feature, assignment.report, false);
-      if (lstatIfPresent(assignment.report)) {
+      if (FileSystem.lstatIfPresent(assignment.report)) {
         throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
       }
       const attempt: CorrectionAttempt = {
@@ -260,24 +264,16 @@ export class DeliveryCorrectionService extends Service {
             }
           : {}),
       };
-      if (attempts.length > 0 || delivery.adjudication?.status === "pending") {
-        attempt.progressAssessment = {
-          decision: "continue",
-          result: "productive",
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
-        };
-      }
+      if (progressAssessment) attempt.progressAssessment = { ...progressAssessment };
       attempts.push(attempt);
       delivery.assignment = assignment;
       delivery.execution = "implementing";
-      if (delivery.adjudication?.status === "pending") {
+      if (delivery.adjudication?.status === "pending" && progressAssessment) {
         delivery.adjudication.status = "resolved";
         delivery.adjudication.resolution = {
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
+          details: progressAssessment.details,
+          recordedAt: progressAssessment.recordedAt,
+          recordedBy: progressAssessment.recordedBy,
         };
       }
       delivery.history.push({

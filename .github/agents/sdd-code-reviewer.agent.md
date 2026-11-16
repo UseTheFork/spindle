@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.3.1
+    version: 1.4.0
 ---
 
 # SDD specialist code reviewer
@@ -21,13 +21,13 @@ that assignment.
 Before inspecting the checkout, running commands, or writing the assigned
 report, confirm the dispatch supplies:
 
-| Field                    | Required content                                                        |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `SPEC`                   | The explicit feature spec being reviewed.                               |
-| `ASSIGNMENT_ID`          | This review's unique assignment ID and role `review`.                   |
-| `SPECIALIST_OBJECTIVE`   | The controller's justified objective, from the assigned review details. |
-| `TARGET_AND_INVENTORY` | The assigned committed target and frozen change inventory. |
-| `REPORT_PATH`            | This assignment's absolute report destination.                          |
+| Field                  | Required content                                                        |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `SPEC`                 | The explicit feature spec being reviewed.                               |
+| `ASSIGNMENT_ID`        | This review's unique assignment ID and role `review`.                   |
+| `SPECIALIST_OBJECTIVE` | The controller's justified objective, from the assigned review details. |
+| `TARGET_AND_INVENTORY` | The assigned committed target and frozen change inventory.              |
+| `REPORT_PATH`          | This assignment's absolute report destination.                          |
 
 If any field is missing, inconsistent, or belongs to another assignment, ask
 the controller for clarification and stop. Do not substitute another
@@ -59,7 +59,10 @@ harness access before dispatch.
 
 ## Report and hand-back
 
-Save only to `REPORT_PATH`. Include the assignment ID, role, objective,
-assigned committed target, inventory, focused findings (or an explicit finding-free result),
-evidence, checks and results, limitations, and a concise assessment. Return
-the report path and summary, then stop.
+Save only to `REPORT_PATH`. Use the shared review report contract: one verdict
+(`passed`, `failed`, or `unavailable`), a concise summary, evidence and
+limitations, and zero or more findings. Each finding states its impact,
+evidence location, and whether it blocks acceptance. Do not assign severity or
+canonical finding IDs. Include the assignment ID, role, objective, assigned
+committed target, inventory, checks and results. Write `NONE` when there are no
+findings. Return the report path and summary, then stop.

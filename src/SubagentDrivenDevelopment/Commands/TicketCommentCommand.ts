@@ -1,22 +1,26 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { TicketCommentOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { TicketCommentOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 
 export class TicketCommentCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "ticket")
+    SddCommandGroups.group(root, "ticket")
       .command("comment")
       .description("Append an attributed ticket comment.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--details <details>", "Comment text", CommandOptions.once("--details"))
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketCommentOptions) => {
         const app = await createApp();

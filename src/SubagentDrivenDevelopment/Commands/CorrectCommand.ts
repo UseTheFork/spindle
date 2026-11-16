@@ -1,21 +1,25 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { CorrectionService } from "@/SubagentDrivenDevelopment/Services/CorrectionService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { CorrectOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { CorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/CorrectionService";
 
 export class CorrectCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("correct")
       .description(
         "Persist a ticket-scoped or delivery-scoped correction attempt and return its fix assignment.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
@@ -31,7 +35,7 @@ export class CorrectCommand extends Command {
         "--reason <reason>",
         "Pause reason: no-progress, repeated-failure, recurring-blocker, requirements-disagreement, worker-blocked",
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: CorrectOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

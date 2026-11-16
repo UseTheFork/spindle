@@ -40,7 +40,6 @@ export interface TicketUpdateOptions extends TicketSelection {
   title?: string;
   reporter?: string;
   category?: string;
-  status?: string;
   blocker?: string;
   clearBlocker?: boolean;
   blockedBy?: string[];
@@ -57,7 +56,6 @@ export interface ReadyOptions {
 
 export interface ImplementOptions extends TicketSelection {
   workspace: string;
-  confirmRecords?: boolean;
 }
 
 export interface CorrectOptions extends TicketSelection {
@@ -70,24 +68,17 @@ export interface CorrectOptions extends TicketSelection {
   reason?: string;
 }
 
-export interface SubmitOptions extends TicketSelection {
+export interface SubmitOptions extends ScopedSelection {
   scope?: string;
-  role: string;
-  report?: string;
-  assignment?: string;
+  assignment: string;
   result?: string;
-  noFindings?: boolean;
-  findingIds?: string[];
-  findings?: string[] | boolean;
-  unavailable?: boolean;
   details?: string;
 }
 
-export interface FindingCreateOptions extends TicketSelection {
+export interface FindingCreateOptions extends ScopedSelection {
   scope?: string;
   relatedTicket?: string;
-  source: string;
-  severity: string;
+  assignment: string;
   blocking?: boolean;
   nonBlocking?: boolean;
   summary: string;
@@ -110,13 +101,10 @@ export interface RequirementsDecideOptions extends ScopedSelection {
   details: string;
 }
 
-export interface ReviewOptions extends ScopedSelection {
-  inventory: string;
-}
+export type ReviewOptions = ScopedSelection;
 
 export interface ReviewRequireOptions extends ScopedSelection {
-  type?: string;
-  agent?: string;
+  type: string;
   details: string;
 }
 
@@ -125,9 +113,13 @@ export interface ResumeOptions extends TicketSelection {
   confirmHandoff?: boolean;
 }
 
-export interface IntegrateOptions extends TicketSelection {
-  confirmRecords?: boolean;
+export interface ClaimOptions {
+  spec: string;
+  scope: string;
+  author: string;
 }
+
+export type IntegrateOptions = TicketSelection;
 
 export interface FinishOptions {
   spec: string;
@@ -138,7 +130,6 @@ export interface FinishOptions {
 export interface ChecksRequireOptions extends TicketSelection {
   scope?: string;
   command: string;
-  rebaseBaseline?: boolean;
   remove?: boolean;
   details?: string;
 }
@@ -147,7 +138,6 @@ export interface ChecksRecordOptions extends TicketSelection {
   scope?: string;
   command: string;
   result: string;
-  paths?: string[];
   details?: string;
 }
 

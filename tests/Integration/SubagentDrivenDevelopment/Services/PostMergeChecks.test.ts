@@ -4,18 +4,15 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { EXECUTION_STATES } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  isDeliveryProgress,
-  isIntegrationRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { EXECUTION_STATES } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
 
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, {
@@ -35,8 +32,8 @@ async function setup() {
   mkdirSync(parent);
   const started = await invokeAsync(repo, [
     "start",
-    "--spec",
-    JSON.parse(created.stdout).spec,
+    "--feature",
+    JSON.parse(created.stdout).workspace,
     "--workspace",
     parent,
     "--confirm-records",
@@ -58,8 +55,6 @@ async function setup() {
     );
     expect(ticket.status, ticket.stderr).toBe(0);
   }
-  git(root, "add", ".scratch");
-  git(root, "commit", "-qm", "prepare");
   const sha = git(root, "rev-parse", "HEAD");
   const ledgerPath = join(dirname(spec), "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -69,7 +64,7 @@ async function setup() {
     files: ["source.ts"],
   };
   Object.assign(first, {
-    status: "in-progress",
+    status: "open",
     execution: "integrated",
     owner: "controller",
     baseSha: sha,
@@ -92,20 +87,28 @@ function cli(root: string, spec: string, action: string, args: string[], author 
   return invokeAsync(root, [
     "checks",
     action,
-    "--spec",
-    spec,
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
     "--ticket",
     "T-0001",
     "--scope",
     "post-merge",
     ...args,
-    "--author",
+    "--actor",
     author,
   ]);
 }
 
 test("post-merge results freeze the complete list, preserve failures and close only after all pass", async () => {
   const { root, spec, sha, ledgerPath } = await setup();
+  const ledgerBeforeConflict = readFileSync(ledgerPath, "utf8");
+  const conflict = await cli(root, spec, "require", ["--command", "test one"], "replacement");
+  expect(conflict.status).not.toBe(0);
+  expect(conflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(conflict.stderr).toContain("--actor replacement");
+  expect(conflict.stderr).toContain("--confirm-handoff");
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeConflict);
+
   const require = await cli(root, spec, "require", [
     "--command",
     "test one",
@@ -114,7 +117,11 @@ test("post-merge results freeze the complete list, preserve failures and close o
   ]);
   expect(require.status, require.stderr).toBe(0);
   expect(cliOutput(require).headSha).toMatch(/^[0-9a-f]{40,64}$/);
-  const pendingReady = await invokeAsync(root, ["ready", "--spec", spec]);
+  const pendingReady = await invokeAsync(root, [
+    "ready",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+  ]);
   expect(pendingReady.status, pendingReady.stderr).toBe(0);
   expect(cliOutput(pendingReady).ready).not.toContain("T-0002");
   const failed = await cli(root, spec, "record", [
@@ -132,7 +139,7 @@ test("post-merge results freeze the complete list, preserve failures and close o
   const passed = await cli(root, spec, "record", ["--command", "test one", "--result", "passed"]);
   expect(passed.status, passed.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   const last = await cli(root, spec, "record", ["--command", "test two", "--result", "passed"]);
   expect(last.status, last.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -146,7 +153,7 @@ test("post-merge results freeze the complete list, preserve failures and close o
       (r: { headSha: string }) => r.headSha === sha,
     ),
   ).toBe(true);
-  const ready = await invokeAsync(root, ["ready", "--spec", spec]);
+  const ready = await invokeAsync(root, ["ready", "--feature", spec.replace(/\/spec\.md$/, "")]);
   expect(ready.status, ready.stderr).toBe(0);
   expect(cliOutput(ready).ready).toContain("T-0002");
 });
@@ -181,7 +188,7 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(uncommitted.status).not.toBe(0);
   expect(uncommitted.stderr).toMatch(/uncommitted changes/i);
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].status).not.toBe("closed");
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit updated feature requirements");
   const retry = await cli(root, spec, "require", ["--command", "test"]);
   expect(retry.status, retry.stderr).toBe(0);
@@ -242,7 +249,7 @@ test("pending unavailable results survive interruption and changed feature state
   expect(unavailable.status, unavailable.stderr).toBe(0);
   const specContent = readFileSync(spec, "utf8");
   writeFileSync(spec, `${specContent}\nUpdated feature requirements.\n`);
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit updated requirements");
   const redeclared = await cli(root, spec, "require", [
     "--command",
@@ -256,7 +263,7 @@ test("pending unavailable results survive interruption and changed feature state
   const second = await cli(root, spec, "record", ["--command", "second", "--result", "passed"]);
   expect(second.status, second.stderr).toBe(0);
   let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
-  expect(ledger.tickets[0].status).toBe("in-progress");
+  expect(ledger.tickets[0].status).toBe("open");
   const first = await cli(root, spec, "record", ["--command", "first", "--result", "passed"]);
   expect(first.status, first.stderr).toBe(0);
   ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
@@ -333,7 +340,7 @@ test("post-merge identity ignores independent ticket and report activity but tra
     ticket.replace("## Requirements", "## Requirements\n\nCommitted ticket requirement."),
   );
   writeFileSync(spec, `${originalSpec}\nCommitted feature requirement.\n`);
-  git(root, "add", ".scratch");
+  git(root, "add", ".spindle/features");
   git(root, "commit", "-qm", "commit changed requirements");
   const updatedCommit = git(root, "rev-parse", "HEAD");
   const staleRecord = await cli(root, spec, "record", args);
@@ -354,11 +361,11 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     integratedBy: "controller",
     files: ["source.ts"],
   };
-  expect(isIntegrationRecord({ ...base, postMerge: { status: "passed", mergeSha: sha } })).toBe(
-    false,
-  );
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({ ...base, postMerge: { status: "passed", mergeSha: sha } }),
+  ).toBe(false);
+  expect(
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: { status: "passed", mergeSha: sha, checks: { required: [], records: [] } },
     }),
@@ -373,13 +380,13 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     recordedAt: at,
   };
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: { status: "passed", mergeSha: sha, checks: { required, records: [record] } },
     }),
   ).toBe(false);
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: {
         status: "passed",
@@ -389,7 +396,7 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
     }),
   ).toBe(false);
   expect(
-    isIntegrationRecord({
+    ProgressSchema.isIntegrationRecord({
       ...base,
       postMerge: {
         status: "passed",
@@ -402,9 +409,9 @@ test("integration schema rejects empty, missing and failed passed evidence", () 
 
 test("legacy accepted and check-invalidation states are rejected", () => {
   expect(EXECUTION_STATES).not.toContain("accepted");
-  expect(isDeliveryProgress({ execution: "accepted", history: [] })).toBe(false);
+  expect(ProgressSchema.isDeliveryProgress({ execution: "accepted", history: [] })).toBe(false);
   expect(
-    isDeliveryProgress({
+    ProgressSchema.isDeliveryProgress({
       execution: "reviewing",
       history: [],
       checks: { required: [], records: [], invalidations: [] },

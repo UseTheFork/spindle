@@ -1,10 +1,11 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   TicketProgress,
   FeatureLedger,
   DeliveryProgress,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { ReviewBatch } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewBatch";
 
 export class WorkflowPolicy extends Service {
   public constructor(app: Application) {
@@ -32,6 +33,8 @@ export class WorkflowPolicy extends Service {
         if (reviews.some((assignment) => assignment.status === "pending")) {
           return "await-review-report";
         }
+        if (ReviewBatch.reviewBatchNeedsRedispatch(reviews, progress.findings ?? []))
+          return "review";
         if (reviews.some((assignment) => assignment.result !== "passed")) {
           return "resolve-review-result";
         }
@@ -40,6 +43,13 @@ export class WorkflowPolicy extends Service {
       return blocker ? "restore-implementation-report" : "review";
     }
     if (progress.execution === "changes-requested") {
+      if (
+        ReviewBatch.currentReviewBatch(progress).some(
+          (assignment) => assignment.status === "pending",
+        )
+      ) {
+        return "await-review-report";
+      }
       if ((progress.findings ?? []).some((finding) => finding.status === "confirmed")) {
         return "correct";
       }
@@ -85,6 +95,55 @@ export class WorkflowPolicy extends Service {
   public assertDeliveryOpen(delivery: DeliveryProgress): void {
     if (delivery.finished) {
       throw new Error("Delivery is finished; final checks cannot be changed.");
+    }
+  }
+
+  public static assertDeliveryOwner(
+    owner: string | undefined,
+    actor: string,
+    feature: string,
+  ): void {
+    if (!owner) {
+      throw new Error(
+        `Delivery has no owner. Claim delivery first: pnpm spindle sdd claim --scope delivery --feature .spindle/features/${feature} --actor <acting-agent>`,
+      );
+    }
+    WorkflowPolicy.assertOwner(owner, actor, feature, "Delivery", "--scope delivery");
+  }
+
+  public static assertTicketOwner(
+    owner: string | undefined,
+    actor: string,
+    feature: string,
+    ticket: string,
+  ): void {
+    if (!owner) {
+      throw new Error(
+        `Ticket ${ticket} has no recorded owner. Follow the next workflow step: pnpm spindle sdd next --feature .spindle/features/${feature}`,
+      );
+    }
+    WorkflowPolicy.assertOwner(owner, actor, feature, `Ticket ${ticket}`, `--ticket ${ticket}`);
+  }
+
+  private static assertOwner(
+    owner: string,
+    actor: string,
+    feature: string,
+    scope: string,
+    selector: string,
+  ): void {
+    if (owner !== actor.trim()) {
+      throw new Error(
+        `${scope} is owned by ${owner}, but this command used --actor ${actor.trim()}. If you are ${owner}, rerun with that value. To take over after the previous controller has stopped editing, run: pnpm spindle sdd resume ${selector} --feature .spindle/features/${feature} --actor <acting-agent> --confirm-handoff`,
+      );
+    }
+  }
+
+  public static assertFinalizationOwner(owner: string, actor: string, feature: string): void {
+    if (owner !== actor.trim()) {
+      throw new Error(
+        `Finalization of ${feature} is owned by ${owner}, but this command used --actor ${actor.trim()}. The finalization journal cannot be handed off; ask ${owner} to retry with their --actor value.`,
+      );
     }
   }
 }

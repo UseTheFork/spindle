@@ -4,18 +4,24 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
 import {
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
+
+async function createProject(prefix: string) {
+  const project = await makeTempDir(prefix);
+  await mkdir(join(project, ".spindle"), { recursive: true });
+  return project;
+}
 
 test("init installs and reports a rendered Agent alongside a same-named Skill", async () => {
   const blueprints = await makeTempDir("spindle-agent-blueprints-");
-  const project = await makeTempDir("spindle-agent-project-");
+  const project = await createProject("spindle-agent-project-");
   {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
@@ -58,14 +64,14 @@ test("init installs and reports a rendered Agent alongside a same-named Skill", 
 
 test("update overwrites selected Agents regardless of ownership or version", async () => {
   const blueprints = await makeTempDir("spindle-agent-version-blueprints-");
-  const project = await makeTempDir("spindle-agent-version-project-");
+  const project = await createProject("spindle-agent-version-project-");
   const installedAgents = join(project, ".github", "agents");
   const contents = (name: string, version: string | null, body: string) =>
     `---\nname: ${name}\n${version === null ? "" : `metadata:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
   {
     await mkdir(installedAgents, { recursive: true });
     await writeFile(
-      join(project, ".github", "spindle.json"),
+      join(project, ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
     for (const [name, shipped, installed] of [
@@ -117,7 +123,7 @@ test("update overwrites selected Agents regardless of ownership or version", asy
 
 test("init ignores unlisted Agent sources while installing the catalog-selected file", async () => {
   const blueprints = await makeTempDir("spindle-agent-extra-blueprints-");
-  const project = await makeTempDir("spindle-agent-extra-project-");
+  const project = await createProject("spindle-agent-extra-project-");
   const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   {
@@ -148,13 +154,13 @@ test("init ignores unlisted Agent sources while installing the catalog-selected 
     expect(await readFile(skillPath, "utf8")).toMatch(/shipped Skill/);
     expect(await readFile(agentPath, "utf8")).toMatch(/shipped Agent/);
     await expect(readFile(join(project, ".github", "agents", "guide.md"))).rejects.toThrow();
-    await readFile(join(project, ".github", "spindle.json"));
+    await readFile(join(project, ".spindle", "config.json"));
   }
 });
 
 test("init checks Agent conflicts before installing other Blueprint kinds", async () => {
   const blueprints = await makeTempDir("spindle-agent-conflict-blueprints-");
-  const project = await makeTempDir("spindle-agent-conflict-project-");
+  const project = await createProject("spindle-agent-conflict-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
@@ -183,7 +189,7 @@ test("init checks Agent conflicts before installing other Blueprint kinds", asyn
       readFile(join(project, ".github", "skills", "demo", "SKILL.md")),
     ).rejects.toThrow();
     expect(await readFile(agentPath, "utf8")).toBe("existing Agent\n");
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   }
 });
 
@@ -192,7 +198,7 @@ test(
   { skip: process.platform !== "linux" },
   async () => {
     const blueprints = await makeTempDir("spindle-agent-prompt-blueprints-");
-    const project = await makeTempDir("spindle-agent-prompt-project-");
+    const project = await createProject("spindle-agent-prompt-project-");
     const agentPath = join(project, ".github", "agents", "demo.agent.md");
     {
       await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -228,7 +234,7 @@ test(
 
 test("init preserves an existing Agent when rendered version metadata is invalid", async () => {
   const blueprints = await makeTempDir("spindle-agent-metadata-blueprints-");
-  const project = await makeTempDir("spindle-agent-metadata-project-");
+  const project = await createProject("spindle-agent-metadata-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   {
     await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -249,13 +255,13 @@ test("init preserves an existing Agent when rendered version metadata is invalid
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/Invalid Agent metadata.*semver.*version/);
     expect(await readFile(agentPath, "utf8")).toBe("existing Agent\n");
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   }
 });
 
 test("init rejects a non-text Agent entry without replacing its destination", async () => {
   const blueprints = await makeTempDir("spindle-agent-binary-blueprints-");
-  const project = await makeTempDir("spindle-agent-binary-project-");
+  const project = await createProject("spindle-agent-binary-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   {
     await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -276,12 +282,12 @@ test("init rejects a non-text Agent entry without replacing its destination", as
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/demo\.agent\.md.*valid UTF-8 text/);
     expect(await readFile(agentPath, "utf8")).toBe("existing Agent\n");
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   }
 });
 
 test("init and update help describe Blueprint kinds and generic policies", async () => {
-  const project = await makeTempDir("spindle-agent-help-project-");
+  const project = await createProject("spindle-agent-help-project-");
   {
     const init = runCli(project, ["init", "--help"], process.env.PATH ?? "");
     const update = runCli(project, ["update", "--help"], process.env.PATH ?? "");
@@ -297,7 +303,7 @@ test("init and update help describe Blueprint kinds and generic policies", async
 });
 
 test("production init succeeds with shipped Agents", async () => {
-  const project = await makeTempDir("spindle-agent-production-project-");
+  const project = await createProject("spindle-agent-production-project-");
   {
     const result = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "");
 
@@ -311,7 +317,7 @@ test(
   { skip: process.platform === "win32" },
   async () => {
     const blueprints = await makeTempDir("spindle-agent-omitted-blueprints-");
-    const project = await makeTempDir("spindle-agent-omitted-project-");
+    const project = await createProject("spindle-agent-omitted-project-");
     const outside = join(project, "outside.md");
     const target = join(project, ".github", "agents", "optional.agent.md");
     {
@@ -343,7 +349,7 @@ test(
       await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
-        join(project, ".github", "spindle.json"),
+        join(project, ".spindle", "config.json"),
         JSON.stringify({ stacks: ["typescript"], spindle_package_manager: "pnpm", variables: {} }),
       );
       await writeFile(
@@ -367,7 +373,7 @@ test(
 
 test("init and update omit Stack-inapplicable catalog Agents", async () => {
   const blueprints = await makeTempDir("spindle-agent-catalog-filter-blueprints-");
-  const project = await makeTempDir("spindle-agent-catalog-filter-project-");
+  const project = await createProject("spindle-agent-catalog-filter-project-");
   {
     await mkdir(join(blueprints, "agents"), { recursive: true });
     await writeFile(
@@ -416,7 +422,7 @@ test("init and update omit Stack-inapplicable catalog Agents", async () => {
 
 test("update overwrites a selected Agent with unreadable version frontmatter", async () => {
   const blueprints = await makeTempDir("spindle-agent-bad-frontmatter-blueprints-");
-  const project = await makeTempDir("spindle-agent-bad-frontmatter-project-");
+  const project = await createProject("spindle-agent-bad-frontmatter-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   const installed =
     "---\nname: demo\nmetadata:\n  spindle:\n    version: [unterminated\n---\nlocal Agent\n";
@@ -428,7 +434,7 @@ test("update overwrites a selected Agent with unreadable version frontmatter", a
     );
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
-      join(project, ".github", "spindle.json"),
+      join(project, ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     await writeFile(agentPath, installed);
@@ -444,7 +450,7 @@ test("update overwrites a selected Agent with unreadable version frontmatter", a
 
 test("update renders a block-templated Agent version", async () => {
   const blueprints = await makeTempDir("spindle-agent-version-template-blueprints-");
-  const project = await makeTempDir("spindle-agent-version-template-project-");
+  const project = await createProject("spindle-agent-version-template-project-");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   {
     await mkdir(join(blueprints, "agents", "demo"), { recursive: true });
@@ -463,7 +469,7 @@ test("update renders a block-templated Agent version", async () => {
     );
     await mkdir(join(project, ".github", "agents"), { recursive: true });
     await writeFile(
-      join(project, ".github", "spindle.json"),
+      join(project, ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
     await writeFile(
@@ -485,7 +491,7 @@ test("update renders a block-templated Agent version", async () => {
 
 test("catalog-selected Agent file installs and updates as a single rendered file", async () => {
   const blueprints = await makeTempDir("spindle-agent-catalog-blueprints-");
-  const project = await makeTempDir("spindle-agent-catalog-project-");
+  const project = await createProject("spindle-agent-catalog-project-");
   const source = join(blueprints, "agents", "python-only.agent.md");
   const target = join(project, ".github", "agents", "python-only.agent.md");
   const agent = (version: string) =>
@@ -513,14 +519,14 @@ test("catalog-selected Agent file installs and updates as a single rendered file
 
 test("init rejects an empty catalog while update and settings persist configuration", async () => {
   const blueprints = await makeTempDir("spindle-empty-kinds-blueprints-");
-  const project = await makeTempDir("spindle-empty-kinds-project-");
+  const project = await createProject("spindle-empty-kinds-project-");
   {
     await mkdir(join(blueprints, "skills"), { recursive: true });
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status).not.toBe(0);
     expect(init.stderr).toMatch(/No Blueprints are available/i);
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
 
     await mkdir(join(project, ".github"), { recursive: true });
     const config = {
@@ -529,7 +535,7 @@ test("init rejects an empty catalog while update and settings persist configurat
       variables: {},
       tooling: [],
     };
-    const configPath = join(project, ".github", "spindle.json");
+    const configPath = join(project, ".spindle", "config.json");
     await writeFile(configPath, JSON.stringify(config));
     const update = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(update.status, update.stderr).toBe(0);
@@ -560,7 +566,7 @@ test(
     for (const command of ["init", "update"] as const) {
       for (const dangling of [false, true]) {
         const blueprints = await makeTempDir("spindle-agent-link-blueprints-");
-        const project = await makeTempDir("spindle-agent-link-project-");
+        const project = await createProject("spindle-agent-link-project-");
         const outside = join(project, "outside.md");
         const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
         {
@@ -584,7 +590,7 @@ test(
           await symlink(outside, join(project, ".github", "agents", "demo.agent.md"));
           if (command === "update") {
             await writeFile(
-              join(project, ".github", "spindle.json"),
+              join(project, ".spindle", "config.json"),
               JSON.stringify({
                 stacks: ["python"],
                 spindle_package_manager: "pnpm",
@@ -615,7 +621,7 @@ test(
 
 test("init applies skip and overwrite policies to the Agent file only", async () => {
   const blueprints = await makeTempDir("spindle-agent-policy-blueprints-");
-  const project = await makeTempDir("spindle-agent-policy-project-");
+  const project = await createProject("spindle-agent-policy-project-");
   const target = join(project, ".github", "agents", "demo.agent.md");
   const other = join(project, ".github", "agents", "unmanaged.agent.md");
   {
@@ -638,7 +644,7 @@ test("init applies skip and overwrite policies to the Agent file only", async ()
     expect(skip.status, skip.stderr).toBe(0);
     expect(skip.stdout).toMatch(/Installed 0 agent\(s\).*Skipped 1 existing agent\(s\)/);
     expect(await readFile(target, "utf8")).toBe("local Agent\n");
-    await rm(join(project, ".github", "spindle.json"));
+    await rm(join(project, ".spindle", "config.json"));
 
     const overwrite = runCli(
       project,
@@ -654,7 +660,7 @@ test("init applies skip and overwrite policies to the Agent file only", async ()
 
 test("update installs same-named new Blueprints by kind", async () => {
   const blueprints = await makeTempDir("spindle-agent-new-kinds-blueprints-");
-  const project = await makeTempDir("spindle-agent-new-kinds-project-");
+  const project = await createProject("spindle-agent-new-kinds-project-");
   {
     await mkdir(join(blueprints, "skills", "demo"), { recursive: true });
     await writeFile(
@@ -668,7 +674,7 @@ test("update installs same-named new Blueprints by kind", async () => {
     );
     await mkdir(join(project, ".github"), { recursive: true });
     await writeFile(
-      join(project, ".github", "spindle.json"),
+      join(project, ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
     );
     const env = { SPINDLE_TEST_BLUEPRINTS_DIR: blueprints };
@@ -688,7 +694,7 @@ test("update installs same-named new Blueprints by kind", async () => {
 test("update rejects missing or invalid shipped Agent versions before replacing any kind", async () => {
   for (const version of [null, "v2"]) {
     const blueprints = await makeTempDir("spindle-agent-invalid-source-blueprints-");
-    const project = await makeTempDir("spindle-agent-invalid-source-project-");
+    const project = await createProject("spindle-agent-invalid-source-project-");
     const agentPath = join(project, ".github", "agents", "demo.agent.md");
     const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
     const old = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
@@ -706,7 +712,7 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
       await mkdir(join(project, ".github", "skills", "demo"), { recursive: true });
       await mkdir(join(project, ".github", "agents"), { recursive: true });
       await writeFile(
-        join(project, ".github", "spindle.json"),
+        join(project, ".spindle", "config.json"),
         JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", variables: {} }),
       );
       await writeFile(skillPath, old);
@@ -729,10 +735,10 @@ test("update rejects missing or invalid shipped Agent versions before replacing 
 for (const command of ["init", "update"] as const) {
   test(`${command} preserves an Agent after an injected partial replacement write`, async () => {
     const blueprints = await makeTempDir("spindle-agent-write-failure-blueprints-");
-    const project = await makeTempDir("spindle-agent-write-failure-project-");
+    const project = await createProject("spindle-agent-write-failure-project-");
     const agents = join(project, ".github", "agents");
     const agentPath = join(agents, "demo.agent.md");
-    const configPath = join(project, ".github", "spindle.json");
+    const configPath = join(project, ".spindle", "config.json");
     const installed =
       "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n";
     const config = JSON.stringify({
@@ -776,9 +782,9 @@ for (const command of ["init", "update"] as const) {
 for (const command of ["init", "update"] as const) {
   test(`${command} exclusively creates a new Agent after planning`, async () => {
     const blueprints = await makeTempDir("spindle-agent-create-race-blueprints-");
-    const project = await makeTempDir("spindle-agent-create-race-project-");
+    const project = await createProject("spindle-agent-create-race-project-");
     const agentPath = join(project, ".github", "agents", "demo.agent.md");
-    const configPath = join(project, ".github", "spindle.json");
+    const configPath = join(project, ".spindle", "config.json");
     const config = JSON.stringify({
       stacks: ["python"],
       spindle_package_manager: "pnpm",
@@ -818,7 +824,7 @@ for (const destinationType of ["directory", "socket"] as const) {
     { skip: destinationType === "socket" && process.platform === "win32" },
     async () => {
       const blueprints = await makeTempDir("spindle-agent-type-blueprints-");
-      const project = await makeTempDir("spindle-type-");
+      const project = await createProject("spindle-type-");
       const agents = join(project, ".github", "agents");
       const target = join(agents, "demo.agent.md");
       let server: ReturnType<typeof createServer> | undefined;
@@ -854,7 +860,7 @@ for (const destinationType of ["directory", "socket"] as const) {
         } else {
           expect((await lstat(target)).isSocket()).toBe(true);
         }
-        await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+        await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
       } finally {
         if (server?.listening) await new Promise<void>((resolve) => server!.close(() => resolve()));
       }
@@ -865,10 +871,10 @@ for (const destinationType of ["directory", "socket"] as const) {
 for (const command of ["init", "update"] as const) {
   test(`${command} rejects an Agent directory before replacing a Skill`, async () => {
     const blueprints = await makeTempDir("spindle-agent-directory-preflight-blueprints-");
-    const project = await makeTempDir("spindle-agent-directory-preflight-project-");
+    const project = await createProject("spindle-agent-directory-preflight-project-");
     const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
     const notesPath = join(project, ".github", "agents", "demo.agent.md", "notes.txt");
-    const configPath = join(project, ".github", "spindle.json");
+    const configPath = join(project, ".spindle", "config.json");
     const oldSkill = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Skill\n";
     const config = JSON.stringify({
       stacks: ["python"],
@@ -916,7 +922,7 @@ for (const command of ["init", "update"] as const) {
 for (const invalidKind of ["Skill", "Agent"] as const) {
   test(`init preflights invalid ${invalidKind} metadata across Blueprint kinds`, async () => {
     const blueprints = await makeTempDir("spindle-metadata-preflight-blueprints-");
-    const project = await makeTempDir("spindle-metadata-preflight-project-");
+    const project = await createProject("spindle-metadata-preflight-project-");
     const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
     const stalePath = join(project, ".github", "skills", "demo", "notes.txt");
     const agentPath = join(project, ".github", "agents", "demo.agent.md");
@@ -957,14 +963,14 @@ for (const invalidKind of ["Skill", "Agent"] as const) {
       expect(await readFile(skillPath, "utf8")).toBe(oldSkill);
       expect(await readFile(stalePath, "utf8")).toBe("local supporting file\n");
       expect(await readFile(agentPath, "utf8")).toBe(oldAgent);
-      await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+      await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
     }
   });
 }
 
 test("init preflights a new invalid Agent before replacing an existing Skill", async () => {
   const blueprints = await makeTempDir("spindle-new-agent-preflight-blueprints-");
-  const project = await makeTempDir("spindle-new-agent-preflight-project-");
+  const project = await createProject("spindle-new-agent-preflight-project-");
   const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
   const oldSkill = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Skill\n";
@@ -993,13 +999,13 @@ test("init preflights a new invalid Agent before replacing an existing Skill", a
     expect(result.stderr).toMatch(/Invalid Agent metadata.*semver/);
     expect(await readFile(skillPath, "utf8")).toBe(oldSkill);
     await expect(readFile(agentPath)).rejects.toThrow();
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   }
 });
 
 test("init renders Skill supporting Markdown without validating it as an entry file", async () => {
   const blueprints = await makeTempDir("spindle-skill-support-blueprints-");
-  const project = await makeTempDir("spindle-skill-support-project-");
+  const project = await createProject("spindle-skill-support-project-");
   {
     const skill = join(blueprints, "skills", "demo");
     await mkdir(skill, { recursive: true });
@@ -1025,10 +1031,10 @@ test("init renders Skill supporting Markdown without validating it as an entry f
 
 test("update preflights Agent rendering before replacing a Skill", async () => {
   const blueprints = await makeTempDir("spindle-render-preflight-blueprints-");
-  const project = await makeTempDir("spindle-render-preflight-project-");
+  const project = await createProject("spindle-render-preflight-project-");
   const skillPath = join(project, ".github", "skills", "demo", "SKILL.md");
   const agentPath = join(project, ".github", "agents", "demo.agent.md");
-  const configPath = join(project, ".github", "spindle.json");
+  const configPath = join(project, ".spindle", "config.json");
   const oldSkill = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Skill\n";
   const oldAgent = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal Agent\n";
   const config = JSON.stringify({
@@ -1067,12 +1073,12 @@ test("update preflights Agent rendering before replacing a Skill", async () => {
 
 test("update keeps a nested Agent version stable when a Skill supporting template mutates Stacks", async () => {
   const blueprints = await makeTempDir("spindle-version-context-blueprints-");
-  const project = await makeTempDir("spindle-version-context-project-");
+  const project = await createProject("spindle-version-context-project-");
   const skillSource = join(blueprints, "skills", "demo");
   const agentSource = join(blueprints, "agents", "demo.agent.md");
   const skillInstalled = join(project, ".github", "skills", "demo", "SKILL.md");
   const agentInstalled = join(project, ".github", "agents", "demo.agent.md");
-  const configPath = join(project, ".github", "spindle.json");
+  const configPath = join(project, ".spindle", "config.json");
   const config = JSON.stringify({
     stacks: ["python"],
     spindle_package_manager: "pnpm",

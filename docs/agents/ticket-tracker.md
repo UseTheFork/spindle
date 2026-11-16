@@ -1,44 +1,49 @@
 # Ticket Tracker: Local Markdown
 
-Spindle SDD stores feature work in `.scratch/` workspaces. A workspace contains an approved `spec.md`, its `sdd.json` execution ledger, `tickets/`, and `reports/`. A design is optional; when present, complete and approve it before the spec. Derive tickets from the approved spec.
+Spindle SDD stores feature work in `.spindle/features/` workspaces. A workspace contains an approved `spec.md`, its `sdd.json` execution ledger, `tickets/`, and `reports/`. A design is optional; when present, complete and approve it before the spec. Derive tickets from the approved spec.
 
 ## Ticket format
 
 - Each ticket is `tickets/T-0001.md`, with IDs starting at `T-0001` independently in each feature. IDs use at least four digits.
 - `sdd.json` is authoritative for ticket metadata, status, dependencies, and execution state. Ticket Markdown contains only its ID in YAML front matter; requirements, acceptance criteria, and comments are the editable body.
 - Ticket creation copies the shared template, including `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Fill both before implementation.
-- Supported status values are `open`, `in-progress`, and `closed`. Dependencies must refer to existing tickets; cycles are rejected.
+- Ticket status is `open` or `closed`. The workflow closes a ticket after integration and passing post-merge checks; do not set status manually. Dependencies must refer to existing tickets; cycles are rejected.
 - There is no migration or compatibility support for `issues/`, `I-####`, or previous SDD ledger schemas. Create a fresh feature workspace when using this ticket format.
 
 ## Create and maintain tickets
 
+Use the configured actor name for the agent executing an SDD command. The actor attributes SDD records, not Git commits. Do not use a model or session ID, name an intended recipient instead, impersonate an owner, or override ownership checks.
+
 Create each approved ticket in dependency order:
 
 ```sh
-pnpm spindle sdd ticket create --spec <absolute-spec-path> --title "..." --reporter "..." --category enhancement --author maintainer
+pnpm spindle sdd ticket create --feature <feature-workspace> --title "..." --reporter "..." --category enhancement --actor <acting-agent>
 ```
 
 For machine-readable results, add `--json` and read the success envelope's
 `data` field. Errors and notices use structured stderr in this mode.
 
-The command returns the new ticket ID and path. Complete its template, then set dependencies with `ticket update`:
+Complete the new ticket's template, then record dependencies and comments:
 
 ```sh
-pnpm spindle sdd ticket update --spec <absolute-spec-path> --ticket T-0002 --blocked-by T-0001 --author maintainer
-pnpm spindle sdd ticket comment --spec <absolute-spec-path> --ticket T-0001 --details "..." --author maintainer
-pnpm spindle sdd ready --spec <absolute-spec-path>
+pnpm spindle sdd ticket update --feature <feature-workspace> --ticket T-0002 --blocked-by T-0001 --actor <acting-agent>
+pnpm spindle sdd ticket comment --feature <feature-workspace> --ticket T-0001 --details "..." --actor <acting-agent>
 ```
 
-Use `--clear-blocked-by` to remove dependencies. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file: execution transitions are recorded in `sdd.json`.
+Use `--clear-blocked-by` to remove dependencies. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file.
 
 ## Delivery
 
-Use `pnpm spindle sdd status` and `pnpm spindle sdd ready` to inspect work. Follow the `int-subagent-driven-dev` skill for dispatch, review, correction, integration, and feature completion.
+Use `sdd next` as the source of the next workflow step and exact command. Run it at the start, after a handoff, and after each completed command or decision. Use `status` and `ready` only for additional state details.
 
-Inspect feature records for sensitive content, then start a feature worktree in an existing external directory with `pnpm spindle sdd start --spec <absolute-spec-path> --workspace <absolute-directory> --confirm-records`. Use its returned spec path for subsequent commands.
+Use `--type` to select a specialist for `sdd review require`. Check records apply to the recorded commit, not a caller-selected list of paths. Failed or unavailable check and review results require `--details` with the evidence.
 
-Dispatch each ready ticket to a separate worktree with `pnpm spindle sdd implement --spec <feature-spec-path> --ticket <id> --author <name> --workspace <absolute-directory>`. Inspect changed canonical records and pass `--confirm-records` before automatic record commits. Submit the implementation report and review the committed ticket before merging it with `pnpm spindle sdd integrate`.
+Unavailable implementation reports remain open assignments; submit the report if it becomes available and the assigned worktree has a clean new commit. An older corrective assignment without a starting commit must first be resumed with the same `sdd correct` command, then committed before submission. Retry an unavailable delivery check and record the actual result. The latest result for a check and commit supersedes earlier results; a current failed check or failed review still requires a correction decision.
 
-Declare the complete post-merge check list with `checks require --scope post-merge --ticket <id>`, run the checks, and record each result with `checks record --scope post-merge --ticket <id>`. Passing results close the ticket automatically unless a blocker or dependency prevents closure. Resolve it, then repeat `checks require` with the same complete list; rerun any stale checks. Failed checks block other merges until a reviewed correction passes. Resolve conflicts in the ticket worktree, adopt the rebased baseline with `checks require --rebase-baseline`, and obtain fresh checks and review.
+To defer a blocking finding, commit the approved requirements change, record its approval, and obtain fresh passing review coverage before recording the deferral. Delivery deferrals require the same evidence.
 
-After aggregate checks and review pass, inspect records and run `pnpm spindle sdd finish --spec <feature-spec-path> --author <name> --confirm-records` from the feature worktree. Include `--report <absolute-report-path>` when a retrospective is required. In the original checkout, declare the complete list with `checks require --scope final`, run the checks, and record each result with `checks record --scope final --merge <merge-sha>`. Repeat `finish` there to preflight and clean up. Final checks cover the merge; a separate ledger-only relocation commit follows. Preserve work and inspect the journal if recovery or cleanup is blocked.
+Inspect feature records for sensitive content before starting the feature worktree. The start operation confirms those initial records may be committed. After start, workflow commands commit canonical record changes in the feature worktree. The implementer commits code on the ticket branch and returns its assigned report; the controller submits reports and owns all workflow state changes.
+
+Integrate ticket work serially and record passing post-merge checks before unblocking dependent tickets. After all tickets are complete, claim delivery ownership, establish feature checks, and obtain the required feature review. Declare the complete final-check list before finishing. Run and record those checks in the original checkout after the feature merge.
+
+If post-merge checks fail, synchronize the ticket worktree to the recorded merge before correction. If final checks fail, revalidate the target on the original branch and rerun the complete final-check list. Preserve the journal and all work if recovery or cleanup is blocked.

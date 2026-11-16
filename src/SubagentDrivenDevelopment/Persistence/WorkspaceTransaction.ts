@@ -13,32 +13,33 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
   RecoveryWrite,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  lstatIfPresent,
-  waitBriefly,
-  LOCK_TIMEOUT_MS,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem, LOCK_TIMEOUT_MS } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
 
 export class WorkspaceTransaction extends Service {
-  private readonly activeWorkspaces = new Set<string>();
+  private readonly activeWorkspaces = new Map<string, readonly RecoveryWrite[]>();
 
   public run<T>(workspace: string, operation: () => T): T {
     const release = this.acquireTicketLock(workspace);
-    this.activeWorkspaces.add(workspace);
     try {
-      this.recoverWrites(workspace);
+      const recovered = this.recoverWrites(workspace);
+      const records = this.workflowRecordsCommitter.workspaceRecords(workspace);
+      if (records && this.workflowRecordsCommitter.hasPendingCommit(records)) {
+        this.workflowRecordsCommitter.commit(records);
+      }
+      this.activeWorkspaces.set(workspace, recovered);
       return operation();
     } finally {
       this.activeWorkspaces.delete(workspace);
@@ -46,9 +47,14 @@ export class WorkspaceTransaction extends Service {
     }
   }
 
+  public recoveredWrites(workspace: string): readonly RecoveryWrite[] {
+    return this.activeWorkspaces.get(workspace) ?? [];
+  }
+
   public constructor(
     app: Application,
     private readonly pathSafety: PathSafety,
+    private readonly workflowRecordsCommitter: WorkflowRecordsCommitter,
   ) {
     super(app);
   }
@@ -87,7 +93,7 @@ export class WorkspaceTransaction extends Service {
         )
           throw error;
         if (this.staleLockReason(lockPath)) {
-          const lockEntry = lstatIfPresent(lockPath);
+          const lockEntry = FileSystem.lstatIfPresent(lockPath);
           if (!lockEntry?.isFile() || lockEntry.isSymbolicLink()) {
             throw new Error(
               `Ticket lock path is not a regular file and was preserved: ${lockPath}.`,
@@ -101,25 +107,26 @@ export class WorkspaceTransaction extends Service {
             `Timed out waiting for ticket updates; inspect ${lockPath} before retrying.`,
           );
         }
-        waitBriefly();
+        FileSystem.waitBriefly();
       }
     }
   }
 
-  private recoverWrites(workspace: string): void {
+  private recoverWrites(workspace: string): RecoveryWrite[] {
     const journalPath = join(workspace, ".sdd-write-recovery.json");
-    const entry = lstatIfPresent(journalPath);
-    if (!entry) return;
+    const entry = FileSystem.lstatIfPresent(journalPath);
+    if (!entry) return [];
+    const records = this.workflowRecordsCommitter.assertWritable(workspace);
     if (!entry.isFile() || entry.isSymbolicLink())
       throw new Error("Ticket recovery journal is not a regular file.");
     const value = JSON.parse(readFileSync(journalPath, "utf8")) as unknown;
     if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.writes)) {
       throw new Error("Ticket recovery journal has an unsupported format.");
     }
-    const writes = value.writes;
+    const writes: RecoveryWrite[] = [];
     const targets = new Set<string>();
     const pending: { target: string; after: string }[] = [];
-    for (const write of writes) {
+    for (const write of value.writes as unknown[]) {
       if (
         !isRecord(write) ||
         typeof write.path !== "string" ||
@@ -139,21 +146,25 @@ export class WorkspaceTransaction extends Service {
       }
       if (write.path !== "sdd.json") this.pathSafety.assertTicketPath(workspace, target);
       else {
-        const ledgerEntry = lstatIfPresent(target);
+        const ledgerEntry = FileSystem.lstatIfPresent(target);
         if (!ledgerEntry?.isFile() || ledgerEntry.isSymbolicLink()) {
           throw new Error("Feature ledger must be a regular file during ticket recovery.");
         }
       }
-      const current = lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
+      const current = FileSystem.lstatIfPresent(target) ? readFileSync(target, "utf8") : null;
       if (current !== write.before && current !== write.after) {
         throw new Error(
           `Ticket recovery found conflicting external content at ${write.path}; preserved all files.`,
         );
       }
       if (current !== write.after) pending.push({ target, after: write.after });
+      writes.push({ path: write.path, before: write.before, after: write.after });
     }
     for (const write of pending) this.atomicWrite(write.target, write.after);
+    // The journal outlives the record commit so an interrupted commit is retried on the next run.
+    if (records) this.workflowRecordsCommitter.commit(records);
     unlinkSync(journalPath);
+    return writes;
   }
 
   public applyWrites(workspace: string, writes: RecoveryWrite[]): void {
@@ -161,9 +172,10 @@ export class WorkspaceTransaction extends Service {
       throw new Error("Workflow writes require the workspace transaction lock.");
     }
     const journalPath = join(workspace, ".sdd-write-recovery.json");
-    if (lstatIfPresent(journalPath)) {
+    if (FileSystem.lstatIfPresent(journalPath)) {
       throw new Error("A pending ticket write recovery journal must be resolved first.");
     }
+    this.workflowRecordsCommitter.assertWritable(workspace);
     for (const write of writes) {
       if (!(write.path === "sdd.json" || /^tickets\/T-\d{4,}\.md$/.test(write.path))) {
         throw new Error(`Unsafe ticket write target: ${write.path}.`);
@@ -186,7 +198,7 @@ export class WorkspaceTransaction extends Service {
 
   private atomicWrite(path: string, contents: string): void {
     const temporary = `${path}.${randomUUID()}.tmp`;
-    const existing = lstatIfPresent(path);
+    const existing = FileSystem.lstatIfPresent(path);
     const mode = existing ? existing.mode & 0o777 : 0o666 & ~process.umask();
     try {
       writeFileSync(temporary, contents, { flag: "wx", mode: mode | 0o200 });
@@ -268,14 +280,14 @@ export class WorkspaceTransaction extends Service {
             `Timed out waiting for another feature workspace creation; inspect ${lockPath} and remove it only after confirming its owner stopped.`,
           );
         }
-        waitBriefly();
+        FileSystem.waitBriefly();
       }
     }
   }
 
   public staleLockReason(lockPath: string): string | undefined {
     try {
-      const entry = lstatIfPresent(lockPath);
+      const entry = FileSystem.lstatIfPresent(lockPath);
       if (!entry) return undefined;
       if (!entry.isFile()) return "the lock path is not a regular file";
       let owner: { pid?: unknown };

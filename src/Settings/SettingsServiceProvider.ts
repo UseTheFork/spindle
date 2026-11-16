@@ -1,7 +1,7 @@
-import type { CommandConstructor } from "@/Commands/Command";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { SettingsCommand } from "@/Settings/Commands/SettingsCommand";
-import { SettingsService } from "@/Settings/Services/SettingsService";
+import type { CommandConstructor } from "@spindle/Commands/Command";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { SettingsCommand } from "@spindle/Settings/Commands/SettingsCommand";
+import { SettingsService } from "@spindle/Settings/Services/SettingsService";
 
 export class SettingsServiceProvider extends ServiceProvider {
   public static override commands(): readonly CommandConstructor[] {

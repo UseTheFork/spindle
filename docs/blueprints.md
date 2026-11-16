@@ -19,11 +19,11 @@ outside a valid pair is preserved. Unmarked files and files with invalid
 markers are replaced entirely.
 
 The `tool` subcommands maintain project-specific entries in
-`.github/spindle.json` and regenerate `docs/agents/tooling.md`. Spindle's three
+`.spindle/config.json` and regenerate `docs/agents/tooling.md`. Spindle's three
 built-in commands are always included in the guide and `tool list`; their keys
 are reserved and are not stored in the registry. A missing `tooling` array is
 initialized to an empty array by `init` or `update`; existing entries are
-preserved. `sdd create` creates an ID-based feature workspace beneath `.scratch/` in the
+preserved. `sdd create` creates an ID-based feature workspace beneath `.spindle/features/` in the
 discovered root, copying the shared SDD spec template and optionally a design
 template with `--with-design`. Feature and ticket creation require valid Project
 Settings with `spindle_package_manager`, initialized by `spindle init`.
@@ -72,7 +72,7 @@ updated independently and keeps its source path. Skills remain directories led
 by `SKILL.md`.
 
 The asset catalog contains only declarative metadata and type-only imports.
-`src/BlueprintManagement/Catalog/BlueprintCatalog.ts` owns its types, validation,
+`src/BlueprintManagement/Catalog/BlueprintCatalogOperations.ts` owns its types, validation,
 and validated export, including the reviewer metadata consumed by SDD.
 Unlisted source files are not installed. Keep all three catalog sections and
 validate catalog changes through the real CLI tests.
@@ -94,7 +94,7 @@ context; that context may include Project Settings values. Reference it with sta
 Nunjucks interpolation through the separate `computed` namespace, for example:
 
 ```yaml
-description: "{{ computed.internal_skill_description }}"
+description: "{{ computed.private_skill_description }}"
 ```
 
 Computed Variable names are explicit public keys in the typed
@@ -137,7 +137,7 @@ to change one value without a terminal, for example
 enabling `commit.scopes_enabled`. Each change runs the update workflow and
 overwrites selected catalog paths.
 
-The `commit` object controls the internal Conventional Commits skill:
+The `commit` object controls the public Conventional Commits skill:
 `allow_body` (default `false`), `title_max_length` (default `72`),
 `scopes_enabled` (default `false`), `allowed_scopes` (default `[]`), and
 `allow_breaking_changes` (default `false`). Enabled scopes must be nonempty,
@@ -164,7 +164,7 @@ nonoverlapping paths, source types and existence, symbolic links, and required
 `src/Assets/Templates/Catalog.ts` declares typed source/destination pairs for
 project assets and shared SDD document templates. After installing selected
 Blueprints, `spindle init` initializes project assets and creates
-`.github/spindle.json` with the selected stacks and the tooling registry. The
+`.spindle/config.json` with the selected stacks and the tooling registry. The
 `spindle tool` commands list, add, update, and remove registry entries; they do
 not discover or execute project commands. Tooling owns the registry and its
 generated `docs/agents/tooling.md` guide. SDD feature documents use the numbered

@@ -3,30 +3,28 @@ import { join, resolve } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
-import type { CorrectOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
-import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { CheckRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type { CorrectOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { ChecksService } from "@spindle/SubagentDrivenDevelopment/Services/ChecksService";
+import { DeliveryCorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { CheckRecords } from "@spindle/SubagentDrivenDevelopment/Support/CheckRecords";
 
 export class CorrectionService extends Service {
   public constructor(
@@ -61,8 +59,8 @@ export class CorrectionService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("correct requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const findingIds = [...new Set((options.findings ?? []).map((finding) => finding.trim()))];
     if (findingIds.some((finding) => !/^F-\d{4,}$/.test(finding))) {
       throw new Error("--findings must contain canonical finding IDs.");
@@ -108,9 +106,12 @@ export class CorrectionService extends Service {
         options.ticket,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the recorded ticket controller may dispatch a correction.");
-      }
+      WorkflowPolicy.assertTicketOwner(
+        progress.owner,
+        options.author,
+        feature.feature,
+        options.ticket,
+      );
 
       const attempts = (progress.correctionAttempts ??= []);
       if (options.decision === "pause") {
@@ -118,9 +119,10 @@ export class CorrectionService extends Service {
           throw new Error("A pending implementation assignment must be resumed, not paused.");
         }
         const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
-        const hasCurrentFailure = (progress.checks?.records ?? []).some(
-          (record) => record.headSha === identity.headSha && record.result === "failed",
-        );
+        const hasCurrentFailure = CheckRecords.latestForHead(
+          progress.checks?.records ?? [],
+          identity.headSha,
+        ).some((record) => record.result === "failed");
         if (
           attempts.length === 0 &&
           progress.execution !== "changes-requested" &&
@@ -181,6 +183,26 @@ export class CorrectionService extends Service {
         const current = attempts.find((attempt) => attempt.number === progress.assignment?.attempt);
         if (!current) throw new Error("Corrective assignment has no persisted attempt record.");
         const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
+        if (!progress.assignment.startingHeadSha) {
+          progress.assignment.startingHeadSha = identity.headSha;
+          current.assignment.startingHeadSha = identity.headSha;
+          const afterTicket = matter.stringify(
+            this.ticketRepository.appendAudit(
+              ticket.body,
+              options.author,
+              `Starting commit recorded for existing correction assignment ${progress.assignment.id}.`,
+            ),
+            this.ticketRepository.metadata(ticket),
+          );
+          this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
+          return {
+            ticket: options.ticket,
+            execution: "implementing",
+            attempt: current,
+            assignment: progress.assignment,
+            ...identity,
+          };
+        }
         return {
           ticket: options.ticket,
           execution: "implementing",
@@ -223,7 +245,7 @@ export class CorrectionService extends Service {
         const mergeSha = failedIntegration.mergeSha;
         if (!workspace || !mergeSha || this.gitEvidence.headSha(workspace) !== mergeSha) {
           throw new Error(
-            "Fast-forward the clean ticket worktree to the failed feature merge before dispatching correction.",
+            "Run sdd sync before dispatching post-merge correction; the ticket worktree must be at the failed feature merge.",
           );
         }
         const status = this.gitEvidence
@@ -236,37 +258,35 @@ export class CorrectionService extends Service {
           throw new Error(
             "Ticket worktree must be clean before post-merge correction; changes were preserved.",
           );
-        for (const operation of [
+        const operations = [
           "MERGE_HEAD",
           "CHERRY_PICK_HEAD",
           "REVERT_HEAD",
           "rebase-merge",
           "rebase-apply",
           "sequencer",
-        ]) {
-          const path = this.gitEvidence
-            .gitBuffer(["rev-parse", "--git-path", operation], workspace)
-            .toString("utf8")
-            .trim();
-          if (lstatIfPresent(resolve(workspace, path)))
+        ];
+        const paths = this.gitEvidence.gitPaths(workspace, operations);
+        for (const [index, operation] of operations.entries()) {
+          if (FileSystem.lstatIfPresent(resolve(workspace, paths[index])))
             throw new Error(
               `Ticket Git operation ${operation} must be resolved before correction.`,
             );
         }
         if (!progress.worktree)
           throw new Error("Post-merge correction requires an isolated ticket worktree.");
-        if (!progress.baseSha) throw new Error("Ticket baseline is missing.");
-        this.gitEvidence.gitBuffer(["merge-base", "--is-ancestor", progress.baseSha, mergeSha]);
+        const lastBaseline = progress.baselineHistory?.at(-1);
+        if (
+          progress.baseSha !== mergeSha ||
+          progress.worktree.baseSha !== mergeSha ||
+          lastBaseline?.to !== mergeSha ||
+          lastBaseline?.ticketHead !== mergeSha
+        ) {
+          throw new Error(
+            "Run sdd sync to record the failed feature merge as the ticket baseline.",
+          );
+        }
         this.checksService.assertPrerequisiteBaseline(ledger, progress, mergeSha);
-        (progress.baselineHistory ??= []).push({
-          from: progress.baseSha,
-          to: mergeSha,
-          ticketHead: mergeSha,
-          at: new Date().toISOString(),
-          author: options.author.trim(),
-        });
-        progress.baseSha = mergeSha;
-        progress.worktree.baseSha = mergeSha;
         this.gitEvidence.assertTicketCodeCommitted(progress);
         failedPostMergeRecord = latest;
       }
@@ -287,26 +307,30 @@ export class CorrectionService extends Service {
       if (progress.assignment?.action === "correct" && progress.assignment.status !== "submitted") {
         throw new Error("The current correction assignment must be resumed, not replaced.");
       }
+      let progressAssessment: CorrectionAttempt["progressAssessment"];
       if (attempts.length > 0 || pendingAdjudication) {
         if (options.decision !== "continue" || !options.assessment?.trim()) {
           throw new Error(
             "A subsequent correction requires --decision continue and an explicit --assessment.",
           );
         }
-        const previous = attempts.at(-1)!;
+        progressAssessment = {
+          decision: "continue",
+          result: "productive",
+          details: options.assessment.trim(),
+          recordedAt: new Date().toISOString(),
+          recordedBy: options.author.trim(),
+        };
+        // A pause before the first attempt leaves no previous attempt; the adjudication resolution records the assessment.
+        const previous = attempts.at(-1);
         if (
-          previous.progressAssessment?.decision !== "continue" ||
-          previous.progressAssessment.result !== "productive" ||
-          previous.progressAssessment.recordedBy !== options.author.trim() ||
-          previous.progressAssessment.details !== options.assessment.trim()
+          previous &&
+          (previous.progressAssessment?.decision !== "continue" ||
+            previous.progressAssessment.result !== "productive" ||
+            previous.progressAssessment.recordedBy !== progressAssessment.recordedBy ||
+            previous.progressAssessment.details !== progressAssessment.details)
         ) {
-          previous.progressAssessment = {
-            decision: "continue",
-            result: "productive",
-            details: options.assessment.trim(),
-            recordedAt: new Date().toISOString(),
-            recordedBy: options.author.trim(),
-          };
+          previous.progressAssessment = { ...progressAssessment };
         }
       } else if (options.decision || options.assessment) {
         throw new Error("The first correction does not accept a continuation assessment.");
@@ -349,12 +373,13 @@ export class CorrectionService extends Service {
         ...(progress.worktree
           ? { workspace: progress.worktree.workspace, branch: progress.worktree.branch }
           : {}),
+        startingHeadSha: identity.headSha,
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
       };
       this.reportEvidence.assertReportPath(feature, assignment.report, false);
-      if (lstatIfPresent(assignment.report)) {
+      if (FileSystem.lstatIfPresent(assignment.report)) {
         throw new Error(`Assigned report already exists and was preserved: ${assignment.report}.`);
       }
       const attempt: CorrectionAttempt = {
@@ -377,15 +402,7 @@ export class CorrectionService extends Service {
             }
           : {}),
       };
-      if (attempts.length > 0 || pendingAdjudication) {
-        attempt.progressAssessment = {
-          decision: "continue",
-          result: "productive",
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
-        };
-      }
+      if (progressAssessment) attempt.progressAssessment = { ...progressAssessment };
       attempts.push(attempt);
       if (failedPostMergeRecord && failedIntegration) {
         (progress.integrationHistory ??= []).push(failedIntegration);
@@ -393,12 +410,12 @@ export class CorrectionService extends Service {
       }
       progress.execution = "implementing";
       progress.assignment = assignment;
-      if (pendingAdjudication && progress.adjudication) {
+      if (pendingAdjudication && progress.adjudication && progressAssessment) {
         progress.adjudication.status = "resolved";
         progress.adjudication.resolution = {
-          details: options.assessment!.trim(),
-          recordedAt: new Date().toISOString(),
-          recordedBy: options.author.trim(),
+          details: progressAssessment.details,
+          recordedAt: progressAssessment.recordedAt,
+          recordedBy: progressAssessment.recordedBy,
         };
       }
       const afterTicket = matter.stringify(

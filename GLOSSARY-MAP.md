@@ -1,18 +1,16 @@
 # Context glossary map
 
 - [Blueprint management](src/BlueprintManagement/GLOSSARY.md): Blueprints,
-  catalog selection, reconciliation, and installation.
+  catalog selection, reconciliation, installation, Stacks, and managed content.
 - [Template Rendering](src/TemplateRendering/GLOSSARY.md): Templates and Rendered
-  Content, including Computed Variables shared by Blueprint and SDD workflows.
-- [Project](src/Project/GLOSSARY.md): project initialization and reference
-  documentation.
+  Content, Variables, and Computed Variables shared by Blueprint and SDD workflows.
+- [Project](src/Project/GLOSSARY.md): project initialization, reference
+  documentation, and Application Configuration.
 - [Tooling](src/Tooling/GLOSSARY.md): registered tooling commands and their
   human-readable guide.
-- [Settings](src/Settings/GLOSSARY.md): project settings and their lifecycle.
-- [Shared project terms](GLOSSARY.md): Stacks, Variables, Project Settings, and
-  Application Configuration.
+- [Settings](src/Settings/GLOSSARY.md): Project Settings and their lifecycle.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
-  feature workspaces, issues, assignments, findings, evidence, and delivery.
+  features, tickets, assignments, findings, evidence, and delivery.
 - [Git](src/Git/GLOSSARY.md): repositories, working trees, index, and commits.
 
 Cross-context ownership and bootstrap order are documented in

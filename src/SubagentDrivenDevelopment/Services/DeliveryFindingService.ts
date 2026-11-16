@@ -1,30 +1,27 @@
-import { isAbsolute, resolve } from "node:path";
-
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
-  FindingSeverity,
   FindingStatus,
   FindingProvenance,
   RequirementsDecision,
   ReviewFinding,
-} from "@/SubagentDrivenDevelopment/Models/Findings";
+} from "@spindle/SubagentDrivenDevelopment/Models/Findings";
 import type {
   FindingCreateOptions,
   FindingUpdateOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { validateTicketId } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryFindingService extends Service {
   public constructor(
@@ -48,16 +45,14 @@ export class DeliveryFindingService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
-    if (!["high", "medium", "low"].includes(options.severity)) {
-      throw new Error(`Invalid finding severity: ${options.severity}.`);
-    }
+    InputValidation.validateAuthor(options.author);
+    if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     if (options.blocking === options.nonBlocking) {
       throw new Error("Choose exactly one of --blocking or --non-blocking.");
     }
     if (!options.summary.trim()) throw new Error("Finding summary must not be empty.");
     if (!options.details.trim()) throw new Error("Finding details must not be empty.");
-    if (options.relatedTicket) validateTicketId(options.relatedTicket);
+    if (options.relatedTicket) InputValidation.validateTicketId(options.relatedTicket);
     if (options.link !== undefined && options.relatedTicket !== undefined) {
       throw new Error("--related-ticket cannot be combined with --link.");
     }
@@ -65,20 +60,14 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (!delivery.owner || delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may register findings.");
-      }
-      const report = options.source
-        ? isAbsolute(options.source)
-          ? resolve(options.source)
-          : resolve(feature.workspace, options.source)
-        : "";
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const assignment = delivery.reviewAssignments?.find(
-        (candidate) => candidate.report === report && candidate.scope === "delivery",
+        (candidate) => candidate.id === options.assignment && candidate.scope === "delivery",
       );
       if (!assignment) {
-        throw new Error("Finding source report must match a frozen delivery review assignment.");
+        throw new Error(`Delivery review assignment not found: ${options.assignment}.`);
       }
+      const report = assignment.report;
       if (assignment.status === "submitted") {
         throw new Error("Findings must be registered before submitting the delivery assignment.");
       }
@@ -134,7 +123,6 @@ export class DeliveryFindingService extends Service {
         (finding) =>
           finding.author === options.author.trim() &&
           finding.relatedTicket === options.relatedTicket &&
-          finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
           finding.details === options.details.trim() &&
@@ -157,7 +145,6 @@ export class DeliveryFindingService extends Service {
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
         ...(options.relatedTicket ? { relatedTicket: options.relatedTicket } : {}),
-        severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",
         summary: options.summary.trim(),
@@ -192,7 +179,7 @@ export class DeliveryFindingService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
     }
@@ -220,9 +207,7 @@ export class DeliveryFindingService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may record a finding ruling.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       const identity = this.gitEvidence.deliveryCommitIdentity(
@@ -245,7 +230,7 @@ export class DeliveryFindingService extends Service {
             "--requirements-decision must identify an approved decision for this finding and current requirements.",
           );
         }
-        const requiredReviewers = requiredDeliveryReviewers(ledger, delivery);
+        const requiredReviewers = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
         const assignments = delivery.reviewAssignments ?? [];
         for (const { agent } of requiredReviewers) {
           const matching = assignments.filter(

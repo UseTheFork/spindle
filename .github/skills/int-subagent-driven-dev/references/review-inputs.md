@@ -6,12 +6,12 @@ Read when preparing or accepting a review assignment. The controller supplies th
 
 `REVIEW_INPUTS` names an absolute, read-required package/manifest path. Read it and its required sources before inspecting the checkout or reviewing. Equivalent structured inputs inline remain valid. Review the exact committed target named by the assignment; do not copy, compare, or pass commit IDs by hand.
 
-| Input                  | Required meaning                                                                                                                                                                                                                                               |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Requirements           | Canonical ticket/spec/comments pointers, applicable instructions, criteria, and constraints. Identify inapplicable sources explicitly.                                                                                                                         |
-| Workspace and target | Absolute ticket or feature worktree, exact committed target and comparison base, and the canonical feature spec/ticket requirements that apply. |
-| Complete change       | Complete assigned committed diff with file inventory, stat, and enough context, or approved read-only retrieval from the assigned target. Uncommitted review-affecting changes are not part of an acceptable assignment. |
-| Verification          | Commands, results, test summary, exact committed target covered, and unavailable required checks. Evidence pointers are valid; read them before judging coverage. |
+| Input                | Required meaning                                                                                                                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Requirements         | Canonical ticket/spec/comments pointers, applicable instructions, criteria, and constraints. Identify inapplicable sources explicitly.                                                                                   |
+| Workspace and target | Absolute ticket or feature worktree, exact committed target and comparison base, and the canonical feature spec/ticket requirements that apply.                                                                          |
+| Complete change      | Complete assigned committed diff with file inventory, stat, and enough context, or approved read-only retrieval from the assigned target. Uncommitted review-affecting changes are not part of an acceptable assignment. |
+| Verification         | Commands, results, test summary, exact committed target covered, and unavailable required checks. Evidence pointers are valid; read them before judging coverage.                                                        |
 
 Keep every meaning authoritative in one place: reference canonical requirements, reports, and evidence rather than copying full logs or the entire ledger. A pointer must identify the required material, not merely say "see ledger". The role-specific assignment supplies phase, objective, history relevant to that role, and its distinct report destination.
 

@@ -1,98 +1,31 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import { blueprintCatalog } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { IntegrationRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import { blueprintCatalog } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { IntegrationRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import {
   FEATURE_DIRECTORY,
   EXECUTION_STATES,
   TICKET_CATEGORIES,
   TRACKER_STATUSES,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import type {
   ExecutionState,
   TicketProgress,
   TicketBaselineChange,
   FeatureLedger,
   FeaturePaths,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import {
-  isImplementationAssignment,
-  isCorrectionAttempt,
-  isCorrectionAdjudication,
-  hasMatchingCorrectionAttempt,
-} from "@/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
-import {
-  isCheckRequirement,
-  isCheckRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import {
-  isReviewFinding,
-  isRequirementsDecision,
-} from "@/SubagentDrivenDevelopment/Persistence/FindingSchema";
-import {
-  isDeliveryProgress,
-  isAcceptedEvidence,
-  isIntegrationRecord,
-} from "@/SubagentDrivenDevelopment/Persistence/ProgressSchema";
-import {
-  isReviewAssignment,
-  isSpecialistReviewRequirement,
-} from "@/SubagentDrivenDevelopment/Persistence/ReviewSchema";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { AssignmentSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/AssignmentSchema";
+import { CheckSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/CheckSchema";
+import { FindingSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/FindingSchema";
+import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
+import { ReviewSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ReviewSchema";
+import { Records } from "@spindle/Support/Records";
 
 const isRecord = Records.isRecord;
-
-function matchingCorrectionChecks(
-  current: IntegrationRecord,
-  previous: IntegrationRecord,
-): boolean {
-  const expected = previous.postMerge?.checks;
-  const checks = current.postMerge?.checks;
-  return (
-    !!expected &&
-    !!checks &&
-    JSON.stringify(expected.required.map((item) => item.command)) ===
-      JSON.stringify(checks.required.map((item) => item.command))
-  );
-}
-
-function matchingCorrectionHistory(history: IntegrationRecord[]): boolean {
-  const first = history[0];
-  return !!first && history.every((integration) => matchingCorrectionChecks(integration, first));
-}
-
-function validBaselineHistory(value: unknown, baseSha: unknown): value is TicketBaselineChange[] {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    !value.every(
-      (change) =>
-        isRecord(change) &&
-        typeof change.from === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.from) &&
-        typeof change.to === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.to) &&
-        change.from !== change.to &&
-        typeof change.ticketHead === "string" &&
-        /^[0-9a-f]{40,64}$/i.test(change.ticketHead) &&
-        typeof change.at === "string" &&
-        Number.isFinite(Date.parse(change.at)) &&
-        typeof change.author === "string" &&
-        !!change.author.trim() &&
-        Object.keys(change).every((key) =>
-          ["from", "to", "ticketHead", "at", "author"].includes(key),
-        ),
-    )
-  )
-    return false;
-  return (
-    value.every((change, index) => index === 0 || value[index - 1].to === change.from) &&
-    value.at(-1).to === baseSha
-  );
-}
 
 export class LedgerRepository extends Service {
   public constructor(app: Application) {
@@ -107,8 +40,104 @@ export class LedgerRepository extends Service {
   }
 
   public validateLedger(value: unknown, feature: string): FeatureLedger {
-    this.assertLedger(value, feature);
-    return value;
+    const normalized = this.normalizeLegacyFields(value);
+    this.assertLedger(normalized, feature);
+    return normalized;
+  }
+
+  private normalizeLegacyFields(value: unknown): unknown {
+    if (!isRecord(value)) return value;
+    const updates: Record<string, unknown> = {};
+    const normalizeFindings = (findings: unknown): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(findings)) return { value: findings, changed: false };
+      let changed = false;
+      const normalized = findings.map((finding) => {
+        if (!isRecord(finding) || !Object.hasOwn(finding, "severity")) return finding;
+        const withoutSeverity = { ...finding };
+        delete withoutSeverity.severity;
+        changed = true;
+        return withoutSeverity;
+      });
+      return changed ? { value: normalized, changed: true } : { value: findings, changed: false };
+    };
+    const normalizeReviewAssignments = (
+      assignments: unknown,
+    ): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(assignments)) return { value: assignments, changed: false };
+      let changed = false;
+      const normalized = assignments.map((assignment) => {
+        if (!isRecord(assignment) || !Object.hasOwn(assignment, "noFindings")) return assignment;
+        const migrated = { ...assignment };
+        if (migrated.status === "submitted" && migrated.noFindings === true) {
+          if (!Object.hasOwn(migrated, "findingIds")) migrated.findingIds = [];
+        }
+        delete migrated.noFindings;
+        changed = true;
+        return migrated;
+      });
+      return changed
+        ? { value: normalized, changed: true }
+        : { value: assignments, changed: false };
+    };
+    const normalizeCorrectionAttempts = (
+      attempts: unknown,
+    ): { value: unknown; changed: boolean } => {
+      if (!Array.isArray(attempts)) return { value: attempts, changed: false };
+      let changed = false;
+      const normalized = attempts.map((attempt) => {
+        if (!isRecord(attempt)) return attempt;
+        const reviews = normalizeReviewAssignments(attempt.reviewAssignments);
+        if (!reviews.changed) return attempt;
+        changed = true;
+        return { ...attempt, reviewAssignments: reviews.value };
+      });
+      return changed ? { value: normalized, changed: true } : { value: attempts, changed: false };
+    };
+    if (Array.isArray(value.tickets)) {
+      let changed = false;
+      updates.tickets = value.tickets.map((ticket) => {
+        if (!isRecord(ticket)) return ticket;
+        const findings = normalizeFindings(ticket.findings);
+        const reviews = normalizeReviewAssignments(ticket.reviewAssignments);
+        const reviewHistory = normalizeReviewAssignments(ticket.reviewHistory);
+        const attempts = normalizeCorrectionAttempts(ticket.correctionAttempts);
+        const normalizeStatus = ticket.status === "in-progress";
+        if (
+          !normalizeStatus &&
+          !findings.changed &&
+          !reviews.changed &&
+          !reviewHistory.changed &&
+          !attempts.changed
+        )
+          return ticket;
+        changed = true;
+        return {
+          ...ticket,
+          ...(normalizeStatus ? { status: "open" } : {}),
+          ...(findings.changed ? { findings: findings.value } : {}),
+          ...(reviews.changed ? { reviewAssignments: reviews.value } : {}),
+          ...(reviewHistory.changed ? { reviewHistory: reviewHistory.value } : {}),
+          ...(attempts.changed ? { correctionAttempts: attempts.value } : {}),
+        };
+      });
+      if (!changed) delete updates.tickets;
+    }
+    if (isRecord(value.delivery)) {
+      const findings = normalizeFindings(value.delivery.findings);
+      const reviews = normalizeReviewAssignments(value.delivery.reviewAssignments);
+      const reviewHistory = normalizeReviewAssignments(value.delivery.reviewHistory);
+      const attempts = normalizeCorrectionAttempts(value.delivery.correctionAttempts);
+      if (findings.changed || reviews.changed || reviewHistory.changed || attempts.changed) {
+        updates.delivery = {
+          ...value.delivery,
+          ...(findings.changed ? { findings: findings.value } : {}),
+          ...(reviews.changed ? { reviewAssignments: reviews.value } : {}),
+          ...(reviewHistory.changed ? { reviewHistory: reviewHistory.value } : {}),
+          ...(attempts.changed ? { correctionAttempts: attempts.value } : {}),
+        };
+      }
+    }
+    return Object.keys(updates).length > 0 ? { ...value, ...updates } : value;
   }
 
   private assertLedger(value: unknown, feature: string): asserts value is FeatureLedger {
@@ -177,7 +206,7 @@ export class LedgerRepository extends Service {
               typeof ticket.baseSha === "string" &&
               /^[0-9a-f]{40,64}$/i.test(ticket.baseSha))) &&
           (!Object.hasOwn(ticket, "baselineHistory") ||
-            validBaselineHistory(ticket.baselineHistory, ticket.baseSha)) &&
+            LedgerRepository.validBaselineHistory(ticket.baselineHistory, ticket.baseSha)) &&
           (!Object.hasOwn(ticket, "worktree") ||
             (isRecord(ticket.worktree) &&
               typeof ticket.worktree.workspace === "string" &&
@@ -187,17 +216,17 @@ export class LedgerRepository extends Service {
               ticket.worktree.baseSha === ticket.baseSha &&
               /^[0-9a-f]{40,64}$/i.test(ticket.worktree.baseSha))) &&
           (!Object.hasOwn(ticket, "acceptedEvidence") ||
-            isAcceptedEvidence(ticket.acceptedEvidence)) &&
+            ProgressSchema.isAcceptedEvidence(ticket.acceptedEvidence)) &&
           (!Object.hasOwn(ticket, "integration") ||
             (ticket.execution === "integrated" &&
-              isIntegrationRecord(ticket.integration) &&
-              isAcceptedEvidence(ticket.acceptedEvidence) &&
+              ProgressSchema.isIntegrationRecord(ticket.integration) &&
+              ProgressSchema.isAcceptedEvidence(ticket.acceptedEvidence) &&
               JSON.stringify(ticket.integration.files) ===
                 JSON.stringify(ticket.acceptedEvidence.files))) &&
           (!Object.hasOwn(ticket, "integrationHistory") ||
             (Array.isArray(ticket.integrationHistory) &&
               ticket.integrationHistory.length > 0 &&
-              ticket.integrationHistory.every(isIntegrationRecord) &&
+              ticket.integrationHistory.every(ProgressSchema.isIntegrationRecord) &&
               ticket.integrationHistory.every((integration) => {
                 const postMerge = integration.postMerge;
                 const records = postMerge?.checks?.records ?? [];
@@ -212,29 +241,29 @@ export class LedgerRepository extends Service {
               }) &&
               new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).size ===
                 ticket.integrationHistory.length &&
-              (!isIntegrationRecord(ticket.integration) ||
+              (!ProgressSchema.isIntegrationRecord(ticket.integration) ||
                 (!new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).has(
                   ticket.integration.mergeSha,
                 ) &&
-                  matchingCorrectionChecks(
+                  LedgerRepository.matchingCorrectionChecks(
                     ticket.integration,
                     ticket.integrationHistory[ticket.integrationHistory.length - 1]!,
                   ))) &&
-              matchingCorrectionHistory(ticket.integrationHistory))) &&
+              LedgerRepository.matchingCorrectionHistory(ticket.integrationHistory))) &&
           (!Object.hasOwn(ticket, "reviewRequirements") ||
             (Array.isArray(ticket.reviewRequirements) &&
-              ticket.reviewRequirements.every(isSpecialistReviewRequirement) &&
+              ticket.reviewRequirements.every(ReviewSchema.isSpecialistReviewRequirement) &&
               new Set(ticket.reviewRequirements.map((requirement) => requirement.agent)).size ===
                 ticket.reviewRequirements.length)) &&
           (!Object.hasOwn(ticket, "checks") ||
             (isRecord(ticket.checks) &&
               Array.isArray(ticket.checks.required) &&
-              ticket.checks.required.every(isCheckRequirement) &&
+              ticket.checks.required.every(CheckSchema.isCheckRequirement) &&
               Array.isArray(ticket.checks.records) &&
-              ticket.checks.records.every(isCheckRecord) &&
+              ticket.checks.records.every(CheckSchema.isCheckRecord) &&
               !Object.hasOwn(ticket.checks, "invalidations"))) &&
           (!Object.hasOwn(ticket, "assignment") ||
-            (isImplementationAssignment(ticket.assignment) &&
+            (AssignmentSchema.isImplementationAssignment(ticket.assignment) &&
               (!ticket.worktree ||
                 (isRecord(ticket.worktree) &&
                   ticket.assignment.workspace === ticket.worktree.workspace &&
@@ -242,7 +271,7 @@ export class LedgerRepository extends Service {
               ticket.assignment.report ===
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   ticket.assignment.action === "implement"
@@ -251,14 +280,14 @@ export class LedgerRepository extends Service {
                 ))) &&
           (!Object.hasOwn(ticket, "correctionAttempts") ||
             (Array.isArray(ticket.correctionAttempts) &&
-              ticket.correctionAttempts.every(isCorrectionAttempt) &&
+              ticket.correctionAttempts.every(AssignmentSchema.isCorrectionAttempt) &&
               ticket.correctionAttempts.every((attempt, index) => attempt.number === index + 1) &&
               ticket.correctionAttempts.every(
                 (attempt) =>
                   attempt.assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       `${ticket.id}-round-${attempt.number}-fix.md`,
@@ -267,7 +296,7 @@ export class LedgerRepository extends Service {
                     attempt.priorAssignment.report ===
                       join(
                         this.app.workspaceRoot,
-                        ".scratch",
+                        ".spindle/features",
                         feature,
                         "reports",
                         attempt.priorAssignment.action === "implement"
@@ -279,7 +308,7 @@ export class LedgerRepository extends Service {
                       assignment.report ===
                       join(
                         this.app.workspaceRoot,
-                        ".scratch",
+                        ".spindle/features",
                         feature,
                         "reports",
                         assignment.scope === "initial"
@@ -288,19 +317,19 @@ export class LedgerRepository extends Service {
                       ),
                   ),
               ) &&
-              hasMatchingCorrectionAttempt(ticket))) &&
+              AssignmentSchema.hasMatchingCorrectionAttempt(ticket))) &&
           (!Object.hasOwn(ticket, "adjudication") ||
-            isCorrectionAdjudication(ticket.adjudication)) &&
+            AssignmentSchema.isCorrectionAdjudication(ticket.adjudication)) &&
           (!Object.hasOwn(ticket, "reviewAssignments") ||
             (Array.isArray(ticket.reviewAssignments) &&
               ticket.reviewAssignments.every(
                 (assignment) =>
-                  isReviewAssignment(assignment) &&
+                  ReviewSchema.isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
                   assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       assignment.scope === "initial"
@@ -312,12 +341,12 @@ export class LedgerRepository extends Service {
             (Array.isArray(ticket.reviewHistory) &&
               ticket.reviewHistory.every(
                 (assignment) =>
-                  isReviewAssignment(assignment) &&
+                  ReviewSchema.isReviewAssignment(assignment) &&
                   blueprintCatalog.agents[assignment.agent]?.canReview === true &&
                   assignment.report ===
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       assignment.scope === "initial"
@@ -327,9 +356,10 @@ export class LedgerRepository extends Service {
               ))) &&
           (!Object.hasOwn(ticket, "requirementsDecisions") ||
             (Array.isArray(ticket.requirementsDecisions) &&
-              ticket.requirementsDecisions.every(isRequirementsDecision))) &&
+              ticket.requirementsDecisions.every(FindingSchema.isRequirementsDecision))) &&
           (!Object.hasOwn(ticket, "findings") ||
-            (Array.isArray(ticket.findings) && ticket.findings.every(isReviewFinding))),
+            (Array.isArray(ticket.findings) &&
+              ticket.findings.every(FindingSchema.isReviewFinding))),
       )
     ) {
       throw new Error(
@@ -389,11 +419,6 @@ export class LedgerRepository extends Service {
               source.report === assignment.report && source.headSha === assignment.headSha,
           ),
         );
-        if (assignment.noFindings === true && reported.length > 0) {
-          throw new Error(
-            `Review assignment ${assignment.id} declares no findings despite registered provenance.`,
-          );
-        }
         for (const id of assignment.findingIds ?? []) {
           const finding = (ticket.findings ?? []).find((candidate) => candidate.id === id);
           if (
@@ -410,9 +435,8 @@ export class LedgerRepository extends Service {
         }
         if (
           assignment.status === "submitted" &&
-          assignment.findingIds &&
-          (reported.length !== assignment.findingIds.length ||
-            reported.some((finding) => !assignment.findingIds!.includes(finding.id)))
+          (reported.length !== (assignment.findingIds?.length ?? 0) ||
+            reported.some((finding) => !assignment.findingIds?.includes(finding.id)))
         ) {
           throw new Error(
             `Review assignment ${assignment.id} does not list the complete canonical findings set.`,
@@ -469,20 +493,20 @@ export class LedgerRepository extends Service {
         (typeof delivery.owner !== "string" || !delivery.owner.trim())) ||
       (Object.hasOwn(delivery, "reviewRequirements") &&
         (!Array.isArray(delivery.reviewRequirements) ||
-          !delivery.reviewRequirements.every(isSpecialistReviewRequirement) ||
+          !delivery.reviewRequirements.every(ReviewSchema.isSpecialistReviewRequirement) ||
           new Set(delivery.reviewRequirements.map((item) => item.agent)).size !==
             delivery.reviewRequirements.length)) ||
       (Object.hasOwn(delivery, "reviewAssignments") &&
         (!Array.isArray(delivery.reviewAssignments) ||
           !delivery.reviewAssignments.every(
             (assignment) =>
-              isReviewAssignment(assignment) &&
+              ReviewSchema.isReviewAssignment(assignment) &&
               assignment.scope === "delivery" &&
               blueprintCatalog.agents[assignment.agent]?.canReview === true &&
               assignment.report ===
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   assignment.attempt
@@ -494,25 +518,26 @@ export class LedgerRepository extends Service {
         (!Array.isArray(delivery.reviewHistory) ||
           !delivery.reviewHistory.every(
             (assignment) =>
-              isReviewAssignment(assignment) &&
+              ReviewSchema.isReviewAssignment(assignment) &&
               assignment.scope === "delivery" &&
               blueprintCatalog.agents[assignment.agent]?.canReview === true,
           ))) ||
       (Object.hasOwn(delivery, "requirementsDecisions") &&
         (!Array.isArray(delivery.requirementsDecisions) ||
-          !delivery.requirementsDecisions.every(isRequirementsDecision) ||
+          !delivery.requirementsDecisions.every(FindingSchema.isRequirementsDecision) ||
           new Set(delivery.requirementsDecisions.map((decision) => decision.id)).size !==
             delivery.requirementsDecisions.length)) ||
       (Object.hasOwn(delivery, "findings") &&
-        (!Array.isArray(delivery.findings) || !delivery.findings.every(isReviewFinding))) ||
+        (!Array.isArray(delivery.findings) ||
+          !delivery.findings.every(FindingSchema.isReviewFinding))) ||
       (Object.hasOwn(delivery, "assignment") &&
-        (!isImplementationAssignment(delivery.assignment) ||
+        (!AssignmentSchema.isImplementationAssignment(delivery.assignment) ||
           delivery.assignment.action !== "correct" ||
           !Number.isSafeInteger(delivery.assignment.attempt) ||
           delivery.assignment.report !==
             join(
               this.app.workspaceRoot,
-              ".scratch",
+              ".spindle/features",
               feature,
               "reports",
               `final-round-${delivery.assignment.attempt}-fix.md`,
@@ -520,12 +545,12 @@ export class LedgerRepository extends Service {
       (Object.hasOwn(delivery, "checks") &&
         (!isRecord(delivery.checks) ||
           !Array.isArray(delivery.checks.required) ||
-          !delivery.checks.required.every(isCheckRequirement) ||
+          !delivery.checks.required.every(CheckSchema.isCheckRequirement) ||
           !Array.isArray(delivery.checks.records) ||
-          !delivery.checks.records.every(isCheckRecord))) ||
+          !delivery.checks.records.every(CheckSchema.isCheckRecord))) ||
       (Object.hasOwn(delivery, "correctionAttempts") &&
         (!Array.isArray(delivery.correctionAttempts) ||
-          !delivery.correctionAttempts.every(isCorrectionAttempt) ||
+          !delivery.correctionAttempts.every(AssignmentSchema.isCorrectionAttempt) ||
           delivery.correctionAttempts.some(
             (attempt, index) =>
               attempt.number !== index + 1 ||
@@ -533,7 +558,7 @@ export class LedgerRepository extends Service {
               attempt.assignment.report !==
                 join(
                   this.app.workspaceRoot,
-                  ".scratch",
+                  ".spindle/features",
                   feature,
                   "reports",
                   `final-round-${attempt.number}-fix.md`,
@@ -545,19 +570,20 @@ export class LedgerRepository extends Service {
                   assignment.report !==
                     join(
                       this.app.workspaceRoot,
-                      ".scratch",
+                      ".spindle/features",
                       feature,
                       "reports",
                       `final-round-${attempt.number}-review-${assignment.id}.md`,
                     ),
               ),
           ) ||
-          !hasMatchingCorrectionAttempt(delivery))) ||
-      (Object.hasOwn(delivery, "adjudication") && !isCorrectionAdjudication(delivery.adjudication))
+          !AssignmentSchema.hasMatchingCorrectionAttempt(delivery))) ||
+      (Object.hasOwn(delivery, "adjudication") &&
+        !AssignmentSchema.isCorrectionAdjudication(delivery.adjudication))
     ) {
       throw new Error("Feature delivery evidence or assignment records are invalid.");
     }
-    if (!isDeliveryProgress(delivery)) {
+    if (!ProgressSchema.isDeliveryProgress(delivery)) {
       throw new Error("Feature delivery progress does not match the delivery ledger schema.");
     }
     const deliveryFindingIds = delivery.findings?.map((finding) => finding.id) ?? [];
@@ -600,5 +626,60 @@ export class LedgerRepository extends Service {
     ) {
       throw new Error("Feature review assignment IDs must be unique.");
     }
+  }
+
+  private static matchingCorrectionChecks(
+    current: IntegrationRecord,
+    previous: IntegrationRecord,
+  ): boolean {
+    const expected = previous.postMerge?.checks;
+    const checks = current.postMerge?.checks;
+    return (
+      !!expected &&
+      !!checks &&
+      JSON.stringify(expected.required.map((item) => item.command)) ===
+        JSON.stringify(checks.required.map((item) => item.command))
+    );
+  }
+
+  private static matchingCorrectionHistory(history: IntegrationRecord[]): boolean {
+    const first = history[0];
+    return (
+      !!first &&
+      history.every((integration) => LedgerRepository.matchingCorrectionChecks(integration, first))
+    );
+  }
+
+  private static validBaselineHistory(
+    value: unknown,
+    baseSha: unknown,
+  ): value is TicketBaselineChange[] {
+    if (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      !value.every(
+        (change) =>
+          isRecord(change) &&
+          typeof change.from === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.from) &&
+          typeof change.to === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.to) &&
+          change.from !== change.to &&
+          typeof change.ticketHead === "string" &&
+          /^[0-9a-f]{40,64}$/i.test(change.ticketHead) &&
+          typeof change.at === "string" &&
+          Number.isFinite(Date.parse(change.at)) &&
+          typeof change.author === "string" &&
+          !!change.author.trim() &&
+          Object.keys(change).every((key) =>
+            ["from", "to", "ticketHead", "at", "author"].includes(key),
+          ),
+      )
+    )
+      return false;
+    return (
+      value.every((change, index) => index === 0 || value[index - 1].to === change.from) &&
+      value.at(-1).to === baseSha
+    );
   }
 }

@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 
 import { z } from "zod";
 
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 
 writeFileSync(
   new URL("../../spindle.schema.json", import.meta.url),

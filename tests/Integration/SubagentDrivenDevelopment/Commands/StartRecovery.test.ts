@@ -9,16 +9,16 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { GitService } from "@/Git/Services/GitService";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { FeatureWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
-import { execute, fixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { execute, fixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 function stringEncoding(
   options: SpawnSyncOptionsWithStringEncoding | SpawnSyncOptionsWithBufferEncoding,
@@ -118,7 +118,7 @@ test("startup recovery preserves records changed after staging", async () => {
   expect(() => service.start(options)).toThrow("Staged feature records differ");
   expect(readFileSync(spec, "utf8")).toContain("Unsaved changes.");
   expect(
-    execFileSync("git", ["show", ":.scratch/0001-resume-start/spec.md"], {
+    execFileSync("git", ["show", ":.spindle/features/0001-resume-start/spec.md"], {
       cwd: repo,
       encoding: "utf8",
     }),
@@ -130,7 +130,7 @@ test("startup recovery preserves new work in an interrupted feature worktree", a
   git.interrupt = "worktree";
   expect(() => service.start(options)).toThrow("simulated interruption");
   const statePath = join(
-    dirname(dirname(dirname(spec))),
+    dirname(dirname(dirname(dirname(spec)))),
     ".git",
     "spindle-feature-start",
     "0001-resume-start.json",

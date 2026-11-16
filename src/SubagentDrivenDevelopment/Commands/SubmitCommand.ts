@@ -1,51 +1,42 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { SubmitOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { SubmitOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
 
 export class SubmitCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    let findingsDeclared = false;
-    let noFindingsDeclared = false;
-    const submitCommand = group(root)
+    const submitCommand = SddCommandGroups.group(root)
       .command("submit")
       .description("Register an implementation or review report.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
-      .requiredOption("--role <role>", "Assignment role")
-      .option(
+      .requiredOption(
         "--assignment <id>",
-        "Exact review assignment ID",
+        "Exact implementation or review assignment ID",
         CommandOptions.once("--assignment"),
       )
-      .option("--report <path>", "Implementation report path", CommandOptions.once("--report"))
       .option(
         "--result <result>",
-        "Review result: passed, failed, unavailable",
+        "Review result: passed, failed, unavailable; implementation: unavailable",
         CommandOptions.once("--result"),
       )
-      .option("--findings <ids...>", "Complete canonical finding ID list for this report")
-      .option("--no-findings", "Explicitly attest that the review report has no findings")
-      .option("--unavailable", "Record that the assigned report is unavailable")
       .option(
         "--details <details>",
         "Required details for failed or unavailable results",
         CommandOptions.once("--details"),
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false);
-    submitCommand.on("option:findings", () => {
-      findingsDeclared = true;
-    });
-    submitCommand.on("option:no-findings", () => {
-      noFindingsDeclared = true;
-    });
     submitCommand.action(async (options: SubmitOptions) => {
       if (options.scope !== undefined && options.scope !== "delivery") {
         throw new Error("--scope must be 'delivery'.");
@@ -53,27 +44,14 @@ export class SubmitCommand extends Command {
       if (Boolean(options.ticket) === (options.scope === "delivery")) {
         throw new Error("submit needs exactly one of --ticket or --scope delivery.");
       }
-      if (findingsDeclared && noFindingsDeclared) {
-        throw new Error("--findings and --no-findings cannot be combined.");
-      }
       const app = await createApp();
       const command = await app.make(SubmitCommand);
-      const { findings, ...submission } = options;
-      const data = await command.run({
-        ...submission,
-        ...(options.role === "review"
-          ? findings === false
-            ? { noFindings: true }
-            : Array.isArray(findings)
-              ? { findingIds: findings }
-              : {}
-          : {}),
-      });
+      const data = await command.run(options);
       const output = await app.make(ConsoleOutputService);
       const human = [
-        options.unavailable
-          ? `Marked the ${options.role} report unavailable for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`
-          : `Submitted ${options.role} report for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+        options.result === "unavailable"
+          ? `Marked the ${data.assignment.role} report unavailable for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`
+          : `Submitted ${data.assignment.role} report for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
         `Assignment: ${data.assignment.id} (${data.assignment.role}).`,
         `Report: ${data.assignment.report}`,
         ...(data.assignment.workspace ? [`Workspace: ${data.assignment.workspace}`] : []),

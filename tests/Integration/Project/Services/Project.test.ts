@@ -3,15 +3,15 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { ProjectServiceProvider } from "@/Project/ProjectServiceProvider";
-import { ProjectService } from "@/Project/Services/ProjectService";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ToolingService } from "@/Tooling/Services/ToolingService";
-import { ToolingServiceProvider } from "@/Tooling/ToolingServiceProvider";
+import { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
+import { ProjectService } from "@spindle/Project/Services/ProjectService";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
+import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
 
-import { makeTempDirSync, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const copilotInstructionsTemplate = readFileSync(
   join(repoRoot, "assets/Templates/project/copilot-instructions.md"),
@@ -21,8 +21,9 @@ const copilotInstructionsTemplate = readFileSync(
 async function fixture() {
   const workspace = makeTempDirSync("project-service-");
   mkdirSync(join(workspace, ".github"));
+  mkdirSync(join(workspace, ".spindle"));
   writeFileSync(
-    join(workspace, ".github/spindle.json"),
+    join(workspace, ".spindle/config.json"),
     JSON.stringify({ stacks: ["typescript"], spindle_package_manager: "pnpm", variables: {} }),
   );
   const app = new Application({ basePath: workspace });
@@ -64,7 +65,7 @@ test("project operations require a booted application", async () => {
 test("tooling changes use the Project Settings snapshot after the file changes", async () => {
   const { app, workspace, service, tooling } = await fixture();
   await service.initialize();
-  const path = join(workspace, ".github/spindle.json");
+  const path = join(workspace, ".spindle/config.json");
   const config = JSON.parse(readFileSync(path, "utf8"));
   config.commit.title_max_length = 1;
   const invalid = JSON.stringify(config);
@@ -86,7 +87,7 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     created: [
       "docs",
       "docs/adr",
-      ".scratch",
+      ".spindle/features",
       "docs/agents",
       ".github/copilot-instructions.md",
       "docs/agents/domain.md",
@@ -94,20 +95,22 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       "docs/agents/constitution.md",
       "docs/agents/tooling.md",
     ],
-    preserved: [".github"],
-    updated: [".github/spindle.json"],
+    preserved: [".spindle", ".github"],
+    updated: [".spindle/config.json"],
   });
-  const config = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
+  const config = JSON.parse(readFileSync(join(workspace, ".spindle/config.json"), "utf8"));
   expect(ProjectSettingsService.current(app)).toMatchObject({
     status: "valid",
     data: { stacks: ["typescript"], tooling: expect.any(Array) },
   });
-  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8")).toContain(
-    "pnpm spindle sdd",
-  );
-  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8")).not.toContain(
-    "{{",
-  );
+  const ticketGuide = readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8");
+  expect(ticketGuide).toContain("pnpm spindle sdd");
+  expect(ticketGuide).toContain("Ticket status is `open` or `closed`");
+  expect(ticketGuide).toContain("Declare the complete final-check list before finishing");
+  expect(ticketGuide).toContain("check and review results require `--details`");
+  expect(ticketGuide).not.toContain("`in-progress`");
+  expect(ticketGuide).not.toContain("--confirm-records");
+  expect(ticketGuide).not.toContain("{{");
   expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
     `<!-- spindle:start -->\n${copilotInstructionsTemplate.trimEnd()}\n<!-- spindle:end -->\n`,
   );
@@ -143,7 +146,7 @@ test("project initialization preserves a project-owned constitution after creati
   const first = await service.initialize();
   const constitutionPath = join(workspace, "docs/agents/constitution.md");
   expect(first.created).toContain("docs/agents/constitution.md");
-  expect(readFileSync(constitutionPath, "utf8")).toContain("Status:** Draft");
+  expect(readFileSync(constitutionPath, "utf8")).toContain("Draft scaffold.");
 
   const ratifiedConstitution = "# Ratified constitution\n";
   writeFileSync(constitutionPath, ratifiedConstitution);
@@ -171,7 +174,7 @@ test("project initialization replaces a bounded Copilot block while preserving s
 test("initialization seeds a registry in legacy Project Settings and preserves existing entries on rerun", async () => {
   const { app, workspace, service, tooling } = await fixture();
   writeFileSync(
-    join(workspace, ".github/spindle.json"),
+    join(workspace, ".spindle/config.json"),
     JSON.stringify({
       stacks: ["typescript"],
       spindle_package_manager: "pnpm",
@@ -181,8 +184,8 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
   );
   await ProjectSettingsService.refresh(app);
   const first = await service.initialize();
-  expect(first.updated).toEqual([".github/spindle.json"]);
-  const original = JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8"));
+  expect(first.updated).toEqual([".spindle/config.json"]);
+  const original = JSON.parse(readFileSync(join(workspace, ".spindle/config.json"), "utf8"));
   expect(original).toMatchObject({
     stacks: ["typescript"],
     variables: { owner: "team" },
@@ -210,7 +213,7 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
     customTicketTracker,
   );
   expect(
-    JSON.parse(readFileSync(join(workspace, ".github/spindle.json"), "utf8")).tooling,
+    JSON.parse(readFileSync(join(workspace, ".spindle/config.json"), "utf8")).tooling,
   ).toHaveLength(1);
   expect(readFileSync(join(workspace, "docs/agents/tooling.md"), "utf8")).toContain("pnpm test");
 });
@@ -328,10 +331,10 @@ test.each([
 
 test("project initialization rejects invalid Project Settings and symlinked generated files", async () => {
   const invalid = await fixture();
-  writeFileSync(join(invalid.workspace, ".github/spindle.json"), "{");
+  writeFileSync(join(invalid.workspace, ".spindle/config.json"), "{");
   await ProjectSettingsService.refresh(invalid.app);
   await expect(invalid.service.initialize()).rejects.toThrow("not valid JSON");
-  expect(readdirSync(invalid.workspace)).toEqual([".github"]);
+  expect(readdirSync(invalid.workspace)).toEqual([".github", ".spindle"]);
 
   const symlinked = await fixture();
   mkdirSync(join(symlinked.workspace, "docs/agents"), { recursive: true });
@@ -347,11 +350,11 @@ test("project initialization rejects invalid Project Settings and symlinked gene
 test("project initialization requires an installed Blueprint stack", async () => {
   const { workspace, service, app } = await fixture();
   writeFileSync(
-    join(workspace, ".github/spindle.json"),
+    join(workspace, ".spindle/config.json"),
     JSON.stringify({ stacks: [], variables: {} }),
   );
   await ProjectSettingsService.refresh(app);
 
   await expect(service.initialize()).rejects.toThrow(/Install at least one Blueprint stack/);
-  expect(readdirSync(workspace)).toEqual([".github"]);
+  expect(readdirSync(workspace)).toEqual([".github", ".spindle"]);
 });

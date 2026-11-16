@@ -3,33 +3,25 @@ import { join, relative } from "node:path";
 
 import matter from "gray-matter";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   TicketCreateOptions,
   TicketUpdateOptions,
   TicketCommentOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import {
-  TICKET_CATEGORIES,
-  TICKET_ID,
-  TRACKER_STATUSES,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import type { TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-  validateCategory,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TICKET_CATEGORIES, TICKET_ID } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type { FeatureLedger, TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class TicketService extends Service {
   public constructor(
@@ -48,6 +40,8 @@ export class TicketService extends Service {
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
+      const recovered = this.recoveredTicket(feature.workspace, ledger, options);
+      if (recovered) return recovered;
       const tickets = this.ticketRepository.readTickets(feature.workspace);
       this.ticketRepository.validateDependencyGraph(tickets);
       let highest = 0n;
@@ -60,7 +54,7 @@ export class TicketService extends Service {
       }
       const id = `T-${String(highest + 1n).padStart(4, "0")}`;
       const path = join(feature.workspace, "tickets", `${id}.md`);
-      if (lstatIfPresent(path)) throw new Error(`Ticket already exists: ${id}.`);
+      if (FileSystem.lstatIfPresent(path)) throw new Error(`Ticket already exists: ${id}.`);
       this.pathSafety.assertTicketPath(feature.workspace, path);
       const ticket = {
         id,
@@ -70,7 +64,7 @@ export class TicketService extends Service {
         status: "open" as const,
         blockedBy: [],
       };
-      const context = resolveRenderContext(this.app, {
+      const context = ResolveRenderContext.resolve(this.app, {
         variables: {
           title: options.title.trim(),
           reporter: options.reporter.trim(),
@@ -78,7 +72,7 @@ export class TicketService extends Service {
           author: options.author.trim(),
         },
       });
-      const template = renderText(
+      const template = RenderText.render(
         readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.ticket), "utf8"),
         context,
       );
@@ -102,20 +96,40 @@ export class TicketService extends Service {
     });
   }
 
+  private recoveredTicket(
+    workspace: string,
+    ledger: FeatureLedger,
+    options: TicketCreateOptions,
+  ): { ticket: string; path: string } | undefined {
+    for (const write of this.workspaceTransaction.recoveredWrites(workspace)) {
+      const id = /^tickets\/(T-\d{4,})\.md$/.exec(write.path)?.[1];
+      if (!id || write.before !== null) continue;
+      const progress = ledger.tickets.find((candidate) => candidate.id === id);
+      if (
+        progress?.execution === "unstarted" &&
+        progress.title === options.title.trim() &&
+        progress.reporter === options.reporter.trim() &&
+        progress.category === options.category
+      ) {
+        return { ticket: id, path: join(workspace, write.path) };
+      }
+    }
+    return undefined;
+  }
+
   public ticketUpdate(options: TicketUpdateOptions): { ticket: string; path: string } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (
       options.title === undefined &&
       options.reporter === undefined &&
       options.category === undefined &&
-      options.status === undefined &&
       options.blocker === undefined &&
       !options.clearBlocker &&
       options.blockedBy === undefined &&
       !options.clearBlockedBy
     ) {
-      throw new Error("Provide ticket fields, status, blocker, or dependency options to update.");
+      throw new Error("Provide ticket fields, blocker, or dependency options to update.");
     }
     if (options.clearBlockedBy && options.blockedBy !== undefined) {
       throw new Error("--clear-blocked-by cannot be combined with --blocked-by.");
@@ -128,16 +142,7 @@ export class TicketService extends Service {
     if (options.reporter !== undefined && !options.reporter.trim()) {
       throw new Error("Reporter must not be empty.");
     }
-    if (options.category !== undefined) validateCategory(options.category);
-    if (
-      options.status !== undefined &&
-      !TRACKER_STATUSES.some((status) => status === options.status)
-    ) {
-      throw new Error(`Ticket status must be one of: ${TRACKER_STATUSES.join(", ")}.`);
-    }
-    if (options.status === "closed") {
-      throw new Error("Tickets close automatically after passing post-merge checks.");
-    }
+    if (options.category !== undefined) InputValidation.validateCategory(options.category);
     if (options.blocker !== undefined && !options.blocker.trim()) {
       throw new Error("Blocker reason must not be empty.");
     }
@@ -156,10 +161,6 @@ export class TicketService extends Service {
       if (options.category !== undefined) {
         structured.category = options.category as (typeof TICKET_CATEGORIES)[number];
         updated.category = structured.category;
-      }
-      if (options.status !== undefined) {
-        structured.status = options.status as (typeof TRACKER_STATUSES)[number];
-        updated.status = structured.status;
       }
       if (options.blocker !== undefined) {
         structured.blocker = options.blocker.trim();
@@ -202,8 +203,8 @@ export class TicketService extends Service {
   }
 
   public ticketComment(options: TicketCommentOptions): { ticket: string; path: string } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (!options.details.trim()) throw new Error("Comment details must not be empty.");
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {

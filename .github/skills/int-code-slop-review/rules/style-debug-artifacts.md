@@ -61,7 +61,7 @@ public function calculateTax(Order $order): Money
 
 ```typescript
 // ✅ No debug; if logging matters, use the proper logger with context
-import { logger } from "@/lib/logger";
+import { logger } from "@spindle/lib/logger";
 
 async function processPayment(order: Order, token: string): Promise<Charge> {
   // Real logger — structured, redacts secrets, levels enforced

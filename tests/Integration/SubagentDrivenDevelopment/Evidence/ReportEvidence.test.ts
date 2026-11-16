@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("report evidence hashes current bytes and rejects symlinked report paths", async () => {
   const { app, service } = await serviceFixture();

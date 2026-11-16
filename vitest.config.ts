@@ -5,10 +5,12 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@spindle": fileURLToPath(new URL("./src", import.meta.url)),
+      "@test": fileURLToPath(new URL("./tests", import.meta.url)),
     },
   },
   test: {
+    maxWorkers: 4,
     environment: "node",
     include: ["tests/**/*.test.ts"],
     exclude: ["src/Assets/**", "build/**", "**/node_modules/**"],

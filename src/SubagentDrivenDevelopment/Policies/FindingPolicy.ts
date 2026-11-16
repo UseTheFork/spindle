@@ -1,16 +1,16 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
   DeliveryProgress,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
 
 export class FindingPolicy extends Service {
   public constructor(
@@ -60,7 +60,7 @@ export class FindingPolicy extends Service {
       )
       .map(
         (finding) =>
-          `Finding ${finding.id} is unresolved and blocking acceptance (severity=${finding.severity}, status=${finding.status}).`,
+          `Finding ${finding.id} is unresolved and blocking acceptance (status=${finding.status}).`,
       );
   }
 
@@ -87,7 +87,7 @@ export class FindingPolicy extends Service {
             ),
         );
         if (!decision) return true;
-        const required = requiredDeliveryReviewers(ledger, delivery);
+        const required = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
         return required.some(({ agent }) => {
           const matching = (delivery.reviewAssignments ?? []).filter(
             (assignment) =>

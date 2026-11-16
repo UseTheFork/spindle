@@ -1,37 +1,42 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
-import type { FeatureFinishOptions } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import type { FeatureFinishOptions } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
 
 export class FinishCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("finish")
       .description(
-        "Merge approved feature delivery, then clean up only after exact final-merge checks pass.",
+        "Merge approved feature delivery, then clean up only after final checks pass for the validation target.",
       )
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option(
         "--report <path>",
         "Optional or policy-required Markdown report inside feature reports/",
         CommandOptions.once("--report"),
       )
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
-      .option("--confirm-records", "Confirm inspected canonical records may be committed")
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: FeatureFinishOptions) => {
         const app = await createApp();
         const command = await app.make(FinishCommand);
         const data = await command.run(options);
         const output = await app.make(ConsoleOutputService);
+        const summary = await app.make(StatusSummaryService);
         output.result({
           level: "success",
-          human: `Finished feature delivery for ${options.spec}.`,
+          human: summary.finishSummary(data),
           data,
         });
       });

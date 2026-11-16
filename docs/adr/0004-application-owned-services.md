@@ -52,7 +52,12 @@ as established by [ADR-0009](./0009-shared-template-rendering.md).
 `ComputedContextService` is transient: reconciliation resolves a fresh instance per
 run, retaining memoization within that run without carrying computed values between
 runs. Project Settings, prompt answers, plans, and operational mutable state remain per-run.
-Stateless utilities remain standalone functions, not artificial services.
+Named module-level operations belong on classes rather than standalone functions.
+Stateless utilities use static methods, not artificial services. General-purpose
+utilities shared across domains belong in shared Support; domain-specific helpers
+remain in their owning domain. Stateful behavior stays on its owning service or
+class. Each class belongs in its own file. Anonymous callbacks and small functions
+local to a method remain appropriate.
 
 `FoundationServiceProvider` explicitly binds the ordinary, stateful
 `ConsoleOutputService` singleton. CLI dispatch configures its invocation-local
@@ -78,7 +83,7 @@ and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.
 its initially empty mutable `config` is isolated between applications and available
 before provider construction. Application Configuration is distinct from the
-project's `.github/spindle.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
+project's `.spindle/config.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
 adds a distinct Project Settings snapshot bootstrap adapter without populating `app.config`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
@@ -151,7 +156,8 @@ Git discovery intentionally changes workspace command behavior outside working
 trees and when invoked from nested directories. Programmatic fixtures can bind
 explicit root values without Git discovery.
 
-Source imports use extensionless `@/` aliases with TypeScript Bundler resolution.
+Source imports use extensionless `@spindle/` aliases with TypeScript Bundler
+resolution. Tests use the `@test/` alias for test modules.
 The production build rewrites aliases and file extensions for Node ESM, preserves
 the Blueprint bundle and Project assets, and is verified as an executable
 package. Source subprocess runners explicitly select the repository tsconfig when

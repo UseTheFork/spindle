@@ -1,31 +1,30 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { FindingCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { FindingCreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { FindingService } from "@spindle/SubagentDrivenDevelopment/Services/FindingService";
 
 export class FindingCreateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "finding")
+    SddCommandGroups.group(root, "finding")
       .command("create")
       .description("Register a review finding from its assigned report.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .option("--related-ticket <id>", "Ticket to reopen for a blocking feature finding")
       .requiredOption(
-        "--source <path>",
-        "Assigned review report containing the finding",
-        CommandOptions.once("--source"),
-      )
-      .requiredOption(
-        "--severity <severity>",
-        "Finding severity: high, medium, low",
-        CommandOptions.once("--severity"),
+        "--assignment <id>",
+        "Exact review assignment ID",
+        CommandOptions.once("--assignment"),
       )
       .option("--blocking", "Mark the finding as blocking")
       .option("--non-blocking", "Mark the finding as non-blocking")
@@ -41,9 +40,9 @@ export class FindingCreateCommand extends Command {
         CommandOptions.once("--details"),
       )
       .requiredOption(
-        "--author <author>",
+        "--actor <acting-agent>",
         "Finding registration author",
-        CommandOptions.once("--author"),
+        CommandOptions.once("--actor"),
       )
       .allowExcessArguments(false)
       .action(async (options: FindingCreateOptions) => {

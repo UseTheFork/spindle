@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test } from "vitest";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("readiness rejects Markdown tickets without matching ledger records", async () => {
   const { service } = await serviceFixture();

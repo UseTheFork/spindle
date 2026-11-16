@@ -1,19 +1,23 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { FindingUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { FindingUpdateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { FindingService } from "@spindle/SubagentDrivenDevelopment/Services/FindingService";
 
 export class FindingUpdateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "finding")
+    SddCommandGroups.group(root, "finding")
       .command("update")
       .description("Record an explicit, attributed finding disposition.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
       .requiredOption("--finding <id>", "Canonical finding ID", CommandOptions.once("--finding"))
@@ -27,7 +31,7 @@ export class FindingUpdateCommand extends Command {
         "--requirements-decision <id>",
         "Approved requirements decision covering a scope change",
       )
-      .requiredOption("--author <author>", "Ruling author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Ruling author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: FindingUpdateOptions) => {
         if (options.scope !== undefined && options.scope !== "delivery") {

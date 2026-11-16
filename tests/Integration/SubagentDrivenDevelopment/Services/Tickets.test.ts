@@ -13,14 +13,14 @@ import { join } from "node:path";
 import matter from "gray-matter";
 import { expect, test, vi } from "vitest";
 
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { InternalSkillDescriptionProvider } from "@/TemplateRendering/Computed/Providers/InternalSkillDescriptionProvider";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
 
-import { runCli } from "../../../Helpers/Cli.ts";
+import { runCli } from "@test/Helpers/Cli";
 import {
   createTicket,
   ticketFixture,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("ticket create persists attributed metadata and unstarted progress without overwriting", async () => {
   const { service, feature } = await ticketFixture("Ticket Lifecycle");
@@ -109,8 +109,8 @@ test("ticket creation rejects invalid categories and missing attribution without
       "sdd",
       "ticket",
       "create",
-      "--spec",
-      feature.spec,
+      "--feature",
+      feature.spec.replace(/\/spec\.md$/, ""),
       "--title",
       "Invalid ticket",
       "--reporter",
@@ -132,7 +132,7 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
   const render = vi
-    .spyOn(InternalSkillDescriptionProvider.prototype, "render")
+    .spyOn(PrivateSkillDescriptionProvider.prototype, "render")
     .mockImplementation(() => {
       throw new Error("provider failed");
     });
@@ -145,7 +145,7 @@ test("computed provider failures leave ticket and ledger unpublished", async () 
       category: "bug",
       author: "maintainer",
     }),
-  ).toThrow(/Computed Variable 'internal_skill_description' failed: provider failed/);
+  ).toThrow(/Computed Variable 'private_skill_description' failed: provider failed/);
   expect(existsSync(join(feature.workspace, "tickets", "T-0001.md"))).toBe(false);
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBefore);
   render.mockRestore();
@@ -155,7 +155,7 @@ test("ticket creation requires valid Project Settings", async () => {
   const { repo, app, service, feature } = await ticketFixture("Invalid Project Settings");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const ledgerBefore = readFileSync(ledgerPath, "utf8");
-  writeFileSync(join(repo, ".github", "spindle.json"), "{ invalid");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{ invalid");
   await ProjectSettingsService.refresh(app);
 
   expect(() =>
@@ -173,7 +173,7 @@ test("ticket creation requires valid Project Settings", async () => {
 
 test("ticket creation rejects ignored destinations without changing ticket or ledger files", async () => {
   const { repo, service, feature } = await ticketFixture("Ignored Ticket");
-  writeFileSync(join(repo, ".gitignore"), ".scratch/*/tickets/T-*.md\n");
+  writeFileSync(join(repo, ".gitignore"), ".spindle/features/*/tickets/T-*.md\n");
   const ledgerPath = join(feature.workspace, "sdd.json");
   const before = readFileSync(ledgerPath, "utf8");
   expect(() => createTicket(service, feature.spec, "Must not be ignored")).toThrow(/ignored/i);
@@ -264,43 +264,44 @@ test("ticket update stores structured fields in the ledger and preserves local m
   expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[1].blockedBy).toEqual([]);
 });
 
-test("ticket tracker preserves blockers and forbids manual closure", async () => {
-  const { service, feature } = await ticketFixture("Ticket Tracker");
+test("ticket status is workflow-owned while ticket updates preserve blockers", async () => {
+  const { repo, service, feature } = await ticketFixture("Ticket Tracker");
   createTicket(service, feature.spec, "Track work");
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  const beforeStatusChange = readFileSync(ledgerPath, "utf8");
+  const statusChange = runCli(
+    repo,
+    [
+      "sdd",
+      "ticket",
+      "update",
+      "--feature",
+      feature.spec.replace(/\/spec\.md$/, ""),
+      "--ticket",
+      "T-0001",
+      "--status",
+      "in-progress",
+      "--actor",
+      "worker",
+    ],
+    process.env.PATH ?? "",
+  );
+  expect(statusChange.status).not.toBe(0);
+  expect(statusChange.stderr).toMatch(/unknown option.*--status/i);
+  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeStatusChange);
+  const legacyLedger = JSON.parse(beforeStatusChange);
+  legacyLedger.tickets[0].status = "in-progress";
+  writeFileSync(ledgerPath, `${JSON.stringify(legacyLedger, null, 2)}\n`);
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",
-    status: "in-progress",
-    author: "worker",
-  });
-  service.ticketService.ticketUpdate({
-    spec: feature.spec,
-    ticket: "T-0001",
-    status: "open",
     blocker: "Waiting for a decision.",
     author: "worker",
   });
-  const ledgerPath = join(feature.workspace, "sdd.json");
-  const beforeClose = readFileSync(ledgerPath, "utf8");
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      author: "worker",
-    }),
-  ).toThrow(/automatically after passing post-merge checks/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
-  expect(() =>
-    service.ticketService.ticketUpdate({
-      spec: feature.spec,
-      ticket: "T-0001",
-      status: "closed",
-      clearBlocker: true,
-      author: "worker",
-    }),
-  ).toThrow(/automatically after passing post-merge checks/i);
-  expect(readFileSync(ledgerPath, "utf8")).toBe(beforeClose);
+  expect(JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0]).toMatchObject({
+    status: "open",
+    blocker: "Waiting for a decision.",
+  });
   service.ticketService.ticketUpdate({
     spec: feature.spec,
     ticket: "T-0001",
@@ -352,8 +353,8 @@ test("ticket comment appends explicit UTC attribution without inferring reporter
       "sdd",
       "ticket",
       "comment",
-      "--spec",
-      feature.spec,
+      "--feature",
+      feature.spec.replace(/\/spec\.md$/, ""),
       "--ticket",
       "T-0001",
       "--details",

@@ -4,13 +4,13 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { writeFixtureCatalog } from "../../../Helpers/CatalogFixtures.ts";
+import { writeFixtureCatalog } from "@test/Helpers/CatalogFixtures";
 import {
   runCliInteractiveWithFixtureCatalogRaw,
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 async function setupBlueprints() {
   const blueprints = await makeTempDir("spindle-package-manager-blueprints-");
@@ -37,15 +37,16 @@ test("non-interactive init requires --spindle-package-manager", async () => {
 
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/--spindle-package-manager <command>/);
-  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
 });
 
 test("init persists the selected command, renders its computed value, and preserves legacy variables", async () => {
   const blueprints = await setupBlueprints();
   const project = await makeTempDir("spindle-package-manager-init-");
   await mkdir(join(project, ".github"), { recursive: true });
+  await mkdir(join(project, ".spindle"), { recursive: true });
   await writeFile(
-    join(project, ".github", "spindle.json"),
+    join(project, ".spindle", "config.json"),
     '{"stacks":[],"variables":{"owner":"legacy"}}\n',
   );
 
@@ -57,12 +58,12 @@ test("init persists the selected command, renders its computed value, and preser
   );
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
+  expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
     spindle_package_manager: "npm run",
   });
   expect(
-    JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")).variables,
+    JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8")).variables,
   ).toEqual({
     owner: "legacy",
   });
@@ -114,7 +115,7 @@ test(
 
     expect(result.status, result.stderr).toBe(0);
     expect(
-      JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))
+      JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))
         .spindle_package_manager,
     ).toBe("custom run");
   },

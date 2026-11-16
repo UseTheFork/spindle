@@ -1,29 +1,32 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { TicketUpdateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { TicketUpdateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 
 export class TicketUpdateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "ticket")
+    SddCommandGroups.group(root, "ticket")
       .command("update")
-      .description("Update ticket fields, status, blocker, or dependencies.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .description("Update ticket fields, blockers, or dependencies.")
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--title <title>", "Updated ticket title", CommandOptions.once("--title"))
       .option("--reporter <reporter>", "Updated ticket reporter", CommandOptions.once("--reporter"))
       .option("--category <category>", "Ticket category: bug or enhancement")
-      .option("--status <status>", "Ticket status: open, in-progress, or closed")
       .option("--blocker <reason>", "Explicit reason the ticket cannot proceed")
       .option("--clear-blocker", "Remove the explicit ticket blocker")
       .option("--blocked-by <tickets...>", "Authoritative dependency ticket IDs")
       .option("--clear-blocked-by", "Remove all ticket dependencies")
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketUpdateOptions) => {
         const app = await createApp();

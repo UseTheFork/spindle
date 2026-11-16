@@ -7,24 +7,24 @@ vi.setConfig({ testTimeout: 30_000 });
 
 import matter from "gray-matter";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import { InitCommand } from "@/BlueprintManagement/Commands/InitCommand";
-import { UpdateCommand } from "@/BlueprintManagement/Commands/UpdateCommand";
-import type { Application } from "@/Foundation/Application";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
-import { ComputedContextService } from "@/TemplateRendering/Computed/ComputedContextService";
-import { ComputedVariableProvider } from "@/TemplateRendering/Computed/ComputedVariableProvider";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
+import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
+import type { Application } from "@spindle/Foundation/Application";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
+import { ComputedContextService } from "@spindle/TemplateRendering/Computed/ComputedContextService";
+import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const description =
-  "This is an internal skill do not load it unless explicitly required by the user or another skill.";
+  "This is a private skill do not load it unless explicitly required by the user or another skill.";
 async function put(path: string, content: string) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content);
@@ -53,7 +53,7 @@ async function makeBlueprints() {
     [
       "---",
       "name: demo",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
@@ -65,45 +65,45 @@ async function makeBlueprints() {
   );
   await put(
     join(blueprints, "skills/demo/supporting.txt"),
-    "Skill: {{ computed.internal_skill_description }}\n",
+    "Skill: {{ computed.private_skill_description }}\n",
   );
   await put(
     join(blueprints, "agents/guide.agent.md"),
     [
       "---",
       "name: guide",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
       "---",
       "",
-      "Agent body: {{ computed.internal_skill_description }}",
+      "Agent body: {{ computed.private_skill_description }}",
       "",
     ].join("\n"),
   );
   await put(
     join(blueprints, "agents/guide-support.txt"),
-    "Agent file: {{ computed.internal_skill_description }}\n",
+    "Agent file: {{ computed.private_skill_description }}\n",
   );
   await put(
     join(blueprints, "instructions/testing.instructions.md"),
     [
       "---",
       "name: testing",
-      'description: "{{ computed.internal_skill_description }}"',
+      'description: "{{ computed.private_skill_description }}"',
       "metadata:",
       "  spindle:",
       "    version: 1.0.0",
       "---",
       "",
-      "Instruction body: {{ computed.internal_skill_description }}",
+      "Instruction body: {{ computed.private_skill_description }}",
       "",
     ].join("\n"),
   );
   await put(
     join(blueprints, "instructions/testing-support.txt"),
-    "Instruction file: {{ computed.internal_skill_description }}\n",
+    "Instruction file: {{ computed.private_skill_description }}\n",
   );
   writeCatalogFixture(blueprints, fixtureCatalog());
   return blueprints;
@@ -122,7 +122,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
     );
 
     expect(result.status, result.stderr).toBe(0);
-    const config = JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"));
+    const config = JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"));
     expect(config).toMatchObject({
       stacks: ["python"],
       spindle_package_manager: "pnpm",
@@ -152,7 +152,7 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
         `${kind === "agents" ? "Agent" : "Instruction"} file: ${description}\n`,
       );
     }
-    expect(JSON.stringify(config)).not.toMatch(/computed|internal_skill_description/);
+    expect(JSON.stringify(config)).not.toMatch(/computed|private_skill_description/);
   }
 });
 
@@ -178,7 +178,7 @@ test("update reuses computed output and leaves Project Settings and version meta
       [
         "---",
         "name: demo",
-        'description: "{{ computed.internal_skill_description }}"',
+        'description: "{{ computed.private_skill_description }}"',
         "metadata:",
         "  spindle:",
         "    version: 2.0.0",
@@ -190,7 +190,7 @@ test("update reuses computed output and leaves Project Settings and version meta
     );
     await put(
       join(blueprints, "skills/demo/supporting.txt"),
-      "Update: {{ computed.internal_skill_description }}\n",
+      "Update: {{ computed.private_skill_description }}\n",
     );
     writeCatalogFixture(blueprints, {
       skills: {
@@ -201,7 +201,7 @@ test("update reuses computed output and leaves Project Settings and version meta
     });
 
     const github = join(project, ".github");
-    await put(join(github, "spindle.json"), configBytes.toString("utf8"));
+    await put(join(github, "..", ".spindle", "config.json"), configBytes.toString("utf8"));
     await put(
       join(github, "skills/demo/SKILL.md"),
       "---\nname: demo\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nOld content\n",
@@ -221,14 +221,16 @@ test("update reuses computed output and leaves Project Settings and version meta
     expect(await readFile(join(github, "skills/demo/supporting.txt"), "utf8")).toBe(
       `Update: ${description}\n`,
     );
-    expect(JSON.parse(await readFile(join(github, "spindle.json"), "utf8"))).toMatchObject({
+    expect(
+      JSON.parse(await readFile(join(github, "..", ".spindle", "config.json"), "utf8")),
+    ).toMatchObject({
       ...JSON.parse(configBytes.toString("utf8")),
       commit: { title_max_length: 72 },
       $schema: expect.stringMatching(
         /^https:\/\/unpkg\.com\/@use-the-fork\/spindle@[^/]+\/build\/spindle\.schema\.json$/,
       ),
     });
-    expect(configBytes.toString("utf8")).not.toMatch(/computed|internal_skill_description/);
+    expect(configBytes.toString("utf8")).not.toMatch(/computed|private_skill_description/);
   }
 });
 
@@ -276,7 +278,7 @@ test("init restores the prior Project Settings state when Blueprint rendering fa
   await expect(init.run(["python"], "pnpm", false, "overwrite")).rejects.toThrow();
 
   expect(ProjectSettingsService.current(app)).toEqual({ status: "absent" });
-  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toMatchObject({
+  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toMatchObject({
     code: "ENOENT",
   });
 });
@@ -285,7 +287,7 @@ test("update identifies a missing computed output and applies no planned changes
   const blueprints = await makeTempDir("spindle-computed-missing-blueprints-");
   const project = await makeTempDir("spindle-computed-missing-project-");
   const github = join(project, ".github");
-  const configPath = join(github, "spindle.json");
+  const configPath = join(github, "..", ".spindle", "config.json");
   const currentEntry = join(github, "skills/current/SKILL.md");
   const currentBytes = Buffer.from(
     "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nExisting Skill\n",
@@ -349,7 +351,7 @@ test("repeated updates through one App render updated Project Settings with comp
   const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
   const project = await makeTempDir("spindle-computed-app-project-");
   const github = join(project, ".github");
-  const skillName = "int-test-driven-development";
+  const skillName = "private-test-driven-development";
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(
@@ -373,8 +375,8 @@ test("repeated updates through one App render updated Project Settings with comp
       expect(generated.data.description).toBe(description);
       expect(generated.data.metadata.spindle.version).toBe(version);
       expect(generated.content).toContain(`Run manager=${manager}`);
-      const config = await readFile(join(github, "spindle.json"), "utf8");
-      expect(config).not.toMatch(/computed|internal_skill_description/);
+      const config = await readFile(join(github, "..", ".spindle", "config.json"), "utf8");
+      expect(config).not.toMatch(/computed|private_skill_description/);
     };
 
     const updateSource = async (version: string, manager: string) => {
@@ -457,20 +459,20 @@ test("providers receive Application once per run and refresh across runs", async
     ...firstContext,
     variables: {
       ...firstContext.variables,
-      internal_skill_description: "user value",
+      private_skill_description: "user value",
     },
     computed: {
       ...firstContext.computed,
-      internal_skill_description: description,
+      private_skill_description: description,
     },
   };
   expect(
-    renderText(
-      "{{ computed.internal_skill_description }} | {{ variables.internal_skill_description }}",
+    RenderText.render(
+      "{{ computed.private_skill_description }} | {{ variables.private_skill_description }}",
       renderContext,
     ),
   ).toBe(`${description} | user value`);
-  expect(renderText("{{ computed.count }}", renderContext)).toBe("evaluation-1");
+  expect(RenderText.render("{{ computed.count }}", renderContext)).toBe("evaluation-1");
   expect(evaluations, "reusing resolved values does not render the provider again").toBe(1);
 
   projectConfig.data.spindle_package_manager = "npm run";

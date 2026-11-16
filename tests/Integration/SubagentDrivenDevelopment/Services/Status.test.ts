@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { serviceFixture } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { ticketFixture } from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { ticketFixture } from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("sdd status reads the explicitly selected feature policy and progress without mutation", async () => {
   const { repo, git, service } = await serviceFixture();
@@ -20,7 +20,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
 
   expect(service.featureInspectionService.status({ spec: second.spec })).toEqual({
     feature: second.feature,
-    workspace: join(repo, ".scratch", second.feature),
+    workspace: join(repo, ".spindle/features", second.feature),
     spec: second.spec,
     ledger: second.ledger,
     state,
@@ -43,6 +43,7 @@ test("sdd status reads the explicitly selected feature policy and progress witho
       reviewRequirements: [],
       reviewAssignments: [],
       requiredChecks: [],
+      finalChecks: [],
       checkRecords: [],
       blockers: ["Tickets are not closed: feature has no tickets."],
     },
@@ -65,11 +66,11 @@ test("sdd status reads the explicitly selected feature policy and progress witho
 
 test("sdd status rejects normalized traversal paths and symlinked feature paths", async () => {
   const { repo, service, feature } = await ticketFixture("Current Feature");
-  const linkedFeature = join(repo, ".scratch", "0002-linked-feature");
+  const linkedFeature = join(repo, ".spindle/features", "0002-linked-feature");
   symlinkSync(feature.workspace, linkedFeature);
 
   for (const spec of [
-    `${repo}/.scratch/../.scratch/${feature.feature}/spec.md`,
+    `${repo}/.spindle/features/../.spindle/features/${feature.feature}/spec.md`,
     join(linkedFeature, "spec.md"),
   ]) {
     expect(() => service.featureInspectionService.status({ spec }), spec).toThrow();

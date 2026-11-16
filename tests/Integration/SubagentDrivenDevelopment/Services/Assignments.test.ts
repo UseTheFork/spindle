@@ -3,7 +3,15 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { execute, prepareReadyTicket } from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+import { runCli } from "@test/Helpers/Cli";
+import {
+  commitTicketWorkspace,
+  execute,
+  invokeAsync,
+  prepareReadyTicket,
+  prepareReviewAssignment,
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 
 test("implement reserves a ready ticket, creates its worktree, and resumes the same assignment", async () => {
   const { repo, git, spec, worktreeParent, baseSha } = await prepareReadyTicket();
@@ -34,7 +42,7 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
     branch: "tickets/0001-ticket-flow/T-0001",
     status: "pending",
   });
-  expect(git("rev-parse", "HEAD")).toBe(baseSha);
+  expect(git("merge-base", "--is-ancestor", baseSha, "HEAD")).toBe("");
   expect(git("-C", first.assignment.workspace, "rev-parse", "HEAD")).toBe(baseSha);
 
   const repeat = await execute(repo, (service) =>
@@ -47,6 +55,84 @@ test("implement reserves a ready ticket, creates its worktree, and resumes the s
   );
   expect(repeat.status, repeat.stderr).toBe(0);
   expect(JSON.parse(repeat.stdout).assignment).toEqual(first.assignment);
+
+  const conflict = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "replacement",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(conflict.status).not.toBe(0);
+  expect(conflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(conflict.stderr).toContain("--actor replacement");
+  expect(conflict.stderr).toContain(
+    "resume --ticket T-0001 --feature .spindle/features/0001-ticket-flow --actor <acting-agent> --confirm-handoff",
+  );
+
+  const correctionConflict = await execute(repo, (service) =>
+    service.correctionService.correct({
+      spec,
+      ticket: "T-0001",
+      author: "replacement",
+      findings: ["F-0001"],
+      details: "Correct the finding",
+    }),
+  );
+  expect(correctionConflict.status).not.toBe(0);
+  expect(correctionConflict.stderr).toContain("Ticket T-0001 is owned by controller");
+  expect(correctionConflict.stderr).toContain("--actor replacement");
+  expect(correctionConflict.stderr).toContain("--confirm-handoff");
+
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
+  const ledgerBeforeConflicts = readFileSync(ledgerPath, "utf8");
+  const selection = { spec, ticket: "T-0001", author: "replacement" };
+  const otherConflicts: { name: string; run: Parameters<typeof execute>[1] }[] = [
+    {
+      name: "implementation submission",
+      run: (service) =>
+        service.submissionService.submit({ ...selection, assignment: first.assignment.id }),
+    },
+    {
+      name: "specialist review",
+      run: (service) =>
+        service.reviewService.reviewRequire({
+          ...selection,
+          type: "sdd-task-reviewer",
+          details: "Review the ticket",
+        }),
+    },
+    {
+      name: "finding registration",
+      run: (service) =>
+        service.findingService.findingCreate({
+          ...selection,
+          assignment: "review-assignment",
+          blocking: true,
+          summary: "Finding",
+          details: "Finding details",
+        }),
+    },
+    {
+      name: "requirements decision",
+      run: (service) =>
+        service.requirementsService.requirementsDecide({
+          ...selection,
+          finding: "F-0001",
+          decision: "approved",
+          details: "Approved",
+        }),
+    },
+  ];
+  for (const { name, run } of otherConflicts) {
+    const result = await execute(repo, run);
+    expect(result.status, name).not.toBe(0);
+    expect(result.stderr, name).toContain("Ticket T-0001 is owned by controller");
+    expect(result.stderr, name).toContain("--actor replacement");
+    expect(result.stderr, name).toContain("--confirm-handoff");
+  }
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeConflicts);
 
   const resumed = await execute(repo, (service) =>
     service.assignmentService.resume({ spec, ticket: "T-0001", author: "controller" }),
@@ -80,7 +166,10 @@ test("implement refuses blocked and dependency-unready tickets without persistin
     }),
   );
   expect(dependency.status, dependency.stderr).toBe(0);
-  const before = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const before = readFileSync(
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+    "utf8",
+  );
 
   const unready = await execute(repo, (service) =>
     service.assignmentService.implement({
@@ -91,7 +180,9 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(unready.status).not.toBe(0);
   expect(unready.stderr).toMatch(/open dependencies: T-0001/);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(before);
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(before);
 
   const blocked = await execute(repo, (service) =>
     service.ticketService.ticketUpdate({
@@ -103,7 +194,7 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(blocked.status, blocked.stderr).toBe(0);
   const beforeBlockedDispatch = readFileSync(
-    join(repo, ".scratch", "0001-ticket-flow", "sdd.json"),
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
     "utf8",
   );
   const statusBeforeBlockedDispatch = git("status", "--porcelain=v1", "--untracked-files=all");
@@ -116,9 +207,9 @@ test("implement refuses blocked and dependency-unready tickets without persistin
   );
   expect(notReady.status).not.toBe(0);
   expect(notReady.stderr).toMatch(/not open and unblocked/);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(
-    beforeBlockedDispatch,
-  );
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(beforeBlockedDispatch);
   expect(git("status", "--porcelain=v1", "--untracked-files=all")).toBe(
     statusBeforeBlockedDispatch,
   );
@@ -136,7 +227,7 @@ test("resume requires a confirmed controller handoff and preserves assignment id
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignment;
-  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const before = readFileSync(ledger, "utf8");
 
   const unconfirmed = await execute(repo, (service) =>
@@ -167,6 +258,50 @@ test("resume requires a confirmed controller handoff and preserves assignment id
   });
 });
 
+test("review, submission, integration, and sync share ticket ownership guidance", async () => {
+  const { repo, spec, ticketId, assignment } = await prepareReviewAssignment();
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
+  const before = readFileSync(ledger, "utf8");
+  const selection = { spec, ticket: ticketId, author: "replacement" };
+  const commands: { name: string; run: Parameters<typeof execute>[1] }[] = [
+    { name: "review", run: (service) => service.reviewService.review(selection) },
+    {
+      name: "review submission",
+      run: (service) =>
+        service.submissionService.submit({
+          ...selection,
+          assignment: assignment.id,
+          result: "passed",
+        }),
+    },
+    {
+      name: "integration",
+      run: (service) => service.ticketIntegrationService.integrate(selection),
+    },
+  ];
+  for (const { name, run } of commands) {
+    const result = await execute(repo, run);
+    expect(result.status, name).not.toBe(0);
+    expect(result.stderr, name).toContain(`Ticket ${ticketId} is owned by controller`);
+    expect(result.stderr, name).toContain("--actor replacement");
+    expect(result.stderr, name).toContain("--confirm-handoff");
+  }
+  const sync = await invokeAsync(repo, [
+    "sync",
+    "--feature",
+    spec.replace(/\/spec\.md$/, ""),
+    "--ticket",
+    ticketId,
+    "--actor",
+    "replacement",
+  ]);
+  expect(sync.status).not.toBe(0);
+  expect(sync.stderr).toContain(`Ticket ${ticketId} is owned by controller`);
+  expect(sync.stderr).toContain("--actor replacement");
+  expect(sync.stderr).toContain("--confirm-handoff");
+  expect(readFileSync(ledger, "utf8")).toBe(before);
+});
+
 test("implementation submission rejects missing, symlinked, and misdirected reports", async () => {
   const { repo, spec, worktreeParent } = await prepareReadyTicket();
   const dispatched = await execute(repo, (service) =>
@@ -178,8 +313,9 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
-  const report = JSON.parse(dispatched.stdout).assignment.report as string;
-  const ledger = join(repo, ".scratch", "0001-ticket-flow", "sdd.json");
+  const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
+  const { id: assignmentId, report } = assignment;
+  const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const outside = join(repo, "outside.md");
   writeFileSync(outside, "Do not follow this link.\n");
   symlinkSync(outside, report);
@@ -189,7 +325,7 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: assignmentId,
       author: "controller",
     }),
   );
@@ -203,31 +339,221 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
+      assignment: assignmentId,
       author: "controller",
     }),
   );
   expect(missing.status).not.toBe(0);
   expect(missing.stderr).toMatch(/missing or unavailable/);
   expect(readFileSync(ledger, "utf8")).toBe(before);
+});
 
-  const misdirected = await execute(repo, (service) =>
+test("submission derives implementation role and report from the assignment", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    workspace: string;
+  };
+  const unavailable = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: outside,
+      assignment: assignment.id,
+      result: "unavailable",
+      details: "The worker could not return a report.",
       author: "controller",
     }),
   );
-  expect(misdirected.status).not.toBe(0);
-  expect(misdirected.stderr).toMatch(/does not match the assigned destination/);
-  expect(readFileSync(ledger, "utf8")).toBe(before);
+  expect(unavailable.status, unavailable.stderr).toBe(0);
+  expect(JSON.parse(unavailable.stdout).assignment.status).toBe("unavailable");
+
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  const missingStatus = JSON.parse(missing.stdout);
+  expect(missingStatus.pendingAssignments).toContainEqual(
+    expect.objectContaining({ id: assignment.id, status: "unavailable", reportPresent: false }),
+  );
+  expect(nextSummary(missingStatus).join("\n")).toContain(
+    "report: missing  assignment: unavailable",
+  );
+
+  writeFileSync(assignment.report, "# Implementation report\n\nCompleted the work.\n");
+  const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(present.status, present.stderr).toBe(0);
+  const presentStatus = JSON.parse(present.stdout);
+  expect(presentStatus.pendingAssignments).toContainEqual(
+    expect.objectContaining({ id: assignment.id, status: "unavailable", reportPresent: true }),
+  );
+  expect(nextSummary(presentStatus).join("\n")).toContain("before submitting the report");
+  expect(nextSummary(presentStatus).join("\n")).not.toContain("sdd submit");
+  const withoutCommit = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(withoutCommit.status).not.toBe(0);
+  expect(withoutCommit.stderr).toMatch(/no new commits/i);
+  writeFileSync(
+    join(assignment.workspace, "feature.ts"),
+    "export const feature = 'implemented';\n",
+  );
+  commitTicketWorkspace(assignment.workspace, "implement feature");
+  const committed = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(committed.status, committed.stderr).toBe(0);
+  expect(nextSummary(JSON.parse(committed.stdout)).join("\n")).toContain(
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+  );
+  writeFileSync(
+    join(assignment.workspace, "feature.ts"),
+    "export const feature = 'uncommitted';\n",
+  );
+  const dirty = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(dirty.status).not.toBe(0);
+  expect(dirty.stderr).toMatch(/commit ticket code/i);
+  commitTicketWorkspace(assignment.workspace, "finish implementation");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+  expect(JSON.parse(submitted.stdout)).toMatchObject({
+    assignment: { id: assignment.id, report: assignment.report, status: "submitted" },
+    report: assignment.report,
+  });
+  const repeated = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
+});
+
+test("next identifies missing and failed ticket checks after implementation submission", async () => {
+  const { repo, git, spec, worktreeParent } = await prepareReadyTicket();
+  const command = "pnpm run test:export";
+  const required = await execute(repo, (service) =>
+    service.checksService.checksRequire({
+      spec,
+      ticket: "T-0001",
+      command,
+      author: "controller",
+    }),
+  );
+  expect(required.status, required.stderr).toBe(0);
+
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    workspace: string;
+  };
+  writeFileSync(join(assignment.workspace, "export.ts"), "export const exportRows = [];\n");
+  git("-C", assignment.workspace, "add", "export.ts");
+  git("-C", assignment.workspace, "commit", "-qm", "implement export");
+  writeFileSync(assignment.report, "# Implementation report\n\nExport behavior is implemented.\n");
+  const submitted = await execute(repo, (service) =>
+    service.submissionService.submit({
+      spec,
+      ticket: "T-0001",
+      assignment: assignment.id,
+      author: "controller",
+    }),
+  );
+  expect(submitted.status, submitted.stderr).toBe(0);
+
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  expect(JSON.parse(missing.stdout).actions).toContainEqual({
+    ticket: "T-0001",
+    action: "checks",
+    checkCommand: command,
+  });
+
+  const failed = await execute(repo, (service) =>
+    service.checksService.checksRecord({
+      spec,
+      ticket: "T-0001",
+      command,
+      result: "failed",
+      details: "The export assertion failed.",
+      author: "controller",
+    }),
+  );
+  expect(failed.status, failed.stderr).toBe(0);
+  const afterFailure = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(afterFailure.status, afterFailure.stderr).toBe(0);
+  expect(JSON.parse(afterFailure.stdout).actions).toContainEqual({
+    ticket: "T-0001",
+    action: "correct",
+    checkFailure: command,
+    continuationRequired: false,
+  });
+  for (const result of ["unavailable", "passed"] as const) {
+    const recorded = await execute(repo, (service) =>
+      service.checksService.checksRecord({
+        spec,
+        ticket: "T-0001",
+        command,
+        result,
+        ...(result === "unavailable" ? { details: "The test service is unavailable." } : {}),
+        author: "controller",
+      }),
+    );
+    expect(recorded.status, recorded.stderr).toBe(0);
+    const next = await execute(repo, (service) => service.deliveryService.next({ spec }));
+    expect(next.status, next.stderr).toBe(0);
+    const status = JSON.parse(next.stdout);
+    expect(status.actions).toContainEqual(
+      result === "unavailable"
+        ? { ticket: "T-0001", action: "checks", checkCommand: command }
+        : { ticket: "T-0001", action: "review" },
+    );
+    expect(nextSummary(status).join("\n")).not.toContain("--check-failure");
+  }
 });
 
 test("next and status guide unstarted work to implement without changing workflow state", async () => {
   const { repo, spec } = await prepareReadyTicket();
-  const before = readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8");
+  const before = readFileSync(
+    join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"),
+    "utf8",
+  );
   const [next, status] = await Promise.all([
     execute(repo, (service) => service.deliveryService.next({ spec })),
     execute(repo, (service) => service.featureInspectionService.status({ spec })),
@@ -236,5 +562,93 @@ test("next and status guide unstarted work to implement without changing workflo
   expect(status.status, status.stderr).toBe(0);
   expect(JSON.parse(next.stdout).actions).toEqual([{ ticket: "T-0001", action: "implement" }]);
   expect(JSON.parse(status.stdout).actions).toEqual(JSON.parse(next.stdout).actions);
-  expect(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8")).toBe(before);
+  expect(
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+  ).toBe(before);
+});
+
+test("next reports assignment dispatch time and whether its report is ready to submit", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    requestedAt: string;
+  };
+
+  const missing = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(missing.status, missing.stderr).toBe(0);
+  expect(JSON.parse(missing.stdout).pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      ticket: "T-0001",
+      id: assignment.id,
+      requestedAt: assignment.requestedAt,
+      reportPresent: false,
+    }),
+  );
+
+  writeFileSync(assignment.report, "# Implementation report\n\nReady for submission.\n");
+  const present = await execute(repo, (service) => service.deliveryService.next({ spec }));
+  expect(present.status, present.stderr).toBe(0);
+  expect(JSON.parse(present.stdout).pendingAssignments).toContainEqual(
+    expect.objectContaining({
+      ticket: "T-0001",
+      id: assignment.id,
+      reportPresent: true,
+    }),
+  );
+});
+
+test("next prints named steps and submits a report only after it exists", async () => {
+  const { repo, spec, worktreeParent } = await prepareReadyTicket();
+  const feature = spec.replace(/\/spec\.md$/, "");
+  const ready = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(ready.status, ready.stderr).toBe(0);
+  expect(ready.stdout).toContain("Feature 0001-ticket-flow: step tickets-in-progress");
+  expect(ready.stdout).toContain("T-0001: step ticket:implement (ready)");
+  expect(ready.stdout).toContain(
+    "pnpm spindle sdd implement --feature .spindle/features/0001-ticket-flow",
+  );
+
+  const dispatched = await execute(repo, (service) =>
+    service.assignmentService.implement({
+      spec,
+      ticket: "T-0001",
+      author: "controller",
+      workspace: worktreeParent,
+    }),
+  );
+  expect(dispatched.status, dispatched.stderr).toBe(0);
+  const assignment = JSON.parse(dispatched.stdout).assignment as {
+    id: string;
+    report: string;
+    workspace: string;
+  };
+
+  const waiting = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(waiting.status, waiting.stderr).toBe(0);
+  expect(waiting.stdout).toMatch(/T-0001 implementation .* dispatched .+ ago  report: missing/);
+  expect(waiting.stdout).toContain("No ready tickets. Wait for the open assignments.");
+
+  writeFileSync(assignment.report, "# Implementation report\n\nCompleted.\n");
+  const reportReady = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(reportReady.status, reportReady.stderr).toBe(0);
+  expect(reportReady.stdout).toMatch(/report: present, not submitted/);
+  expect(reportReady.stdout).toContain("before submitting the report");
+  expect(reportReady.stdout).not.toContain("sdd submit");
+  writeFileSync(join(assignment.workspace, "feature.ts"), "export const value = true;\n");
+  commitTicketWorkspace(assignment.workspace, "implement feature");
+  const committed = runCli(repo, ["sdd", "next", "--feature", feature], process.env.PATH ?? "");
+  expect(committed.status, committed.stderr).toBe(0);
+  expect(committed.stdout).toContain(
+    `pnpm spindle sdd submit --feature .spindle/features/0001-ticket-flow --ticket T-0001 --assignment ${assignment.id} --actor <acting-agent>`,
+  );
 });

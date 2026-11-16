@@ -4,16 +4,16 @@ import { fileURLToPath } from "node:url";
 
 import { test, expect } from "vitest";
 
-import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
-import { InstallationService } from "@/BlueprintManagement/Services/InstallationService";
-import { preparePlannedBlueprintFiles } from "@/BlueprintManagement/Support/BlueprintFiles";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { projectSettingsSchema } from "@/Settings/Models/ProjectSettings";
-import { ProjectSettingsService } from "@/Settings/Services/ProjectSettingsService";
+import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
+import { InstallationService } from "@spindle/BlueprintManagement/Services/InstallationService";
+import { BlueprintFiles } from "@spindle/BlueprintManagement/Support/BlueprintFiles";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 test("source Blueprint roots resolve from the module location, independent of App roots", async () => {
   const workspace = await makeTempDir("spindle-install-relative-root-");
@@ -38,7 +38,7 @@ test("source Blueprint roots resolve from the module location, independent of Ap
       context: { stacks: config.stacks, variables: {} },
       settings: config,
     });
-    expect(JSON.parse(await readFile(join(workspace, ".github", "spindle.json"), "utf8"))).toEqual(
+    expect(JSON.parse(await readFile(join(workspace, ".spindle", "config.json"), "utf8"))).toEqual(
       config,
     );
   }
@@ -74,7 +74,7 @@ test("installation renders recognized UTF-8 text and preserves files that must n
       "templates/sub/x.md",
       ...preservedFiles.keys(),
     ].map((outputPath) => ({ sourcePath: join(source, outputPath), outputPath }));
-    const prepared = await preparePlannedBlueprintFiles(files, context);
+    const prepared = await BlueprintFiles.preparePlannedBlueprintFiles(files, context);
     const app = applicationFixture(target, source);
     await new LoadProjectSettings().bootstrap(app);
     await app.boot();
@@ -98,9 +98,14 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const sourceParent = await makeTempDir("spindle-install-app-sources-");
   const sourceRoot = fileURLToPath(new URL("../../../../assets/Blueprints/", import.meta.url));
   const firstSourceRoot = join(sourceParent, "first");
-  const skillSource = join(firstSourceRoot, "skills", "int-test-driven-development", "SKILL.md");
+  const skillSource = join(
+    firstSourceRoot,
+    "skills",
+    "private-test-driven-development",
+    "SKILL.md",
+  );
   const skillTarget = (workspace: string) =>
-    join(workspace, ".github", "skills", "int-test-driven-development", "SKILL.md");
+    join(workspace, ".github", "skills", "private-test-driven-development", "SKILL.md");
   const firstConfig = projectSettingsSchema.parse({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
@@ -148,10 +153,10 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     await ProjectSettingsService.refresh(secondApp);
 
     expect(
-      JSON.parse(await readFile(join(firstWorkspace, ".github", "spindle.json"), "utf8")),
+      JSON.parse(await readFile(join(firstWorkspace, ".spindle", "config.json"), "utf8")),
     ).toEqual(firstConfig);
     expect(
-      JSON.parse(await readFile(join(secondWorkspace, ".github", "spindle.json"), "utf8")),
+      JSON.parse(await readFile(join(secondWorkspace, ".spindle", "config.json"), "utf8")),
     ).toEqual(secondConfig);
 
     const sourceText = await readFile(skillSource, "utf8");

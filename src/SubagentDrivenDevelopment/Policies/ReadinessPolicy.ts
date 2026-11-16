@@ -1,7 +1,7 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { FeatureLedger, TicketDocument } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { FeatureLedger, TicketDocument } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
 
 export class ReadinessPolicy extends Service {
   public constructor(
@@ -33,7 +33,13 @@ export class ReadinessPolicy extends Service {
 
   public evaluate(tickets: TicketDocument[], ledger: FeatureLedger) {
     this.ticketRepository.validateDependencyGraph(tickets);
-    const eligible = tickets.filter((item) => item.status === "open" && !item.blocker);
+    const progressById = new Map(ledger.tickets.map((item) => [item.id, item]));
+    const eligible = tickets.filter(
+      (item) =>
+        item.status === "open" &&
+        !item.blocker &&
+        progressById.get(item.id)?.execution === "unstarted",
+    );
     const ready: string[] = [];
     const unready: { ticket: string; blockedBy: string[] }[] = [];
     for (const item of eligible) {

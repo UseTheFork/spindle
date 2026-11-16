@@ -9,4 +9,8 @@ export class CommandOptions {
       return value;
     };
   }
+
+  public static featureSpec(directory: string): string {
+    return `${directory.replace(/\/$/, "")}/spec.md`;
+  }
 }

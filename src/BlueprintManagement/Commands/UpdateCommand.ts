@@ -1,19 +1,19 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { blueprintHandlers } from "@/BlueprintManagement/Handlers/BlueprintHandlers";
-import { BlueprintReconciliationService } from "@/BlueprintManagement/Services/BlueprintReconciliationService";
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import type { BlueprintOutcome } from "@/BlueprintManagement/Types/Reconciliation";
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { ProjectService } from "@/Project/Services/ProjectService";
-import { projectSettingsSchema, ProjectSettingsSchema } from "@/Settings/Models/ProjectSettings";
+import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ProjectService } from "@spindle/Project/Services/ProjectService";
+import { projectSettingsSchema, ProjectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { Stacks } from "@/Support/Stacks";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { Stacks } from "@spindle/Support/Stacks";
 
 export interface UpdateResult {
   stacks: string[];
@@ -30,13 +30,13 @@ export class UpdateCommand extends Command {
       .command("update")
       .description(
         `Re-render installed Blueprints (Skills, Agents, and Instructions).
-Reads stacks and the Spindle package-manager command from .github/spindle.json.
+Reads stacks and the Spindle package-manager command from .spindle/config.json.
 Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes project guidance.`,
       )
       .addHelpText(
         "after",
         `
-Requires .github/spindle.json; run \`spindle init\` first.
+Requires .spindle/config.json; run \`spindle init\` first.
 Catalog paths are overwritten, including local edits. Unrelated paths are preserved.
 `,
       )
@@ -93,7 +93,7 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
     const spindlePackageManager = settings.spindle_package_manager;
     if (spindlePackageManager === undefined) {
       throw new Error(
-        'Missing "spindle_package_manager" in .github/spindle.json; add the preferred Spindle package-manager command before running `spindle update`.',
+        'Missing "spindle_package_manager" in .spindle/config.json; add the preferred Spindle package-manager command before running `spindle update`.',
       );
     }
 

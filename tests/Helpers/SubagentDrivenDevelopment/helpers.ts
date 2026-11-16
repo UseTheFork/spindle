@@ -4,11 +4,11 @@ import { dirname, join } from "node:path";
 
 import { expect, onTestFinished, vi } from "vitest";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
 
-import { applicationFixture } from "../ApplicationFixture.ts";
-import { makeTempDirSync, repoRoot } from "../TemporaryDirectories.ts";
-import { workflowServices, type WorkflowServices } from "./WorkflowServices";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { workflowServices, type WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -22,8 +22,9 @@ export function fixture() {
   git("config", "user.name", "Fixture");
   git("config", "user.email", "fixture@example.invalid");
   mkdirSync(join(repo, ".github"), { recursive: true });
+  mkdirSync(join(repo, ".spindle"), { recursive: true });
   writeFileSync(
-    join(repo, ".github", "spindle.json"),
+    join(repo, ".spindle", "config.json"),
     `${JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }, null, 2)}\n`,
   );
   writeFileSync(join(repo, "tracked.txt"), "base\n");
@@ -197,7 +198,6 @@ export async function prepareReadyTicket(
   mkdirSync(worktreeParent);
 
   for (let index = 1; index <= (options.ticketCount ?? 1); index++) {
-    const ticketId = `T-${String(index).padStart(4, "0")}`;
     const ticket = await execute(repo, (service) =>
       service.ticketService.ticketCreate({
         spec,
@@ -208,17 +208,7 @@ export async function prepareReadyTicket(
       }),
     );
     expect(ticket.status, ticket.stderr).toBe(0);
-    const updated = await execute(repo, (service) =>
-      service.ticketService.ticketUpdate({
-        spec,
-        ticket: ticketId,
-        status: "open",
-        author: "maintainer",
-      }),
-    );
-    expect(updated.status, updated.stderr).toBe(0);
   }
-  commitAll(repo, git, "prepare ticket");
   const baseSha = git("rev-parse", "HEAD");
   return { repo, git, spec, baseSha, originalRepo, worktreeParent };
 }
@@ -239,20 +229,17 @@ export async function prepareImplementationForReview(
     service.checksService.checksRequire({ spec, ticket: ticketId, command, author: "controller" }),
   );
   expect(required.status, required.stderr).toBe(0);
-  commitAll(repo, git, "declare required check");
-
   const implemented = await execute(repo, (service) =>
     service.assignmentService.implement({
       spec,
       ticket: ticketId,
       author: "controller",
       workspace: worktreeParent,
-      confirmRecords: true,
     }),
   );
   expect(implemented.status, implemented.stderr).toBe(0);
   const implementation = JSON.parse(implemented.stdout) as {
-    assignment: { report: string; workspace: string };
+    assignment: { id: string; report: string; workspace: string };
   };
   writeFileSync(
     join(implementation.assignment.workspace, file),
@@ -264,8 +251,7 @@ export async function prepareImplementationForReview(
     service.submissionService.submit({
       spec,
       ticket: ticketId,
-      role: "implementation",
-      report: implementation.assignment.report,
+      assignment: implementation.assignment.id,
       author: "controller",
     }),
   );
@@ -304,11 +290,19 @@ export async function recordReviewCheck(
   );
 }
 
+export async function claimDelivery(repo: string, spec: string) {
+  const claimed = await execute(repo, (service) =>
+    service.assignmentService.claim({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(claimed.status, claimed.stderr).toBe(0);
+}
+
 export async function recordDeliveryCheck(
   repo: string,
   spec: string,
   command = "just test::test tests/whole-feature.test.ts",
 ) {
+  await claimDelivery(repo, spec);
   const status = await execute(repo, (service) =>
     service.featureInspectionService.status({ spec }),
   );
@@ -362,7 +356,6 @@ export async function prepareReviewAssignment(
     service.reviewService.review({
       spec: prepared.spec,
       ticket: prepared.ticketId,
-      inventory: JSON.stringify([prepared.file]),
       author: "controller",
     }),
   );
@@ -395,11 +388,8 @@ export async function prepareReviewedTicket(
     service.submissionService.submit({
       spec: prepared.spec,
       ticket: prepared.ticketId,
-      role: "review",
       assignment: prepared.assignment.id,
-      report: prepared.assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -424,7 +414,6 @@ export async function integrateReviewedTicket(
       spec: prepared.spec,
       ticket: prepared.ticketId,
       author: "controller",
-      confirmRecords: true,
     }),
   );
   expect(integrated.status, integrated.stderr).toBe(0);
@@ -480,7 +469,6 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
     service.reviewService.review({
       spec: prepared.spec,
       scope: "delivery",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -495,11 +483,8 @@ export async function prepareDeliveryReady(requireRetrospective = false) {
       ticket: "",
       spec: prepared.spec,
       scope: "delivery",
-      role: "review",
       assignment: assignment.id,
-      report: assignment.report,
       result: "passed",
-      noFindings: true,
       author: "controller",
     }),
   );
@@ -519,13 +504,25 @@ type PendingFeatureFinalization = {
 
 export async function beginDeliveryFinalization(
   prepared: { repo: string; spec: string },
-  options: { report?: string } = {},
+  options: { report?: string; finalChecks?: string[] } = {},
 ): Promise<PendingFeatureFinalization> {
+  const commands = options.finalChecks ?? ["fixture final delivery validation"];
+  const required = await invokeAsync(prepared.repo, [
+    "checks",
+    "require",
+    "--feature",
+    prepared.spec.replace(/\/spec\.md$/, ""),
+    "--scope",
+    "final",
+    ...commands.flatMap((command) => ["--command", command]),
+    "--actor",
+    "controller",
+  ]);
+  expect(required.status, required.stderr).toBe(0);
   const started = await execute(prepared.repo, (service) =>
     service.deliveryService.finish({
       spec: prepared.spec,
       author: "controller",
-      confirmRecords: true,
       ...(options.report ? { report: options.report } : {}),
     }),
   );
@@ -545,12 +542,12 @@ export async function declareFinalDeliveryChecks(
   const declared = await invokeAsync(pending.originalWorkspace, [
     "checks",
     "require",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
     ...commands.flatMap((command) => ["--command", command]),
-    "--author",
+    "--actor",
     "controller",
   ]);
   expect(declared.status, declared.stderr).toBe(0);
@@ -566,18 +563,16 @@ export async function recordFinalDeliveryCheck(
   const recorded = await invokeAsync(pending.originalWorkspace, [
     "checks",
     "record",
-    "--spec",
-    pending.originalSpec,
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
     "--scope",
     "final",
-    "--merge",
-    pending.mergeCommit,
     "--command",
     command,
     "--result",
     result,
     ...(details ? ["--details", details] : []),
-    "--author",
+    "--actor",
     "controller",
   ]);
   return recorded;
@@ -586,9 +581,9 @@ export async function recordFinalDeliveryCheck(
 export async function completeDeliveryFinalization(pending: PendingFeatureFinalization) {
   return await invokeAsync(pending.originalWorkspace, [
     "finish",
-    "--spec",
-    pending.originalSpec,
-    "--author",
+    "--feature",
+    pending.originalSpec.replace(/\/spec\.md$/, ""),
+    "--actor",
     "controller",
   ]);
 }
@@ -599,7 +594,6 @@ export async function finalizeDelivery(
 ) {
   const pending = await beginDeliveryFinalization(prepared, options);
   const commands = options.finalChecks ?? ["fixture final delivery validation"];
-  await declareFinalDeliveryChecks(pending, commands);
   for (const command of commands) {
     const recorded = await recordFinalDeliveryCheck(pending, command);
     expect(recorded.status, recorded.stderr).toBe(0);

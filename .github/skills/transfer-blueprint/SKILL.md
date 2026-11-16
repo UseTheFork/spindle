@@ -32,7 +32,7 @@ Consult [Blueprint decisions](../../../docs/adr/) and [installation](../../../sr
 
 - Transfer intended content and frontmatter changes into the existing authoring structure. Preserve Blueprint metadata, unrelated content, Stack branches, and overlays.
 - Skills include referenced supporting files with their relative paths. Retain unmatched destination files unless their removal is part of the supplied change. Agents and Instructions must install exactly one entry file; ask if additional files are needed.
-- Compare `.github/spindle.json` with template branches to distinguish rendered local content from reusable source. Preserve unselected Stacks; ask when a change cannot safely be assigned to shared or Stack-specific content.
+- Compare `.spindle/config.json` with template branches to distinguish rendered local content from reusable source. Preserve unselected Stacks; ask when a change cannot safely be assigned to shared or Stack-specific content.
 - Use Nunjucks only where reusable variation requires it, following existing `stacks` and `variables` usage. Wrap intended literal `{{ ... }}`, `{% ... %}`, or `{# ... #}` text in raw blocks, including inside code fences.
 - Keep shared files outside `stacks/`; overlay paths are additive, not overrides. Avoid duplicate output paths and file/directory collisions.
 - Preserve binary assets as bytes. Symlinks are not installed; ask how to handle required symlinked or external assets.

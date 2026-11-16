@@ -13,14 +13,14 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import type { FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { Records } from "@/Support/Records";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { FEATURE_DIRECTORY, type FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { Records } from "@spindle/Support/Records";
 
 interface RecordCommitState {
   version: 1;
@@ -41,7 +41,7 @@ export class WorkflowRecordsCommitter extends Service {
     super(app);
   }
 
-  public commit(feature: FeaturePaths, confirmed: boolean): string | undefined {
+  public commit(feature: FeaturePaths): string | undefined {
     for (const variable of [
       "GIT_DIR",
       "GIT_WORK_TREE",
@@ -56,31 +56,37 @@ export class WorkflowRecordsCommitter extends Service {
       }
     }
     const root = realpathSync(this.app.workspaceRoot);
-    if (realpathSync(feature.workspace) !== realpathSync(join(root, ".scratch", feature.feature))) {
+    if (
+      realpathSync(feature.workspace) !==
+      realpathSync(join(root, ".spindle/features", feature.feature))
+    ) {
       throw new Error("Canonical workflow records do not belong to this feature worktree.");
     }
     const branch = this.run(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).trim();
     if (branch !== `features/${feature.feature}`) {
-      throw new Error(
-        `Canonical workflow records can only be committed on features/${feature.feature}; current branch is ${branch}.`,
+      throw (
+        this.misplacedCheckoutError(root, feature.feature, branch) ??
+        new Error(
+          `Canonical workflow records can only be committed on features/${feature.feature}; current branch is ${branch}.`,
+        )
       );
     }
     this.assertNoGitOperation(root);
     this.assertNoHooks(root);
 
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const transient = new Set([
+      `.spindle/features/${feature.feature}/.sdd-tickets.lock`,
+      `.spindle/features/${feature.feature}/.sdd-write-recovery.json`,
+    ]);
     const staged = this.paths(root, ["diff", "--cached", "--name-only", "--no-renames", "-z"]);
     const unstaged = this.paths(root, ["diff", "--name-only", "--no-renames", "-z"]);
     const untracked = this.paths(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
     const changed = [...new Set([...staged, ...unstaged, ...untracked])]
-      .filter((path) => path !== lock)
+      .filter((path) => !transient.has(path))
       .sort();
-    const common = realpathSync(
-      this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
-    );
-    const directory = join(common, "spindle-record-commit");
-    const journal = join(directory, `${feature.feature}.json`);
-    const journalEntry = lstatIfPresent(journal);
+    const journal = this.journalPath(root, feature.feature);
+    const directory = dirname(journal);
+    const journalEntry = FileSystem.lstatIfPresent(journal);
     let state: RecordCommitState;
     if (journalEntry) {
       const directoryEntry = lstatSync(directory);
@@ -90,7 +96,14 @@ export class WorkflowRecordsCommitter extends Service {
       if (!journalEntry.isFile() || journalEntry.isSymbolicLink()) {
         throw new Error(`Canonical record journal is not a regular file: ${journal}.`);
       }
-      const saved: unknown = JSON.parse(readFileSync(journal, "utf8"));
+      let saved: unknown;
+      try {
+        saved = JSON.parse(readFileSync(journal, "utf8"));
+      } catch (error) {
+        throw new Error(
+          `Canonical record journal is unreadable; preserve and inspect ${journal}. ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
       if (
         !Records.isRecord(saved) ||
         saved.version !== 1 ||
@@ -141,11 +154,6 @@ export class WorkflowRecordsCommitter extends Service {
           `Unrelated or non-canonical changes were preserved; resolve them before continuing:\n${invalid.join("\n")}`,
         );
       }
-      if (!confirmed) {
-        throw new Error(
-          `Inspect these canonical records, then retry with --confirm-records; nothing was staged or committed:\n${changed.join("\n")}`,
-        );
-      }
       state = {
         version: 1,
         feature: feature.feature,
@@ -158,7 +166,7 @@ export class WorkflowRecordsCommitter extends Service {
       try {
         mkdirSync(directory, { mode: 0o700 });
       } catch (error) {
-        if (!lstatIfPresent(directory)?.isDirectory()) throw error;
+        if (!FileSystem.lstatIfPresent(directory)?.isDirectory()) throw error;
       }
       const entry = lstatSync(directory);
       if (!entry.isDirectory() || entry.isSymbolicLink()) {
@@ -167,11 +175,6 @@ export class WorkflowRecordsCommitter extends Service {
       this.writeState(journal, state, true);
     }
 
-    if (!confirmed) {
-      throw new Error(
-        `Inspect the journalled records and retry with --confirm-records: ${journal}.`,
-      );
-    }
     try {
       const head = this.run(root, ["rev-parse", "--verify", "HEAD"]);
       if (head !== state.parent) {
@@ -205,7 +208,7 @@ export class WorkflowRecordsCommitter extends Service {
       const remaining = [
         ...this.paths(root, ["diff", "--name-only", "-z"]),
         ...this.paths(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
-      ].filter((path) => path !== lock);
+      ].filter((path) => !transient.has(path));
       if (remaining.length > 0 || this.digest(root, state.paths) !== state.digest) {
         throw new Error(
           `Feature records changed during batching; preserve the index and worktree: ${remaining.join(", ")}`,
@@ -231,7 +234,7 @@ export class WorkflowRecordsCommitter extends Service {
         ...this.paths(root, ["diff", "--name-only", "-z"]),
         ...this.paths(root, ["diff", "--cached", "--name-only", "-z"]),
         ...this.paths(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
-      ].filter((path) => path !== lock);
+      ].filter((path) => !transient.has(path));
       if (after.length > 0 || this.digest(root, state.paths) !== state.digest) {
         throw new Error(
           `Canonical records were committed, but additional changes remain; preserve and inspect them: ${after.join(", ")}`,
@@ -246,9 +249,81 @@ export class WorkflowRecordsCommitter extends Service {
     }
   }
 
+  public workspaceRecords(workspace: string): FeaturePaths | undefined {
+    const location = this.locate(workspace);
+    return location && location.branch === `features/${location.feature}`
+      ? this.featurePaths(location.feature, location.workspace)
+      : undefined;
+  }
+
+  public assertWritable(workspace: string): FeaturePaths | undefined {
+    const location = this.locate(workspace);
+    if (!location) return undefined;
+    if (location.branch === `features/${location.feature}`) {
+      return this.featurePaths(location.feature, location.workspace);
+    }
+    const error = this.misplacedCheckoutError(location.root, location.feature, location.branch);
+    if (error) throw error;
+    return undefined;
+  }
+
+  public hasPendingCommit(feature: FeaturePaths): boolean {
+    const root = realpathSync(this.app.workspaceRoot);
+    return FileSystem.lstatIfPresent(this.journalPath(root, feature.feature)) !== undefined;
+  }
+
+  private journalPath(root: string, feature: string): string {
+    return join(this.commonDirectory(root), "spindle-record-commit", `${feature}.json`);
+  }
+
+  private commonDirectory(root: string): string {
+    return realpathSync(
+      this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
+    );
+  }
+
+  private locate(
+    workspace: string,
+  ): { root: string; workspace: string; feature: string; branch: string } | undefined {
+    const root = realpathSync(this.app.workspaceRoot);
+    const featureWorkspace = realpathSync(workspace);
+    const feature = basename(featureWorkspace);
+    if (
+      !FEATURE_DIRECTORY.test(feature) ||
+      featureWorkspace !== realpathSync(join(root, ".spindle/features", feature))
+    ) {
+      return undefined;
+    }
+    const branch = this.run(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    return { root, workspace: featureWorkspace, feature, branch };
+  }
+
+  private featurePaths(feature: string, workspace: string): FeaturePaths {
+    return {
+      feature,
+      workspace,
+      spec: join(workspace, "spec.md"),
+      ledger: join(workspace, "sdd.json"),
+    };
+  }
+
+  private misplacedCheckoutError(root: string, feature: string, branch: string): Error | undefined {
+    const path = join(this.commonDirectory(root), "spindle-feature-start", `${feature}.json`);
+    const entry = FileSystem.lstatIfPresent(path);
+    if (!entry) return undefined;
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      return new Error(`Feature startup state must be a regular file: ${path}.`);
+    }
+    const state: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!Records.isRecord(state) || state.phase !== "created") return undefined;
+    return new Error(
+      `Feature ${feature} has started; run this command from its feature worktree ${String(state.featureWorkspace)} (branch features/${feature}), not ${root} (branch ${branch}).`,
+    );
+  }
+
   private digest(root: string, paths: string[]): string {
     const entries = paths.map((path) => {
-      const entry = lstatIfPresent(join(root, path));
+      const entry = FileSystem.lstatIfPresent(join(root, path));
       if (!entry) return [path, "deleted"];
       if (!entry.isFile() || entry.isSymbolicLink()) {
         throw new Error(`Canonical record is not a regular file: ${path}.`);
@@ -294,7 +369,7 @@ export class WorkflowRecordsCommitter extends Service {
     if (this.paths(root, ["ls-files", "--unmerged", "-z"]).length > 0) {
       throw new Error("Resolve unmerged index entries before committing workflow records.");
     }
-    for (const operation of [
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -302,9 +377,13 @@ export class WorkflowRecordsCommitter extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", operation]));
-      if (lstatIfPresent(path)) {
+    ];
+    const paths = this.git.gitPaths(root, operations, {
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    for (const [index, operation] of operations.entries()) {
+      const path = resolve(root, paths[index]);
+      if (FileSystem.lstatIfPresent(path)) {
         throw new Error(
           `Complete the existing Git operation (${operation}) before committing records.`,
         );
@@ -313,8 +392,14 @@ export class WorkflowRecordsCommitter extends Service {
   }
 
   private assertNoHooks(root: string): void {
-    for (const hook of ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"]) {
-      const path = resolve(root, this.run(root, ["rev-parse", "--git-path", `hooks/${hook}`]));
+    const hooks = ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+      { env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } },
+    );
+    for (const configuredPath of paths) {
+      const path = resolve(root, configuredPath);
       try {
         accessSync(path, constants.X_OK);
       } catch (error) {
@@ -362,7 +447,7 @@ export class WorkflowRecordsCommitter extends Service {
   }
 
   private isCanonicalRecord(feature: FeaturePaths, path: string): boolean {
-    const prefix = `.scratch/${feature.feature}/`;
+    const prefix = `.spindle/features/${feature.feature}/`;
     if (!path.startsWith(prefix)) return false;
     const relative = path.slice(prefix.length);
     return (

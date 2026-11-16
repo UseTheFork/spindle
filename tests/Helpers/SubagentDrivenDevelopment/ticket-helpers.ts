@@ -1,12 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
 
-import { applicationFixture } from "../ApplicationFixture.ts";
-import { repoRoot } from "../TemporaryDirectories.ts";
-import { fixture } from "./helpers";
-import { workflowServices, type WorkflowServices } from "./WorkflowServices";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { fixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { workflowServices, type WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 
 export async function ticketFixture(title: string) {
   const { repo, git } = fixture();

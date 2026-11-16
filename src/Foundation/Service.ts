@@ -1,4 +1,4 @@
-import type { Application } from "@/Foundation/Application";
+import type { Application } from "@spindle/Foundation/Application";
 
 const bootedServices = new WeakSet<Service>();
 
@@ -24,9 +24,9 @@ export class Service {
   }
 
   public async boot(): Promise<void> {}
-}
 
-export async function bootService(service: Service): Promise<void> {
-  await service.boot();
-  bootedServices.add(service);
+  public static async bootService(service: Service): Promise<void> {
+    await service.boot();
+    bootedServices.add(service);
+  }
 }

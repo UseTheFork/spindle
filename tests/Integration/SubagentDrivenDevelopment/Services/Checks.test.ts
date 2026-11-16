@@ -11,7 +11,7 @@ import {
   prepareImplementationForReview,
   prepareReadyTicket,
   recordReviewCheck,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("required checks are declared before implementation and accept only explicit results", async () => {
   const { repo, git, spec, worktreeParent } = await prepareReadyTicket();
@@ -28,7 +28,6 @@ test("required checks are declared before implementation and accept only explici
   expect(
     JSON.parse(required.stdout).checks.required.map((item: { command: string }) => item.command),
   ).toEqual([command]);
-  commitAll(repo, git, "declare required check");
 
   const dispatched = await execute(repo, (service) =>
     service.assignmentService.implement({
@@ -42,27 +41,31 @@ test("required checks are declared before implementation and accept only explici
   const dispatch = JSON.parse(dispatched.stdout) as {
     headSha: string;
     assignment: {
+      id: string;
       report: string;
+      workspace: string;
     };
   };
   const assignment = dispatch.assignment;
+  writeFileSync(join(assignment.workspace, "feature.ts"), "export const feature = true;\n");
+  commitTicketWorkspace(assignment.workspace, "implement feature");
   writeFileSync(assignment.report, "# Implementation report\n\nCompleted.\n");
   const submitted = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
       ticket: "T-0001",
-      role: "implementation",
-      report: assignment.report,
+      assignment: assignment.id,
       author: "controller",
     }),
   );
   expect(submitted.status, submitted.stderr).toBe(0);
-  expect(JSON.parse(submitted.stdout).headSha).toBe(dispatch.headSha);
+  expect(JSON.parse(submitted.stdout).headSha).toBe(
+    git("-C", assignment.workspace, "rev-parse", "HEAD"),
+  );
   const missing = await execute(repo, (service) =>
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -75,7 +78,6 @@ test("required checks are declared before implementation and accept only explici
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify([]),
       author: "controller",
     }),
   );
@@ -99,7 +101,7 @@ test("checks record the exact ticket commit without accepting a caller-supplied 
     git("-C", ticketWorkspace, "rev-parse", "HEAD"),
   );
   const records = JSON.parse(
-    readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"),
+    readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
   ).tickets[0].checks.records;
   expect(records.map((record: { headSha: string }) => record.headSha)).toEqual([
     before.headSha,
@@ -107,21 +109,20 @@ test("checks record the exact ticket commit without accepting a caller-supplied 
   ]);
 });
 
-test("check coverage is limited to declared paths and records explicit failure details", async () => {
+test("checks record explicit failure details and reject uncommitted code", async () => {
   const prepared = await prepareImplementationForReview();
   const { repo, spec, command, ticketWorkspace } = prepared;
-  const scoped = await execute(repo, (service) =>
+  const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );
-  expect(scoped.status, scoped.stderr).toBe(0);
-  expect(JSON.parse(scoped.stdout).record.coveredPaths).toEqual(["feature.ts"]);
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(JSON.parse(recorded.stdout).record).not.toHaveProperty("coveredPaths");
   const missingFailureDetails = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
@@ -138,18 +139,41 @@ test("check coverage is limited to declared paths and records explicit failure d
   expect(JSON.parse(failed.stdout).record.details).toMatch(/required check failed/i);
 
   writeFileSync(join(ticketWorkspace, "unrelated.ts"), "export const unrelated = true;\n");
-  const staleScoped = await execute(repo, (service) =>
+  const dirty = await execute(repo, (service) =>
     service.checksService.checksRecord({
       spec,
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );
-  expect(staleScoped.status).not.toBe(0);
-  expect(staleScoped.stderr).toMatch(/commit ticket code/i);
+  expect(dirty.status).not.toBe(0);
+  expect(dirty.stderr).toMatch(/commit ticket code/i);
+});
+
+test("legacy path-scoped records remain readable and are not reused for new results", async () => {
+  const { repo, spec, command, git } = await prepareImplementationForReview();
+  const initial = await recordReviewCheck(repo, spec, command, "passed");
+  expect(initial.status, initial.stderr).toBe(0);
+
+  const ledgerPath = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
+  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.tickets[0].checks.records[0].coveredPaths = ["feature.ts"];
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  commitAll(repo, git, "preserve a legacy check record");
+
+  const recorded = await recordReviewCheck(repo, spec, command, "passed");
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(JSON.parse(recorded.stdout).record).not.toHaveProperty("coveredPaths");
+  expect(JSON.parse(recorded.stdout).idempotent).not.toBe(true);
+
+  const records = JSON.parse(readFileSync(ledgerPath, "utf8")).tickets[0].checks.records;
+  expect(records).toHaveLength(2);
+  expect(records[0].coveredPaths).toEqual(["feature.ts"]);
+  const repeated = await recordReviewCheck(repo, spec, command, "passed");
+  expect(repeated.status, repeated.stderr).toBe(0);
+  expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
 });
 
 test("ticket checks reject uncommitted code and bind the next result to the new commit", async () => {
@@ -178,7 +202,7 @@ test("ticket checks reject uncommitted code and bind the next result to the new 
   expect(JSON.parse(recorded.stdout).record.headSha).toBe(JSON.parse(committed.stdout).headSha);
 });
 
-test("a new code commit requires fresh checks even outside a check's declared paths", async () => {
+test("a new code commit requires fresh checks", async () => {
   const { repo, spec, command, ticketWorkspace } = await prepareImplementationForReview();
   const recorded = await execute(repo, (service) =>
     service.checksService.checksRecord({
@@ -186,7 +210,6 @@ test("a new code commit requires fresh checks even outside a check's declared pa
       ticket: "T-0001",
       command,
       result: "passed",
-      paths: ["feature.ts"],
       author: "controller",
     }),
   );
@@ -199,7 +222,6 @@ test("a new code commit requires fresh checks even outside a check's declared pa
       service.reviewService.review({
         spec,
         ticket: "T-0001",
-        inventory: JSON.stringify(["feature.ts", "unrelated.ts"]),
         author: "controller",
       }),
     );
@@ -225,8 +247,9 @@ test("checks reject uncommitted nested repositories", async () => {
   expect(recorded.status).not.toBe(0);
   expect(recorded.stderr).toMatch(/commit ticket code/i);
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
-      .tickets[0].checks.records,
+    JSON.parse(
+      readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+    ).tickets[0].checks.records,
   ).toEqual([]);
 });
 
@@ -241,8 +264,9 @@ test("recording the same ticket check twice is idempotent", async () => {
   expect(JSON.parse(repeated.stdout).idempotent).toBe(true);
   expect(JSON.parse(repeated.stdout).record).toEqual(firstRecord);
   expect(
-    JSON.parse(readFileSync(join(repo, ".scratch", "0001-ticket-flow", "sdd.json"), "utf8"))
-      .tickets[0].checks.records,
+    JSON.parse(
+      readFileSync(join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json"), "utf8"),
+    ).tickets[0].checks.records,
   ).toHaveLength(1);
 });
 
@@ -250,7 +274,7 @@ test("committed requirements must reach the ticket branch before review", async 
   const { repo, git, spec, command, ticketWorkspace } = await prepareImplementationForReview();
   const originalCheck = await recordReviewCheck(repo, spec, command, "passed");
   expect(originalCheck.status, originalCheck.stderr).toBe(0);
-  const ticketPath = join(repo, ".scratch", "0001-ticket-flow", "tickets", "T-0001.md");
+  const ticketPath = join(repo, ".spindle/features", "0001-ticket-flow", "tickets", "T-0001.md");
   const ticketContent = readFileSync(ticketPath, "utf8");
   writeFileSync(
     ticketPath,
@@ -273,7 +297,6 @@ test("committed requirements must reach the ticket branch before review", async 
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );
@@ -286,7 +309,6 @@ test("committed requirements must reach the ticket branch before review", async 
     service.reviewService.review({
       spec,
       ticket: "T-0001",
-      inventory: JSON.stringify(["feature.ts"]),
       author: "controller",
     }),
   );

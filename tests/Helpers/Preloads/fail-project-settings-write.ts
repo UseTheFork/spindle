@@ -3,7 +3,7 @@ import { syncBuiltinESMExports } from "node:module";
 
 const originalWriteFile = fs.writeFile.bind(fs);
 fs.writeFile = async (path, ...args) => {
-  if (String(path).endsWith("/.github/spindle.json")) {
+  if (String(path).endsWith("/.spindle/config.json")) {
     throw new Error("forced Project Settings write failure");
   }
   return originalWriteFile(path, ...args);

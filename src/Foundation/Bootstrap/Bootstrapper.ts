@@ -1,4 +1,4 @@
-import type { Application } from "@/Foundation/Application";
+import type { Application } from "@spindle/Foundation/Application";
 
 export abstract class Bootstrapper {
   public abstract bootstrap(application: Application): void | Promise<void>;

@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
 import type {
   ImplementationAssignment,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { TicketProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { TicketProgress, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
 
 export class ReportEvidence extends Service {
   public constructor(
@@ -22,28 +22,34 @@ export class ReportEvidence extends Service {
 
   public assertReportPath(feature: FeaturePaths, path: string, mustExist: boolean): void {
     const reports = join(feature.workspace, "reports");
-    const directory = lstatIfPresent(reports);
+    const directory = FileSystem.lstatIfPresent(reports);
     if (!directory?.isDirectory() || directory.isSymbolicLink()) {
       throw new Error("Feature reports path must be a real directory.");
     }
-    if (!isPathInside(reports, path) || !/^[^/]+\.md$/.test(path.slice(reports.length + 1))) {
+    if (
+      !FileSystem.isPathInside(reports, path) ||
+      !/^[^/]+\.md$/.test(path.slice(reports.length + 1))
+    ) {
       throw new Error("Implementation report must be a Markdown file inside feature reports/.");
     }
     const root = realpathSync(this.app.workspaceRoot);
-    if (!isPathInside(root, path) || !isPathInside(root, realpathSync(reports))) {
+    if (
+      !FileSystem.isPathInside(root, path) ||
+      !FileSystem.isPathInside(root, realpathSync(reports))
+    ) {
       throw new Error("Implementation report must remain inside this checkout.");
     }
     const relativePath = relative(root, path);
     if (this.pathSafety.isIgnored(root, relativePath)) {
       throw new Error(`Implementation report path is ignored: ${relativePath}`);
     }
-    const entry = lstatIfPresent(path);
+    const entry = FileSystem.lstatIfPresent(path);
     if (mustExist && !entry)
       throw Object.assign(new Error("Report does not exist."), { code: "ENOENT" });
     if (entry && (!entry.isFile() || entry.isSymbolicLink())) {
       throw new Error(`Implementation report must be a regular file: ${path}.`);
     }
-    if (entry && !isPathInside(reports, realpathSync(path))) {
+    if (entry && !FileSystem.isPathInside(reports, realpathSync(path))) {
       throw new Error("Implementation report must remain inside feature reports/.");
     }
   }
@@ -70,6 +76,11 @@ export class ReportEvidence extends Service {
   public readReportDigest(feature: FeaturePaths, report: string): string {
     this.assertReportPath(feature, report, true);
     return createHash("sha256").update(readFileSync(report)).digest("hex");
+  }
+
+  public reportExists(feature: FeaturePaths, report: string): boolean {
+    this.assertReportPath(feature, report, false);
+    return FileSystem.lstatIfPresent(report) !== undefined;
   }
 
   public assertAcceptedReportsCurrent(feature: FeaturePaths, progress: TicketProgress): void {

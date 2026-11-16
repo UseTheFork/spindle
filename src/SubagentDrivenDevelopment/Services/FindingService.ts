@@ -1,36 +1,30 @@
-import { isAbsolute, resolve } from "node:path";
-
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
-  FindingSeverity,
   FindingStatus,
   FindingProvenance,
   RequirementsDecision,
   ReviewFinding,
-} from "@/SubagentDrivenDevelopment/Models/Findings";
+} from "@spindle/SubagentDrivenDevelopment/Models/Findings";
 import type {
   FindingCreateOptions,
   FindingUpdateOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredTicketReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { DeliveryFindingService } from "@/SubagentDrivenDevelopment/Services/DeliveryFindingService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { DeliveryFindingService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryFindingService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class FindingService extends Service {
   public constructor(
@@ -65,12 +59,11 @@ export class FindingService extends Service {
     if (options.relatedTicket !== undefined) {
       throw new Error("--related-ticket is only valid for a delivery finding.");
     }
-    if (!options.ticket) throw new Error("Finding creation requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
-    if (!["high", "medium", "low"].includes(options.severity)) {
-      throw new Error(`Invalid finding severity: ${options.severity}.`);
-    }
+    const ticketId = options.ticket;
+    if (!ticketId) throw new Error("Finding creation requires --ticket or --scope delivery.");
+    InputValidation.validateTicketId(ticketId);
+    InputValidation.validateAuthor(options.author);
+    if (!options.assignment.trim()) throw new Error("--assignment must not be empty.");
     if (options.blocking === options.nonBlocking) {
       throw new Error("Choose exactly one of --blocking or --non-blocking.");
     }
@@ -81,28 +74,23 @@ export class FindingService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
-        options.ticket,
+        ticketId,
       );
-      const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may register findings.");
-      }
-      const report = options.source
-        ? isAbsolute(options.source)
-          ? resolve(options.source)
-          : resolve(feature.workspace, options.source)
-        : "";
+      const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const correctionAttempt = progress.correctionAttempts?.find((attempt) =>
-        attempt.reviewAssignments?.some((candidate) => candidate.report === report),
+        attempt.reviewAssignments?.some((candidate) => candidate.id === options.assignment),
       );
       const assignment =
-        correctionAttempt?.reviewAssignments?.find((candidate) => candidate.report === report) ??
-        progress.reviewAssignments?.find((candidate) => candidate.report === report);
+        correctionAttempt?.reviewAssignments?.find(
+          (candidate) => candidate.id === options.assignment,
+        ) ?? progress.reviewAssignments?.find((candidate) => candidate.id === options.assignment);
       if (!assignment) {
         throw new Error(
-          "Finding source report must match a frozen review assignment for this ticket.",
+          `Review assignment not found for ticket ${ticketId}: ${options.assignment}.`,
         );
       }
+      const report = assignment.report;
       if (assignment.status === "submitted") {
         throw new Error("Findings must be registered before submitting the review assignment.");
       }
@@ -144,7 +132,7 @@ export class FindingService extends Service {
             throw new Error("This report and commit are already linked with different details.");
           }
           return {
-            ticket: options.ticket,
+            ticket: ticketId,
             finding: canonical,
             idempotent: true,
             headSha: identity.headSha,
@@ -180,7 +168,7 @@ export class FindingService extends Service {
         );
         this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           finding: canonical,
           headSha: identity.headSha,
         };
@@ -188,7 +176,6 @@ export class FindingService extends Service {
       const existing = findings.find(
         (finding) =>
           finding.author === options.author.trim() &&
-          finding.severity === options.severity &&
           finding.blocking === (options.blocking === true) &&
           finding.summary === options.summary.trim() &&
           finding.details === options.details.trim() &&
@@ -203,7 +190,7 @@ export class FindingService extends Service {
       );
       if (existing) {
         return {
-          ticket: options.ticket,
+          ticket: ticketId,
           finding: existing,
           idempotent: true,
           headSha: identity.headSha,
@@ -219,7 +206,6 @@ export class FindingService extends Service {
       progress.findings = findings;
       const finding: ReviewFinding = {
         id: `F-${String(highest + 1n).padStart(4, "0")}`,
-        severity: options.severity as FindingSeverity,
         blocking: options.blocking === true,
         status: "open",
         summary: options.summary.trim(),
@@ -247,7 +233,7 @@ export class FindingService extends Service {
       );
       this.workspaceTransaction.writeWorkflowState(feature, ticket, afterTicket, ledger);
       return {
-        ticket: options.ticket,
+        ticket: ticketId,
         finding,
         headSha: identity.headSha,
       };
@@ -267,8 +253,8 @@ export class FindingService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("Finding update requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
     }
@@ -299,9 +285,12 @@ export class FindingService extends Service {
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       const wasBlocking = finding.blocking && !["fixed", "dismissed"].includes(finding.status);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may record a finding ruling.");
-      }
+      WorkflowPolicy.assertTicketOwner(
+        progress.owner,
+        options.author,
+        feature.feature,
+        options.ticket,
+      );
       if (!progress.baseSha) throw new Error("Finding rulings require a recorded Git baseline.");
       const identity = this.gitEvidence.commitIdentity(feature, ticket, progress.baseSha);
       let verification: ReviewFinding["verification"];
@@ -331,7 +320,10 @@ export class FindingService extends Service {
           );
         }
         const assignments = progress.reviewAssignments ?? [];
-        for (const { agent, details } of requiredTicketReviewers(ledger, progress)) {
+        for (const { agent, details } of RequiredReviewers.requiredTicketReviewers(
+          ledger,
+          progress,
+        )) {
           const coverage = assignments.filter(
             (assignment) => assignment.agent === agent && assignment.scope === "initial",
           );
@@ -432,7 +424,7 @@ export class FindingService extends Service {
         this.findingPolicy.findingBlockers(feature, ticket, progress, identity).length === 0
       ) {
         const assignments = progress.reviewAssignments ?? [];
-        const requiredReviewers = requiredTicketReviewers(ledger, progress);
+        const requiredReviewers = RequiredReviewers.requiredTicketReviewers(ledger, progress);
         const freshCoverage =
           assignments.length === requiredReviewers.length &&
           requiredReviewers.every(({ agent, details }) => {

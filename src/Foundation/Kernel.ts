@@ -1,11 +1,11 @@
-import type { Application } from "@/Foundation/Application";
-import type { BootstrapperConstructor } from "@/Foundation/Bootstrap/Bootstrapper";
-import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
-import { LoadConsoleArgs } from "@/Foundation/Bootstrap/LoadConsoleArgs";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { RequireProjectSettings } from "@/Foundation/Bootstrap/RequireProjectSettings";
-import type { ConsoleInvocation } from "@/Foundation/ConsoleInvocation";
+import type { Application } from "@spindle/Foundation/Application";
+import type { BootstrapperConstructor } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { DiscoverGitRoot } from "@spindle/Foundation/Bootstrap/DiscoverGitRoot";
+import { LoadConsoleArgs } from "@spindle/Foundation/Bootstrap/LoadConsoleArgs";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { RegisterProviders } from "@spindle/Foundation/Bootstrap/RegisterProviders";
+import { RequireProjectSettings } from "@spindle/Foundation/Bootstrap/RequireProjectSettings";
+import type { ConsoleInvocation } from "@spindle/Foundation/ConsoleInvocation";
 
 export class Kernel {
   public constructor(public readonly app: Application) {}

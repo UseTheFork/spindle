@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { BlueprintCommandOptions } from "@/BlueprintManagement/Commands/BlueprintCommandOptions";
+import { BlueprintCommandOptions } from "@spindle/BlueprintManagement/Commands/BlueprintCommandOptions";
 
 test("Blueprint options retain conflict choices and negated interactive defaults", () => {
   const conflict = BlueprintCommandOptions.conflictPolicyOption("Conflict policy");

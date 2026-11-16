@@ -1,20 +1,17 @@
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { RequirementsDecision } from "@/SubagentDrivenDevelopment/Models/Findings";
-import type { RequirementsDecideOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { RequirementsDecision } from "@spindle/SubagentDrivenDevelopment/Models/Findings";
+import type { RequirementsDecideOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class RequirementsService extends Service {
   public constructor(
@@ -37,14 +34,14 @@ export class RequirementsService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     if (options.scope === "delivery") {
       if (options.ticket) throw new Error("--ticket and --scope delivery are mutually exclusive.");
       return this.deliveryRequirementsDecide(options);
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("requirements decide needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
+    InputValidation.validateTicketId(options.ticket);
     const ticketId = options.ticket;
     if (!/^F-\d{4,}$/.test(options.finding)) {
       throw new Error(`Invalid finding ID: ${options.finding}.`);
@@ -64,9 +61,7 @@ export class RequirementsService extends Service {
         ticketId,
       );
       const progress = this.workflowPolicy.requireProgress(ledger, ticketId);
-      if (progress.owner !== options.author.trim()) {
-        throw new Error("Only the current ticket controller may record a requirements decision.");
-      }
+      WorkflowPolicy.assertTicketOwner(progress.owner, options.author, feature.feature, ticketId);
       const finding = progress.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Finding not found: ${options.finding}.`);
       if (!progress.baseSha) {
@@ -196,9 +191,7 @@ export class RequirementsService extends Service {
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the current delivery controller may record a requirements decision.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const finding = delivery.findings?.find((candidate) => candidate.id === options.finding);
       if (!finding) throw new Error(`Delivery finding not found: ${options.finding}.`);
       if (!delivery.baseSha) {

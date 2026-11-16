@@ -2,25 +2,26 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { FinishOptions, NextOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { requiredDeliveryReviewers } from "@/SubagentDrivenDevelopment/Policies/RequiredReviewers";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { FinishOptions, NextOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { RequiredReviewers } from "@spindle/SubagentDrivenDevelopment/Policies/RequiredReviewers";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import {
   FeatureFinalizationService,
   type FeatureFinishOptions,
-} from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+} from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class DeliveryService extends Service {
   public constructor(
@@ -40,7 +41,7 @@ export class DeliveryService extends Service {
   }
 
   public finish(options: FeatureFinishOptions): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature =
       this.finalization.recordedFeature(options.spec) ??
       this.featureInspectionService.resolveFeature(options.spec);
@@ -60,6 +61,7 @@ export class DeliveryService extends Service {
       if (ledger.tickets.length === 0) {
         throw new Error("Cannot finish; the feature must contain at least one ticket.");
       }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const tickets = this.ticketRepository.readTickets(feature.workspace);
       const missing = ledger.tickets
         .filter((progress) => progress.status !== "closed")
@@ -137,7 +139,7 @@ export class DeliveryService extends Service {
           `Cannot finish; final delivery checks are not current and passing:\n${checkBlockers.join("\n")}`,
         );
       }
-      const reviewers = requiredDeliveryReviewers(ledger, delivery);
+      const reviewers = RequiredReviewers.requiredDeliveryReviewers(ledger, delivery);
       const assignments = delivery.reviewAssignments ?? [];
       const reviewBlockers: string[] = [];
       if (assignments.length !== reviewers.length) {

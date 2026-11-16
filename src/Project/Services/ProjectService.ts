@@ -11,22 +11,29 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import { Service } from "@/Foundation/Service";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import { Service } from "@spindle/Foundation/Service";
 import {
   ProjectSettingsService,
+  projectSettingsPath,
   type ProjectSettingsData,
-} from "@/Settings/Services/ProjectSettingsService";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
-import { ToolingService } from "@/Tooling/Services/ToolingService";
+} from "@spindle/Settings/Services/ProjectSettingsService";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
+import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
 
-const projectSettingsPath = ".github/spindle.json";
 const copilotPath = ".github/copilot-instructions.md";
 const startMarker = "<!-- spindle:start -->";
 const endMarker = "<!-- spindle:end -->";
-const initializationDirectories = ["docs", "docs/adr", ".scratch", "docs/agents", ".github"];
-const updateDirectories = ["docs", "docs/agents", ".github"];
+const initializationDirectories = [
+  "docs",
+  "docs/adr",
+  ".spindle",
+  ".spindle/features",
+  "docs/agents",
+  ".github",
+];
+const updateDirectories = ["docs", "docs/agents", ".github", ".spindle"];
 
 export interface ProjectInitializationResult {
   workspace: string;
@@ -45,22 +52,6 @@ export interface PreparedProjectGuidance {
     original: string | undefined;
     createOnce: boolean;
   }[];
-}
-
-function copilotInstructions(template: string, existing: string | undefined): string {
-  const block = `${startMarker}\n${template.trimEnd()}\n${endMarker}`;
-  if (existing === undefined) return `${block}\n`;
-  const start = existing.indexOf(startMarker);
-  const end = existing.indexOf(endMarker);
-  if (
-    start < 0 ||
-    end < start ||
-    existing.indexOf(startMarker, start + startMarker.length) !== -1 ||
-    existing.indexOf(endMarker, end + endMarker.length) !== -1
-  ) {
-    return `${block}\n`;
-  }
-  return existing.slice(0, start) + block + existing.slice(end + endMarker.length);
 }
 
 export class ProjectService extends Service {
@@ -88,7 +79,8 @@ export class ProjectService extends Service {
     const context = await ProjectSettingsService.withTemporaryState(
       this.app,
       { status: "valid", data: settings },
-      async () => resolveRenderContext(this.app, { stacks: settings.stacks, variables: {} }),
+      async () =>
+        ResolveRenderContext.resolve(this.app, { stacks: settings.stacks, variables: {} }),
     );
     const files = templateCatalog.project.map(({ source, destination, createOnce }) => {
       const target = join(workspace, destination);
@@ -96,7 +88,7 @@ export class ProjectService extends Service {
       const original = lstatSync(target, { throwIfNoEntry: false })
         ? readFileSync(target, "utf8")
         : undefined;
-      const rendered = renderText(
+      const rendered = RenderText.render(
         readFileSync(join(this.app.assetsPath("Templates"), source), "utf8"),
         {
           stacks: [...context.stacks],
@@ -108,7 +100,10 @@ export class ProjectService extends Service {
         destination,
         original,
         createOnce: createOnce ?? false,
-        content: destination === copilotPath ? copilotInstructions(rendered, original) : rendered,
+        content:
+          destination === copilotPath
+            ? ProjectService.copilotInstructions(rendered, original)
+            : rendered,
       };
     });
     return { workspace, settings, directories, files };
@@ -215,5 +210,21 @@ export class ProjectService extends Service {
     } catch (error) {
       if (!this.isMissing(error)) throw error;
     }
+  }
+
+  private static copilotInstructions(template: string, existing: string | undefined): string {
+    const block = `${startMarker}\n${template.trimEnd()}\n${endMarker}`;
+    if (existing === undefined) return `${block}\n`;
+    const start = existing.indexOf(startMarker);
+    const end = existing.indexOf(endMarker);
+    if (
+      start < 0 ||
+      end < start ||
+      existing.indexOf(startMarker, start + startMarker.length) !== -1 ||
+      existing.indexOf(endMarker, end + endMarker.length) !== -1
+    ) {
+      return `${block}\n`;
+    }
+    return existing.slice(0, start) + block + existing.slice(end + endMarker.length);
   }
 }

@@ -5,7 +5,7 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.1
+    version: 1.1.2
 ---
 
 # To Spec
@@ -13,6 +13,12 @@ metadata:
 Turn an agreed feature request or an approved design into a codebase-grounded spec, then publish it to the configured ticket tracker. A design is optional; when one exists, it must be completed and approved before the spec, and tickets follow the spec.
 
 Use the ticket-tracker conventions in project guidance when available. If tracker or publication status is unclear, ask the user before publishing; do not assume labels or invent status values.
+
+## Required Skills
+
+Before drafting the spec, read and apply:
+
+- **REQUIRED:** `int-ref-ears`
 
 ## Argument
 
@@ -29,8 +35,8 @@ An optional design file path may be supplied. Read the entire file before drafti
    **Complete when:** the source is unambiguous and every supplied design has been read in full.
 
 2. **Select or create the SDD feature workspace.**
-   - Reuse the existing numbered `.scratch/<feature-id>-<slug>/` workspace when the selected design or spec belongs to one. Use its `spec.md`; do not create a second workspace for the same feature.
-   - Otherwise, derive a concise feature title from the agreed request and choose an author identity for this run. Run `pnpm spindle sdd create --title "<feature title>" --author "<author>"`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.scratch`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
+   - Reuse the existing numbered `.spindle/features/<feature-id>-<slug>/` workspace when the selected design or spec belongs to one. Use its `spec.md`; do not create a second workspace for the same feature.
+   - Otherwise, derive a concise feature title from the agreed request and follow the ticket-tracker guidance for `--actor`. Run `pnpm spindle sdd create --title "<feature title>" --actor <acting-agent>`; add `--with-design` when the selected design must be retained in the new workspace. If using a design outside `.spindle/features`, copy that approved source into the newly created `design.md`, replacing only the fresh template. Save the returned `spec` path and continue in that workspace.
    - When the workspace has `design.md`, read it fully and use it as the requirements source. If it still contains `[PLACEHOLDER]` markers or has not been approved, pause and ask the user to finish or approve the design before drafting the spec.
    - The selected SDD workspace's pre-created `spec.md` is the output. Replace its template content with the completed spec; do not create a dated folder or a second spec.
 

@@ -1,62 +1,67 @@
-import type { CommandConstructor } from "@/Commands/Command";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
-import { GitService } from "@/Git/Services/GitService";
-import { ChecksRecordCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
-import { ChecksRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";
-import { CorrectCommand } from "@/SubagentDrivenDevelopment/Commands/CorrectCommand";
-import { CreateCommand } from "@/SubagentDrivenDevelopment/Commands/CreateCommand";
-import { FindingCreateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingCreateCommand";
-import { FindingUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/FindingUpdateCommand";
-import { FinishCommand } from "@/SubagentDrivenDevelopment/Commands/FinishCommand";
-import { ImplementCommand } from "@/SubagentDrivenDevelopment/Commands/ImplementCommand";
-import { IntegrateCommand } from "@/SubagentDrivenDevelopment/Commands/IntegrateCommand";
-import { NextCommand } from "@/SubagentDrivenDevelopment/Commands/NextCommand";
-import { ReadyCommand } from "@/SubagentDrivenDevelopment/Commands/ReadyCommand";
-import { RequirementsDecideCommand } from "@/SubagentDrivenDevelopment/Commands/RequirementsDecideCommand";
-import { ResumeCommand } from "@/SubagentDrivenDevelopment/Commands/ResumeCommand";
-import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewCommand";
-import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
-import { StartCommand } from "@/SubagentDrivenDevelopment/Commands/StartCommand";
-import { StatusCommand } from "@/SubagentDrivenDevelopment/Commands/StatusCommand";
-import { SubmitCommand } from "@/SubagentDrivenDevelopment/Commands/SubmitCommand";
-import { TicketCommentCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
-import { TicketCreateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
-import { TicketUpdateCommand } from "@/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { ReadinessReader } from "@/SubagentDrivenDevelopment/Persistence/ReadinessReader";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AcceptancePolicy } from "@/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import { FindingPolicy } from "@/SubagentDrivenDevelopment/Policies/FindingPolicy";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { ChecksService } from "@/SubagentDrivenDevelopment/Services/ChecksService";
-import { CorrectionService } from "@/SubagentDrivenDevelopment/Services/CorrectionService";
-import { DeliveryCorrectionService } from "@/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
-import { DeliveryFindingService } from "@/SubagentDrivenDevelopment/Services/DeliveryFindingService";
-import { DeliveryService } from "@/SubagentDrivenDevelopment/Services/DeliveryService";
-import { DeliverySubmissionService } from "@/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
-import { FeatureCreationService } from "@/SubagentDrivenDevelopment/Services/FeatureCreationService";
-import { FeatureFinalizationService } from "@/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { FeatureWorktreeService } from "@/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
-import { FindingService } from "@/SubagentDrivenDevelopment/Services/FindingService";
-import { ReadinessService } from "@/SubagentDrivenDevelopment/Services/ReadinessService";
-import { RequirementsService } from "@/SubagentDrivenDevelopment/Services/RequirementsService";
-import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
-import { SubmissionService } from "@/SubagentDrivenDevelopment/Services/SubmissionService";
-import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
-import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import type { CommandConstructor } from "@spindle/Commands/Command";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { ChecksRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
+import { ChecksRequireCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRequireCommand";
+import { ChecksRevalidateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRevalidateCommand";
+import { ClaimCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ClaimCommand";
+import { CorrectCommand } from "@spindle/SubagentDrivenDevelopment/Commands/CorrectCommand";
+import { CreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/CreateCommand";
+import { FindingCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/FindingCreateCommand";
+import { FindingUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/FindingUpdateCommand";
+import { FinishCommand } from "@spindle/SubagentDrivenDevelopment/Commands/FinishCommand";
+import { ImplementCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ImplementCommand";
+import { IntegrateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/IntegrateCommand";
+import { NextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/NextCommand";
+import { ReadyCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReadyCommand";
+import { RequirementsDecideCommand } from "@spindle/SubagentDrivenDevelopment/Commands/RequirementsDecideCommand";
+import { ResumeCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ResumeCommand";
+import { ReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewCommand";
+import { ReviewRequireCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartCommand";
+import { StatusCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StatusCommand";
+import { SubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SubmitCommand";
+import { SyncCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SyncCommand";
+import { TicketCommentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
+import { TicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
+import { TicketUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import { FeatureWorkspace } from "@spindle/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { ReadinessReader } from "@spindle/SubagentDrivenDevelopment/Persistence/ReadinessReader";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AcceptancePolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { FindingPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/FindingPolicy";
+import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { ChecksService } from "@spindle/SubagentDrivenDevelopment/Services/ChecksService";
+import { CorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/CorrectionService";
+import { DeliveryCorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryCorrectionService";
+import { DeliveryFindingService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryFindingService";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { DeliverySubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/DeliverySubmissionService";
+import { FeatureCreationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureCreationService";
+import { FeatureFinalizationService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinalizationService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { FeatureWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorktreeService";
+import { FindingService } from "@spindle/SubagentDrivenDevelopment/Services/FindingService";
+import { ReadinessService } from "@spindle/SubagentDrivenDevelopment/Services/ReadinessService";
+import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services/RequirementsService";
+import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
+import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
+import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
+import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
+import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
   public static override commands(): readonly CommandConstructor[] {
@@ -69,7 +74,9 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       ReadyCommand,
       ChecksRequireCommand,
       ChecksRecordCommand,
+      ChecksRevalidateCommand,
       ImplementCommand,
+      ClaimCommand,
       CorrectCommand,
       ReviewCommand,
       ReviewRequireCommand,
@@ -82,9 +89,11 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       ResumeCommand,
       NextCommand,
       StatusCommand,
+      SyncCommand,
     ];
   }
   public register(): void {
+    this.app.singleton(StatusSummaryService);
     this.app.singleton(
       FeatureFinalizationService,
       async (app) =>
@@ -92,12 +101,27 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           app,
           await app.make(GitService),
           await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
         ),
     );
     this.app.singleton(
       TicketWorktreeService,
       async (app) =>
         new TicketWorktreeService(app, await app.make(GitService), await app.make(GitEvidence)),
+    );
+    this.app.singleton(
+      TicketSyncService,
+      async (app) =>
+        new TicketSyncService(
+          app,
+          await app.make(GitService),
+          await app.make(GitEvidence),
+          await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
+          await app.make(WorkflowPolicy),
+          await app.make(ChecksService),
+          await app.make(FeatureInspectionService),
+        ),
     );
     this.app.singleton(
       FeatureWorktreeService,
@@ -381,7 +405,12 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     );
     this.app.singleton(
       WorkspaceTransaction,
-      async (app) => new WorkspaceTransaction(app, await app.make(PathSafety)),
+      async (app) =>
+        new WorkspaceTransaction(
+          app,
+          await app.make(PathSafety),
+          await app.make(WorkflowRecordsCommitter),
+        ),
     );
     this.app.singleton(PathSafety, async (app) => new PathSafety(app, await app.make(GitService)));
     this.app.singleton(

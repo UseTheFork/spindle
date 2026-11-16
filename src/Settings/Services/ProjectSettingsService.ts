@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 
-import type { Application } from "@/Foundation/Application";
-import { projectSettingsSchema, type ProjectSettings } from "@/Settings/Models/ProjectSettings";
-import { Records } from "@/Support/Records";
-import { Stacks } from "@/Support/Stacks";
+import type { Application } from "@spindle/Foundation/Application";
+import { projectSettingsSchema, type ProjectSettings } from "@spindle/Settings/Models/ProjectSettings";
+import { Records } from "@spindle/Support/Records";
+import { Stacks } from "@spindle/Support/Stacks";
 
 export type ProjectSettingsData = ProjectSettings;
+
+export const projectSettingsPath = ".spindle/config.json";
 
 export type ProjectSettingsState =
   | { status: "absent" }
@@ -23,7 +25,7 @@ export class ProjectSettingsService {
         status: "invalid",
         data: raw,
         error,
-        reason: ".github/spindle.json is not valid JSON.",
+        reason: `${projectSettingsPath} is not valid JSON.`,
       };
     }
     if (
@@ -43,7 +45,7 @@ export class ProjectSettingsService {
       const details = result.error.issues
         .map((issue) => `${issue.path.join(".") || "settings"}: ${issue.message}`)
         .join("; ");
-      const reason = `.github/spindle.json is malformed: ${details}.`;
+      const reason = `${projectSettingsPath} is malformed: ${details}.`;
       return { status: "invalid", data, error: result.error, reason };
     }
     return { status: "valid", data: result.data };
@@ -109,12 +111,12 @@ export class ProjectSettingsService {
   public static require(state: ProjectSettingsState) {
     if (state.status === "absent") {
       throw new Error(
-        "This repository has no .github/spindle.json. Run `spindle init` to create Project Settings.",
+        `This repository has no ${projectSettingsPath}. Run \`spindle init\` to create Project Settings.`,
       );
     }
     if (state.status === "invalid") {
       if (state.reason.startsWith("Invalid stack '")) throw state.error;
-      throw new Error(`${state.reason} Fix .github/spindle.json before continuing.`);
+      throw new Error(`${state.reason} Fix ${projectSettingsPath} before continuing.`);
     }
     return { settings: state.data, stacks: state.data.stacks };
   }
@@ -124,7 +126,7 @@ export class ProjectSettingsService {
   }
 
   public static async refresh(application: Application): Promise<ProjectSettingsState> {
-    const state = await this.load(application.workspacePath(".github/spindle.json"));
+    const state = await this.load(application.workspacePath(projectSettingsPath));
     if (application.bound("settings.project")) {
       const current = application.value("settings.project");
       if (!Records.isRecord(current)) {

@@ -1,8 +1,8 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
-import type { ImplementationAssignment } from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { TicketProgress, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { ImplementationAssignment } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { TicketProgress, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
 export class AssignmentPolicy extends Service {
   public constructor(

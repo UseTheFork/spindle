@@ -1,8 +1,8 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 
-import { withCatalogFixture, writeFixtureCatalog } from "./CatalogFixtures.ts";
-import { repoRoot } from "./TemporaryDirectories.ts";
+import { withCatalogFixture, writeFixtureCatalog } from "@test/Helpers/CatalogFixtures";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const cli = join(repoRoot, "src/index.ts");
 const tsconfig = join(repoRoot, "tsconfig.json");

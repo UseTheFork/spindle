@@ -3,20 +3,20 @@ import { join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { Application } from "@/Foundation/Application";
-import { DiscoverGitRoot } from "@/Foundation/Bootstrap/DiscoverGitRoot";
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { RegisterProviders } from "@/Foundation/Bootstrap/RegisterProviders";
-import { ServiceProvider } from "@/Foundation/ServiceProvider";
+import { Application } from "@spindle/Foundation/Application";
+import { DiscoverGitRoot } from "@spindle/Foundation/Bootstrap/DiscoverGitRoot";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { RegisterProviders } from "@spindle/Foundation/Bootstrap/RegisterProviders";
+import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 
-import { fixture } from "../../Helpers/SubagentDrivenDevelopment/helpers";
+import { fixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 
 test("external providers observe malformed configuration after discovery without blocking bootstrap", async () => {
   const { repo } = fixture();
   const nested = join(repo, "nested");
   mkdirSync(nested);
   mkdirSync(join(repo, ".github"), { recursive: true });
-  writeFileSync(join(repo, ".github", "spindle.json"), "{");
+  writeFileSync(join(repo, ".spindle", "config.json"), "{");
   const app = new Application({ basePath: nested });
   const observations: unknown[] = [];
   class ConfigurationObserver extends ServiceProvider {

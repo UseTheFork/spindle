@@ -3,11 +3,11 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import type { BlueprintCatalogDefinition } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithFixtureCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithFixtureCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 const versioned = (name: string, body: string) =>
   `---\nname: ${name}\nmetadata:\n  spindle:\n    version: 1.0.0\n---\n${body}\n`;
@@ -57,7 +57,7 @@ test("update deletes newly inapplicable entries, retains multi-Stack matches, an
     }
     await writeFile(join(github, "agents", "old.agent.md"), "old path content\n");
     await writeFile(join(github, "agents", "unlisted.agent.md"), "unlisted content\n");
-    const configPath = join(github, "spindle.json");
+    const configPath = join(github, "..", ".spindle", "config.json");
     await writeFile(
       configPath,
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
@@ -109,7 +109,7 @@ test("update rejects unsafe deletion targets before changing any target or outsi
     await writeFile(outside, "outside target must remain\n");
     await symlink(outside, secondTarget);
     await writeFile(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 
@@ -140,7 +140,7 @@ test("update reports a failed removal and already completed deletions", async ()
     await writeFile(firstTarget, versioned("first", "first target"));
     await writeFile(secondTarget, versioned("second", "second target"));
     await writeFile(
-      join(github, "spindle.json"),
+      join(github, "..", ".spindle", "config.json"),
       JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
     );
 

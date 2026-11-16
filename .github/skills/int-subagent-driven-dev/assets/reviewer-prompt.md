@@ -33,13 +33,19 @@ Fix-only diff, exact prior and new committed targets, and fresh covering checks:
 Selected findings copied verbatim with stable IDs, or concrete check failure:
 [FINDINGS]
 
-Initial ticket/aggregate review coverage and prior Spec/Quality verdicts:
+Initial ticket/aggregate review coverage and prior review verdicts:
 [INITIAL_COVERAGE_AND_PRIOR_VERDICTS]
 
 Review the assigned committed target and the committed feature spec/ticket
 requirements. Do not copy or compare commit IDs by hand. Reject uncommitted
 review-affecting changes or requirements that are not current in the ticket
 branch.
+
+Use the shared report contract: one verdict (`passed`, `failed`, or
+`unavailable`), a summary, evidence and limitations, and zero or more
+structured findings. Findings state impact, evidence location, and blocking
+status. Do not assign severity or canonical finding IDs. The controller
+supplies the authoritative review result and registers accepted findings.
 
 ## Hand-back
 

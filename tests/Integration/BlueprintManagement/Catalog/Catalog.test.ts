@@ -1,22 +1,24 @@
 import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
+import matter from "gray-matter";
 import { expect, test } from "vitest";
 
-import { blueprintCatalog as assetCatalog } from "@/Assets/Blueprints/Catalog";
+import { blueprintCatalog as assetCatalog } from "@spindle/Assets/Blueprints/Catalog";
 import {
+  BlueprintCatalogOperations,
   blueprintCatalog,
-  validateBlueprintCatalog,
   type BlueprintCatalogDefinition,
-} from "@/BlueprintManagement/Catalog/BlueprintCatalog";
+} from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCli as runBundledCli, runCliWithCatalog as runCli } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCli as runBundledCli, runCliWithCatalog as runCli } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 test("the management catalog validates shipped asset metadata without changing reviewer selections", () => {
   expect(blueprintCatalog).toBe(assetCatalog);
-  const validated = validateBlueprintCatalog(assetCatalog);
+  const validated = BlueprintCatalogOperations.validateBlueprintCatalog(assetCatalog);
+  expect(validated.agents.map((entry) => entry.key)).not.toContain("sdd-re-review");
   expect(validated.agents.filter((entry) => entry.canReview).map((entry) => entry.key)).toEqual([
     "sdd-code-reviewer",
     "sdd-reviewer",
@@ -36,6 +38,58 @@ test("the management catalog validates shipped asset metadata without changing r
   });
 });
 
+test("installed SDD reviewers match their shipped report contracts", async () => {
+  const project = await makeTempDir("spindle-reviewer-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+
+  for (const name of [
+    "sdd-task-reviewer",
+    "sdd-reviewer",
+    "sdd-code-reviewer",
+    "sdd-code-slop-reviewer",
+  ]) {
+    const installed = await readFile(
+      join(project, ".github", "agents", `${name}.agent.md`),
+      "utf8",
+    );
+    const shipped = await readFile(
+      join(repoRoot, "assets", "Blueprints", "agents", `${name}.agent.md`),
+      "utf8",
+    );
+    expect(installed).toBe(shipped);
+    expect(matter(installed).data).toMatchObject({
+      name,
+      description: expect.any(String),
+      metadata: { spindle: { version: expect.any(String) } },
+    });
+  }
+});
+
+test("init omits the retired re-review agent and update removes its managed installation", async () => {
+  const project = await makeTempDir("spindle-retired-review-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+  const legacy = join(project, ".github", "agents", "sdd-re-review.agent.md");
+  await expect(readFile(legacy)).rejects.toMatchObject({ code: "ENOENT" });
+  await writeFile(legacy, "---\nmetadata:\n  spindle:\n    version: 1.3.0\n---\nLegacy agent\n");
+  const custom = join(project, ".github", "agents", "custom.agent.md");
+  await writeFile(custom, "Custom agent\n");
+
+  const update = runBundledCli(project, ["update"], process.env.PATH ?? "");
+  expect(update.status, update.stderr).toBe(0);
+  await expect(readFile(legacy)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(custom, "utf8")).toBe("Custom agent\n");
+});
+
 test.each([
   { stacks: ["php-laravel"], installed: true },
   { stacks: ["php-laravel", "typescript"], installed: true },
@@ -50,14 +104,14 @@ test.each([
   );
   expect(result.status, result.stderr).toBe(0);
 
-  const destination = join(project, ".github", "skills", "ref-php-laravel-saloon-api-integrations");
+  const destination = join(project, ".github", "skills", "public-ref-php-laravel-saloon-api-integrations");
   if (!installed) {
     await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
     return;
   }
 
   const content = await readFile(join(destination, "SKILL.md"), "utf8");
-  expect(content).toMatch(/name: ref-php-laravel-saloon-api-integrations/);
+  expect(content).toMatch(/name: public-ref-php-laravel-saloon-api-integrations/);
   expect(content).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
   const references = [
     "connectors.md",
@@ -79,7 +133,7 @@ test.each([
           "assets",
           "Blueprints",
           "skills",
-          "ref-php-laravel-saloon-api-integrations",
+          "public-ref-php-laravel-saloon-api-integrations",
           "references",
           reference,
         ),
@@ -315,12 +369,12 @@ test("init rejects a nested destination symlink before writing outside the GitHu
 test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
   const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
   const project = await makeTempDir("spindle-writing-guidance-project-");
-  const names = ["int-writing-for-agents", "int-writing-skills", "int-testing-agent-guidance"];
+  const names = ["private-writing-for-agents", "private-writing-skills", "private-testing-agent-guidance"];
   const installedSkills = join(project, ".github", "skills");
-  const oldMechanics = join(installedSkills, "int-writing-for-agents", "SKILL-MECHANICS.md");
+  const oldMechanics = join(installedSkills, "private-writing-for-agents", "SKILL-MECHANICS.md");
   const disclosedMechanics = join(
     installedSkills,
-    "int-writing-for-agents",
+    "private-writing-for-agents",
     "references",
     "skill-mechanics.md",
   );
@@ -343,8 +397,8 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status, init.stderr).toBe(0);
     for (const [name, version] of [
-      ["int-writing-for-agents", "1.1.0"],
-      ["int-writing-skills", "1.2.1"],
+      ["private-writing-for-agents", "1.1.0"],
+      ["private-writing-skills", "1.2.1"],
     ]) {
       await mkdir(join(installedSkills, name), { recursive: true });
       await writeFile(
@@ -361,7 +415,7 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     await expect(readFile(oldMechanics)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(disclosedMechanics)).rejects.toMatchObject({ code: "ENOENT" });
 
-    for (const relative of ["int-writing-for-agents/SKILL.md", "int-writing-skills/SKILL.md"]) {
+    for (const relative of ["private-writing-for-agents/SKILL.md", "private-writing-skills/SKILL.md"]) {
       const file = join(installedSkills, relative);
       const content = await readFile(file, "utf8");
       expect(content).not.toMatch(/skill-mechanics\.md|SKILL-MECHANICS\.md|{{|{%/);
@@ -370,11 +424,11 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
         const version = source.match(/version: (\S+)/)?.[1];
         expect(version).toBeTruthy();
         expect(content.includes(`version: ${version}`)).toBeTruthy();
-        expect(content).toMatch(/description: "This is an internal skill/);
+        expect(content).toMatch(/description: "This is a private skill/);
         expect(content).not.toMatch(/\[[^\]]+\]\([^)]*\/SKILL\.md\)/);
-        if (relative === "int-writing-for-agents/SKILL.md") {
-          expect(content.includes("use the `int-writing-skills` skill")).toBeTruthy();
-          expect(content.includes("use the `int-testing-agent-guidance` skill")).toBeTruthy();
+        if (relative === "private-writing-for-agents/SKILL.md") {
+          expect(content.includes("use the `private-writing-skills` skill")).toBeTruthy();
+          expect(content.includes("use the `private-testing-agent-guidance` skill")).toBeTruthy();
         } else {
           expect(content.includes("**Invocation:**")).toBeTruthy();
           expect(content.includes("**Routers:**")).toBeTruthy();
@@ -479,7 +533,7 @@ test("the compiled catalog ignores external catalog files", async () => {
   const blueprints = await makeTempDir("spindle-static-catalog-assets-");
   const project = await makeTempDir("spindle-static-catalog-project-");
   {
-    const catalog = validateBlueprintCatalog(blueprintCatalog);
+    const catalog = BlueprintCatalogOperations.validateBlueprintCatalog(blueprintCatalog);
     for (const kind of ["agents", "instructions", "skills"] as const) {
       for (const entry of catalog[kind]) {
         const destination = join(blueprints, kind, entry.path);
@@ -520,12 +574,12 @@ test("the shipped Blueprint collection initializes through the compiled catalog"
     expect(result.stdout).toMatch(/^✔ Installed /);
 
     const earsSkill = await readFile(
-      join(project, ".github", "skills", "int-ref-ears", "SKILL.md"),
+      join(project, ".github", "skills", "private-ref-ears", "SKILL.md"),
       "utf8",
     );
-    expect(earsSkill).toContain("name: int-ref-ears");
+    expect(earsSkill).toContain("name: private-ref-ears");
     expect(earsSkill).toContain(
-      'description: "This is an internal skill do not load it unless explicitly required by the user or another skill."',
+      'description: "This is a private skill do not load it unless explicitly required by the user or another skill."',
     );
     expect(earsSkill).toContain("user-invocable: false");
     expect(earsSkill).toMatch(/metadata:\n  spindle:\n    version: 1\.0\.0/);
@@ -540,7 +594,7 @@ test("the shipped Blueprint collection initializes through the compiled catalog"
         join(project, ".github", "skills", skillName, "SKILL.md"),
         "utf8",
       );
-      expect(skill).toContain("- **REQUIRED:** `int-ref-ears`");
+      expect(skill).toContain("- **REQUIRED:** `private-ref-ears`");
     }
   }
 });

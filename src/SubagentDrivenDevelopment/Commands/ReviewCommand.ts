@@ -1,19 +1,19 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { reviewSchema } from "@/SubagentDrivenDevelopment/Commands/groups";
-import { ReviewRequireCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { Command } from "@spindle/Commands/Command";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ReviewRequireCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewRequireCommand";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type {
   ReviewOptions,
   ReviewRequireOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
-import { ReviewService } from "@/SubagentDrivenDevelopment/Services/ReviewService";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
 
 export class ReviewCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    reviewSchema(root).action(
+    SddCommandGroups.reviewSchema(root).action(
       async (
         action: string | undefined,
         options: Partial<ReviewOptions & ReviewRequireOptions>,
@@ -25,14 +25,10 @@ export class ReviewCommand extends Command {
           throw new Error("review needs exactly one of --ticket or --scope delivery.");
         }
         if (action === "require") {
-          if (options.type && options.agent && options.type !== options.agent) {
-            throw new Error("--type and --agent must identify the same review agent.");
-          }
-          const reviewType = options.type ?? options.agent;
+          const reviewType = options.type;
           if (!options.spec || !reviewType || !options.details || !options.author) {
-            throw new Error("review require needs --spec, --type, --details, and --author.");
+            throw new Error("review require needs --feature, --type, --details, and --actor.");
           }
-          if (options.inventory) throw new Error("--inventory is not valid with 'review require'.");
           const app = await createApp();
           const command = await app.make(ReviewRequireCommand);
           const data = await command.run({
@@ -51,23 +47,22 @@ export class ReviewCommand extends Command {
           return;
         }
         if (action !== undefined) throw new Error(`Unknown review action: ${action}.`);
-        if (options.type || options.agent || options.details) {
-          throw new Error("--type, --agent, and --details are only valid with 'review require'.");
+        if (options.type || options.details) {
+          throw new Error("--type and --details are only valid with 'review require'.");
         }
-        if (!options.spec || !options.inventory || !options.author) {
-          throw new Error("review requires --spec, --inventory, and --author.");
+        if (!options.spec || !options.author) {
+          throw new Error("review requires --feature and --actor.");
         }
         const app = await createApp();
         const command = await app.make(ReviewCommand);
         const data = await command.run({
           ...options,
           spec: options.spec,
-          inventory: options.inventory,
           author: options.author,
         });
         const output = await app.make(ConsoleOutputService);
         const human = [
-          `Review completed for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
+          `Dispatched review for ${options.ticket ? `ticket ${options.ticket}` : "delivery"}.`,
           ...data.assignments.flatMap((assignment) => [
             `Review assignment ${assignment.id} (${assignment.agent}, ${assignment.status}).`,
             `Report: ${assignment.report}`,

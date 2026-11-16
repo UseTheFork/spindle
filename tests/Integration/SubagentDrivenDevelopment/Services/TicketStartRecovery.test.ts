@@ -4,21 +4,21 @@ import { dirname, join } from "node:path";
 
 import { expect, test, vi } from "vitest";
 
-import { LoadProjectSettings } from "@/Foundation/Bootstrap/LoadProjectSettings";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentService } from "@/SubagentDrivenDevelopment/Services/AssignmentService";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 
-import { applicationFixture } from "../../../Helpers/ApplicationFixture";
+import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
-} from "../../../Helpers/SubagentDrivenDevelopment/helpers";
-import { repoRoot } from "../../../Helpers/TemporaryDirectories";
+} from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function preparedDispatch() {
   const { repo } = fixture();
@@ -30,8 +30,8 @@ async function preparedDispatch() {
   mkdirSync(parent);
   const started = await invokeAsync(repo, [
     "start",
-    "--spec",
-    JSON.parse(created.stdout).spec,
+    "--feature",
+    JSON.parse(created.stdout).workspace,
     "--workspace",
     parent,
     "--confirm-records",
@@ -82,8 +82,7 @@ test("resumes a journalled worktree allocation before Git worktree creation", as
   const { root, workspace, assignment, options } = await preparedDispatch();
   const git = (...args: string[]) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
-  git("add", ".scratch");
-  git("commit", "-qm", "prepare ticket records");
+  expect(git("status", "--porcelain")).toBe("");
   const common = git("rev-parse", "--path-format=absolute", "--git-common-dir");
   const journals = join(common, "spindle-ticket-start");
   mkdirSync(journals);
@@ -122,9 +121,13 @@ test("retries dispatch after worktree creation without duplicating the branch or
   expect(repeated.assignment.id).toBe(resumed.assignment.id);
   const ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8"));
   expect(ledger.tickets[0].assignment.id).toBe(resumed.assignment.id);
-  expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toContain(
-    ".scratch/",
-  );
+  expect(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" })).toBe("");
+  expect(
+    execFileSync("git", ["show", "HEAD:.spindle/features/0001-recover-dispatch/sdd.json"], {
+      cwd: root,
+      encoding: "utf8",
+    }),
+  ).toContain(resumed.assignment.id);
 });
 
 test("retry preserves a previously created ticket worktree containing new work", async () => {

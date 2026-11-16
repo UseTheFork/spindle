@@ -1,25 +1,25 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { IntegrateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketIntegrationService } from "@/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { IntegrateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 
 export class IntegrateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root)
+    SddCommandGroups.group(root)
       .command("integrate")
       .description("Merge a currently reviewed ticket commit into the feature branch.")
-      .requiredOption("--spec <path>", "Canonical feature spec", CommandOptions.once("--spec"))
-      .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
-      .requiredOption("--author <author>", "Controller author", CommandOptions.once("--author"))
-      .option(
-        "--confirm-records",
-        "Confirm that current canonical feature records were inspected before batching",
+      .requiredOption(
+        "--feature <directory>",
+        "Canonical feature spec",
+        CommandOptions.once("--feature"),
       )
+      .requiredOption("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
+      .requiredOption("--actor <acting-agent>", "Controller author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: IntegrateOptions) => {
         const app = await createApp();

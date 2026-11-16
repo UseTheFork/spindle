@@ -3,18 +3,18 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import type { CommitIdentity } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import type { CommitIdentity } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   TicketProgress,
   FeatureLedger,
   FeaturePaths,
   TicketDocument,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent, isPathInside } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 
 export class GitEvidence extends Service {
   public constructor(
@@ -43,14 +43,14 @@ export class GitEvidence extends Service {
     feature: FeaturePaths,
     ledger = this.ledgerRepository.readLedger(feature),
   ): string[] {
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
     return this.allGitChangePaths().filter((path) => path !== lockPath && allowed.has(path));
   }
 
   public workflowDeliveryRecordPaths(feature: FeaturePaths, ledger: FeatureLedger): Set<string> {
     const root = realpathSync(this.app.workspaceRoot);
-    const featurePrefix = `.scratch/${feature.feature}/`;
+    const featurePrefix = `.spindle/features/${feature.feature}/`;
     const paths = new Set([
       relative(root, feature.spec),
       relative(root, feature.ledger),
@@ -60,7 +60,7 @@ export class GitEvidence extends Service {
     const addReport = (report: string | undefined) => {
       if (!report) return;
       const path = isAbsolute(report) ? resolve(report) : resolve(feature.workspace, report);
-      if (isPathInside(reports, path) && /^[^/]+\.md$/.test(relative(reports, path))) {
+      if (FileSystem.isPathInside(reports, path) && /^[^/]+\.md$/.test(relative(reports, path))) {
         paths.add(relative(root, path));
       }
     };
@@ -81,6 +81,23 @@ export class GitEvidence extends Service {
         for (const provenance of finding.provenance) addReport(provenance.report);
       }
     }
+    const delivery = ledger.delivery;
+    addReport(delivery.assignment?.report);
+    for (const assignment of [
+      ...(delivery.reviewAssignments ?? []),
+      ...(delivery.reviewHistory ?? []),
+    ]) {
+      addReport(assignment.report);
+    }
+    for (const attempt of delivery.correctionAttempts ?? []) {
+      addReport(attempt.assignment.report);
+      addReport(attempt.priorAssignment?.report);
+      for (const assignment of attempt.reviewAssignments ?? []) addReport(assignment.report);
+    }
+    for (const finding of delivery.findings ?? []) {
+      for (const provenance of finding.provenance) addReport(provenance.report);
+    }
+    addReport(delivery.finished?.report);
     return paths;
   }
 
@@ -130,15 +147,18 @@ export class GitEvidence extends Service {
       .map((ticket) => ticket.integration ?? ticket.integrationHistory?.at(-1))
       .filter((integration) => integration?.postMerge?.status === "pending");
     const head = this.headSha(root);
-    if (!pending.length || pending.some((integration) => integration?.mergeSha !== head)) {
+    const mergeSha = pending[0]?.mergeSha;
+    if (!mergeSha || pending.some((integration) => integration?.mergeSha !== mergeSha)) {
       throw new Error("Pending post-merge validation does not match the exact feature HEAD.");
     }
-    const gitPath = (name: string) =>
-      resolve(
-        root,
-        this.gitBuffer(["rev-parse", "--git-path", name], root).toString("utf8").trim(),
-      );
-    for (const operation of [
+    this.assertOnlyWorkflowRecordsSince(
+      root,
+      mergeSha,
+      head,
+      this.workflowDeliveryRecordPaths(feature, ledger),
+      "Feature code changed after the recorded merge; post-merge checks are stale.",
+    );
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -146,8 +166,10 @@ export class GitEvidence extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (lstatIfPresent(gitPath(operation))) {
+    ];
+    const paths = this.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      if (FileSystem.lstatIfPresent(resolve(root, paths[index]))) {
         throw new Error(
           `Existing Git operation ${operation} was preserved; inspect it before dispatch.`,
         );
@@ -158,7 +180,9 @@ export class GitEvidence extends Service {
         .toString("utf8")
         .trim(),
     );
-    if (lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))) {
+    if (
+      FileSystem.lstatIfPresent(join(common, "spindle-record-commit", `${feature.feature}.json`))
+    ) {
       throw new Error("Pending workflow-record commit journal must be resolved before dispatch.");
     }
     const status = this.gitBuffer(
@@ -177,7 +201,7 @@ export class GitEvidence extends Service {
       .split("\0")
       .filter(Boolean);
     const allowed = this.workflowDeliveryRecordPaths(feature, ledger);
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     for (const entry of status) {
       const state = entry.slice(0, 2);
       const path = entry.slice(3);
@@ -188,7 +212,7 @@ export class GitEvidence extends Service {
       if (!allowed.has(path)) {
         throw new Error(`Unrelated or non-canonical changes were preserved: ${path}.`);
       }
-      const file = lstatIfPresent(join(root, path));
+      const file = FileSystem.lstatIfPresent(join(root, path));
       if (!file?.isFile() || file.isSymbolicLink()) {
         throw new Error(`Canonical workflow record is missing or unsafe: ${path}.`);
       }
@@ -196,6 +220,31 @@ export class GitEvidence extends Service {
     if (this.headSha(root) !== head)
       throw new Error("Feature HEAD changed during ticket dispatch.");
     return head;
+  }
+
+  private assertOnlyWorkflowRecordsSince(
+    root: string,
+    baseSha: string,
+    headSha: string,
+    allowed: Set<string>,
+    message: string,
+  ): void {
+    if (headSha === baseSha) return;
+    const ancestry = this.git.run(["merge-base", "--is-ancestor", baseSha, headSha], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
+    if (ancestry.error) throw ancestry.error;
+    if (ancestry.status !== 0) throw new Error(message);
+    const changed = this.gitBuffer(
+      ["diff", "--name-only", "-z", "--no-renames", baseSha, headSha, "--", "."],
+      root,
+    )
+      .toString("utf8")
+      .split("\0")
+      .filter(Boolean);
+    if (changed.some((path) => !allowed.has(path))) throw new Error(message);
   }
 
   public commitIdentity(
@@ -234,9 +283,11 @@ export class GitEvidence extends Service {
     }
     const root = realpathSync(this.app.workspaceRoot);
     this.assertCommittedCode(root);
-    const headSha = this.headSha(root);
-    this.assertCommittedRequirements(feature, tickets, headSha);
-    return { headSha };
+    const currentHead = this.headSha(root);
+    this.assertCommittedRequirements(feature, tickets, currentHead);
+    return {
+      headSha: this.headBeforeDeliveryRecordCommits(feature, ledger, currentHead),
+    };
   }
 
   public assertCommittedRequirements(
@@ -332,7 +383,9 @@ export class GitEvidence extends Service {
     )
       .toString("utf8")
       .split("\0")
-      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+      .filter(
+        (path) => path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"),
+      );
   }
 
   public requirementsMatchAtCommits(
@@ -408,7 +461,8 @@ export class GitEvidence extends Service {
     ]) {
       const output = this.gitBuffer(args, workspace).toString("utf8");
       for (const path of output.split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) paths.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          paths.add(path);
       }
     }
     this.assertStableSubmodules(baseSha, paths, workspace);
@@ -425,7 +479,13 @@ export class GitEvidence extends Service {
       .toString("utf8")
       .split("\0")) {
       const [metadata, path] = record.split("\t", 2);
-      if (!metadata || !path || path === ".scratch" || path.startsWith(".scratch/")) continue;
+      if (
+        !metadata ||
+        !path ||
+        path === ".spindle/features" ||
+        path.startsWith(".spindle/features/")
+      )
+        continue;
       const [mode, sha, stage] = metadata.split(" ");
       if (mode === "160000" && sha && stage === "0") gitlinks.set(path, sha);
     }
@@ -438,15 +498,15 @@ export class GitEvidence extends Service {
       if (
         metadata?.startsWith("160000 commit ") &&
         path &&
-        path !== ".scratch" &&
-        !path.startsWith(".scratch/")
+        path !== ".spindle/features" &&
+        !path.startsWith(".spindle/features/")
       ) {
         knownPaths.add(path);
       }
     }
 
     for (const path of knownPaths) {
-      const entry = lstatIfPresent(join(workspace ?? this.app.workspaceRoot, path));
+      const entry = FileSystem.lstatIfPresent(join(workspace ?? this.app.workspaceRoot, path));
       if (!entry) {
         throw new Error(
           `Cannot compute code identity for submodule '${path}'; its worktree is missing or uninitialized.`,
@@ -520,7 +580,7 @@ export class GitEvidence extends Service {
   public ticketWorkspace(progress: TicketProgress): string | undefined {
     if (!progress.worktree) return undefined;
     const recorded = progress.worktree;
-    const entry = lstatIfPresent(recorded.workspace);
+    const entry = FileSystem.lstatIfPresent(recorded.workspace);
     if (
       !entry?.isDirectory() ||
       entry.isSymbolicLink() ||
@@ -553,7 +613,7 @@ export class GitEvidence extends Service {
       .toString("utf8")
       .split("\0");
     if (
-      isPathInside(canonical, recorded.workspace) ||
+      FileSystem.isPathInside(canonical, recorded.workspace) ||
       realpathSync(common) !== realpathSync(ticketCommon) ||
       realpathSync(top) !== recorded.workspace ||
       !registrations.includes(`worktree ${recorded.workspace}`) ||
@@ -573,11 +633,44 @@ export class GitEvidence extends Service {
     return recorded.workspace;
   }
 
+  public assertTicketCommitSince(
+    progress: TicketProgress,
+    startingHeadSha: string,
+    headSha: string,
+  ): void {
+    const workspace = this.ticketWorkspace(progress);
+    if (!workspace) throw new Error(`Ticket ${progress.id} has no recorded worktree to submit.`);
+    if (headSha === startingHeadSha) {
+      throw new Error(
+        `Ticket ${progress.id} has no new commits for this assignment. Commit the implementation in ${workspace}, then submit the report again.`,
+      );
+    }
+    const ancestry = this.git.run(["merge-base", "--is-ancestor", startingHeadSha, headSha], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    if (ancestry.error) throw ancestry.error;
+    if (ancestry.status !== 0 && ancestry.status !== 1) {
+      throw new Error(
+        `Could not verify ticket ${progress.id} assignment ancestry: ${ancestry.stderr.trim()}`,
+      );
+    }
+    if (ancestry.status !== 0) {
+      throw new Error(
+        `Ticket ${progress.id} no longer descends from the assignment's starting commit. Inspect the worktree and preserve its changes before submitting.`,
+      );
+    }
+    this.assertTicketCodeCommitted(progress);
+    if (this.headSha(workspace) !== headSha) {
+      throw new Error(`Ticket ${progress.id} changed during submission; inspect it and retry.`);
+    }
+  }
+
   public assertTicketCodeCommitted(progress: TicketProgress): void {
     const workspace = this.ticketWorkspace(progress);
     if (!workspace) return;
     const scratchStatus = this.gitBuffer(
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".scratch"],
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".spindle/features"],
       workspace,
     );
     if (scratchStatus.length) {
@@ -590,7 +683,8 @@ export class GitEvidence extends Service {
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]) {
       for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          changed.add(path);
       }
     }
     if (changed.size > 0)
@@ -605,7 +699,8 @@ export class GitEvidence extends Service {
       ["ls-files", "--others", "--exclude-standard", "-z"],
     ]) {
       for (const path of this.gitBuffer(args, workspace).toString("utf8").split("\0")) {
-        if (path && path !== ".scratch" && !path.startsWith(".scratch/")) changed.add(path);
+        if (path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"))
+          changed.add(path);
       }
     }
     if (changed.size > 0)
@@ -627,6 +722,96 @@ export class GitEvidence extends Service {
     return revision.stdout.trim();
   }
 
+  public headBeforeWorkflowRecords(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    headSha = this.headSha(),
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    return this.headBeforeCommitsChangingOnly(
+      root,
+      headSha,
+      this.workflowDeliveryRecordPaths(feature, ledger),
+    );
+  }
+
+  public headBeforeDeliveryRecordCommits(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    headSha = this.headSha(),
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const records = this.workflowDeliveryRecordPaths(feature, ledger);
+    records.delete(relative(root, feature.spec));
+    for (const ticket of ledger.tickets) {
+      records.delete(`.spindle/features/${feature.feature}/tickets/${ticket.id}.md`);
+    }
+    return this.headBeforeCommitsChangingOnly(root, headSha, records);
+  }
+
+  public headBeforePostMergeRecordCommits(
+    feature: FeaturePaths,
+    ledger: FeatureLedger,
+    ticket: string,
+    headSha: string,
+    mergeSha: string,
+  ): string {
+    const root = realpathSync(this.app.workspaceRoot);
+    const records = this.workflowDeliveryRecordPaths(feature, ledger);
+    records.delete(relative(root, feature.spec));
+    const ticketPath = `.spindle/features/${feature.feature}/tickets/${ticket}.md`;
+    return this.headBeforeCommitsChangingOnly(
+      root,
+      headSha,
+      records,
+      (parent, commit, path) => {
+        if (path !== ticketPath) return true;
+        const requirementsAt = (revision: string) => {
+          const result = this.git.run(["show", `${revision}:${path}`], {
+            cwd: root,
+            encoding: "utf8",
+          });
+          if (result.error) throw result.error;
+          return result.status === 0 ? this.ticketRequirements(result.stdout) : undefined;
+        };
+        const before = requirementsAt(parent);
+        const after = requirementsAt(commit);
+        return before !== undefined && after !== undefined && before === after;
+      },
+      mergeSha,
+    );
+  }
+
+  private headBeforeCommitsChangingOnly(
+    root: string,
+    headSha: string,
+    allowed: Set<string>,
+    isWorkflowRecord: (parent: string, commit: string, path: string) => boolean = () => true,
+    stopAt?: string,
+  ): string {
+    let current = headSha;
+    while (true) {
+      if (current === stopAt) return current;
+      const commit = this.gitBuffer(["rev-list", "--parents", "-n", "1", current], root)
+        .toString("utf8")
+        .trim()
+        .split(/\s+/);
+      const parent = commit[1];
+      if (!parent) return current;
+      const changed = this.gitBuffer(
+        ["diff", "--name-only", "-z", "--no-renames", parent, current, "--", "."],
+        root,
+      )
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+      if (changed.some((path) => !allowed.has(path) || !isWorkflowRecord(parent, current, path))) {
+        return current;
+      }
+      current = parent;
+    }
+  }
+
   public gitBuffer(args: string[], workspace?: string): Buffer {
     const result = this.git.run(args, {
       cwd: workspace ?? realpathSync(this.app.workspaceRoot),
@@ -638,6 +823,12 @@ export class GitEvidence extends Service {
       throw new Error(`git ${args[0]} failed: ${result.stderr.toString("utf8").trim()}`);
     }
     return result.stdout;
+  }
+
+  public gitPaths(workspace: string, names: readonly string[]): string[] {
+    return this.git.gitPaths(workspace, names, {
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    });
   }
 
   public gitChangeSummary(feature: FeaturePaths): string {
@@ -677,7 +868,7 @@ export class GitEvidence extends Service {
   ): void {
     const allowed = new Set(acceptedFiles);
     for (const path of this.workflowDeliveryRecordPaths(feature, ledger)) allowed.add(path);
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const unrelated = this.allGitChangePaths().filter(
       (path) => path !== lockPath && !allowed.has(path),
     );

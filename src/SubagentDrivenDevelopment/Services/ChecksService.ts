@@ -1,35 +1,32 @@
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type {
   TicketChecks,
   CheckRecord,
   CommitIdentity,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   ChecksRequireOptions,
   ChecksRecordOptions,
-} from "@/SubagentDrivenDevelopment/Models/Options";
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import type {
   FeatureLedger,
   FeaturePaths,
   TicketProgress,
-} from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { isSafeCoveragePath } from "@/SubagentDrivenDevelopment/Persistence/CheckSchema";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { Records } from "@/Support/Records";
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { Records } from "@spindle/Support/Records";
 
 type RequireOptions = Omit<ChecksRequireOptions, "command"> & { command: string | string[] };
 
@@ -56,10 +53,6 @@ export class ChecksService extends Service {
     retry?: string;
     headSha: string;
   } {
-    if (options.rebaseBaseline && options.scope !== undefined)
-      throw new Error("--rebase-baseline requires ticket review scope.");
-    if (options.rebaseBaseline && (options.remove || options.details !== undefined))
-      throw new Error("--rebase-baseline cannot change check requirements.");
     if (options.scope === "post-merge") return this.postMergeRequire(options);
     if (typeof options.command !== "string") throw new Error("Exactly one command is required.");
     const single = { ...options, command: options.command };
@@ -69,8 +62,8 @@ export class ChecksService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("checks require needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (options.remove && !options.details?.trim()) {
@@ -85,14 +78,7 @@ export class ChecksService extends Service {
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "integrated")
         throw new Error("Integrated tickets use --scope post-merge for validation.");
-      const rebased = options.rebaseBaseline
-        ? this.adoptRebasedTicket(feature, ledger, progress, options.author, command)
-        : false;
-      if (
-        !rebased &&
-        progress.execution === "reviewing" &&
-        (progress.reviewAssignments?.length ?? 0) > 0
-      ) {
+      if (progress.execution === "reviewing" && (progress.reviewAssignments?.length ?? 0) > 0) {
         throw new Error(
           "The reviewed commit is frozen; required checks cannot change while review assignments are active.",
         );
@@ -115,9 +101,7 @@ export class ChecksService extends Service {
               options.ticket,
             ),
             progress.baseSha,
-            rebased ? progress.worktree?.workspace : undefined,
           );
-          if (rebased) this.workspaceTransaction.writeLedger(feature, ledger);
           return {
             ticket: options.ticket,
             checks,
@@ -144,109 +128,6 @@ export class ChecksService extends Service {
         ...identity,
       };
     });
-  }
-
-  private adoptRebasedTicket(
-    feature: FeaturePaths,
-    ledger: FeatureLedger,
-    progress: TicketProgress,
-    author: string,
-    command: string,
-  ): boolean {
-    if (progress.owner !== author.trim())
-      throw new Error("Only the ticket controller may adopt a rebased baseline.");
-    if (
-      progress.execution !== "reviewing" ||
-      progress.assignment?.status !== "submitted" ||
-      !progress.worktree
-    )
-      throw new Error("Rebasing requires a submitted ticket in review with an isolated worktree.");
-    if (!progress.checks?.required.some((item) => item.command === command && !item.removedAt))
-      throw new Error("--rebase-baseline requires an existing required command.");
-    for (const variable of [
-      "GIT_DIR",
-      "GIT_WORK_TREE",
-      "GIT_COMMON_DIR",
-      "GIT_INDEX_FILE",
-      "GIT_OBJECT_DIRECTORY",
-      "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-      "GIT_NAMESPACE",
-    ]) {
-      if (process.env[variable])
-        throw new Error(`Unset ${variable} before adopting a rebased ticket.`);
-    }
-    const root = realpathSync(this.app.workspaceRoot);
-    const git = (args: string[], cwd = root) =>
-      this.gitEvidence.gitBuffer(args, cwd).toString("utf8").trim();
-    if (
-      git(["symbolic-ref", "--quiet", "--short", "HEAD"]) !== `features/${feature.feature}` ||
-      realpathSync(feature.workspace) !== realpathSync(join(root, ".scratch", feature.feature))
-    )
-      throw new Error("The canonical feature worktree and branch are required.");
-    const workspace = this.gitEvidence.ticketWorkspace(progress);
-    if (!workspace) throw new Error("Ticket worktree is missing.");
-    for (const cwd of [root, workspace]) {
-      for (const operation of [
-        "MERGE_HEAD",
-        "CHERRY_PICK_HEAD",
-        "REVERT_HEAD",
-        "rebase-merge",
-        "rebase-apply",
-        "sequencer",
-      ]) {
-        if (existsSync(resolve(cwd, git(["rev-parse", "--git-path", operation], cwd))))
-          throw new Error(`Resolve Git operation ${operation} before adopting the baseline.`);
-      }
-    }
-    const status = git(
-      ["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"],
-      workspace,
-    );
-    if (status) throw new Error("Ticket worktree must be clean; user changes were preserved.");
-    const allowed = this.gitEvidence.workflowDeliveryRecordPaths(feature, ledger);
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
-    const dirty = this.gitEvidence
-      .allGitChangePaths()
-      .filter((path) => path !== lock && !allowed.has(path));
-    if (dirty.length) throw new Error(`Feature code must be clean: ${dirty.join(", ")}.`);
-    const base = this.gitEvidence.headSha(root);
-    const head = this.gitEvidence.headSha(workspace);
-    if (head === base) throw new Error("Ticket must contain a distinct reviewed code commit.");
-    git(["merge-base", "--is-ancestor", base, head], workspace);
-    if (!progress.baseSha) throw new Error("Ticket baseline is missing.");
-    git(["merge-base", "--is-ancestor", progress.baseSha, base], root);
-    this.assertPrerequisiteBaseline(ledger, progress, base);
-    if (git(["diff", "--name-only", base, head, "--", ".scratch"], workspace))
-      throw new Error("Rebased ticket commits must not change canonical workflow records.");
-    if (progress.baseSha === base) return false;
-    const attempt =
-      progress.assignment.action === "correct"
-        ? progress.correctionAttempts?.find((item) => item.number === progress.assignment?.attempt)
-        : undefined;
-    if (progress.assignment.action === "correct" && !attempt)
-      throw new Error("Correction attempt is missing.");
-    const previous = attempt
-      ? (attempt.reviewAssignments ?? [])
-      : (progress.reviewAssignments ?? []);
-    if (previous.some((item) => item.status !== "submitted"))
-      throw new Error("Pending reviews must finish before rebasing; assignments were preserved.");
-    if (previous.length) {
-      (progress.reviewHistory ??= []).push(...previous);
-      if (attempt) delete attempt.reviewAssignments;
-      else delete progress.reviewAssignments;
-    }
-    (progress.baselineHistory ??= []).push({
-      from: progress.baseSha,
-      to: base,
-      ticketHead: head,
-      at: new Date().toISOString(),
-      author: author.trim(),
-    });
-    progress.baseSha = base;
-    progress.worktree.baseSha = base;
-    if (this.gitEvidence.headSha(root) !== base || this.gitEvidence.headSha(workspace) !== head)
-      throw new Error("A Git HEAD changed while adopting the baseline; retry.");
-    return true;
   }
 
   public assertPrerequisiteBaseline(
@@ -300,8 +181,8 @@ export class ChecksService extends Service {
     closureBlocked?: string[];
     retry?: string;
   } & CommitIdentity {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     if (options.remove || options.details !== undefined)
       throw new Error("Post-merge checks must be declared as a complete list.");
     const commands = (Array.isArray(options.command) ? options.command : [options.command]).map(
@@ -320,6 +201,7 @@ export class ChecksService extends Service {
         ledger,
         options.ticket,
         options.author,
+        feature.feature,
       );
       const previous = progress.integrationHistory?.at(-1)?.postMerge?.checks;
       if (
@@ -370,10 +252,8 @@ export class ChecksService extends Service {
     closureBlocked?: string[];
     retry?: string;
   } & CommitIdentity {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
-    if (options.paths !== undefined)
-      throw new Error("--paths is not supported for post-merge checks.");
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     const result = options.result;
     if (result !== "passed" && result !== "failed" && result !== "unavailable")
@@ -387,6 +267,7 @@ export class ChecksService extends Service {
         ledger,
         options.ticket,
         options.author,
+        feature.feature,
       );
       const checks = postMerge.checks;
       if (!checks?.required.length)
@@ -487,12 +368,16 @@ export class ChecksService extends Service {
     return { closed: true };
   }
 
-  private postMergeProgress(ledger: FeatureLedger, ticket: string, author: string) {
+  private postMergeProgress(
+    ledger: FeatureLedger,
+    ticket: string,
+    author: string,
+    feature: string,
+  ) {
     const progress = this.workflowPolicy.requireProgress(ledger, ticket);
     const integration = progress.integration;
     const postMerge = integration?.postMerge;
-    if (progress.owner !== author.trim())
-      throw new Error("Only the ticket controller may manage post-merge checks.");
+    WorkflowPolicy.assertTicketOwner(progress.owner, author, feature, ticket);
     if (
       progress.execution !== "integrated" ||
       progress.status === "closed" ||
@@ -558,19 +443,27 @@ export class ChecksService extends Service {
         );
       }
     }
-    const headSha = currentHead;
-    for (const operation of [
+    const headSha = this.gitEvidence.headBeforePostMergeRecordCommits(
+      feature,
+      ledger,
+      progress.id,
+      currentHead,
+      mergeSha,
+    );
+    const operations = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (existsSync(resolve(root, git(["rev-parse", "--git-path", operation]))))
+    ];
+    const paths = this.gitEvidence.gitPaths(root, operations);
+    for (const [index, operation] of operations.entries()) {
+      if (existsSync(resolve(root, paths[index])))
         throw new Error(`Post-merge checks cannot run during Git operation ${operation}.`);
     }
-    const lock = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lock = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     const dirty = this.gitEvidence
       .allGitChangePaths()
       .filter((path) => path !== lock && !allowed.has(path));
@@ -588,8 +481,8 @@ export class ChecksService extends Service {
   } & CommitIdentity {
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("checks record needs --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
@@ -610,16 +503,6 @@ export class ChecksService extends Service {
         (item) => item.command === command && !item.removedAt,
       );
       if (!requirement) throw new Error(`Check command is not currently required: ${command}.`);
-      const coveredPaths =
-        options.paths === undefined
-          ? undefined
-          : [...new Set(options.paths.map((path) => path.trim()))].sort();
-      if (
-        coveredPaths &&
-        (coveredPaths.length === 0 || coveredPaths.some((path) => !isSafeCoveragePath(path)))
-      ) {
-        throw new Error("--paths must contain unique safe checkout-relative file paths.");
-      }
       const ticket = this.ticketRepository.requireTicket(
         this.ticketRepository.readTickets(feature.workspace),
         options.ticket,
@@ -648,7 +531,7 @@ export class ChecksService extends Service {
         latestForCommand.headSha === identity.headSha &&
         (!progress.worktree || latestForCommand.headSha === identity.headSha) &&
         latestForCommand.details === options.details?.trim() &&
-        JSON.stringify(latestForCommand.coveredPaths) === JSON.stringify(coveredPaths)
+        latestForCommand.coveredPaths === undefined
           ? latestForCommand
           : undefined;
       if (repeat) return { ticket: options.ticket, record: repeat, idempotent: true, ...identity };
@@ -658,7 +541,6 @@ export class ChecksService extends Service {
         author: options.author.trim(),
         headSha: identity.headSha,
         recordedAt: new Date().toISOString(),
-        ...(coveredPaths ? { coveredPaths } : {}),
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       checks.records.push(record);
@@ -700,7 +582,7 @@ export class ChecksService extends Service {
     idempotent?: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (options.remove && !options.details?.trim()) {
@@ -714,13 +596,10 @@ export class ChecksService extends Service {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
-      if (delivery.owner && delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may change required checks.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       if (delivery.execution === "reviewing" && (delivery.reviewAssignments?.length ?? 0) > 0) {
         throw new Error("Aggregate review is frozen; required delivery checks cannot change.");
       }
-      delivery.owner = options.author.trim();
       const checks = (delivery.checks ??= { required: [], records: [] });
       const active = checks.required.find(
         (requirement) => requirement.command === command && !requirement.removedAt,
@@ -765,7 +644,7 @@ export class ChecksService extends Service {
     record: CheckRecord;
     idempotent?: boolean;
   } & CommitIdentity {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const command = options.command.trim();
     if (!command) throw new Error("Check command must not be empty.");
     if (!["passed", "failed", "unavailable"].includes(options.result)) {
@@ -780,9 +659,7 @@ export class ChecksService extends Service {
       const delivery = ledger.delivery;
       this.workflowPolicy.assertDeliveryOpen(delivery);
       if (!delivery.checks) throw new Error("No required checks are declared for delivery.");
-      if (delivery.owner !== options.author.trim()) {
-        throw new Error("Only the recorded delivery controller may record final checks.");
-      }
+      WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
       const requirement = delivery.checks.required.find(
         (item) => item.command === command && !item.removedAt,
       );
@@ -814,7 +691,11 @@ export class ChecksService extends Service {
         ...(options.details?.trim() ? { details: options.details.trim() } : {}),
       };
       delivery.checks.records.push(record);
-      if (record.result !== "passed") delivery.execution = "changes-requested";
+      if (record.result === "failed") delivery.execution = "changes-requested";
+      else if (CheckPolicy.hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)) {
+        delivery.execution =
+          (delivery.reviewAssignments?.length ?? 0) > 0 ? "reviewing" : "unstarted";
+      }
       delivery.history.push({
         at: record.recordedAt,
         author: record.author,

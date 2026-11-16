@@ -1,23 +1,27 @@
 import type { Command as CommanderCommand } from "commander";
 
-import { Command } from "@/Commands/Command";
-import { CommandOptions } from "@/Commands/CommandOptions";
-import type { Application } from "@/Foundation/Application";
-import { ConsoleOutputService } from "@/Foundation/ConsoleOutputService";
-import { group } from "@/SubagentDrivenDevelopment/Commands/groups";
-import type { TicketCreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { TicketService } from "@/SubagentDrivenDevelopment/Services/TicketService";
+import { Command } from "@spindle/Commands/Command";
+import { CommandOptions } from "@spindle/Commands/CommandOptions";
+import type { Application } from "@spindle/Foundation/Application";
+import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
+import type { TicketCreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 
 export class TicketCreateCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
-    group(root, "ticket")
+    SddCommandGroups.group(root, "ticket")
       .command("create")
       .description("Create an attributed ticket in the selected feature.")
-      .requiredOption("--spec <path>", "Feature spec path", CommandOptions.once("--spec"))
+      .requiredOption(
+        "--feature <directory>",
+        "Feature workspace directory",
+        CommandOptions.once("--feature"),
+      )
       .requiredOption("--title <title>", "Ticket title", CommandOptions.once("--title"))
       .requiredOption("--reporter <reporter>", "Ticket reporter", CommandOptions.once("--reporter"))
       .requiredOption("--category <category>", "Ticket category", CommandOptions.once("--category"))
-      .requiredOption("--author <author>", "Acting author", CommandOptions.once("--author"))
+      .requiredOption("--actor <acting-agent>", "Acting author", CommandOptions.once("--actor"))
       .allowExcessArguments(false)
       .action(async (options: TicketCreateOptions) => {
         const app = await createApp();

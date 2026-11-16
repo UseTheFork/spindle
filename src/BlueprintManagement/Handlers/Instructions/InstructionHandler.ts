@@ -1,10 +1,7 @@
 import { join } from "node:path";
 
-import type { BlueprintHandler } from "@/BlueprintManagement/Types/Blueprint";
-import {
-  planVersionedUpdate,
-  validateVersionedMetadata,
-} from "@/BlueprintManagement/Versioning/BlueprintVersioning";
+import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
+import { BlueprintVersioning } from "@spindle/BlueprintManagement/Versioning/BlueprintVersioning";
 
 export const instructionHandler: BlueprintHandler = {
   kind: "Instruction",
@@ -15,13 +12,18 @@ export const instructionHandler: BlueprintHandler = {
   targetPath: (destinationDirectory, name) => join(destinationDirectory, name),
   validateMetadata: (relativePath, renderedText) => {
     if (relativePath.toLowerCase().endsWith(".md")) {
-      validateVersionedMetadata("Instruction", relativePath, relativePath, renderedText);
+      BlueprintVersioning.validateVersionedMetadata(
+        "Instruction",
+        relativePath,
+        relativePath,
+        renderedText,
+      );
     }
   },
   planUpdate: (input) => {
     const entry = input.sourceFiles[0].outputPath;
     return entry.toLowerCase().endsWith(".md")
-      ? planVersionedUpdate(input, "Instruction", entry, (target) => target)
+      ? BlueprintVersioning.planVersionedUpdate(input, "Instruction", entry, (target) => target)
       : Promise.resolve({ status: input.installed ? "conflict" : "new" });
   },
 };

@@ -3,9 +3,9 @@ import { dirname, join } from "node:path";
 
 import { expect, test } from "vitest";
 
-import { writeCatalogFixture } from "../../../Helpers/CatalogFixtures.ts";
-import { runCliWithCatalog } from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
+import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 async function put(path: string, value: string) {
   await mkdir(dirname(path), { recursive: true });
@@ -45,7 +45,7 @@ test("update renders and replaces project guidance and initializes missing tooli
   );
   const github = join(project, ".github");
   await put(
-    join(github, "spindle.json"),
+    join(github, "..", ".spindle", "config.json"),
     JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm", custom: true }),
   );
   await put(
@@ -68,7 +68,7 @@ test("update renders and replaces project guidance and initializes missing tooli
   expect(await readFile(join(project, "docs/agents/constitution.md"), "utf8")).toBe(
     ratifiedConstitution,
   );
-  const config = JSON.parse(await readFile(join(github, "spindle.json"), "utf8"));
+  const config = JSON.parse(await readFile(join(github, "..", ".spindle", "config.json"), "utf8"));
   expect(config).toMatchObject({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
@@ -82,12 +82,14 @@ test("update renders and replaces project guidance and initializes missing tooli
   const guide = await readFile(join(project, "docs/agents/tooling.md"), "utf8");
   expect(guide).toContain("## Spindle\n\n- `spindle init`");
   expect(guide).toContain("`spindle update`");
-  await expect(readFile(join(project, ".scratch"))).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(readFile(join(project, ".spindle/features"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
   await expect(readFile(join(project, "docs/adr"))).rejects.toMatchObject({ code: "ENOENT" });
-  const bytes = await readFile(join(github, "spindle.json"), "utf8");
+  const bytes = await readFile(join(github, "..", ".spindle", "config.json"), "utf8");
   const repeat = runCliWithCatalog(project, ["update"], process.env.PATH ?? "", env);
   expect(repeat.status, repeat.stderr).toBe(0);
-  expect(await readFile(join(github, "spindle.json"), "utf8")).toBe(bytes);
+  expect(await readFile(join(github, "..", ".spindle", "config.json"), "utf8")).toBe(bytes);
 });
 
 test("init renders project Markdown using its selected package manager", async () => {
@@ -120,7 +122,7 @@ test("init renders project Markdown using its selected package manager", async (
 test("update preserves a valid registry and rejects reserved registry keys before changes", async () => {
   const project = await makeTempDir("guidance-registry-");
   const { env } = await assets();
-  const path = join(project, ".github/spindle.json");
+  const path = join(project, ".spindle/config.json");
   const custom = [{ key: "test", section: "Testing", command: "pnpm test" }];
   const raw = JSON.stringify(
     { stacks: ["python"], spindle_package_manager: "pnpm", tooling: custom },
@@ -163,7 +165,7 @@ test.each(["init", "update"] as const)(
     const old = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
     if (mode === "update") {
       await put(
-        join(github, "spindle.json"),
+        join(github, "..", ".spindle", "config.json"),
         JSON.stringify({ stacks: ["python"], spindle_package_manager: "pnpm" }),
       );
       await put(join(github, "skills/demo/SKILL.md"), old);
@@ -178,7 +180,7 @@ test.each(["init", "update"] as const)(
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/computed.not_registered/);
     if (mode === "init") {
-      await expect(readFile(join(github, "spindle.json"))).rejects.toMatchObject({
+      await expect(readFile(join(github, "..", ".spindle", "config.json"))).rejects.toMatchObject({
         code: "ENOENT",
       });
       await expect(readFile(join(github, "skills/demo/SKILL.md"))).rejects.toMatchObject({
@@ -187,9 +189,9 @@ test.each(["init", "update"] as const)(
     } else {
       expect(await readFile(join(github, "skills/demo/SKILL.md"), "utf8")).toBe(old);
       expect(await readFile(join(github, "skills/obsolete/SKILL.md"), "utf8")).toBe(old);
-      expect(JSON.parse(await readFile(join(github, "spindle.json"), "utf8"))).not.toHaveProperty(
-        "tooling",
-      );
+      expect(
+        JSON.parse(await readFile(join(github, "..", ".spindle", "config.json"), "utf8")),
+      ).not.toHaveProperty("tooling");
     }
     await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toMatchObject({
       code: "ENOENT",

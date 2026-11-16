@@ -1,10 +1,10 @@
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import type { ReadyOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { ReadinessReader } from "@/SubagentDrivenDevelopment/Persistence/ReadinessReader";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import type { ReadyOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { ReadinessReader } from "@spindle/SubagentDrivenDevelopment/Persistence/ReadinessReader";
+import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 
 export class ReadinessService extends Service {
   public constructor(

@@ -4,34 +4,35 @@ import { isAbsolute, join } from "node:path";
 
 import matter from "gray-matter";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import { ReportEvidence } from "@/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import type {
   ImplementationAssignment,
   CorrectionAttempt,
   CorrectionAdjudication,
   ReviewAssignment,
-} from "@/SubagentDrivenDevelopment/Models/Assignments";
-import type { ImplementOptions, ResumeOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { ExecutionState } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { TicketRepository } from "@/SubagentDrivenDevelopment/Persistence/TicketRepository";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import { AssignmentPolicy } from "@/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
-import { CheckPolicy } from "@/SubagentDrivenDevelopment/Policies/CheckPolicy";
-import {
-  validateAuthor,
-  validateTicketId,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { ReadinessPolicy } from "@/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
-import { ReviewPolicy } from "@/SubagentDrivenDevelopment/Policies/ReviewPolicy";
-import { WorkflowPolicy } from "@/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
-import { FeatureInspectionService } from "@/SubagentDrivenDevelopment/Services/FeatureInspectionService";
-import { TicketWorktreeService } from "@/SubagentDrivenDevelopment/Services/TicketWorktreeService";
-import { WorkflowRecordsCommitter } from "@/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type {
+  ClaimOptions,
+  ImplementOptions,
+  ResumeOptions,
+} from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { ExecutionState } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { AssignmentPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AssignmentPolicy";
+import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPolicy";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
+import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
+import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 
 export class AssignmentService extends Service {
   public constructor(
@@ -53,14 +54,60 @@ export class AssignmentService extends Service {
     super(app);
   }
 
+  public claim(options: ClaimOptions): {
+    scope: "delivery";
+    owner: string;
+    idempotent?: boolean;
+  } {
+    if (options.scope !== "delivery") throw new Error("--scope must be 'delivery'.");
+    InputValidation.validateAuthor(options.author);
+    const feature = this.featureInspectionService.resolveFeature(options.spec);
+    return this.workspaceTransaction.run(feature.workspace, () => {
+      const ledger = this.ledgerRepository.readLedger(feature);
+      const delivery = ledger.delivery;
+      this.workflowPolicy.assertDeliveryOpen(delivery);
+      if (delivery.owner) {
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+        return { scope: "delivery", owner: delivery.owner, idempotent: true };
+      }
+      const incomplete = ledger.tickets.filter(
+        (ticket) =>
+          ticket.status !== "closed" ||
+          ticket.execution !== "integrated" ||
+          !ticket.integration?.mergeSha ||
+          ticket.integration.postMerge?.status !== "passed" ||
+          ticket.integration.postMerge.mergeSha !== ticket.integration.mergeSha,
+      );
+      const tickets = this.ticketRepository.readTickets(feature.workspace);
+      this.ticketRepository.validateDependencyGraph(tickets);
+      if (
+        ledger.tickets.length === 0 ||
+        incomplete.length > 0 ||
+        tickets.length !== ledger.tickets.length
+      ) {
+        throw new Error(
+          `Delivery claim requires every ticket closed, integrated, and post-merge validated${incomplete.length ? `: ${incomplete.map((ticket) => ticket.id).join(", ")}` : "."}`,
+        );
+      }
+      delivery.owner = options.author.trim();
+      delivery.history.push({
+        at: new Date().toISOString(),
+        author: delivery.owner,
+        action: "controller-claimed",
+      });
+      this.workspaceTransaction.writeLedger(feature, ledger);
+      return { scope: "delivery", owner: delivery.owner };
+    });
+  }
+
   public implement(options: ImplementOptions): {
     ticket: string;
     execution: "implementing";
     assignment: ImplementationAssignment;
     headSha: string;
   } {
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -69,9 +116,12 @@ export class AssignmentService extends Service {
       const ticket = this.ticketRepository.requireTicket(tickets, options.ticket);
       const progress = this.workflowPolicy.requireProgress(ledger, options.ticket);
       if (progress.execution === "implementing" && progress.assignment) {
-        if (progress.owner !== options.author.trim()) {
-          throw new Error("Controller ownership changed; resume and confirm the handoff first.");
-        }
+        WorkflowPolicy.assertTicketOwner(
+          progress.owner,
+          options.author,
+          feature.feature,
+          options.ticket,
+        );
         if (
           !progress.worktree ||
           !options.workspace ||
@@ -114,7 +164,7 @@ export class AssignmentService extends Service {
 
       const report = join(feature.workspace, "reports", `${options.ticket}-implementation.md`);
       this.reportEvidence.assertReportPath(feature, report, false);
-      if (lstatIfPresent(report)) {
+      if (FileSystem.lstatIfPresent(report)) {
         throw new Error(`Assigned report already exists and was preserved: ${report}.`);
       }
       const pendingPostMerge = ledger.tickets.some(
@@ -122,11 +172,8 @@ export class AssignmentService extends Service {
           (candidate.integration ?? candidate.integrationHistory?.at(-1))?.postMerge?.status ===
           "pending",
       );
-      if (!pendingPostMerge) {
-        this.workflowRecordsCommitter.commit(feature, options.confirmRecords === true);
-      }
+      if (!pendingPostMerge) this.workflowRecordsCommitter.commit(feature);
       const baseSha = this.gitEvidence.cleanDispatchBaseline(feature, pendingPostMerge);
-      progress.status = "in-progress";
       progress.owner = options.author.trim();
       progress.baseSha = baseSha;
       ledger.delivery.baseSha ??= baseSha;
@@ -153,6 +200,7 @@ export class AssignmentService extends Service {
         report,
         workspace: worktree.workspace,
         branch: worktree.branch,
+        startingHeadSha: worktree.baseSha,
         requestedAt: new Date().toISOString(),
         status: "pending",
         handoffs: [],
@@ -209,8 +257,8 @@ export class AssignmentService extends Service {
     }
     if (options.scope !== undefined) throw new Error("--scope must be 'delivery'.");
     if (!options.ticket) throw new Error("resume requires --ticket or --scope delivery.");
-    validateTicketId(options.ticket);
-    validateAuthor(options.author);
+    InputValidation.validateTicketId(options.ticket);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
@@ -223,8 +271,11 @@ export class AssignmentService extends Service {
       let handoffRecorded = false;
       if (progress.owner && progress.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          throw new Error(
-            `Ownership handoff from ${progress.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
+          WorkflowPolicy.assertTicketOwner(
+            progress.owner,
+            options.author,
+            feature.feature,
+            options.ticket,
           );
         }
         const previousOwner = progress.owner;
@@ -302,17 +353,18 @@ export class AssignmentService extends Service {
     finished: boolean;
     headSha: string;
   } {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     const feature = this.featureInspectionService.resolveFeature(options.spec);
     return this.workspaceTransaction.run(feature.workspace, () => {
       const ledger = this.ledgerRepository.readLedger(feature);
       const delivery = ledger.delivery;
       let handoffRecorded = false;
+      if (!delivery.owner) {
+        WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
+      }
       if (delivery.owner && delivery.owner !== options.author.trim()) {
         if (!options.confirmHandoff) {
-          throw new Error(
-            `Ownership handoff from ${delivery.owner} to ${options.author.trim()} requires --confirm-handoff after the previous controller has stopped editing.`,
-          );
+          WorkflowPolicy.assertDeliveryOwner(delivery.owner, options.author, feature.feature);
         }
         const previousOwner = delivery.owner;
         delivery.owner = options.author.trim();
@@ -366,9 +418,16 @@ export class AssignmentService extends Service {
         nextAction = "await-review-report";
       } else if (checkBlocker) {
         nextAction = "record-final-checks";
-      } else if (delivery.execution === "changes-requested") {
+      } else if (
+        delivery.execution === "changes-requested" &&
+        !CheckPolicy.hasOnlyRetryableDeliveryCheckIssue(delivery, identity.headSha)
+      ) {
         nextAction = "correct";
-      } else if (delivery.execution === "reviewing") {
+      } else if (
+        delivery.execution === "reviewing" ||
+        (delivery.execution === "changes-requested" &&
+          (delivery.reviewAssignments?.length ?? 0) > 0)
+      ) {
         nextAction = "review-or-finish";
       } else {
         nextAction = "review";

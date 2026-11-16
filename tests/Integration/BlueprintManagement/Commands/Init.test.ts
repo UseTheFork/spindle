@@ -11,8 +11,8 @@ import {
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw as runCliRaw,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 
 let stubsDirectory: string;
 
@@ -139,7 +139,7 @@ test("init installs its configured skill and records repeatable stack flags", as
   const { project, result } = await runInit(["--stack", "php-laravel", "--stack", "typescript"]);
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
+  expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toMatchObject({
     stacks: ["php-laravel", "typescript"],
     spindle_package_manager: "pnpm",
     tooling: [],
@@ -159,7 +159,7 @@ test("init accepts an explicit Spindle package-manager command", async () => {
   ]);
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
+  expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
     spindle_package_manager: "npm run",
     tooling: expect.any(Array),
@@ -247,7 +247,7 @@ test(
     expect(result.status, result.stdout).toBe(0);
     expect(result.stdout).toMatch(/Skill 'demo'.*What should happen\?/);
     expect(await readFile(skillPath, "utf8")).toMatch(/# Demo/);
-    expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toMatch(
+    expect(await readFile(join(project, ".spindle", "config.json"), "utf8")).toMatch(
       /"stacks":\s*\[\s*"python"\s*\]/,
     );
   },
@@ -288,7 +288,7 @@ test("init renders computed package-manager and selected Stack values", async ()
   );
 
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toMatchObject({
+  expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toMatchObject({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
     tooling: expect.any(Array),
@@ -306,7 +306,7 @@ test("init skip policy leaves existing Skills untouched and still writes Project
   const { project: projectRoot, result: initialResult } = await runInit(["--stack", "python"]);
   expect(initialResult.status, initialResult.stderr).toBe(0);
   await writeFile(join(projectRoot, ".github/skills/demo/SKILL.md"), "preserve this");
-  const configPath = join(projectRoot, ".github/spindle.json");
+  const configPath = join(projectRoot, ".spindle/config.json");
   await rm(configPath);
 
   const project = await runCli(
@@ -335,7 +335,7 @@ test("init overwrite policy removes files that are no longer in the Stub", async
   expect(initialResult.status, initialResult.stderr).toBe(0);
   const stalePath = join(project, ".github/skills/demo/stale.txt");
   await writeFile(stalePath, "remove me");
-  await rm(join(project, ".github/spindle.json"));
+  await rm(join(project, ".spindle/config.json"));
 
   const result = runCli(
     project,
@@ -354,14 +354,14 @@ test("init fails clearly and writes nothing when no stack is selected", async ()
 
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/at least one --stack/i);
-  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
   await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
 });
 
 test("init initializes project guidance for configured stacks before directing updates", async () => {
   const { project, result: initial } = await runInit(["--stack", "python"]);
   expect(initial.status, initial.stderr).toBe(0);
-  const originalConfig = await readFile(join(project, ".github/spindle.json"), "utf8");
+  const originalConfig = await readFile(join(project, ".spindle/config.json"), "utf8");
   await rm(join(project, "docs"), { recursive: true });
 
   const repeated = runCli(
@@ -374,7 +374,7 @@ test("init initializes project guidance for configured stacks before directing u
   expect(repeated.status).not.toBe(0);
   expect(repeated.stderr).toMatch(/already has configured Blueprint stacks.*spindle update/i);
   expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
-  expect(await readFile(join(project, ".github/spindle.json"), "utf8")).toBe(originalConfig);
+  expect(await readFile(join(project, ".spindle/config.json"), "utf8")).toBe(originalConfig);
 });
 
 test("init rejects unsupported stack ids with a clear error", async () => {
@@ -382,7 +382,7 @@ test("init rejects unsupported stack ids with a clear error", async () => {
 
   expect(result.status).not.toBe(0);
   expect(result.stderr).toMatch(/invalid stack.*ruby|unsupported stack.*ruby/i);
-  await expect(readFile(join(project, ".github/spindle.json"))).rejects.toThrow();
+  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
 });
 
 test(
@@ -406,7 +406,33 @@ test(
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/\.github must be a real directory/i);
     expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
-    await expect(readFile(join(outside, "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(outside, ".spindle", "config.json"))).rejects.toThrow();
+  },
+);
+
+test(
+  "init refuses a symlinked Project Settings file",
+  { skip: process.platform === "win32" },
+  async () => {
+    const project = await makeTempDir();
+    const outside = join(project, "outside");
+    await mkdir(join(project, ".spindle"));
+    await mkdir(outside);
+    const config = '{"stacks":["python"],"spindle_package_manager":"pnpm"}\n';
+    await writeFile(join(outside, "config.json"), config);
+    await symlink(join(outside, "config.json"), join(project, ".spindle", "config.json"), "file");
+    const result = runCli(
+      project,
+      ["init", "--stack", "python", "--on-conflict", "overwrite"],
+      process.env.PATH ?? "",
+      {
+        SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory,
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/\.spindle\/config\.json must be a regular file/i);
+    expect(await readFile(join(outside, "config.json"), "utf8")).toBe(config);
   },
 );
 
@@ -434,7 +460,7 @@ test(
       /\.github[\\/]skills.*symbolic link|symbolic link.*\.github[\\/]skills/i,
     );
     expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
     await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
   },
 );
@@ -463,6 +489,6 @@ test(
       /\.github[\\/]skills[\\/]demo.*symbolic link|symbolic link.*\.github[\\/]skills[\\/]demo/i,
     );
     expect(await readFile(join(outside, "sentinel"), "utf8")).toBe("keep");
-    await expect(readFile(join(project, ".github", "spindle.json"))).rejects.toThrow();
+    await expect(readFile(join(project, ".spindle", "config.json"))).rejects.toThrow();
   },
 );

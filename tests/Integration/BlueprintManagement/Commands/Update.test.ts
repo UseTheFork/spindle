@@ -9,8 +9,8 @@ import {
   runCliRaw,
   runCliWithFixtureCatalog as runCli,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
-} from "../../../Helpers/Cli.ts";
-import { makeTempDir, repoRoot } from "../../../Helpers/TemporaryDirectories.ts";
+} from "@test/Helpers/Cli";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 
 let stubs: string;
 
@@ -35,6 +35,12 @@ beforeEach(async () => {
 
 const skill = (version: string | null, body = "old") =>
   `---\n${version === null ? "" : `metadata:\n  spindle:\n    version: ${version}\n`}---\n${body}\n`;
+
+async function createProject(prefix: string) {
+  const project = await makeTempDir(prefix);
+  await mkdir(join(project, ".spindle"), { recursive: true });
+  return project;
+}
 
 interface Setup {
   config?: string | object;
@@ -61,9 +67,10 @@ async function withProject(
 ) {
   const project = await makeTempDir();
   await mkdir(join(project, ".github"), { recursive: true });
+  await mkdir(join(project, ".spindle"), { recursive: true });
   if (setup.config !== undefined) {
     await writeFile(
-      join(project, ".github/spindle.json"),
+      join(project, ".spindle/config.json"),
       typeof setup.config === "string" ? setup.config : JSON.stringify(setup.config),
     );
   }
@@ -246,7 +253,7 @@ test("all selected versions are overwritten with stored stacks and package manag
       await expect(readFile(join(project, ".github/skills/newer/extra.txt"))).rejects.toThrow();
       expect(await read(project, "absent")).toContain("fresh absent");
       expect(
-        JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+        JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8")),
       ).toMatchObject({
         ...goodConfig,
         commit: { title_max_length: 72 },
@@ -331,7 +338,7 @@ test("top-level version is not a fallback for shipped or installed Skills", asyn
 
 test("update rejects an unrenderable Skill before replacing the installed file", async () => {
   const blueprints = await makeTempDir("spindle-static-version-");
-  const project = await makeTempDir("spindle-static-version-project-");
+  const project = await createProject("spindle-static-version-project-");
   const installed = join(project, ".github", "skills", "demo", "SKILL.md");
   const original = "---\nmetadata:\n  spindle:\n    version: 1.0.0\n---\nlocal\n";
   const configText = JSON.stringify({
@@ -347,7 +354,7 @@ test("update rejects an unrenderable Skill before replacing the installed file",
     );
     await mkdir(join(installed, ".."), { recursive: true });
     await writeFile(installed, original);
-    await writeFile(join(project, ".github", "spindle.json"), configText);
+    await writeFile(join(project, ".spindle", "config.json"), configText);
 
     const result = runCli(project, ["update"], process.env.PATH ?? "", {
       SPINDLE_TEST_BLUEPRINTS_DIR: blueprints,
@@ -356,7 +363,7 @@ test("update rejects an unrenderable Skill before replacing the installed file",
     expect(result.status).not.toBe(0);
     expect(result.stderr).toMatch(/undefined|not_supplied/i);
     expect(await readFile(installed, "utf8")).toBe(original);
-    expect(await readFile(join(project, ".github", "spindle.json"), "utf8")).toBe(configText);
+    expect(await readFile(join(project, ".spindle", "config.json"), "utf8")).toBe(configText);
   }
 });
 
@@ -382,7 +389,7 @@ test("update overwrites malformed installed Skill YAML at selected paths", async
           readFile(join(project, ".github", "skills", "a-outdated", "extra.txt"), "utf8"),
         ).rejects.toMatchObject({ code: "ENOENT" });
         expect(
-          JSON.parse(await readFile(join(project, ".github", "spindle.json"), "utf8")),
+          JSON.parse(await readFile(join(project, ".spindle", "config.json"), "utf8")),
         ).toMatchObject({
           ...JSON.parse(config),
           tooling: [],
@@ -488,7 +495,7 @@ test(
           expect(await read(project, "newer")).toMatch(/fresh newer manager=pnpm stacks=python;/);
           expect(await read(project, "absent")).toMatch(/fresh absent manager=pnpm stacks=python;/);
           expect(
-            JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8")),
+            JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8")),
           ).toMatchObject(projectConfig);
         },
         variableStubs,
@@ -554,7 +561,7 @@ test(
           await expect(
             readFile(join(project, ".github/skills/zeta-new/SKILL.md")),
           ).rejects.toThrow();
-          expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
+          expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toEqual(
             originalConfig,
           );
         },
@@ -597,7 +604,7 @@ test(
       async (project, result) => {
         expect(result.status).not.toBe(0);
         expect(result.stdout + result.stderr).toMatch(/forced Project Settings write failure/);
-        expect(JSON.parse(await readFile(join(project, ".github/spindle.json"), "utf8"))).toEqual(
+        expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toEqual(
           originalConfig,
         );
       },
@@ -676,7 +683,7 @@ test("missing or malformed config reports how to recover", async () => {
       async (project, result) => {
         expect(result.status).toBe(1);
         expect(result.stderr).toMatch(
-          /spindle init|Fix \.github\/spindle\.json|Missing "spindle_package_manager"/,
+          /spindle init|Fix \.spindle\/config\.json|Missing "spindle_package_manager"/,
         );
         expect(await read(project, "newer")).toBe(skill("1.0.0"));
       },
@@ -695,8 +702,8 @@ test("update Commander help accepts -h and help update outside Git", async () =>
     expect(result.stderr).toBe("");
     expect(result.stdout).toMatch(/Usage: spindle update/);
     expect(result.stdout).toMatch(/-h, --help/);
+    expect(await readdir(project), args.join(" ")).toEqual([]);
   }
-  expect(await readdir(project)).toEqual([]);
 });
 
 test("update reports invalid arguments before Git discovery outside a working tree", async () => {
@@ -767,14 +774,14 @@ test(
       {
         await mkdir(outside, { recursive: true });
         await writeFile(join(outside, "sentinel"), "keep");
+        await mkdir(join(project, ".spindle"), { recursive: true });
+        await writeFile(join(project, ".spindle", "config.json"), JSON.stringify(goodConfig));
         if (link === "github") {
-          await writeFile(join(outside, "spindle.json"), JSON.stringify(goodConfig));
           await mkdir(join(outside, "skills", "newer"), { recursive: true });
           await writeFile(join(outside, "skills", "newer", "SKILL.md"), skill("1.0.0"));
           await symlink(outside, join(project, ".github"), "dir");
         } else {
           await mkdir(join(project, ".github"), { recursive: true });
-          await writeFile(join(project, ".github", "spindle.json"), JSON.stringify(goodConfig));
           if (link === "skills") {
             await mkdir(join(outside, "newer"), { recursive: true });
             await writeFile(join(outside, "newer", "SKILL.md"), skill("1.0.0"));

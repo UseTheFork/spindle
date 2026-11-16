@@ -10,26 +10,19 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { templateCatalog } from "@/Assets/Templates/Catalog";
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { CreateOptions } from "@/SubagentDrivenDevelopment/Models/Options";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { FeatureWorkspace } from "@/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
-import {
-  assertRealDirectory,
-  lstatIfPresent,
-  isPathInside,
-} from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { PathSafety } from "@/SubagentDrivenDevelopment/Persistence/PathSafety";
-import { WorkspaceTransaction } from "@/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
-import {
-  validateCreateOptions,
-  featureSlug,
-} from "@/SubagentDrivenDevelopment/Policies/InputValidation";
-import { resolveRenderContext } from "@/TemplateRendering/Computed/ResolveRenderContext";
-import { renderText } from "@/TemplateRendering/Rendering/RenderText";
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { CreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FeatureWorkspace } from "@spindle/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export class FeatureCreationService extends Service {
   public constructor(
@@ -44,20 +37,20 @@ export class FeatureCreationService extends Service {
 
   public create(options: CreateOptions): FeaturePaths {
     this.assertApplicationBooted();
-    validateCreateOptions(options);
+    InputValidation.validateCreateOptions(options);
     const root = realpathSync(this.app.workspaceRoot);
     if (!statSync(root).isDirectory()) throw new Error("Workspace root must be a directory.");
 
-    const scratch = join(root, ".scratch");
-    if (this.pathSafety.isIgnored(root, ".scratch/.sdd-create.lock")) {
-      throw new Error("Feature destination is ignored: .scratch");
+    const featureDirectory = join(root, ".spindle", "features");
+    if (this.pathSafety.isIgnored(root, ".spindle/features/.sdd-create.lock")) {
+      throw new Error("Feature destination is ignored: .spindle/features");
     }
-    const scratchEntry = lstatIfPresent(scratch);
-    if (scratchEntry) {
-      assertRealDirectory(scratch, ".scratch");
+    const featureDirectoryEntry = FileSystem.lstatIfPresent(featureDirectory);
+    if (featureDirectoryEntry) {
+      FileSystem.assertRealDirectory(featureDirectory, ".spindle/features");
     } else {
       try {
-        mkdirSync(scratch);
+        mkdirSync(featureDirectory);
       } catch (error) {
         if (
           typeof error !== "object" ||
@@ -67,24 +60,24 @@ export class FeatureCreationService extends Service {
         ) {
           throw error;
         }
-        assertRealDirectory(scratch, ".scratch");
+        FileSystem.assertRealDirectory(featureDirectory, ".spindle/features");
       }
     }
-    if (!isPathInside(root, realpathSync(scratch))) {
-      throw new Error(".scratch must remain inside this checkout.");
+    if (!FileSystem.isPathInside(root, realpathSync(featureDirectory))) {
+      throw new Error(".spindle/features must remain inside this checkout.");
     }
 
-    const release = this.workspaceTransaction.acquireCreationLock(scratch);
+    const release = this.workspaceTransaction.acquireCreationLock(featureDirectory);
     try {
-      this.featureWorkspace.rejectAbandonedStaging(scratch);
-      const id = this.featureWorkspace.nextFeatureId(scratch);
-      const feature = `${id}-${featureSlug(options.title)}`;
-      const workspace = join(scratch, feature);
-      if (lstatIfPresent(workspace)) {
+      this.featureWorkspace.rejectAbandonedStaging(featureDirectory);
+      const id = this.featureWorkspace.nextFeatureId(featureDirectory);
+      const feature = `${id}-${InputValidation.featureSlug(options.title)}`;
+      const workspace = join(featureDirectory, feature);
+      if (FileSystem.lstatIfPresent(workspace)) {
         throw new Error(`Feature workspace already exists: ${feature}`);
       }
 
-      const relativeBase = `.scratch/${feature}`;
+      const relativeBase = `.spindle/features/${feature}`;
       const targets = [
         `${relativeBase}/spec.md`,
         `${relativeBase}/sdd.json`,
@@ -98,22 +91,22 @@ export class FeatureCreationService extends Service {
         }
       }
 
-      const staging = mkdtempSync(join(scratch, ".sdd-create-"));
+      const staging = mkdtempSync(join(featureDirectory, ".sdd-create-"));
       try {
         mkdirSync(join(staging, "tickets"));
         mkdirSync(join(staging, "reports"));
-        const context = resolveRenderContext(this.app, {
+        const context = ResolveRenderContext.resolve(this.app, {
           variables: {
             title: options.title.trim(),
             author: options.author.trim(),
           },
         });
-        const spec = renderText(
+        const spec = RenderText.render(
           readFileSync(join(this.app.assetsPath("Templates"), templateCatalog.sdd.spec), "utf8"),
           context,
         );
         const design = options.withDesign
-          ? renderText(
+          ? RenderText.render(
               readFileSync(
                 join(this.app.assetsPath("Templates"), templateCatalog.sdd.design),
                 "utf8",
@@ -148,7 +141,7 @@ export class FeatureCreationService extends Service {
         writeFileSync(join(staging, "sdd.json"), `${JSON.stringify(ledger, null, 2)}\n`, {
           flag: "wx",
         });
-        if (lstatIfPresent(workspace)) {
+        if (FileSystem.lstatIfPresent(workspace)) {
           throw new Error(`Feature workspace already exists: ${feature}`);
         }
         renameSync(staging, workspace);

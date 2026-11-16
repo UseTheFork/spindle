@@ -10,7 +10,7 @@ metadata:
 
 # Setup Project
 
-Curate the commands agents should use and establish project domain documentation. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.github/spindle.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
+Curate the commands agents should use and establish project domain documentation. Project tooling varies by repository; register only commands that have been inspected and verified. The tooling registry in `.spindle/config.json` is authoritative, and Spindle regenerates `docs/agents/tooling.md` from it. These entries document commands; Spindle does not execute them.
 
 ## Prerequisite
 
@@ -54,9 +54,9 @@ Use the classification established in B. Only an existing project with substanti
 
 ### H. Populate domain glossaries
 
-Load and follow the `ref-domain-modeling` skill. Use the existing code and user input to establish domain terms and context boundaries. Resolve ambiguities and conflicts with the user rather than treating implementation names as authoritative terminology. Preserve existing definitions unless a change is agreed, and capture resolved terms as they become clear.
+Load and follow the `public-ref-domain-modeling` skill. Use the existing code and user input to establish domain terms and context boundaries. Resolve ambiguities and conflicts with the user rather than treating implementation names as authoritative terminology. Preserve existing definitions unless a change is agreed, and capture resolved terms as they become clear.
 
-For a single context, populate or refine the root `GLOSSARY.md`. For multiple contexts, populate or refine the context glossaries and `GLOSSARY-MAP.md`, including links to the glossaries and the relationships between contexts. Create the map only when multiple contexts are established. Keep glossaries free of implementation details and create files only when there are resolved terms to record.
+For a single context, populate or refine the root `GLOSSARY.md`. For multiple contexts, populate or refine the context glossaries and `GLOSSARY-MAP.md`, including links to the glossaries and the relationships between contexts. Do not create a root `GLOSSARY.md` in a multi-context repository. Create the map only when multiple contexts are established. Keep glossaries free of implementation details and create files only when there are resolved terms to record.
 
 **Complete when:** resolved domain terms are recorded in the appropriate glossaries, multiple established contexts are mapped with valid links, and any unresolved questions are explicitly identified, selecting J.
 

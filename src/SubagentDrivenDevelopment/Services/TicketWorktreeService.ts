@@ -14,13 +14,13 @@ import {
 } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
-import { GitEvidence } from "@/SubagentDrivenDevelopment/Evidence/GitEvidence";
-import type { FeaturePaths, TicketProgress } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { isPathInside, lstatIfPresent } from "@/SubagentDrivenDevelopment/Persistence/FileSystem";
-import { Records } from "@/Support/Records";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import type { FeaturePaths, TicketProgress } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
+import { Records } from "@spindle/Support/Records";
 
 interface TicketStartState {
   version: 2;
@@ -66,7 +66,7 @@ export class TicketWorktreeService extends Service {
       throw new Error("--workspace must be an absolute existing external directory.");
     }
     const root = realpathSync(this.app.workspaceRoot);
-    const entry = lstatIfPresent(directory);
+    const entry = FileSystem.lstatIfPresent(directory);
     if (!entry?.isDirectory() || entry.isSymbolicLink()) {
       throw new Error("--workspace must be an existing real directory.");
     }
@@ -76,7 +76,7 @@ export class TicketWorktreeService extends Service {
       this.run(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
     );
     const statePath = join(common, "spindle-feature-start", `${feature.feature}.json`);
-    const stateEntry = lstatIfPresent(statePath);
+    const stateEntry = FileSystem.lstatIfPresent(statePath);
     if (!stateEntry?.isFile() || stateEntry.isSymbolicLink()) {
       throw new Error(`Feature startup state is missing or unsafe: ${statePath}.`);
     }
@@ -103,9 +103,9 @@ export class TicketWorktreeService extends Service {
       throw new Error("Recorded original checkout no longer matches the feature repository.");
     }
     if (
-      isPathInside(original, parent) ||
-      isPathInside(root, parent) ||
-      isPathInside(common, parent)
+      FileSystem.isPathInside(original, parent) ||
+      FileSystem.isPathInside(root, parent) ||
+      FileSystem.isPathInside(common, parent)
     ) {
       throw new Error(
         "--workspace must be outside the original and feature checkouts and Git directory.",
@@ -117,7 +117,7 @@ export class TicketWorktreeService extends Service {
       throw new Error("Ticket worktrees must start from the canonical feature branch.");
     }
     const currentSha = this.run(root, ["rev-parse", "--verify", "HEAD"]);
-    const lockPath = `.scratch/${feature.feature}/.sdd-tickets.lock`;
+    const lockPath = `.spindle/features/${feature.feature}/.sdd-tickets.lock`;
     if (allowPendingRecords) {
       if (this.gitEvidence.cleanDispatchBaseline(feature, true) !== currentSha) {
         throw new Error("Feature HEAD changed during ticket dispatch.");
@@ -162,7 +162,7 @@ export class TicketWorktreeService extends Service {
     try {
       mkdirSync(journals, { mode: 0o700 });
     } catch (error) {
-      if (!lstatIfPresent(journals)?.isDirectory()) throw error;
+      if (!FileSystem.lstatIfPresent(journals)?.isDirectory()) throw error;
     }
     if (!lstatSync(journals).isDirectory() || lstatSync(journals).isSymbolicLink()) {
       throw new Error("Ticket startup state directory must be a real directory.");
@@ -170,7 +170,7 @@ export class TicketWorktreeService extends Service {
     const journal = join(journals, `${feature.feature}-${progress.id}.json`);
     if (!progress.owner) throw new Error("Ticket startup requires a recorded controller.");
     let stateRecord: TicketStartState;
-    const journalEntry = lstatIfPresent(journal);
+    const journalEntry = FileSystem.lstatIfPresent(journal);
     if (journalEntry) {
       if (!journalEntry.isFile() || journalEntry.isSymbolicLink()) {
         throw new Error(`Ticket startup journal is not a regular file: ${journal}.`);
@@ -221,7 +221,7 @@ export class TicketWorktreeService extends Service {
         ...(directoryIdentity ? { directory: directoryIdentity } : {}),
       };
     } else {
-      if (lstatIfPresent(workspace)) {
+      if (FileSystem.lstatIfPresent(workspace)) {
         throw new Error(`Ticket worktree destination already exists: ${workspace}.`);
       }
       if (this.branchExists(root, branch))
@@ -264,7 +264,7 @@ export class TicketWorktreeService extends Service {
         if (this.branchExists(root, branch)) {
           throw new Error(`Ticket branch exists without its recorded worktree: ${branch}.`);
         }
-        let directoryEntry = lstatIfPresent(workspace);
+        let directoryEntry = FileSystem.lstatIfPresent(workspace);
         if (!directoryEntry) {
           if (stateRecord.directory) throw new Error("Recorded ticket directory is missing.");
           mkdirSync(workspace);

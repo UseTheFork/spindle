@@ -1,12 +1,12 @@
-import type { CatalogDeletion } from "@/BlueprintManagement/Catalog/BlueprintCatalog";
-import type { BlueprintHandler, BlueprintUpdatePlan } from "@/BlueprintManagement/Types/Blueprint";
+import type { CatalogDeletion } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
+import type { BlueprintHandler, BlueprintUpdatePlan } from "@spindle/BlueprintManagement/Types/Blueprint";
 import type {
   ConflictPolicy,
   PlannedBlueprintFile,
-} from "@/BlueprintManagement/Types/Installation";
-import type { Application } from "@/Foundation/Application";
-import type { ProjectSettingsData } from "@/Settings/Services/ProjectSettingsService";
-import type { RenderContext } from "@/TemplateRendering/Rendering/RenderText";
+} from "@spindle/BlueprintManagement/Types/Installation";
+import type { Application } from "@spindle/Foundation/Application";
+import type { ProjectSettingsData } from "@spindle/Settings/Services/ProjectSettingsService";
+import type { RenderContext } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 export interface BlueprintOutcome {
   kind: string;

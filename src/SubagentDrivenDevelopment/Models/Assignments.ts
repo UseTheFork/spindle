@@ -1,4 +1,4 @@
-import type { CheckRecord } from "@/SubagentDrivenDevelopment/Models/Evidence";
+import type { CheckRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 
 export interface ImplementationAssignment {
   id: string;
@@ -8,6 +8,7 @@ export interface ImplementationAssignment {
   report: string;
   workspace?: string;
   branch?: string;
+  startingHeadSha?: string;
   requestedAt: string;
   status: "pending" | "submitted" | "unavailable";
   attempt?: number;
@@ -79,7 +80,6 @@ export interface ReviewAssignment {
   requestedAt: string;
   status: "pending" | "submitted";
   result?: ReviewResult;
-  noFindings?: true;
   findingIds?: string[];
   reportSha256?: string;
   submittedAt?: string;

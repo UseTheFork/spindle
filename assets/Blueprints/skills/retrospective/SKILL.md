@@ -11,6 +11,6 @@ Assess the selected coding session and help the maintainer improve future runs.
 
 ## Required skill
 
-Before acting, load and follow **REQUIRED:** `int-retrospective`.
+Before acting, load and follow **REQUIRED:** `private-retrospective`.
 
-Identify this invocation as a `maintainer` retrospective in the calling context, forwarding the user's session selection and any proposal-report pointer as task context. With no session selection, the internal skill uses the current session. It owns evidence selection, assessment, approval, application, and verification.
+Identify this invocation as a `maintainer` retrospective in the calling context, forwarding the user's session selection and any proposal-report pointer as task context. With no session selection, the private skill uses the current session. It owns evidence selection, assessment, approval, application, and verification.

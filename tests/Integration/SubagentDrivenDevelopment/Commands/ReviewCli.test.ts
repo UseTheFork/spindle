@@ -1,7 +1,8 @@
 import { Command } from "commander";
 import { expect, test } from "vitest";
 
-import { ReviewCommand } from "@/SubagentDrivenDevelopment/Commands/ReviewCommand";
+import { ChecksRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
+import { ReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewCommand";
 
 function review(args: string[]): Promise<Command> {
   const program = new Command("spindle").exitOverride();
@@ -15,34 +16,100 @@ test.each([
   ["--ticket", "T-0001"],
   ["--scope", "delivery"],
 ])("review dispatch accepts the %s selector", async (...selector) => {
-  await expect(
-    review(["--spec", "/feature/spec.md", ...selector, "--inventory", "[]", "--author", "owner"]),
-  ).rejects.toThrow("review dispatched");
+  await expect(review(["--feature", "/feature", ...selector, "--actor", "owner"])).rejects.toThrow(
+    "review dispatched",
+  );
 });
 
 test("review require accepts a ticket selector", async () => {
   await expect(
     review([
       "require",
-      "--spec",
-      "/feature/spec.md",
+      "--feature",
+      "/feature",
       "--ticket",
       "T-0001",
       "--type",
       "sdd-code-reviewer",
       "--details",
       "Inspect the change",
-      "--author",
+      "--actor",
       "owner",
     ]),
   ).rejects.toThrow("review dispatched");
+});
+
+test("review require rejects the removed agent alias", async () => {
+  await expect(
+    review([
+      "require",
+      "--feature",
+      "/feature",
+      "--ticket",
+      "T-0001",
+      "--agent",
+      "sdd-code-reviewer",
+      "--details",
+      "Inspect the change",
+      "--actor",
+      "owner",
+    ]),
+  ).rejects.toThrow(/unknown option.*--agent/i);
+});
+
+test.each([
+  ["--ticket", "T-0001"],
+  ["--ticket", "T-0001", "--scope", "post-merge"],
+  ["--scope", "delivery"],
+  ["--scope", "final"],
+])("checks record rejects removed paths for %s", async (...selector) => {
+  const program = new Command("spindle").exitOverride();
+  ChecksRecordCommand.register(program, async () => {
+    throw new Error("checks dispatched");
+  });
+  await expect(
+    program.parseAsync(
+      [
+        "sdd",
+        "checks",
+        "record",
+        "--feature",
+        "/feature",
+        ...selector,
+        "--command",
+        "pnpm test",
+        "--result",
+        "passed",
+        "--paths",
+        "src/example.ts",
+        "--actor",
+        "owner",
+      ],
+      { from: "user" },
+    ),
+  ).rejects.toThrow(/unknown option.*--paths/i);
+});
+
+test("review rejects caller-supplied inventory", async () => {
+  await expect(
+    review([
+      "--feature",
+      "/feature",
+      "--ticket",
+      "T-0001",
+      "--inventory",
+      "[]",
+      "--actor",
+      "owner",
+    ]),
+  ).rejects.toThrow(/unknown option.*inventory/i);
 });
 
 test.each([[], ["--ticket", "T-0001", "--scope", "delivery"]])(
   "review rejects missing or conflicting scope selectors",
   async (...selector) => {
     await expect(
-      review(["--spec", "/feature/spec.md", ...selector, "--inventory", "[]", "--author", "owner"]),
+      review(["--feature", "/feature", ...selector, "--actor", "owner"]),
     ).rejects.toThrow("exactly one of --ticket or --scope delivery");
   },
 );

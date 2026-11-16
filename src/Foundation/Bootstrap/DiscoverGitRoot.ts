@@ -1,6 +1,6 @@
-import type { Application } from "@/Foundation/Application";
-import { Bootstrapper } from "@/Foundation/Bootstrap/Bootstrapper";
-import { GitService } from "@/Git/Services/GitService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Bootstrapper } from "@spindle/Foundation/Bootstrap/Bootstrapper";
+import { GitService } from "@spindle/Git/Services/GitService";
 
 export class DiscoverGitRoot extends Bootstrapper {
   public async bootstrap(application: Application): Promise<void> {

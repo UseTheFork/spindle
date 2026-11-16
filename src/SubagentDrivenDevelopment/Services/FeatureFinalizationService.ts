@@ -16,17 +16,19 @@ import {
 import { hostname } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import type { Application } from "@/Foundation/Application";
-import { Service } from "@/Foundation/Service";
-import { GitService } from "@/Git/Services/GitService";
+import type { Application } from "@spindle/Foundation/Application";
+import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
 import type {
   CheckRecord,
   CheckRequirement,
   CommitIdentity,
-} from "@/SubagentDrivenDevelopment/Models/Evidence";
-import type { FeatureLedger, FeaturePaths } from "@/SubagentDrivenDevelopment/Models/Workflow";
-import { LedgerRepository } from "@/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { validateAuthor } from "@/SubagentDrivenDevelopment/Policies/InputValidation";
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 
 interface Startup {
   version: 1;
@@ -86,7 +88,6 @@ export interface FeatureFinishOptions {
   spec: string;
   author: string;
   report?: string;
-  confirmRecords?: boolean;
 }
 
 export class FeatureFinalizationService extends Service {
@@ -94,6 +95,7 @@ export class FeatureFinalizationService extends Service {
     app: Application,
     private readonly git: GitService,
     private readonly ledgers: LedgerRepository,
+    private readonly workspaceTransaction: WorkspaceTransaction,
   ) {
     super(app);
   }
@@ -107,12 +109,10 @@ export class FeatureFinalizationService extends Service {
       retrospective?: { report: string; reportSha256: string };
     },
   ): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     return this.locked(feature.feature, (common, path) => {
       let journal = this.read<Journal>(path);
       if (!journal) {
-        if (!options.confirmRecords)
-          throw new Error("Inspect canonical records and pass --confirm-records.");
         const startupPath = join(common, "spindle-feature-start", `${feature.feature}.json`);
         this.real(startupPath, "file");
         const startupBytes = readFileSync(startupPath);
@@ -141,13 +141,12 @@ export class FeatureFinalizationService extends Service {
         this.noHooks(startup.featureWorkspace);
         this.recordsOnly(startup.featureWorkspace, feature.feature);
         const approval = assertReady();
-        const required =
-          approval.ledger.delivery.checks?.required.filter((item) => !item.removedAt) ?? [];
+        const required = approval.ledger.delivery.finalChecks ?? [];
         if (
           !required.length ||
           new Set(required.map((item) => item.command)).size !== required.length
         ) {
-          throw new Error("Declare a nonempty unique final delivery check list before finishing.");
+          throw new Error("Declare the complete final-check list before finishing.");
         }
         const head = this.head(startup.featureWorkspace);
         this.ancestor(startup.originalWorkspace, startup.featureRevision, head);
@@ -247,7 +246,7 @@ export class FeatureFinalizationService extends Service {
           this.real(source, "file");
           if (
             !this.inside(
-              join(startup.featureWorkspace, `.scratch/${feature.feature}/reports`),
+              join(startup.featureWorkspace, `.spindle/features/${feature.feature}/reports`),
               source,
             ) ||
             this.digest(readFileSync(source)) !== approval.retrospective.reportSha256
@@ -280,9 +279,9 @@ export class FeatureFinalizationService extends Service {
           author: options.author.trim(),
           approved: approval.identity,
           approvedLedger: approval.ledger,
-          required: [],
+          required,
           records: [],
-          finalDeclared: false,
+          finalDeclared: true,
           ledgerBefore,
           ledgerAfter: `${JSON.stringify(relocated.ledger, null, 2)}\n`,
           mappings: relocated.mappings,
@@ -300,8 +299,7 @@ export class FeatureFinalizationService extends Service {
         this.persist(path, journal);
       }
       this.verifyJournal(journal, common, feature.feature);
-      if (journal.author !== options.author.trim())
-        throw new Error("Only the recorded controller may finish this feature.");
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, feature.feature);
       const state = journal.startup;
       if (journal.phase === "records") {
         this.workspace(
@@ -334,7 +332,7 @@ export class FeatureFinalizationService extends Service {
               "add",
               "-A",
               "--",
-              `:(literal).scratch/${feature.feature}`,
+              `:(literal).spindle/features/${feature.feature}`,
             ]);
             journal.recordTree = this.run(state.featureWorkspace, ["write-tree"]);
             this.persist(path, journal);
@@ -448,9 +446,9 @@ export class FeatureFinalizationService extends Service {
         feature: state.feature,
         mergeCommit: journal.mergeCommit,
         originalWorkspace: state.originalWorkspace,
-        spec: join(state.originalWorkspace, `.scratch/${state.feature}/spec.md`),
+        spec: join(state.originalWorkspace, `.spindle/features/${state.feature}/spec.md`),
         cleanup: "complete",
-        checkedCommit: journal.mergeCommit,
+        checkedCommit: journal.finalIdentity?.headSha,
         metadataCommit: journal.metadataCommit,
         metadataCommitChecked: false,
         journal: path,
@@ -464,14 +462,28 @@ export class FeatureFinalizationService extends Service {
       const journal = this.read<Journal>(path);
       if (!journal) throw new Error("Feature has no finalization journal.");
       this.verifyJournal(journal, common, feature);
-      if (journal.mergeCommit && journal.phase !== "metadata") this.finalCheckout(journal);
+      if (journal.phase === "validation" && journal.mergeCommit) {
+        const root = journal.startup.originalWorkspace;
+        this.workspace(root, journal.startup.originalBranch, undefined, common);
+        if (this.head(root) !== journal.finalIdentity?.headSha) {
+          const candidateHead = this.revalidationHead(journal);
+          return {
+            ...this.pending(journal, path),
+            revalidationAvailable: true,
+            revalidationCandidateSha: candidateHead,
+          };
+        }
+        this.finalCheckout(journal);
+      } else if (journal.mergeCommit && journal.phase !== "metadata") {
+        this.finalCheckout(journal);
+      }
       return journal.phase === "complete"
         ? {
             feature,
             finished: true,
             mergeCommit: journal.mergeCommit,
             metadataCommit: journal.metadataCommit,
-            checkedCommit: journal.mergeCommit,
+            checkedCommit: journal.finalIdentity?.headSha,
             metadataCommitChecked: false,
             cleanup: "complete",
             journal: path,
@@ -489,7 +501,7 @@ export class FeatureFinalizationService extends Service {
       "--git-common-dir",
     ]);
     this.real(common, "directory");
-    const path = join(common, "spindle-feature-finalization", `${feature}.json`);
+    const path = join(common, "spindle-feature-start", `${feature}.json`);
     if (!this.exists(path)) return false;
     this.real(path, "file");
     return true;
@@ -497,25 +509,50 @@ export class FeatureFinalizationService extends Service {
 
   // The merged ledger may still contain feature-worktree paths during recovery.
   public recordedFeature(spec: string): FeaturePaths | undefined {
+    return this.featurePaths(spec, (feature) => this.hasFinalizationJournal(feature));
+  }
+
+  public startedFeature(spec: string): FeaturePaths | undefined {
+    return this.featurePaths(spec, (feature) => this.hasStarted(feature));
+  }
+
+  private featurePaths(
+    spec: string,
+    isAvailable: (feature: string) => boolean,
+  ): FeaturePaths | undefined {
     const absolute = isAbsolute(spec) ? resolve(spec) : resolve(this.app.workspaceRoot, spec);
     const path = relative(this.app.workspaceRoot, absolute);
-    const match = /^\.scratch\/(\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md$/.exec(path);
-    if (!match || !this.hasStarted(match[1]!)) return undefined;
+    const match = /^\.spindle\/features\/(\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*)\/spec\.md$/.exec(path);
+    if (!match || !isAvailable(match[1]!)) return undefined;
     this.real(absolute, "file");
     const workspace = dirname(absolute);
     this.real(join(workspace, "sdd.json"), "file");
     return { feature: match[1]!, workspace, spec: absolute, ledger: join(workspace, "sdd.json") };
   }
 
+  private hasFinalizationJournal(feature: string): boolean {
+    if (!/^\d{4,}-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(feature))
+      throw new Error("Invalid feature identifier.");
+    const common = this.run(this.app.workspaceRoot, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-common-dir",
+    ]);
+    this.real(common, "directory");
+    const path = join(common, "spindle-feature-finalization", `${feature}.json`);
+    if (!this.exists(path)) return false;
+    this.real(path, "file");
+    return true;
+  }
+
   public record(options: {
     feature: string;
-    merge: string;
     command: string;
     result: string;
     author: string;
     details?: string;
   }): unknown {
-    validateAuthor(options.author);
+    InputValidation.validateAuthor(options.author);
     return this.locked(options.feature, (common, path) => {
       const journal = this.read<Journal>(path);
       if (!journal) throw new Error("No feature merge to validate.");
@@ -527,14 +564,9 @@ export class FeatureFinalizationService extends Service {
           "Declare the complete final check list with checks require --scope final first.",
         );
       this.finalCheckout(journal);
-      if (
-        options.author.trim() !== journal.author ||
-        options.merge !== journal.mergeCommit ||
-        !journal.required.some((item) => item.command === options.command)
-      ) {
-        throw new Error(
-          "Final check controller, declared command, or exact merge identity does not match.",
-        );
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, options.feature);
+      if (!journal.required.some((item) => item.command === options.command)) {
+        throw new Error(`Final check command is not declared: ${options.command}.`);
       }
 
       if (
@@ -556,44 +588,99 @@ export class FeatureFinalizationService extends Service {
     });
   }
 
+  public revalidate(options: { feature: string; author: string }): unknown {
+    InputValidation.validateAuthor(options.author);
+    return this.locked(options.feature, (common, path) => {
+      const journal = this.read<Journal>(path);
+      if (!journal) throw new Error("No feature merge to validate.");
+      this.verifyJournal(journal, common, options.feature);
+      if (journal.phase !== "validation")
+        throw new Error("Final checks may only be revalidated during final validation.");
+      if (!journal.finalDeclared)
+        throw new Error("Declare the complete final check list before revalidating.");
+      WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, options.feature);
+      const head = this.revalidationHead(journal);
+      journal.finalIdentity = { headSha: head };
+      journal.records = [];
+      this.persist(path, journal);
+      return this.pending(journal, path);
+    });
+  }
+
   public declare(options: { spec: string; command: string[]; author: string }): unknown {
-    validateAuthor(options.author);
-    const feature = this.recordedFeature(options.spec);
-    if (!feature) throw new Error("Final checks require a recorded feature merge.");
+    InputValidation.validateAuthor(options.author);
+    const feature = this.startedFeature(options.spec);
+    if (!feature) throw new Error("Final checks require a started feature.");
+    const commands = options.command.map((command) => command.trim());
+    if (
+      !commands.length ||
+      commands.some((command) => !command) ||
+      new Set(commands).size !== commands.length
+    ) {
+      throw new Error("A nonempty unique complete final-check command list is required.");
+    }
     return this.locked(feature.feature, (common, path) => {
       const journal = this.read<Journal>(path);
-      if (!journal) throw new Error("No finalization journal.");
-      this.verifyJournal(journal, common, feature.feature);
-      if (journal.phase !== "validation")
-        throw new Error("Final checks may only be declared after the feature merge.");
-      this.finalCheckout(journal);
-      const commands = options.command.map((command) => command.trim());
-      if (
-        options.author.trim() !== journal.author ||
-        !commands.length ||
-        commands.some((command) => !command) ||
-        new Set(commands).size !== commands.length
-      )
-        throw new Error(
-          "A nonempty unique complete command list from the recorded controller is required.",
-        );
-      if (journal.finalDeclared) {
-        if (
-          JSON.stringify(commands) !==
-          JSON.stringify(journal.required.map((requirement) => requirement.command))
-        ) {
-          throw new Error("The final declared check list is frozen.");
+      if (journal) {
+        this.verifyJournal(journal, common, feature.feature);
+        if (journal.phase !== "validation")
+          throw new Error("Final checks may only be declared during final validation.");
+        this.finalCheckout(journal);
+        WorkflowPolicy.assertFinalizationOwner(journal.author, options.author, feature.feature);
+        if (journal.finalDeclared) {
+          if (
+            JSON.stringify(commands) !==
+            JSON.stringify(journal.required.map((requirement) => requirement.command))
+          ) {
+            throw new Error("The final declared check list is frozen.");
+          }
+        } else {
+          journal.required = commands.map((command) => ({
+            command,
+            addedAt: new Date().toISOString(),
+            addedBy: journal.author,
+          }));
+          journal.finalDeclared = true;
+          this.persist(path, journal);
         }
-      } else {
-        journal.required = commands.map((command) => ({
+        return this.pending(journal, path);
+      }
+
+      const startupPath = join(common, "spindle-feature-start", `${feature.feature}.json`);
+      this.real(startupPath, "file");
+      const startup = JSON.parse(readFileSync(startupPath, "utf8")) as Startup;
+      this.validateStartup(startup, feature.feature);
+      if (
+        this.app.workspaceRoot !== startup.featureWorkspace ||
+        feature.workspace !== join(startup.featureWorkspace, `.spindle/features/${feature.feature}`)
+      ) {
+        throw new Error(
+          "Declare final checks from the recorded feature worktree before finishing.",
+        );
+      }
+      return this.workspaceTransaction.run(feature.workspace, () => {
+        const ledger = this.ledgers.readLedger(feature);
+        WorkflowPolicy.assertDeliveryOwner(ledger.delivery.owner, options.author, feature.feature);
+        if (ledger.delivery.finished)
+          throw new Error("Final checks must be declared before feature delivery is finished.");
+        const existing = ledger.delivery.finalChecks ?? [];
+        if (JSON.stringify(commands) === JSON.stringify(existing.map((item) => item.command))) {
+          return { feature: feature.feature, required: existing, finalDeclared: true };
+        }
+        const required = commands.map((command) => ({
           command,
           addedAt: new Date().toISOString(),
-          addedBy: journal.author,
+          addedBy: options.author.trim(),
         }));
-        journal.finalDeclared = true;
-        this.persist(path, journal);
-      }
-      return this.pending(journal, path);
+        ledger.delivery.finalChecks = required;
+        ledger.delivery.history.push({
+          at: new Date().toISOString(),
+          author: options.author.trim(),
+          action: existing.length > 0 ? "final-checks-updated" : "final-checks-declared",
+        });
+        this.workspaceTransaction.writeLedger(feature, ledger);
+        return { feature: feature.feature, required, finalDeclared: true };
+      });
     });
   }
 
@@ -616,7 +703,9 @@ export class FeatureFinalizationService extends Service {
       ".",
     ])
       .split("\0")
-      .filter((path) => path && path !== ".scratch" && !path.startsWith(".scratch/"));
+      .filter(
+        (path) => path && path !== ".spindle/features" && !path.startsWith(".spindle/features/"),
+      );
     if (changed.length > 0) {
       throw new Error("Aggregate approval became stale during finalization.");
     }
@@ -642,8 +731,11 @@ export class FeatureFinalizationService extends Service {
   } {
     const ledger = structuredClone(input);
     const mappings: Journal["mappings"] = [];
-    const sourceRecords = join(startup.featureWorkspace, `.scratch/${startup.feature}`);
-    const destinationRecords = join(startup.originalWorkspace, `.scratch/${startup.feature}`);
+    const sourceRecords = join(startup.featureWorkspace, `.spindle/features/${startup.feature}`);
+    const destinationRecords = join(
+      startup.originalWorkspace,
+      `.spindle/features/${startup.feature}`,
+    );
     // Historical worktree locations remain in the journal after cleanup.
     for (const ticket of ledger.tickets) delete ticket.worktree;
     const visit = (value: unknown): void => {
@@ -703,16 +795,50 @@ export class FeatureFinalizationService extends Service {
   }
 
   private passing(journal: Journal): boolean {
+    const target = journal.finalIdentity?.headSha;
     return (
+      Boolean(target) &&
       journal.finalDeclared &&
       journal.required.length > 0 &&
       journal.required.every((requirement) => {
         const record = journal.records
           .filter((item) => item.command === requirement.command)
           .at(-1);
-        return record?.result === "passed" && record.headSha === journal.mergeCommit;
+        return record?.result === "passed" && record.headSha === target;
       })
     );
+  }
+  private revalidationHead(journal: Journal): string {
+    const previousHead = journal.finalIdentity?.headSha;
+    if (!previousHead || !journal.mergeCommit || !journal.featureCommit)
+      throw new Error("Final validation is missing its recorded commit identity.");
+    if (
+      !journal.required.some((requirement) => {
+        const record = journal.records
+          .filter((item) => item.command === requirement.command && item.headSha === previousHead)
+          .at(-1);
+        return record?.result === "failed";
+      })
+    )
+      throw new Error("Final-check revalidation requires a failed check on the current target.");
+
+    const root = journal.startup.originalWorkspace;
+    this.workspace(root, journal.startup.originalBranch, undefined, journal.common);
+    this.noOperation(root);
+    this.clean(root, false);
+    this.commitShape(
+      root,
+      journal.mergeCommit,
+      [journal.startup.featureRevision, journal.featureCommit],
+      this.tree(root, journal.featureCommit),
+    );
+    const head = this.head(root);
+    if (head === previousHead)
+      throw new Error("Commit and fix final-check failures before revalidating.");
+    this.ancestor(root, previousHead, head);
+    this.ancestor(root, journal.mergeCommit, head);
+    this.verifyFiles(journal, root);
+    return head;
   }
   private pending(journal: Journal, path: string) {
     return {
@@ -726,7 +852,7 @@ export class FeatureFinalizationService extends Service {
       ...journal.finalIdentity,
       originalSpec: join(
         journal.startup.originalWorkspace,
-        `.scratch/${journal.startup.feature}/spec.md`,
+        `.spindle/features/${journal.startup.feature}/spec.md`,
       ),
       required: journal.required,
       records: journal.records,
@@ -735,10 +861,13 @@ export class FeatureFinalizationService extends Service {
   }
   private finalCheckout(journal: Journal): void {
     const state = journal.startup;
+    const validationHead = journal.finalIdentity?.headSha;
+    if (!validationHead || !journal.mergeCommit || !journal.featureCommit)
+      throw new Error("Final validation is missing its recorded commit identity.");
     this.workspace(
       state.originalWorkspace,
       state.originalBranch,
-      journal.metadataCommit ?? journal.mergeCommit,
+      journal.metadataCommit ?? validationHead,
       journal.common,
     );
     this.clean(state.originalWorkspace, false);
@@ -749,6 +878,9 @@ export class FeatureFinalizationService extends Service {
       [state.featureRevision, journal.featureCommit!],
       this.tree(state.originalWorkspace, journal.featureCommit!),
     );
+    this.ancestor(state.originalWorkspace, journal.mergeCommit, validationHead);
+    if (journal.metadataCommit)
+      this.ancestor(state.originalWorkspace, validationHead, journal.metadataCommit);
     if (journal.metadataCommit) this.metadataShape(journal, journal.metadataCommit);
     this.verifyFiles(journal, state.originalWorkspace);
     for (const mapping of journal.mappings) {
@@ -760,7 +892,7 @@ export class FeatureFinalizationService extends Service {
   }
   private metadata(journal: Journal, path: string): void {
     if (!this.passing(journal))
-      throw new Error("Declared final-merge checks must pass before metadata relocation.");
+      throw new Error("Declared final checks must pass for the current validation target.");
     const state = journal.startup;
     const root = state.originalWorkspace;
     if (this.app.workspaceRoot !== root)
@@ -780,12 +912,12 @@ export class FeatureFinalizationService extends Service {
       ledger.delivery.history.push({
         at,
         author: journal.author,
-        action: `feature-final-validation-passed:${journal.mergeCommit};journal:${journal.id}`,
+        action: `feature-final-validation-passed:${journal.finalIdentity!.headSha};merge:${journal.mergeCommit};journal:${journal.id}`,
       });
       journal.ledgerAfter = `${JSON.stringify(ledger, null, 2)}\n`;
     }
     this.ledgers.validateLedger(JSON.parse(journal.ledgerAfter), state.feature);
-    const ledgerPath = `.scratch/${state.feature}/sdd.json`;
+    const ledgerPath = `.spindle/features/${state.feature}/sdd.json`;
     const absoluteLedger = join(root, ledgerPath);
     if (journal.phase === "validation") {
       this.finalCheckout(journal);
@@ -793,8 +925,9 @@ export class FeatureFinalizationService extends Service {
       this.persist(path, journal);
     }
     this.workspace(root, state.originalBranch, undefined, journal.common);
+    const validationHead = journal.finalIdentity!.headSha;
     const head = this.head(root);
-    if (head !== journal.mergeCommit) {
+    if (head !== validationHead) {
       if (!journal.metadataTree)
         throw new Error("Original branch moved outside the journalled metadata commit.");
       this.metadataShape(journal, head);
@@ -824,7 +957,7 @@ export class FeatureFinalizationService extends Service {
         journal.metadataTree = this.run(root, ["write-tree"]);
         this.persist(path, journal);
       }
-      this.workspace(root, state.originalBranch, journal.mergeCommit, journal.common);
+      this.workspace(root, state.originalBranch, validationHead, journal.common);
       if (
         this.run(root, ["write-tree"]) !== journal.metadataTree ||
         readFileSync(absoluteLedger, "utf8") !== journal.ledgerAfter ||
@@ -852,19 +985,21 @@ export class FeatureFinalizationService extends Service {
 
   private metadataShape(journal: Journal, commit: string): void {
     const root = journal.startup.originalWorkspace;
-    this.commitShape(root, commit, [journal.mergeCommit!], journal.metadataTree!);
+    const validationHead = journal.finalIdentity!.headSha;
+    this.commitShape(root, commit, [validationHead], journal.metadataTree!);
     const changed = this.run(root, [
       "diff",
       "--name-only",
       "--no-renames",
       "-z",
-      journal.mergeCommit!,
+      validationHead,
       commit,
     ])
       .split("\0")
       .filter(Boolean);
     if (
-      JSON.stringify(changed) !== JSON.stringify([`.scratch/${journal.startup.feature}/sdd.json`])
+      JSON.stringify(changed) !==
+      JSON.stringify([`.spindle/features/${journal.startup.feature}/sdd.json`])
     ) {
       throw new Error(
         "Metadata follow-up changed code or non-ledger records; it is not the checked merge.",
@@ -872,7 +1007,7 @@ export class FeatureFinalizationService extends Service {
     }
     const actual = this.run(root, [
       "show",
-      `${commit}:.scratch/${journal.startup.feature}/sdd.json`,
+      `${commit}:.spindle/features/${journal.startup.feature}/sdd.json`,
     ]);
     if (actual !== journal.ledgerAfter.trim())
       throw new Error("Metadata commit differs from the validated relocation plan.");
@@ -880,7 +1015,7 @@ export class FeatureFinalizationService extends Service {
 
   private cleanup(journal: Journal, path: string): void {
     if (!this.passing(journal))
-      throw new Error("Exact merge-bound declared checks have not all passed.");
+      throw new Error("Declared checks have not all passed for the current validation target.");
     this.preflight(journal);
     if (journal.phase === "metadata") {
       journal.phase = "cleanup";
@@ -994,7 +1129,7 @@ export class FeatureFinalizationService extends Service {
     }
   }
   private recordFiles(root: string, feature: string): string[] {
-    const prefix = `:(literal).scratch/${feature}`;
+    const prefix = `:(literal).spindle/features/${feature}`;
     return [
       ...new Set(
         [
@@ -1028,7 +1163,7 @@ export class FeatureFinalizationService extends Service {
     }
   }
   private canonical(file: string, feature: string): boolean {
-    const prefix = `.scratch/${feature}/`;
+    const prefix = `.spindle/features/${feature}/`;
     return (
       file.startsWith(prefix) &&
       /^(?:spec\.md|design\.md|sdd\.json|tickets\/T-\d{4,}\.md|reports\/[^/]+\.md)$/.test(
@@ -1049,8 +1184,8 @@ export class FeatureFinalizationService extends Service {
         );
       if (this.exists(join(root, entry.slice(3)))) this.real(join(root, entry.slice(3)), "file");
     }
-    this.real(join(root, `.scratch/${feature}/sdd.json`), "file");
-    this.real(join(root, `.scratch/${feature}/spec.md`), "file");
+    this.real(join(root, `.spindle/features/${feature}/sdd.json`), "file");
+    this.real(join(root, `.spindle/features/${feature}/spec.md`), "file");
     const files = this.run(root, ["ls-files", "-z"]).split("\0").filter(Boolean);
     if (files.length) {
       const attributes = this.run(root, [
@@ -1284,7 +1419,7 @@ export class FeatureFinalizationService extends Service {
     return undefined;
   }
   private noOperation(root: string, allowMerge = false): void {
-    for (const name of [
+    const names = [
       "MERGE_HEAD",
       "CHERRY_PICK_HEAD",
       "REVERT_HEAD",
@@ -1292,13 +1427,15 @@ export class FeatureFinalizationService extends Service {
       "rebase-merge",
       "rebase-apply",
       "sequencer",
-    ]) {
-      if (!(allowMerge && name === "MERGE_HEAD") && this.exists(this.gitPath(root, name)))
+    ].filter((name) => !allowMerge || name !== "MERGE_HEAD");
+    const paths = this.git.gitPaths(root, names);
+    for (const [index, name] of names.entries()) {
+      if (this.exists(resolve(root, paths[index])))
         throw new Error(`Preserve existing Git operation ${name}.`);
     }
   }
   private noHooks(root: string): void {
-    for (const hook of [
+    const hooks = [
       "pre-commit",
       "prepare-commit-msg",
       "commit-msg",
@@ -1307,8 +1444,12 @@ export class FeatureFinalizationService extends Service {
       "post-merge",
       "post-checkout",
       "reference-transaction",
-    ]) {
-      const path = this.gitPath(root, `hooks/${hook}`);
+    ];
+    const paths = this.git.gitPaths(
+      root,
+      hooks.map((hook) => `hooks/${hook}`),
+    );
+    for (const path of paths.map((configuredPath) => resolve(root, configuredPath))) {
       try {
         accessSync(path, constants.X_OK);
       } catch (error) {

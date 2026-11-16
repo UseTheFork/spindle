@@ -1,7 +1,7 @@
 <!-- spindle:start -->
 ## Issue tracker
 
-SDD specs and tickets live in numbered `.scratch/<feature-id>-<feature-slug>/` workspaces. See `docs/agents/issue-tracker.md` and `docs/agents/ticket-tracker.md` for their conventions.
+SDD specs and tickets live in numbered `.spindle/features/<feature-id>-<feature-slug>/` workspaces. See `docs/agents/ticket-tracker.md` for conventions.
 
 ## Domain docs
 
@@ -13,5 +13,5 @@ Read and follow `docs/agents/constitution.md` when planning or changing project 
 
 ## Project Tooling
 
-Run project commands with pnpm. Before running commands, read [Project tooling](../docs/agents/tooling.md) for available commands and usage.
+Run project commands with pnpm. Before running commands, read `docs/agents/tooling.md` for available commands and usage.
 <!-- spindle:end -->

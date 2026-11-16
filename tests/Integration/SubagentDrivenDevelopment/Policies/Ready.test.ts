@@ -7,7 +7,7 @@ import {
   createTicket,
   ticketFixture,
   workspaceSnapshot,
-} from "../../../Helpers/SubagentDrivenDevelopment/ticket-helpers";
+} from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
 
 test("ready rejects duplicated ledger ticket progress records", async () => {
   const { service, feature } = await ticketFixture("Duplicate Ledger Ticket");
@@ -65,6 +65,10 @@ test("ready exposes unmet dependencies and rejects missing references and cycles
   ]) {
     createTicket(service, feature.spec, title);
   }
+  const ledgerPath = join(feature.workspace, "sdd.json");
+  let ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger.tickets[4].execution = "implementing";
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   const second = join(feature.workspace, "tickets", "T-0002.md");
   service.ticketService.ticketUpdate({
     spec: feature.spec,
@@ -82,12 +86,6 @@ test("ready exposes unmet dependencies and rejects missing references and cycles
     spec: feature.spec,
     ticket: "T-0004",
     blocker: "Waiting for a product decision.",
-    author: "maintainer",
-  });
-  service.ticketService.ticketUpdate({
-    spec: feature.spec,
-    ticket: "T-0005",
-    status: "in-progress",
     author: "maintainer",
   });
   expect(service.readinessService.ready({ spec: feature.spec })).toEqual({
@@ -116,8 +114,7 @@ test("ready exposes unmet dependencies and rejects missing references and cycles
     }),
   ).toThrow(/cycle/i);
   expect(readFileSync(second, "utf8")).toBe(before);
-  const ledgerPath = join(feature.workspace, "sdd.json");
-  const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   ledger.tickets[1].blockedBy = ["T-0099"];
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   expect(() => service.readinessService.ready({ spec: feature.spec })).toThrow(
