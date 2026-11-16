@@ -5,7 +5,7 @@ const normalizedPrograms = new WeakSet<Command>();
 
 const descriptions: Record<string, string> = {
   ticket: "Create and maintain feature tickets.",
-  task: "Create and maintain ticket task definitions.",
+  task: "Create, assign, and review ticket tasks.",
   finding: "Register canonical review findings and explicit rulings.",
   requirements: "Record explicit requirements decisions before fresh review.",
   checks: "Declare and record required checks.",

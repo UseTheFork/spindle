@@ -33,6 +33,38 @@ async function setup() {
   return { ...fixture, tasks, base };
 }
 
+function prepareTaskController(feature: { feature: string; workspace: string; ledger: string }) {
+  const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
+  const progress = ledger.tickets.find((item: { id: string }) => item.id === "T-0001");
+  const baseSha = "a".repeat(40);
+  progress.execution = "implementing";
+  progress.owner = "controller";
+  progress.baseSha = baseSha;
+  progress.worktree = {
+    workspace: join(feature.workspace, "..", "shared-ticket-worktree"),
+    branch: `tickets/${feature.feature}/T-0001`,
+    baseSha,
+  };
+  writeFileSync(feature.ledger, `${JSON.stringify(ledger, null, 2)}\n`);
+  writeFileSync(
+    join(feature.workspace, "tickets", "T-0001.md"),
+    [
+      "---",
+      "id: T-0001",
+      "---",
+      "## Requirements",
+      "Parent requirement for the handoff.",
+      "",
+      "## Acceptance Criteria",
+      "- Parent criterion one.",
+      "- Parent criterion two.",
+      "",
+      "## Comments",
+      "",
+    ].join("\n"),
+  );
+}
+
 test("create and update persist only task fields, with IDs local to each ticket", async () => {
   const { feature, tasks, base } = await setup();
   const ticketPath = join(feature.workspace, "tickets", "T-0001.md");
@@ -247,4 +279,307 @@ test("CLI creates and updates definitions and rejects invalid commands without w
     expect(result.stderr).not.toBe("");
     expect(readFileSync(feature.ledger, "utf8")).toBe(before);
   }
+});
+
+test("assignment returns a complete handoff and instructions are read-only", async () => {
+  const { feature, tasks, base } = await setup();
+  prepareTaskController(feature);
+  tasks.create(base);
+  const handoff = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    author: "controller",
+    worker: "worker-one",
+  });
+
+  expect(handoff).toMatchObject({
+    ticket: "T-0001",
+    task: "TASK-0001",
+    objective: base.instructions,
+    acceptanceCriteria: base.acceptanceCriteria,
+    parentTicket: {
+      requirements: "Parent requirement for the handoff.",
+      acceptanceCriteria: "- Parent criterion one.\n- Parent criterion two.",
+    },
+    editPaths: base.editPaths,
+    createPaths: base.createPaths,
+    referencePaths: base.referencePaths,
+    sharedTicketWorktree: join(feature.workspace, "..", "shared-ticket-worktree"),
+    assignment: {
+      controller: "controller",
+      worker: "worker-one",
+    },
+  });
+  expect(handoff.reportDestination).toMatch(
+    new RegExp(`/reports/T-0001-TASK-0001-${handoff.assignment.id}\\.md$`),
+  );
+  const beforeInstructions = readFileSync(feature.ledger, "utf8");
+  expect(
+    tasks.instructions({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0001",
+    }),
+  ).toEqual(handoff);
+  expect(readFileSync(feature.ledger, "utf8")).toBe(beforeInstructions);
+});
+
+test("task report submission, acceptance, changes-requested, and reassignment preserve details", async () => {
+  const { feature, tasks, base } = await setup();
+  prepareTaskController(feature);
+  tasks.create(base);
+  const first = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    author: "controller",
+    worker: "worker-one",
+  });
+  writeFileSync(first.reportDestination, "Worker one report.");
+  const submission = tasks.submit({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    assignment: first.assignment.id,
+    author: "controller",
+  });
+  expect(submission.status).toBe("submitted");
+  expect(submission.assignment).toMatchObject({
+    id: first.assignment.id,
+    worker: "worker-one",
+    worktree: first.sharedTicketWorktree,
+    report: first.reportDestination,
+    submittedBy: "controller",
+  });
+  let task = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks[0];
+  expect(task.status).toBe("submitted");
+  expect(task.assignment).toMatchObject(submission.assignment);
+
+  expect(
+    tasks.accept({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0001",
+      assignment: first.assignment.id,
+      author: "controller",
+    }).status,
+  ).toBe("accepted");
+  task = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks[0];
+  expect(task).toMatchObject({
+    status: "accepted",
+    assignment: { id: first.assignment.id, worker: "worker-one" },
+    review: { result: "accepted", controller: "controller" },
+  });
+
+  tasks.create({ ...base, title: "Needs revision" });
+  const second = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0002",
+    author: "controller",
+    worker: "worker-two",
+  });
+  writeFileSync(second.reportDestination, "Worker two initial report.");
+  tasks.submit({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0002",
+    assignment: second.assignment.id,
+    author: "controller",
+  });
+  expect(
+    tasks.requestChanges({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0002",
+      assignment: second.assignment.id,
+      author: "controller",
+      details: "Please address the missing case.",
+    }).status,
+  ).toBe("changes-requested");
+  const reassigned = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0002",
+    author: "controller",
+    worker: "worker-three",
+  });
+  expect(reassigned.assignment.id).not.toBe(second.assignment.id);
+  expect(reassigned.reportDestination).not.toBe(second.reportDestination);
+  task = JSON.parse(readFileSync(feature.ledger, "utf8")).tickets[0].tasks[1];
+  expect(task).toMatchObject({
+    status: "assigned",
+    assignment: { worker: "worker-three" },
+    assignmentHistory: [
+      { id: second.assignment.id, worker: "worker-two", report: second.reportDestination },
+    ],
+    reviewHistory: [{ result: "changes-requested", details: "Please address the missing case." }],
+  });
+});
+
+test("worker identities cannot mutate task workflow state or change the ledger", async () => {
+  const { feature, tasks, base } = await setup();
+  prepareTaskController(feature);
+  tasks.create(base);
+  const handoff = tasks.assign({
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    author: "controller",
+    worker: "worker-one",
+  });
+  const before = readFileSync(feature.ledger, "utf8");
+  const selection = {
+    spec: base.spec,
+    ticket: base.ticket,
+    task: "TASK-0001",
+    author: "worker-one",
+    assignment: handoff.assignment.id,
+  };
+  expect(() => tasks.submit(selection)).toThrow(/Worker identities cannot change/);
+  expect(() => tasks.accept(selection)).toThrow(/Worker identities cannot change/);
+  expect(() => tasks.requestChanges({ ...selection, details: "Change this." })).toThrow(
+    /Worker identities cannot change/,
+  );
+  expect(() =>
+    tasks.assign({
+      spec: base.spec,
+      ticket: base.ticket,
+      task: "TASK-0001",
+      author: "worker-one",
+      worker: "worker-two",
+    }),
+  ).toThrow(/Worker identities cannot change/);
+  expect(readFileSync(feature.ledger, "utf8")).toBe(before);
+});
+
+test("CLI exposes handoff, report, review, reassignment, and worker authorization", async () => {
+  const { repo, feature } = await setup();
+  prepareTaskController(feature);
+  const cli = (...args: string[]) =>
+    runCli(repo, ["--json", "sdd", "task", ...args], process.env.PATH ?? "");
+  const selection = ["--feature", feature.workspace, "--ticket", "T-0001"];
+  const created = cli(
+    "create",
+    ...selection,
+    "--actor",
+    "controller",
+    "--title",
+    "CLI lifecycle",
+    "--instructions",
+    "Exercise the task lifecycle.",
+    "--acceptance-criteria",
+    "CLI handoff works",
+    "--edit-paths",
+    "src/index.ts",
+  );
+  expect(cliOutput(created).task).toBe("TASK-0001");
+  const assigned = cli(
+    "assign",
+    ...selection,
+    "--task",
+    "TASK-0001",
+    "--worker",
+    "worker-one",
+    "--actor",
+    "controller",
+  );
+  const handoff = cliOutput(assigned);
+  expect(handoff).toMatchObject({
+    objective: "Exercise the task lifecycle.",
+    editPaths: ["src/index.ts"],
+    assignment: { worker: "worker-one" },
+  });
+
+  const beforeInstructions = readFileSync(feature.ledger, "utf8");
+  expect(cliOutput(cli("instructions", ...selection, "--task", "TASK-0001"))).toEqual(handoff);
+  expect(readFileSync(feature.ledger, "utf8")).toBe(beforeInstructions);
+
+  writeFileSync(handoff.reportDestination, "CLI worker report.");
+  const workerAttempt = cli(
+    "submit",
+    ...selection,
+    "--task",
+    "TASK-0001",
+    "--assignment",
+    handoff.assignment.id,
+    "--actor",
+    "worker-one",
+  );
+  expect(workerAttempt.status).not.toBe(0);
+  expect(readFileSync(feature.ledger, "utf8")).toBe(beforeInstructions);
+
+  expect(
+    cliOutput(
+      cli(
+        "submit",
+        ...selection,
+        "--task",
+        "TASK-0001",
+        "--assignment",
+        handoff.assignment.id,
+        "--actor",
+        "controller",
+      ),
+    ).status,
+  ).toBe("submitted");
+  expect(
+    cliOutput(
+      cli(
+        "request-changes",
+        ...selection,
+        "--task",
+        "TASK-0001",
+        "--assignment",
+        handoff.assignment.id,
+        "--details",
+        "Please revise the output.",
+        "--actor",
+        "controller",
+      ),
+    ).status,
+  ).toBe("changes-requested");
+  const reassigned = cli(
+    "assign",
+    ...selection,
+    "--task",
+    "TASK-0001",
+    "--worker",
+    "worker-two",
+    "--actor",
+    "controller",
+  );
+  const secondHandoff = cliOutput(reassigned);
+  expect(secondHandoff.assignment.worker).toBe("worker-two");
+  expect(secondHandoff.reportDestination).not.toBe(handoff.reportDestination);
+  writeFileSync(secondHandoff.reportDestination, "Revised CLI report.");
+  expect(
+    cliOutput(
+      cli(
+        "submit",
+        ...selection,
+        "--task",
+        "TASK-0001",
+        "--assignment",
+        secondHandoff.assignment.id,
+        "--actor",
+        "controller",
+      ),
+    ).status,
+  ).toBe("submitted");
+  expect(
+    cliOutput(
+      cli(
+        "accept",
+        ...selection,
+        "--task",
+        "TASK-0001",
+        "--assignment",
+        secondHandoff.assignment.id,
+        "--actor",
+        "controller",
+      ),
+    ).status,
+  ).toBe("accepted");
 });

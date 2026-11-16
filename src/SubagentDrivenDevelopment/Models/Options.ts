@@ -66,6 +66,30 @@ export interface TaskUpdateOptions extends TicketSelection, Partial<TaskFields> 
   task: string;
 }
 
+export interface TaskAssignOptions extends TicketSelection {
+  task: string;
+  worker: string;
+}
+
+export interface TaskInstructionsOptions {
+  spec: string;
+  ticket: string;
+  task: string;
+}
+
+export interface TaskSubmitOptions extends TicketSelection {
+  task: string;
+  assignment: string;
+}
+
+export interface TaskAcceptOptions extends TaskSubmitOptions {
+  details?: string;
+}
+
+export interface TaskRequestChangesOptions extends TaskSubmitOptions {
+  details: string;
+}
+
 export interface ReadyOptions {
   spec: string;
 }
