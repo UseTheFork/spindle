@@ -22,7 +22,7 @@
       "category": "enhancement",
       "status": "open",
       "blockedBy": [],
-      "execution": "reviewing",
+      "execution": "changes-requested",
       "owner": "Copilot",
       "baseSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
       "assignment": {
@@ -168,7 +168,15 @@
           ],
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md",
           "requestedAt": "2026-11-16T16:05:01.925Z",
-          "status": "pending"
+          "status": "submitted",
+          "result": "failed",
+          "findingIds": [
+            "F-0001"
+          ],
+          "reportSha256": "a221d3b2c10c49212a9e16150da9ebca70c68ecd386801ee835a21f35131598f",
+          "submittedAt": "2026-11-16T16:07:45.216Z",
+          "submittedBy": "Copilot",
+          "details": "Blocking finding F-0001: interrupted task creation may duplicate the task on retry."
         }
       ],
       "findings": [
