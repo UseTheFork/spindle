@@ -84,8 +84,11 @@ test("invalid task fields and graph changes reject without changing the ledger",
     { ...base, acceptanceCriteria: [] },
     { ...base, acceptanceCriteria: [""] },
     { ...base, editPaths: ["../outside"] },
+    { ...base, editPaths: ["src/\u0000file"] },
     { ...base, createPaths: ["/absolute"] },
+    { ...base, createPaths: ["src/\u001ffile"] },
     { ...base, referencePaths: ["src/*.ts"] },
+    { ...base, referencePaths: ["src/\u007ffile"] },
     { ...base, referencePaths: ["src/{a,b}.ts"] },
     { ...base, referencePaths: ["src/+(a|b).ts"] },
     { ...base, referencePaths: ["!src/secret.ts"] },
@@ -119,6 +122,14 @@ test("invalid task fields and graph changes reject without changing the ledger",
     }),
   ).toThrow(/does not exist/);
   expect(readFileSync(feature.ledger, "utf8")).toBe(before);
+});
+
+test("task paths accept interior spaces and non-ASCII characters", async () => {
+  const { feature, tasks, base } = await setup();
+  const editPaths = ["src/name with space.ts", "src/café.ts"];
+  tasks.create({ ...base, editPaths });
+  const ledger = JSON.parse(readFileSync(feature.ledger, "utf8"));
+  expect(ledger.tickets[0].tasks[0].editPaths).toEqual(editPaths);
 });
 
 test("ledger validation rejects invalid tasks, duplicate IDs, missing dependencies and cycles", async () => {

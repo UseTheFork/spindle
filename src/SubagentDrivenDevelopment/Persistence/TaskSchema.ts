@@ -13,6 +13,7 @@ export class TaskSchema {
       !isAbsolute(value) &&
       !win32.isAbsolute(value) &&
       !value.startsWith("!") &&
+      // eslint-disable-next-line no-control-regex -- Control characters are invalid in task paths.
       !/[\u0000-\u001f\u007f\\:*?[\]{}]/.test(value) &&
       !/[!+@]\(/.test(value) &&
       value.split("/").every((part) => part !== "" && part !== "." && part !== "..")
