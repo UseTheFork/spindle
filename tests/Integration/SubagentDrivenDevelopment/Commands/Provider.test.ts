@@ -1,11 +1,11 @@
-import { Command } from "commander";
-import { expect, test } from "vitest";
-
 import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
 import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartCommand";
+import { TaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskCreateCommand";
+import { TaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskUpdateCommand";
 import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
-
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { Command } from "commander";
+import { expect, test } from "vitest";
 
 test("Project command declarations exclude SDD commands", () => {
   for (const command of SubagentDrivenDevelopmentServiceProvider.commands()) {
@@ -17,8 +17,11 @@ test("every executable operation is explicitly bound once as an application sing
   const { app } = await serviceFixture();
   app.register(SubagentDrivenDevelopmentServiceProvider);
   const commands = SubagentDrivenDevelopmentServiceProvider.commands();
-  expect(commands).toHaveLength(24);
+  expect(commands).toHaveLength(26);
+  expect(new Set(commands).size).toBe(commands.length);
   expect(commands).toContain(StartCommand);
+  expect(commands).toContain(TaskCreateCommand);
+  expect(commands).toContain(TaskUpdateCommand);
   for (const command of commands) {
     expect(app.bound(command)).toBe(true);
     const instance = await app.make(command);
@@ -56,6 +59,11 @@ test("schema-only registration reuses groups and preserves positional review req
       .find((command) => command.name() === "ticket")!
       .commands.map((command) => command.name()),
   ).toEqual(["create", "update", "comment"]);
+  expect(
+    sdd.commands
+      .find((command) => command.name() === "task")!
+      .commands.map((command) => command.name()),
+  ).toEqual(["create", "update"]);
   expect(
     sdd.commands
       .find((command) => command.name() === "checks")!
