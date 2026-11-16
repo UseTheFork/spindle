@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 3,
+  "featureId": "0001",
+  "title": "Ticket Task Dispatch",
+  "createdBy": "Copilot",
+  "createdAt": "2026-11-16T14:56:09.521Z",
+  "retrospectiveRequired": false,
+  "reviewPolicy": {
+    "version": 1,
+    "ticket": [
+      "sdd-task-reviewer"
+    ],
+    "delivery": [
+      "sdd-reviewer"
+    ]
+  },
+  "tickets": [],
+  "delivery": {
+    "status": "active",
+    "execution": "unstarted",
+    "history": [],
+    "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118"
+  }
+}

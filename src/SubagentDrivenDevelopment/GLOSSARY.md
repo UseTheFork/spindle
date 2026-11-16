@@ -17,6 +17,9 @@ The approved requirements document for a feature, grounded in its approved desig
 An independently actionable unit of work with its own acceptance criteria.
 _Avoid_: Issue
 
+**Task**:
+A bounded unit of work within a ticket, assigned to one subagent and considered complete when the controller accepts its submitted work.
+
 **Feature worktree**:
 The working tree in which a feature's ticket changes are integrated and its workflow records are maintained.
 
@@ -27,10 +30,10 @@ The working tree in which a single ticket's changes are developed and reviewed.
 A ticket's tracker lifecycle: open or closed.
 
 **Dependency**:
-A relationship in which one ticket must be closed before another can become ready.
+A relationship in which a ticket waits for another ticket to close, or a task waits for another task to be accepted.
 
 **Blocker**:
-A dependency or explicit reason that prevents a ticket or feature from progressing.
+A dependency or explicit reason that prevents a ticket or feature from progressing, or a task from being ready.
 
 **Ready ticket**:
 An open ticket with no unresolved dependencies or explicit blockers.
