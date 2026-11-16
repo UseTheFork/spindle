@@ -1,5 +1,13 @@
 # @usethefork/spindle
 
+## 0.5.0
+
+### Minor Changes
+
+- [#12](https://github.com/UseTheFork/spindle/pull/12) [`6c85368`](https://github.com/UseTheFork/spindle/commit/6c853681713fc0afe2f374c4176933fd57deba4d) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Update project initialization and bundled Blueprints with refreshed project-state, tooling, and SDD guidance, including renamed skill visibility categories.
+
+- [#12](https://github.com/UseTheFork/spindle/pull/12) [`ddc0962`](https://github.com/UseTheFork/spindle/commit/ddc09627adde1760588a952355f86aa5e841aa9d) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Expand SDD workflows with delivery ownership, ticket synchronization, assignment-based submissions, final-check revalidation, and improved recovery. SDD feature workspaces now use `.spindle/features/`; existing `.scratch/` workspaces must be moved manually. SDD command options now use `--feature` and `--actor` instead of `--spec` and `--author`; review no longer accepts `--inventory` or `--agent`.
+
 ## 0.4.0
 
 ### Minor Changes
