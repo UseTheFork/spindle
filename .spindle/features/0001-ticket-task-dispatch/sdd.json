@@ -45,6 +45,16 @@
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
         "branch": "tickets/0001-ticket-task-dispatch/T-0001",
         "baseSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a"
+      },
+      "checks": {
+        "required": [
+          {
+            "command": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "addedAt": "2026-11-16T15:45:53.761Z",
+            "addedBy": "Copilot"
+          }
+        ],
+        "records": []
       }
     },
     {
