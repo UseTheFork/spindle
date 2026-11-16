@@ -178,6 +178,7 @@ export class TaskService extends Service {
       if (current.status !== "unassigned" && current.status !== "changes-requested") {
         throw new Error(`Task ${options.task} cannot be assigned from ${current.status}.`);
       }
+      this.assertReadyToAssign(current, this.tasksFor(ledger, options.ticket));
       const worktree = progress.worktree?.workspace;
       if (!worktree) {
         throw new Error(`Ticket ${options.ticket} has no shared implementation worktree.`);
@@ -362,6 +363,38 @@ export class TaskService extends Service {
     const ticket = ledger.tickets.find((item) => item.id === ticketId);
     if (!ticket) throw new Error(`Ticket ${ticketId} has no ledger record.`);
     return ticket.tasks ?? [];
+  }
+
+  private assertReadyToAssign(task: TaskDefinition, tasks: readonly TaskDefinition[]): void {
+    for (const dependencyId of task.dependencies) {
+      const dependency = tasks.find((candidate) => candidate.id === dependencyId);
+      if (!dependency || dependency.status !== "accepted") {
+        const status = dependency?.status ?? "missing";
+        throw new Error(
+          `Task ${task.id} is unavailable for assignment: dependency ${dependencyId} is ${status}, not accepted.`,
+        );
+      }
+    }
+
+    const writePaths = [...task.editPaths, ...task.createPaths];
+    for (const other of tasks) {
+      if (
+        other.id === task.id ||
+        (other.status !== "assigned" &&
+          other.status !== "submitted" &&
+          other.status !== "changes-requested")
+      ) {
+        continue;
+      }
+      const reservedPaths = new Set([...other.editPaths, ...other.createPaths]);
+      for (const path of writePaths) {
+        if (reservedPaths.has(path)) {
+          throw new Error(
+            `Task ${task.id} cannot be assigned: path "${path}" is reserved by active task ${other.id}.`,
+          );
+        }
+      }
+    }
   }
 
   private requireTask(ledger: FeatureLedger, ticket: string, taskId: string): TaskDefinition {
