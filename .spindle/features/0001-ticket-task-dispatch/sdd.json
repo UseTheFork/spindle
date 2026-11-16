@@ -183,7 +183,7 @@
         {
           "id": "F-0001",
           "blocking": true,
-          "status": "open",
+          "status": "confirmed",
           "summary": "Interrupted task creation can create a duplicate",
           "details": "A failed or interrupted create can be recovered and then retried as a second task, leaving an unintended duplicate plan entry and returning a different ID. TaskService.ts:31-57 always allocates and writes a new task after entering the transaction. WorkspaceTransaction.ts:37,115-166 first replays any pending ledger write and commits it before the operation runs. Unlike TicketService.ts:43,99-114, task creation does not inspect recovered writes to recognize its already-recovered operation. Existing task tests do not exercise this recovery path. Make an interrupted task-create retry recognize the recovered creation and return its original ID without creating another task. Add an interruption/recovery regression test, while retaining distinct IDs for genuinely separate creates.",
           "author": "Copilot",
@@ -203,6 +203,12 @@
               "author": "Copilot",
               "action": "registered",
               "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md at commit 6e92072871cf1ef26991106e4578d259086f1026."
+            },
+            {
+              "at": "2026-11-16T16:07:58.121Z",
+              "author": "Copilot",
+              "action": "status:confirmed",
+              "details": "Confirmed: create ignores recovered ledger writes and can duplicate an interrupted operation. Preserve transactional retry behavior and add a regression test."
             }
           ]
         }
