@@ -12,7 +12,9 @@ export class TaskSchema {
       value === value.trim() &&
       !isAbsolute(value) &&
       !win32.isAbsolute(value) &&
+      !value.startsWith("!") &&
       !/[\u0000-\u001f\u007f\\:*?[\]{}]/.test(value) &&
+      !/[!+@]\(/.test(value) &&
       value.split("/").every((part) => part !== "" && part !== "." && part !== "..")
     );
   }
