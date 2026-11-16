@@ -1035,7 +1035,16 @@
             "addedBy": "Copilot"
           }
         ],
-        "records": []
+        "records": [
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
+            "recordedAt": "2026-11-16T18:43:42.603Z",
+            "details": "Integration suite failed: 61 tests in 20 files, primarily legacy fixtures with no accepted task plans now blocked by T-0004 task-plan gates; TypeScript and lint stages did not run because the command uses &&."
+          }
+        ]
       }
     }
   ],
