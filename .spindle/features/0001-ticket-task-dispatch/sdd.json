@@ -2534,6 +2534,11 @@
         "at": "2026-11-17T04:51:56.903Z",
         "author": "Copilot",
         "action": "finding-confirmed:F-0001"
+      },
+      {
+        "at": "2026-11-17T04:52:03.787Z",
+        "author": "Copilot",
+        "action": "aggregate-review-submitted:635e4c03-5e6f-4c24-8f2a-14c61b11166f:failed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3136,7 +3141,16 @@
         ],
         "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
         "requestedAt": "2026-11-17T04:39:51.169Z",
-        "status": "pending"
+        "status": "submitted",
+        "result": "failed",
+        "findingIds": [
+          "F-0001",
+          "F-0002"
+        ],
+        "reportSha256": "d4911d8d648953dea8899710f6d34781c2e67774733e7a3e49206434026d6238",
+        "submittedAt": "2026-11-17T04:52:03.786Z",
+        "submittedBy": "Copilot",
+        "details": "Aggregate reviewer found one confirmed blocking task-report integrity gap (F-0001) and one accepted non-blocking handoff assignment side effect (F-0002). Review covered the exact assigned delivery target, complete inventory, requirements, and recorded checks. Delivery correction is required for F-0001."
       }
     ],
     "findings": [
