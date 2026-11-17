@@ -1620,7 +1620,7 @@
         {
           "id": "F-0001",
           "blocking": true,
-          "status": "confirmed",
+          "status": "fixed",
           "summary": "The new bootstrap and exception-linked integration guards lack focused regression coverage.",
           "details": "Impact: These are the security- and lifecycle-sensitive paths that relax the normal pending-post-merge integration block. Without tests invoking the new branches, the passing suite does not verify that only T-0005 can use the bootstrap with T-0004 as the sole pending ticket, or that T-0004 exception-linked integration remains contingent on the validated T-0005 state and ordinary acceptance gates. This leaves essential acceptance behavior unverified. Evidence: src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts:429-478; the assigned diff does not modify tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts. Existing TicketTaskCompletion and Corrections tests cover recovery eligibility and exception creation/rejection, but not these integration branches. Required correction: Add focused integration-service tests for authorized T-0005 bootstrap and T-0004 exception-linked correction; cover rejection for wrong ticket/feature, additional pending integration, absent or invalid exception, and unvalidated T-0005. Assert current-check and corrective-review gates still block missing or stale evidence, then obtain fresh covering checks.",
           "author": "Copilot",
@@ -1659,8 +1659,22 @@
               "author": "Copilot",
               "action": "observation-linked",
               "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md at commit 0fabebc3f69c123839e2e197029ffc3d2dda99d1: The authorized integration guard cases lack successful progression, T-0004 evidence-preservation assertions, and exception-path wrong-target rejection. — Impact: A regression that rejects every otherwise-valid bootstrap/correction, alters T-0004 prior integration evidence while allowing the path, or accepts a wrong target for exception-linked correction could pass the current tests. Evidence: tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:120-139,141-169,269-305. Every authorized path is stopped by mocked acceptance-policy blockers, bootstrap preservation asserts only tasklessness and pending status, the correction fixture seeds but does not assert preservation of integrationHistory/taskPlanException/prior accepted evidence, and wrong ticket/feature rejection covers only bootstrap. Required correction: Add an allowed-path case for each guard that proceeds beyond the policy, assert T-0004 pending integration/history and linked exception evidence remain preserved, and cover wrong-feature/wrong-ticket rejection on exception-linked correction. Keep blocker-propagation cases for missing/stale current checks and corrective-review evidence."
+            },
+            {
+              "at": "2026-11-17T02:44:10.963Z",
+              "author": "Copilot",
+              "action": "status:fixed",
+              "details": "Fixed by the reviewed T-0005 correction: integration-service regression tests cover authorized bootstrap and exception-linked success boundaries, wrong-target and invalid-state rejection, T-0004 evidence preservation, and propagation of current-check and independent corrective-review blockers. Fresh required checks and independent corrective review pass on the current committed target."
             }
-          ]
+          ],
+          "verification": {
+            "headSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+            "checkCommands": [
+              "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment"
+            ],
+            "verifiedAt": "2026-11-17T02:44:10.902Z",
+            "verifiedBy": "Copilot"
+          }
         }
       ],
       "correctionAttempts": [
