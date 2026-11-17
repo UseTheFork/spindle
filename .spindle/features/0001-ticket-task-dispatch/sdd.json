@@ -2584,6 +2584,11 @@
         "at": "2026-11-17T05:29:12.151Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm run lint:passed"
+      },
+      {
+        "at": "2026-11-17T05:29:23.974Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/'):passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2734,6 +2739,13 @@
           "author": "Copilot",
           "headSha": "65b798340b98630df22939b74df35ec9266bc4e3",
           "recordedAt": "2026-11-17T05:29:12.151Z"
+        },
+        {
+          "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "65b798340b98630df22939b74df35ec9266bc4e3",
+          "recordedAt": "2026-11-17T05:29:23.974Z"
         }
       ]
     },
