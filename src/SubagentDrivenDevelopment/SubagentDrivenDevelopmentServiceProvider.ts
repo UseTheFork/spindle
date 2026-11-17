@@ -22,6 +22,13 @@ import { StartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StartC
 import { StatusCommand } from "@spindle/SubagentDrivenDevelopment/Commands/StatusCommand";
 import { SubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SubmitCommand";
 import { SyncCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SyncCommand";
+import { TaskAcceptCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAcceptCommand";
+import { TaskAssignCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskAssignCommand";
+import { TaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskCreateCommand";
+import { TaskInstructionsCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskInstructionsCommand";
+import { TaskRequestChangesCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskRequestChangesCommand";
+import { TaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskSubmitCommand";
+import { TaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TaskUpdateCommand";
 import { TicketCommentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCommentCommand";
 import { TicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketCreateCommand";
 import { TicketUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/TicketUpdateCommand";
@@ -57,6 +64,7 @@ import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services
 import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
 import { StatusSummaryService } from "@spindle/SubagentDrivenDevelopment/Services/StatusSummaryService";
 import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TaskService } from "@spindle/SubagentDrivenDevelopment/Services/TaskService";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
@@ -71,6 +79,13 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       TicketCreateCommand,
       TicketUpdateCommand,
       TicketCommentCommand,
+      TaskCreateCommand,
+      TaskUpdateCommand,
+      TaskAssignCommand,
+      TaskInstructionsCommand,
+      TaskSubmitCommand,
+      TaskAcceptCommand,
+      TaskRequestChangesCommand,
       ReadyCommand,
       ChecksRequireCommand,
       ChecksRecordCommand,
@@ -183,6 +198,18 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
           await app.make(PathSafety),
           await app.make(WorkspaceTransaction),
           await app.make(FeatureInspectionService),
+        ),
+    );
+    this.app.singleton(
+      TaskService,
+      async (app) =>
+        new TaskService(
+          app,
+          await app.make(TicketRepository),
+          await app.make(LedgerRepository),
+          await app.make(WorkspaceTransaction),
+          await app.make(FeatureInspectionService),
+          await app.make(ReportEvidence),
         ),
     );
     this.app.singleton(

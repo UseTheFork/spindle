@@ -1,5 +1,3 @@
-import type { Command as CommanderCommand } from "commander";
-
 import { Command } from "@spindle/Commands/Command";
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
@@ -7,6 +5,7 @@ import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { CorrectOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import { CorrectionService } from "@spindle/SubagentDrivenDevelopment/Services/CorrectionService";
+import type { Command as CommanderCommand } from "commander";
 
 export class CorrectCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -22,6 +21,10 @@ export class CorrectCommand extends Command {
       )
       .option("--ticket <id>", "Ticket ID", CommandOptions.once("--ticket"))
       .option("--scope <scope>", "Workflow scope: delivery")
+      .option(
+        "--approved-exception",
+        "Use the one-time approved T-0004 task-plan exception after T-0005 closes",
+      )
       .option("--findings <ids...>", "Selected actionable canonical finding IDs")
       .option("--check-failure <command>", "Exact non-mechanical failed check command")
       .requiredOption(

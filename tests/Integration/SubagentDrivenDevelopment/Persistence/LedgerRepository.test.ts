@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test } from "vitest";
 
 test("ledger validation returns the original validated object and preserves schema errors", async () => {
   const { app, service } = await serviceFixture();
@@ -18,13 +16,22 @@ test("ledger validation returns the original validated object and preserves sche
     "Unsupported feature ledger schema version: 2.",
   );
   expect(() =>
+    repository.validateLedger(
+      { ...ledger, featureId: "0002", schemaVersion: 3 },
+      "0002-unrelated-feature",
+    ),
+  ).toThrow("Unsupported feature ledger schema version: 3.");
+  expect(() =>
     repository.validateLedger({ ...ledger, featureId: "0002" }, feature.feature),
   ).toThrow("Feature ledger ID does not match its workspace directory.");
 });
 
 test("legacy finding severity is removed when reading workflow records", async () => {
   const { app, service } = await serviceFixture();
-  const feature = service.featureCreationService.create({ title: "Legacy finding", author: "controller" });
+  const feature = service.featureCreationService.create({
+    title: "Legacy finding",
+    author: "controller",
+  });
   service.ticketService.ticketCreate({
     spec: feature.spec,
     title: "Review finding",

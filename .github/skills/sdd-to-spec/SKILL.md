@@ -18,7 +18,7 @@ Use the ticket-tracker conventions in project guidance when available. If tracke
 
 Before drafting the spec, read and apply:
 
-- **REQUIRED:** `int-ref-ears`
+- **REQUIRED:** `private-ref-ears`
 
 ## Argument
 

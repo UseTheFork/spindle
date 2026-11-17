@@ -8,7 +8,7 @@ Spindle SDD stores feature work in `.spindle/features/` workspaces. A workspace 
 - `sdd.json` is authoritative for ticket metadata, status, dependencies, and execution state. Ticket Markdown contains only its ID in YAML front matter; requirements, acceptance criteria, and comments are the editable body.
 - Ticket creation copies the shared template, including `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Fill both before implementation.
 - Ticket status is `open` or `closed`. The workflow closes a ticket after integration and passing post-merge checks; do not set status manually. Dependencies must refer to existing tickets; cycles are rejected.
-- There is no migration or compatibility support for `issues/`, `I-####`, or previous SDD ledger schemas. Create a fresh feature workspace when using this ticket format.
+- There is no general migration or compatibility support for `issues/`, `I-####`, or previous SDD ledger schemas. The active `0001-ticket-task-dispatch` workspace receives a one-time schema-version-3 to schema-version-4 conversion when it starts; all other previous ledger schemas remain unsupported.
 
 ## Create and maintain tickets
 
@@ -32,6 +32,37 @@ pnpm spindle sdd ticket comment --feature <feature-workspace> --ticket T-0001 --
 
 Use `--clear-blocked-by` to remove dependencies. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file.
 
+## Task-based ticket implementation
+
+Define the ticket's task plan before starting implementation. The controller
+starts or resumes one shared ticket worktree and coordinates task workers there.
+Workers edit only their assigned task file scope and return task reports; they
+do not change workflow state or commit. The controller reviews each task report
+and accepts the task or requests changes. Do not submit a ticket implementation
+report or complete the ticket while any task is not accepted. After all tasks
+are accepted, the controller commits the combined ticket changes and submits
+one ticket-level implementation report. Existing ticket checks, review,
+integration, and post-merge validation remain required.
+
+## Approved T-0004 recovery
+
+The task-plan exception is a one-use recovery path only for T-0004 in feature
+`0001-ticket-task-dispatch`. It becomes available only after T-0005 is closed
+with passing post-merge checks and `sdd next` offers the explicit recovery
+choice. The controller must use `sdd correct --approved-exception` with a clear
+objective. The operation records the exact approval, controller, time, feature,
+ticket, fixed one-correction scope, and corrective assignment atomically. It
+does not create tasks, findings, or failed-check claims.
+
+Do not use the exception for another ticket, feature, owner, or lifecycle state,
+or repeat it after use. T-0004 remains taskless. Existing reports, findings,
+checks, review history, integration, and post-merge evidence remain historical;
+they do not satisfy any gate for the correction. The correction still requires a
+fresh implementation report, the normal ticket checks, an independent focused
+corrective review, a new integration, and passing post-merge checks before
+closure. Ordinary implementation and all other ticket/task gates still require
+an accepted task plan.
+
 ## Delivery
 
 Use `sdd next` as the source of the next workflow step and exact command. Run it at the start, after a handoff, and after each completed command or decision. Use `status` and `ready` only for additional state details.
@@ -42,7 +73,7 @@ Unavailable implementation reports remain open assignments; submit the report if
 
 To defer a blocking finding, commit the approved requirements change, record its approval, and obtain fresh passing review coverage before recording the deferral. Delivery deferrals require the same evidence.
 
-Inspect feature records for sensitive content before starting the feature worktree. The start operation confirms those initial records may be committed. After start, workflow commands commit canonical record changes in the feature worktree. The implementer commits code on the ticket branch and returns its assigned report; the controller submits reports and owns all workflow state changes.
+Inspect feature records for sensitive content before starting the feature worktree. The start operation confirms those initial records may be committed. After start, workflow commands commit canonical record changes in the feature worktree. For task-based ticket work, workers return task reports without committing; the controller commits the combined ticket changes and submits the ticket-level report. The controller owns all workflow state changes.
 
 Integrate ticket work serially and record passing post-merge checks before unblocking dependent tickets. After all tickets are complete, claim delivery ownership, establish feature checks, and obtain the required feature review. Declare the complete final-check list before finishing. Run and record those checks in the original checkout after the feature merge.
 

@@ -24,7 +24,10 @@ import type {
   CheckRequirement,
   CommitIdentity,
 } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
-import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type {
+  FeatureLedger,
+  FeaturePaths,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
 import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
@@ -738,6 +741,11 @@ export class FeatureFinalizationService extends Service {
     );
     // Historical worktree locations remain in the journal after cleanup.
     for (const ticket of ledger.tickets) delete ticket.worktree;
+    // Finding history embeds absolute report paths in prose; relocate only exact report files.
+    const embeddedReports = new RegExp(
+      `(?<=^|[\\s"'(\`])${sourceRecords.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/reports/[^/\\s]+\\.md(?=$|[\\s.,:;)"'\`])`,
+      "g",
+    );
     const visit = (value: unknown): void => {
       if (!value || typeof value !== "object") return;
       if (Array.isArray(value)) {
@@ -754,6 +762,17 @@ export class FeatureFinalizationService extends Service {
           mappings.push({ before: item, after: "journal:execution-location" });
           delete object[key];
           delete object.branch;
+        } else if (
+          key === "worktree" &&
+          typeof item === "string" &&
+          targets.some((target) => target.workspace === item)
+        ) {
+          // Only submitted assignments may drop their execution location (see TaskSchema).
+          if (!Object.hasOwn(object, "submittedAt")) {
+            throw new Error(`Cannot relocate an unsubmitted assignment worktree: ${item}.`);
+          }
+          mappings.push({ before: item, after: "journal:execution-location" });
+          delete object[key];
         } else if (
           typeof item === "string" &&
           targets.some((target) => this.inside(target.workspace, item))
@@ -782,9 +801,22 @@ export class FeatureFinalizationService extends Service {
             typeof item === "string" &&
             targets.some((target) => item.includes(target.workspace))
           ) {
-            throw new Error(
-              "Embedded workflow path cannot be silently rewritten; resolve it before finishing.",
-            );
+            const rewritten = item.replace(embeddedReports, (path) => {
+              this.real(path, "file");
+              const destination = join(destinationRecords, relative(sourceRecords, path));
+              mappings.push({
+                before: path,
+                after: destination,
+                sha256: this.digest(readFileSync(path)),
+              });
+              return destination;
+            });
+            if (targets.some((target) => rewritten.includes(target.workspace))) {
+              throw new Error(
+                "Embedded workflow path cannot be silently rewritten; resolve it before finishing.",
+              );
+            }
+            object[key] = rewritten;
           }
           visit(item);
         }

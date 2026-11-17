@@ -16,10 +16,13 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures";
 import { expect, test } from "vitest";
 
+import { acceptTaskPlan } from "../Fixtures/TaskPlans";
+
 test("review assignments become stale when the committed ticket HEAD changes", async () => {
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
+  await acceptTaskPlan(root, spec, "T-0001");
   writeFileSync(join(workspace, "first.ts"), "export const first = 1;\n");
   gitAt(workspace, "add", "first.ts");
   gitAt(workspace, "commit", "-qm", "implement first");
@@ -85,6 +88,7 @@ test("review survives feature advancement and merges the exact reviewed ticket c
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
+  await acceptTaskPlan(root, spec, "T-0001");
   writeFileSync(join(workspace, "first.ts"), "export const first = 1;\n");
   gitAt(workspace, "add", "first.ts");
   gitAt(workspace, "commit", "-qm", "implement first");
@@ -237,6 +241,7 @@ test("ticket review rejects committed changes to requirements that differ from c
   const { root, spec, parent } = await setup();
   const first = await dispatch(root, spec, parent, "T-0001");
   const workspace = first.assignment.workspace;
+  await acceptTaskPlan(root, spec, "T-0001");
   writeFileSync(join(workspace, "first.ts"), "export const first = 1;\n");
   writeFileSync(
     join(workspace, ".spindle/features/0001-ticket-isolation/spec.md"),

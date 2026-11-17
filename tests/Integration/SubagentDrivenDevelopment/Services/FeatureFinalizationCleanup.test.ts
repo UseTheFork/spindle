@@ -1,13 +1,10 @@
 import { existsSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-  git,
-  readyFeature,
-  recordFinal,
-} from "@test/Helpers/SubagentDrivenDevelopment/FeatureFinalizationFixture";
 import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test, vi } from "vitest";
+
+import { git, readyFeature, recordFinal } from "../Fixtures/FeatureFinalizationFixture";
 
 vi.setConfig({ testTimeout: 60_000 });
 

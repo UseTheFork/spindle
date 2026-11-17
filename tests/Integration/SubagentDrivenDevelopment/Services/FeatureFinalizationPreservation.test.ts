@@ -9,14 +9,15 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test, vi } from "vitest";
+
 import {
   git,
   originalIgnoredArtifacts,
   readyFeature,
   recordFinal,
-} from "@test/Helpers/SubagentDrivenDevelopment/FeatureFinalizationFixture";
-import { cliOutput, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
-import { expect, test, vi } from "vitest";
+} from "../Fixtures/FeatureFinalizationFixture";
 
 vi.setConfig({ testTimeout: 60_000 });
 

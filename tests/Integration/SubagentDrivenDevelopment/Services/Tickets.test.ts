@@ -10,17 +10,15 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import matter from "gray-matter";
-import { expect, test, vi } from "vitest";
-
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
-
 import { runCli } from "@test/Helpers/Cli";
 import {
   createTicket,
   ticketFixture,
 } from "@test/Helpers/SubagentDrivenDevelopment/ticket-helpers";
+import matter from "gray-matter";
+import { expect, test, vi } from "vitest";
 
 test("ticket create persists attributed metadata and unstarted progress without overwriting", async () => {
   const { service, feature } = await ticketFixture("Ticket Lifecycle");
@@ -61,6 +59,7 @@ test("ticket create persists attributed metadata and unstarted progress without 
       status: "open",
       blockedBy: [],
       execution: "unstarted",
+      tasks: [],
     },
   ]);
   expect(firstTicket).not.toContain("execution:");

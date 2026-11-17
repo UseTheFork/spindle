@@ -15,7 +15,10 @@ import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
 import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
 import type { CreateOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
-import type { FeatureLedger, FeaturePaths } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import type {
+  FeatureLedger,
+  FeaturePaths,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { FeatureWorkspace } from "@spindle/SubagentDrivenDevelopment/Persistence/FeatureWorkspace";
 import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { PathSafety } from "@spindle/SubagentDrivenDevelopment/Persistence/PathSafety";
@@ -115,7 +118,7 @@ export class FeatureCreationService extends Service {
             )
           : undefined;
         const ledger: FeatureLedger = {
-          schemaVersion: 3,
+          schemaVersion: 4,
           featureId: id,
           title: options.title.trim(),
           createdBy: options.author.trim(),

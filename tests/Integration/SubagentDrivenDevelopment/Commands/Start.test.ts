@@ -2,14 +2,13 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { execute, fixture, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test } from "vitest";
 
-import { execute, fixture, invokeAsync } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
-
-async function setup() {
+async function setup(title = "Worktree feature") {
   const { repo, git } = fixture();
   const created = await execute(repo, (services) =>
-    services.featureCreationService.create({ title: "Worktree feature", author: "controller" }),
+    services.featureCreationService.create({ title, author: "controller" }),
   );
   expect(created.status, created.stderr).toBe(0);
   const spec = JSON.parse(created.stdout).spec as string;
@@ -17,6 +16,52 @@ async function setup() {
   mkdirSync(parent);
   return { repo, git, spec, parent };
 }
+
+test("start migrates only the active task-dispatch ledger from schema three to four", async () => {
+  const { repo, git, spec, parent } = await setup("Ticket Task Dispatch");
+  const created = await execute(repo, (services) =>
+    services.ticketService.ticketCreate({
+      spec,
+      title: "Existing ticket",
+      reporter: "requester",
+      category: "enhancement",
+      author: "controller",
+    }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+  const featureName = "0001-ticket-task-dispatch";
+  const ledgerPath = join(repo, ".spindle/features", featureName, "sdd.json");
+  const prior = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  prior.schemaVersion = 3;
+  delete prior.tickets[0].tasks;
+  writeFileSync(ledgerPath, `${JSON.stringify(prior, null, 2)}\n`);
+
+  const result = await invokeAsync(repo, [
+    "start",
+    "--feature",
+    dirname(spec),
+    "--workspace",
+    parent,
+    "--confirm-records",
+  ]);
+  expect(result.status, result.stderr).toBe(0);
+  const output = JSON.parse(result.stdout).data as {
+    featureWorkspace: string;
+    spec: string;
+  };
+  const migrated = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  expect(migrated.schemaVersion).toBe(4);
+  expect(migrated.tickets[0].tasks).toEqual([]);
+  expect(
+    JSON.parse(
+      readFileSync(
+        join(output.featureWorkspace, ".spindle/features", featureName, "sdd.json"),
+        "utf8",
+      ),
+    ),
+  ).toMatchObject({ schemaVersion: 4, tickets: [{ tasks: [] }] });
+  expect(git("status", "--porcelain")).toBe("");
+});
 
 test("start commits only the feature records and creates an isolated worktree", async () => {
   const { repo, git, spec, parent } = await setup();

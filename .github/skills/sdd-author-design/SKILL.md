@@ -16,9 +16,9 @@ Help the user clarify what they want before turning an idea into a design. A des
 
 Before drafting or editing, read:
 
-- **REQUIRED:** `ref-asd-ste100`
+- **REQUIRED:** `public-ref-asd-ste100`
 
-Apply the clarity rules from the `ref-asd-ste100` skill. Include a before/after table only when the user requests one.
+Apply the clarity rules from the `public-ref-asd-ste100` skill. Include a before/after table only when the user requests one.
 
 ## Process
 

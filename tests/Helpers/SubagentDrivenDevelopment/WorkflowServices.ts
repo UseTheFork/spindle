@@ -14,6 +14,7 @@ import { ReadinessService } from "@spindle/SubagentDrivenDevelopment/Services/Re
 import { RequirementsService } from "@spindle/SubagentDrivenDevelopment/Services/RequirementsService";
 import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
 import { SubmissionService } from "@spindle/SubagentDrivenDevelopment/Services/SubmissionService";
+import { TaskService } from "@spindle/SubagentDrivenDevelopment/Services/TaskService";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketService } from "@spindle/SubagentDrivenDevelopment/Services/TicketService";
 import { TicketSyncService } from "@spindle/SubagentDrivenDevelopment/Services/TicketSyncService";
@@ -47,6 +48,7 @@ export async function workflowServices(app: Application) {
     requirementsService: await app.make(RequirementsService),
     reviewService: await app.make(ReviewService),
     submissionService: await app.make(SubmissionService),
+    taskService: await app.make(TaskService),
   };
 }
 

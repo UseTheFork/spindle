@@ -11,6 +11,8 @@ import {
 import type { WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
 import { expect, test } from "vitest";
 
+import { acceptTaskPlan, createTaskPlan } from "../Fixtures/TaskPlans";
+
 test("finding registration is explicit, canonical, ticket-local, and idempotent", async () => {
   const { repo, spec, assignment } = await prepareReviewAssignment();
   writeFileSync(assignment.report, "# Review report\n\nThe change has a defect.\n");
@@ -207,6 +209,7 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     }),
   );
   expect(created.status, created.stderr).toBe(0);
+  await createTaskPlan(repo, spec, "T-0002");
   const command = "just test::test tests/feature-two.test.ts";
   const required = await execute(repo, (service) =>
     service.checksService.checksRequire({ spec, ticket: "T-0002", command, author: "controller" }),
@@ -221,6 +224,7 @@ test("finding IDs restart per ticket and require provenance from that ticket's r
     }),
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
+  await acceptTaskPlan(repo, spec, "T-0002");
   const implementation = await execute(repo, (service) =>
     service.assignmentService.implement({
       spec,

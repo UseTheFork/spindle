@@ -50,6 +50,46 @@ export interface TicketCommentOptions extends TicketSelection {
   details: string;
 }
 
+export interface TaskFields {
+  title: string;
+  instructions: string;
+  acceptanceCriteria: string[];
+  editPaths: string[];
+  createPaths: string[];
+  referencePaths: string[];
+  dependencies: string[];
+}
+
+export interface TaskCreateOptions extends TicketSelection, TaskFields {}
+
+export interface TaskUpdateOptions extends TicketSelection, Partial<TaskFields> {
+  task: string;
+}
+
+export interface TaskAssignOptions extends TicketSelection {
+  task: string;
+  worker: string;
+}
+
+export interface TaskInstructionsOptions {
+  spec: string;
+  ticket: string;
+  task: string;
+}
+
+export interface TaskSubmitOptions extends TicketSelection {
+  task: string;
+  assignment: string;
+}
+
+export interface TaskAcceptOptions extends TaskSubmitOptions {
+  details?: string;
+}
+
+export interface TaskRequestChangesOptions extends TaskSubmitOptions {
+  details: string;
+}
+
 export interface ReadyOptions {
   spec: string;
 }
@@ -60,6 +100,7 @@ export interface ImplementOptions extends TicketSelection {
 
 export interface CorrectOptions extends TicketSelection {
   scope?: string;
+  approvedException?: boolean;
   findings?: string[];
   checkFailure?: string;
   details: string;
