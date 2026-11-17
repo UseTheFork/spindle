@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2539,6 +2539,11 @@
         "at": "2026-11-17T04:52:03.787Z",
         "author": "Copilot",
         "action": "aggregate-review-submitted:635e4c03-5e6f-4c24-8f2a-14c61b11166f:failed"
+      },
+      {
+        "at": "2026-11-17T04:52:15.069Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:5"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2931,8 +2936,8 @@
         "progressAssessment": {
           "decision": "continue",
           "result": "productive",
-          "details": "Continue with a scoped formatter verification: the prior bounded correction formatted the only failing feature-changed file, and the remaining repository-wide formatter failures are unrelated baseline files.",
-          "recordedAt": "2026-11-17T04:31:33.081Z",
+          "details": "The aggregate review confirmed a blocking gap: accepted report digests are checked at acceptance but not reliably revalidated at ticket completion. A focused implementation and fresh gate coverage are required.",
+          "recordedAt": "2026-11-17T04:52:15.068Z",
           "recordedBy": "Copilot"
         },
         "reviewAssignments": [
@@ -3024,24 +3029,71 @@
             "status": "pending"
           }
         ]
+      },
+      {
+        "number": 5,
+        "findingIds": [
+          "F-0001"
+        ],
+        "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
+        "startedAt": "2026-11-17T04:52:15.069Z",
+        "startedBy": "Copilot",
+        "assignmentId": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
+        "assignment": {
+          "id": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 5,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
+          "requestedAt": "2026-11-17T04:52:15.069Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "priorAssignment": {
+          "id": "2dd96731-17ed-4f87-ba59-7858fd74f348",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 4,
+          "findingIds": [],
+          "checkFailure": "pnpm run fmt:check",
+          "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
+          "requestedAt": "2026-11-17T04:31:33.081Z",
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "510d415be1c0a1b9283dc3e3a2ea759e813f3a502745d82639c8ae18a4521539",
+          "submittedAt": "2026-11-17T04:37:53.230Z",
+          "submittedBy": "Copilot"
+        },
+        "progressAssessment": {
+          "decision": "continue",
+          "result": "productive",
+          "details": "The aggregate review confirmed a blocking gap: accepted report digests are checked at acceptance but not reliably revalidated at ticket completion. A focused implementation and fresh gate coverage are required.",
+          "recordedAt": "2026-11-17T04:52:15.068Z",
+          "recordedBy": "Copilot"
+        }
       }
     ],
     "assignment": {
-      "id": "2dd96731-17ed-4f87-ba59-7858fd74f348",
+      "id": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
       "role": "implementation",
       "action": "correct",
       "controller": "Copilot",
-      "attempt": 4,
-      "findingIds": [],
-      "checkFailure": "pnpm run fmt:check",
-      "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
-      "requestedAt": "2026-11-17T04:31:33.081Z",
-      "status": "submitted",
-      "handoffs": [],
-      "reportSha256": "510d415be1c0a1b9283dc3e3a2ea759e813f3a502745d82639c8ae18a4521539",
-      "submittedAt": "2026-11-17T04:37:53.230Z",
-      "submittedBy": "Copilot"
+      "attempt": 5,
+      "findingIds": [
+        "F-0001"
+      ],
+      "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
+      "requestedAt": "2026-11-17T04:52:15.069Z",
+      "status": "pending",
+      "handoffs": []
     },
     "adjudication": {
       "status": "resolved",
