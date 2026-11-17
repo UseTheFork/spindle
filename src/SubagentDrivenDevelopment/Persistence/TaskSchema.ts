@@ -22,8 +22,9 @@ export class TaskSchema {
       !value.controller.trim() ||
       typeof value.worker !== "string" ||
       !value.worker.trim() ||
-      typeof value.worktree !== "string" ||
-      !isAbsolute(value.worktree) ||
+      // Finished ledgers keep a submitted assignment's execution location in the finish journal.
+      ((Object.hasOwn(value, "worktree") || !Object.hasOwn(value, "submittedAt")) &&
+        (typeof value.worktree !== "string" || !isAbsolute(value.worktree))) ||
       typeof value.report !== "string" ||
       !isAbsolute(value.report) ||
       !TaskSchema.isDate(value.assignedAt)

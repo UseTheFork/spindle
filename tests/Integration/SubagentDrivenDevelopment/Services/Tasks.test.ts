@@ -227,6 +227,44 @@ test("ledger validation rejects invalid tasks, duplicate IDs, missing dependenci
   expect(repository.validateLedger(raw, feature.feature)).toEqual(raw);
 });
 
+test("ledger validation allows a missing task worktree only for submitted assignments", async () => {
+  const { app, feature, tasks, base } = await setup();
+  tasks.create(base);
+  const repository = await app.make(LedgerRepository);
+  const raw = JSON.parse(readFileSync(feature.ledger, "utf8"));
+  const assignment = {
+    id: "assignment-1",
+    controller: "controller",
+    worker: "worker",
+    report: join(feature.workspace, "reports", "T-0001-TASK-0001-assignment-1.md"),
+    assignedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const withTask = (status: string, value: Record<string, unknown>) => {
+    const ledger = structuredClone(raw);
+    Object.assign(ledger.tickets[0].tasks[0], { status, assignment: value });
+    return ledger;
+  };
+  const submitted = {
+    ...assignment,
+    submittedAt: "2026-01-01T01:00:00.000Z",
+    reportSha256: "a".repeat(64),
+  };
+
+  const relocated = withTask("submitted", submitted);
+  expect(repository.validateLedger(relocated, feature.feature)).toEqual(relocated);
+  expect(() =>
+    repository.validateLedger(
+      withTask("submitted", { ...submitted, worktree: "relative/worktree" }),
+      feature.feature,
+    ),
+  ).toThrow("Invalid task assignment.");
+  expect(() =>
+    repository.validateLedger(withTask("assigned", assignment), feature.feature),
+  ).toThrow("Invalid task assignment.");
+  const active = withTask("assigned", { ...assignment, worktree: join(feature.workspace, "..") });
+  expect(repository.validateLedger(active, feature.feature)).toEqual(active);
+});
+
 test("CLI creates and updates definitions and rejects invalid commands without writes", async () => {
   const { repo, feature } = await setup();
   const cli = (...args: string[]) =>

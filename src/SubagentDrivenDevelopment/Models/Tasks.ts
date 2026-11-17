@@ -12,7 +12,8 @@ export interface TaskAssignment {
   id: string;
   controller: string;
   worker: string;
-  worktree: string;
+  /** Absent only for submitted assignments relocated by finish. */
+  worktree?: string;
   report: string;
   assignedAt: string;
   submittedAt?: string;

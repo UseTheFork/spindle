@@ -470,6 +470,9 @@ export class TaskService extends Service {
     if (!assignment || task.status === "unassigned") {
       throw new Error(`Task ${task.id} is unassigned and has no current handoff.`);
     }
+    if (!assignment.worktree) {
+      throw new Error(`Task ${task.id} assignment has no recorded ticket worktree.`);
+    }
     return {
       ticket: ticket.id,
       ticketTitle: ticket.title,
