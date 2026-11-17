@@ -35,9 +35,7 @@
           "F-0001"
         ],
         "objective": "Fix duplicate task creation after transaction recovery and add interruption/retry regression coverage.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
         "startingHeadSha": "6e92072871cf1ef26991106e4578d259086f1026",
         "requestedAt": "2026-11-16T16:08:06.219Z",
         "status": "submitted",
@@ -45,11 +43,6 @@
         "reportSha256": "7756d3f9abbd94bce3584e9da3c8ddf62df1d682011e9e95c413db4e4d98f011",
         "submittedAt": "2026-11-16T16:18:23.506Z",
         "submittedBy": "Copilot"
-      },
-      "worktree": {
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0001",
-        "baseSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a"
       },
       "checks": {
         "required": [
@@ -104,9 +97,7 @@
             "findingIds": [],
             "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
             "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
             "requestedAt": "2026-11-16T15:51:41.201Z",
             "status": "submitted",
@@ -120,9 +111,7 @@
             "role": "implementation",
             "action": "implement",
             "controller": "Copilot",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-implementation.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-implementation.md",
             "startingHeadSha": "06e079a1b293a7fd6bc3c4c0b817b7d9a7d87f6a",
             "requestedAt": "2026-11-16T15:40:48.264Z",
             "status": "submitted",
@@ -176,9 +165,7 @@
               "F-0001"
             ],
             "objective": "Fix duplicate task creation after transaction recovery and add interruption/retry regression coverage.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-fix.md",
             "startingHeadSha": "6e92072871cf1ef26991106e4578d259086f1026",
             "requestedAt": "2026-11-16T16:08:06.219Z",
             "status": "submitted",
@@ -196,9 +183,7 @@
             "findingIds": [],
             "checkFailure": "../node_modules/.bin/vitest run tests/Integration/SubagentDrivenDevelopment && ../node_modules/.bin/tsc --noEmit && ../node_modules/.bin/tsc --noEmit -p tests/tsconfig.sdd.json && ../node_modules/.bin/oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Resolve the failed provider registration test and any other failures in the declared check; retain meaningful command registration coverage.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0001",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-1-fix.md",
             "startingHeadSha": "cd6017066fd258525aa6f5016a9e36a406ebd6bd",
             "requestedAt": "2026-11-16T15:51:41.201Z",
             "status": "submitted",
@@ -232,8 +217,6 @@
               "scope": "corrective",
               "attempt": 2,
               "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0001",
               "inventory": [
                 "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
                 "src/SubagentDrivenDevelopment/Commands/TaskCommandFields.ts",
@@ -249,7 +232,7 @@
                 "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md",
               "requestedAt": "2026-11-16T16:24:06.306Z",
               "status": "submitted",
               "result": "passed",
@@ -270,8 +253,6 @@
           "role": "review",
           "scope": "initial",
           "headSha": "6e92072871cf1ef26991106e4578d259086f1026",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch-T-0001",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0001",
           "inventory": [
             "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
             "src/SubagentDrivenDevelopment/Commands/TaskCommandFields.ts",
@@ -287,7 +268,7 @@
             "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md",
           "requestedAt": "2026-11-16T16:05:01.925Z",
           "status": "submitted",
           "result": "failed",
@@ -311,7 +292,7 @@
           "createdAt": "2026-11-16T16:07:36.171Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md",
               "headSha": "6e92072871cf1ef26991106e4578d259086f1026",
               "author": "Copilot",
               "summary": "Interrupted task creation can create a duplicate",
@@ -323,7 +304,7 @@
               "at": "2026-11-16T16:07:36.171Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md at commit 6e92072871cf1ef26991106e4578d259086f1026."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-review-c0fdc9d3-92ca-4f11-998b-6aba09e2b0f5.md at commit 6e92072871cf1ef26991106e4578d259086f1026."
             },
             {
               "at": "2026-11-16T16:07:58.121Z",
@@ -357,7 +338,7 @@
           "createdAt": "2026-11-16T16:34:07.061Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md",
               "headSha": "12bf8d1cc47c320fc655bdfc8176a26153b6b28a",
               "author": "Copilot",
               "summary": "Expected negative-CLI output is noisy",
@@ -369,7 +350,7 @@
               "at": "2026-11-16T16:34:07.061Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md at commit 12bf8d1cc47c320fc655bdfc8176a26153b6b28a."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0001-round-2-review-d9963513-b640-4844-b37d-f9e549659e9d.md at commit 12bf8d1cc47c320fc655bdfc8176a26153b6b28a."
             }
           ]
         }
@@ -459,9 +440,7 @@
         "findingIds": [],
         "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
         "objective": "Fix Provider.test.ts expectations and coverage for the five newly registered task lifecycle commands (assign, instructions, submit, accept, request-changes), preserving explicit uniqueness, singleton binding, and command schema assertions.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0002",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
         "startingHeadSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
         "requestedAt": "2026-11-16T17:02:12.708Z",
         "status": "submitted",
@@ -469,11 +448,6 @@
         "reportSha256": "00891e18ecc14b984d2ea55d813aebb445ee3565d997878b2e2ba7c4c57e8c68",
         "submittedAt": "2026-11-16T17:09:49.910Z",
         "submittedBy": "Copilot"
-      },
-      "worktree": {
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0002",
-        "baseSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3"
       },
       "checks": {
         "required": [
@@ -528,9 +502,7 @@
             "findingIds": [],
             "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Fix Provider.test.ts expectations and coverage for the five newly registered task lifecycle commands (assign, instructions, submit, accept, request-changes), preserving explicit uniqueness, singleton binding, and command schema assertions.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0002",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-fix.md",
             "startingHeadSha": "1857da7628ee643501a843cb5ae56a1cd9183a2d",
             "requestedAt": "2026-11-16T17:02:12.708Z",
             "status": "submitted",
@@ -544,9 +516,7 @@
             "role": "implementation",
             "action": "implement",
             "controller": "Copilot",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-implementation.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0002",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-implementation.md",
             "startingHeadSha": "b0948813c74a026f14a302a9c1bbf9c0183c82b3",
             "requestedAt": "2026-11-16T16:42:43.836Z",
             "status": "submitted",
@@ -581,8 +551,6 @@
               "scope": "corrective",
               "attempt": 1,
               "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0002",
               "inventory": [
                 "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
                 "src/SubagentDrivenDevelopment/Commands/TaskAcceptCommand.ts",
@@ -598,7 +566,7 @@
                 "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-review-97fcee49-e263-4f31-a11a-b19d702426f7.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-round-1-review-97fcee49-e263-4f31-a11a-b19d702426f7.md",
               "requestedAt": "2026-11-16T17:21:25.740Z",
               "status": "submitted",
               "result": "passed",
@@ -617,8 +585,6 @@
           "role": "review",
           "scope": "initial",
           "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0002",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0002",
           "inventory": [
             "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
             "src/SubagentDrivenDevelopment/Commands/TaskAcceptCommand.ts",
@@ -634,7 +600,7 @@
             "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md",
           "requestedAt": "2026-11-16T17:15:25.033Z",
           "status": "submitted",
           "result": "passed",
@@ -657,7 +623,7 @@
           "createdAt": "2026-11-16T17:20:17.048Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md",
               "headSha": "0262f4f86062ddb0b632157e979a188fc183bb30",
               "author": "Copilot",
               "summary": "Expected negative-CLI output is noisy",
@@ -669,7 +635,7 @@
               "at": "2026-11-16T17:20:17.048Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md at commit 0262f4f86062ddb0b632157e979a188fc183bb30."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0002-review-20fec172-4193-4258-809a-c71674b1af96.md at commit 0262f4f86062ddb0b632157e979a188fc183bb30."
             }
           ]
         }
@@ -759,9 +725,7 @@
           "F-0001"
         ],
         "objective": "Fix active task edit/create scope updates so they cannot create overlapping reservations. Either reject edit/create path changes while a task is assigned, submitted, or changes-requested, or validate the update transactionally against all other active tasks. Add a regression test that attempts an overlapping active-task scope update and verifies rejection leaves the ledger unchanged. Preserve current readiness, reservation, reference-path, accepted-release, and dependency-cycle behavior.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0003",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
         "startingHeadSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
         "requestedAt": "2026-11-16T17:59:35.827Z",
         "status": "submitted",
@@ -769,11 +733,6 @@
         "reportSha256": "a08063e2b2799ea2910bd203bbd83ba8caea4f6436e3eea37128f77a75cbde17",
         "submittedAt": "2026-11-16T18:06:17.528Z",
         "submittedBy": "Copilot"
-      },
-      "worktree": {
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0003",
-        "baseSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb"
       },
       "checks": {
         "required": [
@@ -807,13 +766,11 @@
           "role": "review",
           "scope": "initial",
           "headSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0003",
           "inventory": [
             "src/SubagentDrivenDevelopment/Services/TaskService.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md",
           "requestedAt": "2026-11-16T17:55:48.946Z",
           "status": "submitted",
           "result": "failed",
@@ -837,7 +794,7 @@
           "createdAt": "2026-11-16T17:59:02.992Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md",
               "headSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
               "author": "Copilot",
               "summary": "Active task scope updates bypass reservation checks",
@@ -849,7 +806,7 @@
               "at": "2026-11-16T17:59:02.992Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md at commit 15ebbac2671f31dc00204e8b1a11e59aebad7420."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-review-2343d1d5-b75d-4281-9933-d8588adb013b.md at commit 15ebbac2671f31dc00204e8b1a11e59aebad7420."
             },
             {
               "at": "2026-11-16T17:59:26.865Z",
@@ -894,9 +851,7 @@
               "F-0001"
             ],
             "objective": "Fix active task edit/create scope updates so they cannot create overlapping reservations. Either reject edit/create path changes while a task is assigned, submitted, or changes-requested, or validate the update transactionally against all other active tasks. Add a regression test that attempts an overlapping active-task scope update and verifies rejection leaves the ledger unchanged. Preserve current readiness, reservation, reference-path, accepted-release, and dependency-cycle behavior.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0003",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-fix.md",
             "startingHeadSha": "15ebbac2671f31dc00204e8b1a11e59aebad7420",
             "requestedAt": "2026-11-16T17:59:35.827Z",
             "status": "submitted",
@@ -910,9 +865,7 @@
             "role": "implementation",
             "action": "implement",
             "controller": "Copilot",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-implementation.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0003",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-implementation.md",
             "startingHeadSha": "0aeb6a20f22f9756ec569e7a0b1fedc3c2da52bb",
             "requestedAt": "2026-11-16T17:38:13.699Z",
             "status": "submitted",
@@ -938,13 +891,11 @@
               "scope": "corrective",
               "attempt": 1,
               "headSha": "8ff2ab8f62a091c46943de58c459e7f04372bb5e",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0003",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0003",
               "inventory": [
                 "src/SubagentDrivenDevelopment/Services/TaskService.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-review-fc9e3e13-fbf7-414e-a30b-d277c99200b0.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0003-round-1-review-fc9e3e13-fbf7-414e-a30b-d277c99200b0.md",
               "requestedAt": "2026-11-16T18:12:40.290Z",
               "status": "submitted",
               "result": "passed",
@@ -1018,9 +969,7 @@
         "findingIds": [],
         "objective": "Complete the user-approved T-0004 recovery on the current feature baseline: preserve prior evidence, make only the authorized correction, pass fresh required checks, obtain independent focused review, integrate the correction, and pass post-merge validation. Do not invent or accept tasks.",
         "approvedExceptionId": "4b90d665-c432-4973-9581-3f2a1374aca1",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-fix.md",
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-fix.md",
         "startingHeadSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
         "requestedAt": "2026-11-17T02:55:31.154Z",
         "status": "submitted",
@@ -1028,11 +977,6 @@
         "reportSha256": "520b71cfb3a4467c6b77cd9704e3b29207ff4246b1920ea380da4eb4056a0948",
         "submittedAt": "2026-11-17T03:07:12.945Z",
         "submittedBy": "Copilot"
-      },
-      "worktree": {
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0004",
-        "baseSha": "cb679ea3ea98011019dc79d40a470907d68283b3"
       },
       "checks": {
         "required": [
@@ -1100,9 +1044,7 @@
             "findingIds": [],
             "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Correct the regressions from task-plan gates: update existing integration fixtures and expectations to satisfy T-0004's required plan/accepted-task gates without weakening production guards. Ensure cases asserting pre-task-plan rejection still verify it. Run the full required command and report each stage accurately.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
             "startingHeadSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
             "requestedAt": "2026-11-16T18:44:13.753Z",
             "status": "submitted",
@@ -1116,9 +1058,7 @@
             "role": "implementation",
             "action": "implement",
             "controller": "Copilot",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-implementation.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-implementation.md",
             "startingHeadSha": "f6ffe7a6ac5238b0feb42d8605aa73ccdb08d7a7",
             "requestedAt": "2026-11-16T18:21:30.970Z",
             "status": "submitted",
@@ -1153,8 +1093,6 @@
               "scope": "corrective",
               "attempt": 1,
               "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0004",
               "inventory": [
                 "assets/Blueprints/agents/sdd-implementer.agent.md",
                 "assets/Blueprints/agents/sdd-orchestrator.agent.md",
@@ -1206,7 +1144,7 @@
                 "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-review-22d3a104-3fe3-4557-bffc-91726dab0468.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-review-22d3a104-3fe3-4557-bffc-91726dab0468.md",
               "requestedAt": "2026-11-16T19:28:18.695Z",
               "status": "submitted",
               "result": "passed",
@@ -1234,9 +1172,7 @@
             "findingIds": [],
             "objective": "Complete the user-approved T-0004 recovery on the current feature baseline: preserve prior evidence, make only the authorized correction, pass fresh required checks, obtain independent focused review, integrate the correction, and pass post-merge validation. Do not invent or accept tasks.",
             "approvedExceptionId": "4b90d665-c432-4973-9581-3f2a1374aca1",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-fix.md",
             "startingHeadSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
             "requestedAt": "2026-11-17T02:55:31.154Z",
             "status": "submitted",
@@ -1254,9 +1190,7 @@
             "findingIds": [],
             "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Correct the regressions from task-plan gates: update existing integration fixtures and expectations to satisfy T-0004's required plan/accepted-task gates without weakening production guards. Ensure cases asserting pre-task-plan rejection still verify it. Run the full required command and report each stage accurately.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-1-fix.md",
             "startingHeadSha": "48f231c7b4f44192f8f7a48d1217c73990e59468",
             "requestedAt": "2026-11-16T18:44:13.753Z",
             "status": "submitted",
@@ -1296,12 +1230,10 @@
               "scope": "corrective",
               "attempt": 2,
               "headSha": "3f3ef82b0c18e3ac9f510166366005e2721ad9ce",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0004",
               "inventory": [
                 "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-e0a9eaed-e245-481d-b478-7ccc703c1b1c.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-e0a9eaed-e245-481d-b478-7ccc703c1b1c.md",
               "requestedAt": "2026-11-17T03:33:25.052Z",
               "status": "submitted",
               "result": "passed",
@@ -1320,8 +1252,6 @@
           "role": "review",
           "scope": "initial",
           "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0004",
           "inventory": [
             "assets/Blueprints/agents/sdd-implementer.agent.md",
             "assets/Blueprints/agents/sdd-orchestrator.agent.md",
@@ -1373,7 +1303,7 @@
             "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md",
           "requestedAt": "2026-11-16T19:22:03.343Z",
           "status": "submitted",
           "result": "passed",
@@ -1396,7 +1326,7 @@
           "createdAt": "2026-11-16T19:27:21.188Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md",
               "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
               "author": "Copilot",
               "summary": "Expected unknown-option CLI diagnostics add noise to passing tests",
@@ -1408,7 +1338,7 @@
               "at": "2026-11-16T19:27:21.188Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md at commit 590e9da23c97b0ded32c10ab5cc044c200609b2a."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-review-2973e6c6-0ea6-4448-bca9-90ea888f4a69.md at commit 590e9da23c97b0ded32c10ab5cc044c200609b2a."
             },
             {
               "at": "2026-11-16T19:27:26.951Z",
@@ -1679,8 +1609,6 @@
           "scope": "corrective",
           "attempt": 2,
           "headSha": "9716767e1f66c4007a9d1d2cb618aead7d8cd4f9",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0004",
           "inventory": [
             "assets/Blueprints/agents/sdd-implementer.agent.md",
             "assets/Blueprints/agents/sdd-orchestrator.agent.md",
@@ -1733,7 +1661,7 @@
             "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-2e702aa2-18d4-4020-8281-88d1e7748e24.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-2e702aa2-18d4-4020-8281-88d1e7748e24.md",
           "requestedAt": "2026-11-17T03:13:19.460Z",
           "status": "submitted",
           "result": "passed",
@@ -1825,8 +1753,7 @@
             "id": "3b5f0a18-0a80-4169-8b08-90af47a411db",
             "controller": "Copilot",
             "worker": "sdd-implementer",
-            "worktree": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-TASK-0001-3b5f0a18-0a80-4169-8b08-90af47a411db.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-TASK-0001-3b5f0a18-0a80-4169-8b08-90af47a411db.md",
             "assignedAt": "2026-11-16T20:11:07.778Z",
             "submittedAt": "2026-11-16T23:06:15.708Z",
             "submittedBy": "Copilot",
@@ -1855,9 +1782,7 @@
         ],
         "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
         "objective": "Correct the recorded TypeScript error at TicketWorktreeIntegration.test.ts:273 without weakening coverage. Preserve round 2 allowed T-0005 bootstrap and T-0004 exception-linked success paths, T-0004 historical evidence assertions, wrong-target checks, and blocker propagation for missing/stale current-check and independent corrective-review evidence. Run focused tests and report. Controller will rerun the full required ticket check.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-fix.md",
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-fix.md",
         "startingHeadSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
         "requestedAt": "2026-11-17T02:29:03.577Z",
         "status": "submitted",
@@ -1865,11 +1790,6 @@
         "reportSha256": "fd17d060507aaba527383a507e3dd82aa7c7ad8f9522b8864c4204ebe0f232ec",
         "submittedAt": "2026-11-17T02:32:49.965Z",
         "submittedBy": "Copilot"
-      },
-      "worktree": {
-        "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-        "branch": "tickets/0001-ticket-task-dispatch/T-0005",
-        "baseSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614"
       },
       "checks": {
         "required": [
@@ -1918,8 +1838,6 @@
           "role": "review",
           "scope": "initial",
           "headSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
-          "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-          "branch": "tickets/0001-ticket-task-dispatch/T-0005",
           "inventory": [
             "docs/agents/ticket-tracker.md",
             "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
@@ -1939,7 +1857,7 @@
             "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
             "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts"
           ],
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md",
           "requestedAt": "2026-11-17T01:44:37.579Z",
           "status": "submitted",
           "result": "failed",
@@ -1963,14 +1881,14 @@
           "createdAt": "2026-11-17T01:50:03.722Z",
           "provenance": [
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md",
               "headSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
               "author": "Copilot",
               "summary": "The new bootstrap and exception-linked integration guards lack focused regression coverage.",
               "details": "Impact: These are the security- and lifecycle-sensitive paths that relax the normal pending-post-merge integration block. Without tests invoking the new branches, the passing suite does not verify that only T-0005 can use the bootstrap with T-0004 as the sole pending ticket, or that T-0004 exception-linked integration remains contingent on the validated T-0005 state and ordinary acceptance gates. This leaves essential acceptance behavior unverified. Evidence: src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts:429-478; the assigned diff does not modify tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts. Existing TicketTaskCompletion and Corrections tests cover recovery eligibility and exception creation/rejection, but not these integration branches. Required correction: Add focused integration-service tests for authorized T-0005 bootstrap and T-0004 exception-linked correction; cover rejection for wrong ticket/feature, additional pending integration, absent or invalid exception, and unvalidated T-0005. Assert current-check and corrective-review gates still block missing or stale evidence, then obtain fresh covering checks."
             },
             {
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md",
               "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
               "author": "Copilot",
               "summary": "The authorized integration guard cases lack successful progression, T-0004 evidence-preservation assertions, and exception-path wrong-target rejection.",
@@ -1982,7 +1900,7 @@
               "at": "2026-11-17T01:50:03.722Z",
               "author": "Copilot",
               "action": "registered",
-              "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md at commit 6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e."
+              "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md at commit 6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e."
             },
             {
               "at": "2026-11-17T01:50:54.469Z",
@@ -1994,7 +1912,7 @@
               "at": "2026-11-17T02:15:01.397Z",
               "author": "Copilot",
               "action": "observation-linked",
-              "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md at commit 0fabebc3f69c123839e2e197029ffc3d2dda99d1: The authorized integration guard cases lack successful progression, T-0004 evidence-preservation assertions, and exception-path wrong-target rejection. — Impact: A regression that rejects every otherwise-valid bootstrap/correction, alters T-0004 prior integration evidence while allowing the path, or accepts a wrong target for exception-linked correction could pass the current tests. Evidence: tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:120-139,141-169,269-305. Every authorized path is stopped by mocked acceptance-policy blockers, bootstrap preservation asserts only tasklessness and pending status, the correction fixture seeds but does not assert preservation of integrationHistory/taskPlanException/prior accepted evidence, and wrong ticket/feature rejection covers only bootstrap. Required correction: Add an allowed-path case for each guard that proceeds beyond the policy, assert T-0004 pending integration/history and linked exception evidence remain preserved, and cover wrong-feature/wrong-ticket rejection on exception-linked correction. Keep blocker-propagation cases for missing/stale current checks and corrective-review evidence."
+              "details": "Linked observation from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md at commit 0fabebc3f69c123839e2e197029ffc3d2dda99d1: The authorized integration guard cases lack successful progression, T-0004 evidence-preservation assertions, and exception-path wrong-target rejection. — Impact: A regression that rejects every otherwise-valid bootstrap/correction, alters T-0004 prior integration evidence while allowing the path, or accepts a wrong target for exception-linked correction could pass the current tests. Evidence: tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:120-139,141-169,269-305. Every authorized path is stopped by mocked acceptance-policy blockers, bootstrap preservation asserts only tasklessness and pending status, the correction fixture seeds but does not assert preservation of integrationHistory/taskPlanException/prior accepted evidence, and wrong ticket/feature rejection covers only bootstrap. Required correction: Add an allowed-path case for each guard that proceeds beyond the policy, assert T-0004 pending integration/history and linked exception evidence remain preserved, and cover wrong-feature/wrong-ticket rejection on exception-linked correction. Keep blocker-propagation cases for missing/stale current checks and corrective-review evidence."
             },
             {
               "at": "2026-11-17T02:44:10.963Z",
@@ -2033,9 +1951,7 @@
               "F-0001"
             ],
             "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
             "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
             "requestedAt": "2026-11-17T01:51:03.272Z",
             "status": "submitted",
@@ -2049,9 +1965,7 @@
             "role": "implementation",
             "action": "implement",
             "controller": "Copilot",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-implementation.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-implementation.md",
             "startingHeadSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
             "requestedAt": "2026-11-16T20:11:00.687Z",
             "status": "submitted",
@@ -2077,8 +1991,6 @@
               "scope": "corrective",
               "attempt": 1,
               "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0005",
               "inventory": [
                 "docs/agents/ticket-tracker.md",
                 "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
@@ -2099,7 +2011,7 @@
                 "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md",
               "requestedAt": "2026-11-17T02:10:00.213Z",
               "status": "submitted",
               "result": "failed",
@@ -2139,9 +2051,7 @@
               "F-0001"
             ],
             "objective": "Extend the assigned integration-service tests with an otherwise-valid T-0005 bootstrap and T-0004 exception-linked correction that proceed beyond the normal acceptance policy to their success boundary without a real Git merge. Assert T-0004 pending integration/history, linked exception and prior accepted evidence remain unchanged across the allowed bootstrap/correction. Add wrong-feature and wrong-ticket rejection for the exception-linked correction guard. Retain all current blocker-propagation tests for missing/stale current checks and independent corrective-review evidence. No production changes unless a concrete defect is discovered; keep T-0004 historical state intact.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
             "startingHeadSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
             "requestedAt": "2026-11-17T02:15:16.581Z",
             "status": "submitted",
@@ -2160,9 +2070,7 @@
               "F-0001"
             ],
             "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
             "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
             "requestedAt": "2026-11-17T01:51:03.272Z",
             "status": "submitted",
@@ -2210,9 +2118,7 @@
             ],
             "checkFailure": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
             "objective": "Correct the recorded TypeScript error at TicketWorktreeIntegration.test.ts:273 without weakening coverage. Preserve round 2 allowed T-0005 bootstrap and T-0004 exception-linked success paths, T-0004 historical evidence assertions, wrong-target checks, and blocker propagation for missing/stale current-check and independent corrective-review evidence. Run focused tests and report. Controller will rerun the full required ticket check.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-fix.md",
             "startingHeadSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
             "requestedAt": "2026-11-17T02:29:03.577Z",
             "status": "submitted",
@@ -2231,9 +2137,7 @@
               "F-0001"
             ],
             "objective": "Extend the assigned integration-service tests with an otherwise-valid T-0005 bootstrap and T-0004 exception-linked correction that proceed beyond the normal acceptance policy to their success boundary without a real Git merge. Assert T-0004 pending integration/history, linked exception and prior accepted evidence remain unchanged across the allowed bootstrap/correction. Add wrong-feature and wrong-ticket rejection for the exception-linked correction guard. Retain all current blocker-propagation tests for missing/stale current checks and independent corrective-review evidence. No production changes unless a concrete defect is discovered; keep T-0004 historical state intact.",
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
-            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
             "startingHeadSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
             "requestedAt": "2026-11-17T02:15:16.581Z",
             "status": "submitted",
@@ -2274,8 +2178,6 @@
               "scope": "corrective",
               "attempt": 3,
               "headSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
-              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
-              "branch": "tickets/0001-ticket-task-dispatch/T-0005",
               "inventory": [
                 "docs/agents/ticket-tracker.md",
                 "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
@@ -2296,7 +2198,7 @@
                 "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
                 "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
               ],
-              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-review-d1306771-29af-4458-934b-5b0b6aed4649.md",
+              "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-review-d1306771-29af-4458-934b-5b0b6aed4649.md",
               "requestedAt": "2026-11-17T02:38:44.993Z",
               "status": "submitted",
               "result": "passed",
@@ -2382,8 +2284,8 @@
     }
   ],
   "delivery": {
-    "status": "active",
-    "execution": "reviewing",
+    "status": "complete",
+    "execution": "complete",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2729,6 +2631,11 @@
         "at": "2026-11-17T14:42:31.630Z",
         "author": "Copilot",
         "action": "aggregate-review-submitted:9837e4f4-177d-4c6a-87cb-a9b1c03e16c0:passed"
+      },
+      {
+        "at": "2026-11-17T14:50:23.014Z",
+        "author": "Copilot",
+        "action": "feature-final-validation-passed:b033fbd77209e6a9af5acb77a4f50086a92e69b1;merge:b033fbd77209e6a9af5acb77a4f50086a92e69b1;journal:35fd57a3-032a-49e2-8fc4-b8c222fd9749"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2986,7 +2893,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
           "requestedAt": "2026-11-17T03:50:30.307Z",
           "status": "submitted",
           "handoffs": [],
@@ -3029,7 +2936,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
           "requestedAt": "2026-11-17T04:00:00.603Z",
           "status": "submitted",
           "handoffs": [],
@@ -3046,7 +2953,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
           "requestedAt": "2026-11-17T03:50:30.307Z",
           "status": "submitted",
           "handoffs": [],
@@ -3089,7 +2996,7 @@
           "findingIds": [],
           "checkFailure": "pnpm run fmt:check",
           "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
           "requestedAt": "2026-11-17T04:16:50.544Z",
           "status": "submitted",
           "handoffs": [],
@@ -3106,7 +3013,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
           "requestedAt": "2026-11-17T04:00:00.603Z",
           "status": "submitted",
           "handoffs": [],
@@ -3181,7 +3088,7 @@
           "findingIds": [],
           "checkFailure": "pnpm run fmt:check",
           "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
           "requestedAt": "2026-11-17T04:31:33.081Z",
           "status": "submitted",
           "handoffs": [],
@@ -3198,7 +3105,7 @@
           "findingIds": [],
           "checkFailure": "pnpm run fmt:check",
           "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
           "requestedAt": "2026-11-17T04:16:50.544Z",
           "status": "submitted",
           "handoffs": [],
@@ -3331,7 +3238,7 @@
               "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
               "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
             ],
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
             "requestedAt": "2026-11-17T04:39:51.169Z",
             "status": "pending"
           }
@@ -3356,7 +3263,7 @@
             "F-0001"
           ],
           "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
           "requestedAt": "2026-11-17T04:52:15.069Z",
           "status": "submitted",
           "handoffs": [],
@@ -3373,7 +3280,7 @@
           "findingIds": [],
           "checkFailure": "pnpm run fmt:check",
           "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
           "requestedAt": "2026-11-17T04:31:33.081Z",
           "status": "submitted",
           "handoffs": [],
@@ -3406,7 +3313,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
           "requestedAt": "2026-11-17T05:11:47.045Z",
           "status": "submitted",
           "handoffs": [],
@@ -3424,7 +3331,7 @@
             "F-0001"
           ],
           "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
           "requestedAt": "2026-11-17T04:52:15.069Z",
           "status": "submitted",
           "handoffs": [],
@@ -3540,7 +3447,7 @@
               "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
               "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
             ],
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
             "requestedAt": "2026-11-17T05:29:40.433Z",
             "status": "pending"
           }
@@ -3565,7 +3472,7 @@
             "F-0001"
           ],
           "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
           "requestedAt": "2026-11-17T13:22:00.570Z",
           "status": "submitted",
           "handoffs": [],
@@ -3582,7 +3489,7 @@
           "findingIds": [],
           "checkFailure": "pnpm test",
           "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
           "requestedAt": "2026-11-17T05:11:47.045Z",
           "status": "submitted",
           "handoffs": [],
@@ -3683,7 +3590,7 @@
               "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
               "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
             ],
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
             "requestedAt": "2026-11-17T13:41:50.463Z",
             "status": "pending"
           }
@@ -3706,7 +3613,7 @@
           "findingIds": [],
           "checkFailure": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
           "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
           "requestedAt": "2026-11-17T14:05:08.657Z",
           "status": "submitted",
           "handoffs": [],
@@ -3724,7 +3631,7 @@
             "F-0001"
           ],
           "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
-          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
+          "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
           "requestedAt": "2026-11-17T13:22:00.570Z",
           "status": "submitted",
           "handoffs": [],
@@ -3867,7 +3774,7 @@
               "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
               "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
             ],
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
             "requestedAt": "2026-11-17T14:33:09.277Z",
             "status": "pending"
           }
@@ -3883,7 +3790,7 @@
       "findingIds": [],
       "checkFailure": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
       "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
+      "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
       "requestedAt": "2026-11-17T14:05:08.657Z",
       "status": "submitted",
       "handoffs": [],
@@ -3990,7 +3897,7 @@
           "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
         ],
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
         "requestedAt": "2026-11-17T14:33:09.277Z",
         "status": "submitted",
         "result": "passed",
@@ -4016,7 +3923,7 @@
         "createdAt": "2026-11-17T04:51:42.634Z",
         "provenance": [
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
             "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
             "author": "Copilot",
             "summary": "Accepted task reports are not revalidated after acceptance",
@@ -4028,7 +3935,7 @@
             "at": "2026-11-17T04:51:42.634Z",
             "author": "Copilot",
             "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+            "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
           },
           {
             "at": "2026-11-17T04:51:56.903Z",
@@ -4065,21 +3972,21 @@
         "createdAt": "2026-11-17T04:51:49.562Z",
         "provenance": [
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
             "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
             "author": "Copilot",
             "summary": "Task assignment can persist when handoff construction fails",
             "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged."
           },
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
             "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
             "author": "Copilot",
             "summary": "Task assignment can persist when handoff generation fails",
             "details": "A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
           },
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
             "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
             "author": "Copilot",
             "summary": "Task assignment can persist when handoff generation fails",
@@ -4091,19 +3998,19 @@
             "at": "2026-11-17T04:51:49.562Z",
             "author": "Copilot",
             "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+            "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
           },
           {
             "at": "2026-11-17T13:51:21.109Z",
             "author": "Copilot",
             "action": "observation-linked",
-            "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md at commit a1cac8bb1f83eed75113ed590d0b23a0f3c50fff: Task assignment can persist when handoff generation fails — A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
+            "details": "Linked observation from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md at commit a1cac8bb1f83eed75113ed590d0b23a0f3c50fff: Task assignment can persist when handoff generation fails — A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
           },
           {
             "at": "2026-11-17T14:42:27.140Z",
             "author": "Copilot",
             "action": "observation-linked",
-            "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106: Task assignment can persist when handoff generation fails — Re-observed in round 8: TaskService assign still writes the ledger before building the handoff (TaskService.ts:245-246) with no rollback. Existing non-blocking finding F-0002."
+            "details": "Linked observation from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106: Task assignment can persist when handoff generation fails — Re-observed in round 8: TaskService assign still writes the ledger before building the handoff (TaskService.ts:245-246) with no rollback. Existing non-blocking finding F-0002."
           }
         ]
       },
@@ -4117,7 +4024,7 @@
         "createdAt": "2026-11-17T14:42:24.580Z",
         "provenance": [
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
             "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
             "author": "Copilot",
             "summary": "Embedded report-path rewrite accepts a trailing '.' followed by further path text",
@@ -4129,7 +4036,7 @@
             "at": "2026-11-17T14:42:24.580Z",
             "author": "Copilot",
             "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
+            "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
           }
         ]
       },
@@ -4143,7 +4050,7 @@
         "createdAt": "2026-11-17T14:42:25.475Z",
         "provenance": [
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
             "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
             "author": "Copilot",
             "summary": "Finalization fixtures still hide realistic task worktree assignments",
@@ -4155,7 +4062,7 @@
             "at": "2026-11-17T14:42:25.475Z",
             "author": "Copilot",
             "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
+            "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
           }
         ]
       },
@@ -4169,7 +4076,7 @@
         "createdAt": "2026-11-17T14:42:26.295Z",
         "provenance": [
           {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
             "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
             "author": "Copilot",
             "summary": "Task handoff missing-worktree guard is untested",
@@ -4181,7 +4088,7 @@
             "at": "2026-11-17T14:42:26.295Z",
             "author": "Copilot",
             "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
+            "details": "Registered from /home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
           }
         ]
       }
@@ -4270,7 +4177,7 @@
           "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
         ],
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
         "requestedAt": "2026-11-17T04:39:51.169Z",
         "status": "submitted",
         "result": "failed",
@@ -4366,7 +4273,7 @@
           "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
         ],
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
         "requestedAt": "2026-11-17T05:29:40.433Z",
         "status": "submitted",
         "result": "passed",
@@ -4460,7 +4367,7 @@
           "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
           "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
         ],
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
+        "report": "/home/nixos/source/spindle/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md",
         "requestedAt": "2026-11-17T13:41:50.463Z",
         "status": "submitted",
         "result": "passed",
@@ -4493,6 +4400,10 @@
         "addedAt": "2026-11-17T13:51:53.868Z",
         "addedBy": "Copilot"
       }
-    ]
+    ],
+    "finished": {
+      "at": "2026-11-17T14:50:23.014Z",
+      "author": "Copilot"
+    }
   }
 }
