@@ -1505,29 +1505,26 @@
           }
         }
       ],
-      "execution": "changes-requested",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
       "assignment": {
-        "id": "3382d04a-1890-41a2-9ce5-ab0b54a3b28b",
+        "id": "0a4fc516-e0ac-4109-ad3d-01ebf831ad63",
         "role": "implementation",
         "action": "correct",
         "controller": "Copilot",
-        "attempt": 1,
+        "attempt": 2,
         "findingIds": [
           "F-0001"
         ],
-        "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
+        "objective": "Extend the assigned integration-service tests with an otherwise-valid T-0005 bootstrap and T-0004 exception-linked correction that proceed beyond the normal acceptance policy to their success boundary without a real Git merge. Assert T-0004 pending integration/history, linked exception and prior accepted evidence remain unchanged across the allowed bootstrap/correction. Add wrong-feature and wrong-ticket rejection for the exception-linked correction guard. Retain all current blocker-propagation tests for missing/stale current checks and independent corrective-review evidence. No production changes unless a concrete defect is discovered; keep T-0004 historical state intact.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
         "branch": "tickets/0001-ticket-task-dispatch/T-0005",
-        "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
-        "requestedAt": "2026-11-17T01:51:03.272Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "cb7e7ff3dcba92cac478476fe986ea3c20d3e97bbfa39ef660a75c5de40ba6a6",
-        "submittedAt": "2026-11-17T02:03:53.764Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
+        "requestedAt": "2026-11-17T02:15:16.581Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
@@ -1745,7 +1742,70 @@
               "submittedBy": "Copilot",
               "details": "Corrective review partially confirms coverage but leaves blocking gaps under F-0001: no authorized path passes the acceptance policy, preservation of T-0004 integration/history and linked exception evidence is not asserted, and exception-linked correction does not test wrong ticket/feature rejection. The accepted observation is linked to existing F-0001."
             }
-          ]
+          ],
+          "progressAssessment": {
+            "decision": "continue",
+            "result": "productive",
+            "details": "Round 1 added focused guard-block and rejection coverage and passed fresh ticket checks, but independent review found missing successful allowed-path progression, T-0004 evidence-preservation assertions, and wrong-target rejection for exception-linked correction. Continue because the attempt materially improved coverage; address these remaining F-0001 gaps.",
+            "recordedAt": "2026-11-17T02:15:16.522Z",
+            "recordedBy": "Copilot"
+          }
+        },
+        {
+          "number": 2,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Extend the assigned integration-service tests with an otherwise-valid T-0005 bootstrap and T-0004 exception-linked correction that proceed beyond the normal acceptance policy to their success boundary without a real Git merge. Assert T-0004 pending integration/history, linked exception and prior accepted evidence remain unchanged across the allowed bootstrap/correction. Add wrong-feature and wrong-ticket rejection for the exception-linked correction guard. Retain all current blocker-propagation tests for missing/stale current checks and independent corrective-review evidence. No production changes unless a concrete defect is discovered; keep T-0004 historical state intact.",
+          "startedAt": "2026-11-17T02:15:16.581Z",
+          "startedBy": "Copilot",
+          "assignmentId": "0a4fc516-e0ac-4109-ad3d-01ebf831ad63",
+          "assignment": {
+            "id": "0a4fc516-e0ac-4109-ad3d-01ebf831ad63",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 2,
+            "findingIds": [
+              "F-0001"
+            ],
+            "objective": "Extend the assigned integration-service tests with an otherwise-valid T-0005 bootstrap and T-0004 exception-linked correction that proceed beyond the normal acceptance policy to their success boundary without a real Git merge. Assert T-0004 pending integration/history, linked exception and prior accepted evidence remain unchanged across the allowed bootstrap/correction. Add wrong-feature and wrong-ticket rejection for the exception-linked correction guard. Retain all current blocker-propagation tests for missing/stale current checks and independent corrective-review evidence. No production changes unless a concrete defect is discovered; keep T-0004 historical state intact.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-2-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "startingHeadSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
+            "requestedAt": "2026-11-17T02:15:16.581Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "3382d04a-1890-41a2-9ce5-ab0b54a3b28b",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [
+              "F-0001"
+            ],
+            "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
+            "requestedAt": "2026-11-17T01:51:03.272Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "cb7e7ff3dcba92cac478476fe986ea3c20d3e97bbfa39ef660a75c5de40ba6a6",
+            "submittedAt": "2026-11-17T02:03:53.764Z",
+            "submittedBy": "Copilot"
+          },
+          "progressAssessment": {
+            "decision": "continue",
+            "result": "productive",
+            "details": "Round 1 added focused guard-block and rejection coverage and passed fresh ticket checks, but independent review found missing successful allowed-path progression, T-0004 evidence-preservation assertions, and wrong-target rejection for exception-linked correction. Continue because the attempt materially improved coverage; address these remaining F-0001 gaps.",
+            "recordedAt": "2026-11-17T02:15:16.522Z",
+            "recordedBy": "Copilot"
+          }
         }
       ]
     }
