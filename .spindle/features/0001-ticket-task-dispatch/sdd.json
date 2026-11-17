@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2674,6 +2674,11 @@
         "at": "2026-11-17T14:05:08.657Z",
         "author": "Copilot",
         "action": "correction-dispatched:8"
+      },
+      {
+        "at": "2026-11-17T14:25:47.867Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:a2f3aa88-7a53-40ab-b26b-2890a8c92537"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3618,8 +3623,11 @@
           "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
           "requestedAt": "2026-11-17T14:05:08.657Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "8218588f98434213c9ff94219b3174aa5e1a22a8aeaef646489fa672f0441960",
+          "submittedAt": "2026-11-17T14:25:47.867Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
@@ -3700,8 +3708,11 @@
       "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
       "requestedAt": "2026-11-17T14:05:08.657Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "8218588f98434213c9ff94219b3174aa5e1a22a8aeaef646489fa672f0441960",
+      "submittedAt": "2026-11-17T14:25:47.867Z",
+      "submittedBy": "Copilot"
     },
     "adjudication": {
       "status": "resolved",
