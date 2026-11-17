@@ -2724,6 +2724,11 @@
         "at": "2026-11-17T14:42:26.295Z",
         "author": "Copilot",
         "action": "finding-registered:F-0005"
+      },
+      {
+        "at": "2026-11-17T14:42:31.630Z",
+        "author": "Copilot",
+        "action": "aggregate-review-submitted:9837e4f4-177d-4c6a-87cb-a9b1c03e16c0:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3987,7 +3992,17 @@
         ],
         "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
         "requestedAt": "2026-11-17T14:33:09.277Z",
-        "status": "pending"
+        "status": "submitted",
+        "result": "passed",
+        "findingIds": [
+          "F-0002",
+          "F-0003",
+          "F-0004",
+          "F-0005"
+        ],
+        "reportSha256": "76b9184b220ff73085ab3ab0905bce2d2151823bf5be48d3de59fb9581161ce3",
+        "submittedAt": "2026-11-17T14:42:31.629Z",
+        "submittedBy": "Copilot"
       }
     ],
     "findings": [
