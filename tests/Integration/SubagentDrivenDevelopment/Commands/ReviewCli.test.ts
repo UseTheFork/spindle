@@ -1,8 +1,7 @@
-import { Command } from "commander";
-import { expect, test } from "vitest";
-
 import { ChecksRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewCommand";
+import { Command } from "commander";
+import { expect, test } from "vitest";
 
 function review(args: string[], suppressExpectedStderr = false): Promise<Command> {
   const program = new Command("spindle").exitOverride();
@@ -100,16 +99,7 @@ test.each([
 test("review rejects caller-supplied inventory", async () => {
   await expect(
     review(
-      [
-        "--feature",
-        "/feature",
-        "--ticket",
-        "T-0001",
-        "--inventory",
-        "[]",
-        "--actor",
-        "owner",
-      ],
+      ["--feature", "/feature", "--ticket", "T-0001", "--inventory", "[]", "--actor", "owner"],
       true,
     ),
   ).rejects.toThrow(/unknown option.*inventory/i);
