@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -675,6 +676,16 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
 
   const second = await dispatch(root, spec, parent, "T-0002");
   await acceptTaskPlan(root, spec, "T-0002");
+  const taskLedgerPath = join(dirname(spec), "sdd.json");
+  const taskLedger = JSON.parse(readFileSync(taskLedgerPath, "utf8"));
+  const acceptedTask = taskLedger.tickets.find((ticket: { id: string }) => ticket.id === "T-0002")
+    .tasks[0];
+  const taskReportPath = join(dirname(spec), "reports", "T-0002-TASK-0001-fixture.md");
+  const taskReport = "# Task report\n\nCompleted the assigned task.\n";
+  writeFileSync(taskReportPath, taskReport);
+  acceptedTask.assignment.report = taskReportPath;
+  acceptedTask.assignment.reportSha256 = createHash("sha256").update(taskReport).digest("hex");
+  writeFileSync(taskLedgerPath, `${JSON.stringify(taskLedger, null, 2)}\n`);
   writeFileSync(join(second.assignment.workspace, "second.ts"), "export const second = 2;\n");
   gitAt(second.assignment.workspace, "add", "second.ts");
   gitAt(second.assignment.workspace, "commit", "-qm", "implement second");

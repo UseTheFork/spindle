@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -74,7 +75,13 @@ async function setup() {
   await acceptTaskPlan(root, spec, "T-0001");
   const readyLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const readyFirst = readyLedger.tickets[0];
-  const taskReportPath = readyFirst.tasks[0].assignment.report as string;
+  const taskReportPath = join(dirname(spec), "reports", "T-0001-TASK-0001-fixture.md");
+  const taskReport = "# Task report\n\nCompleted the assigned task.\n";
+  writeFileSync(taskReportPath, taskReport);
+  readyFirst.tasks[0].assignment.report = taskReportPath;
+  readyFirst.tasks[0].assignment.reportSha256 = createHash("sha256")
+    .update(taskReport)
+    .digest("hex");
   const evidence = {
     commitSha: sha,
     files: ["source.ts"],
