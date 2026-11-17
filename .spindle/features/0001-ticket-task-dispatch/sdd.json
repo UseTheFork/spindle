@@ -4062,6 +4062,13 @@
             "author": "Copilot",
             "summary": "Task assignment can persist when handoff generation fails",
             "details": "A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
+          },
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
+            "author": "Copilot",
+            "summary": "Task assignment can persist when handoff generation fails",
+            "details": "Re-observed in round 8: TaskService assign still writes the ledger before building the handoff (TaskService.ts:245-246) with no rollback. Existing non-blocking finding F-0002."
           }
         ],
         "history": [
@@ -4076,6 +4083,12 @@
             "author": "Copilot",
             "action": "observation-linked",
             "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md at commit a1cac8bb1f83eed75113ed590d0b23a0f3c50fff: Task assignment can persist when handoff generation fails — A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
+          },
+          {
+            "at": "2026-11-17T14:42:27.140Z",
+            "author": "Copilot",
+            "action": "observation-linked",
+            "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106: Task assignment can persist when handoff generation fails — Re-observed in round 8: TaskService assign still writes the ledger before building the handoff (TaskService.ts:245-246) with no rollback. Existing non-blocking finding F-0002."
           }
         ]
       },
