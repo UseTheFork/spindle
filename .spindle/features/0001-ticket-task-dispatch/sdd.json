@@ -1006,7 +1006,7 @@
       "blockedBy": [
         "T-0003"
       ],
-      "execution": "reviewing",
+      "execution": "integrated",
       "owner": "Copilot",
       "baseSha": "cb679ea3ea98011019dc79d40a470907d68283b3",
       "assignment": {
@@ -1420,57 +1420,9 @@
         }
       ],
       "acceptedEvidence": {
-        "commitSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
+        "commitSha": "3f3ef82b0c18e3ac9f510166366005e2721ad9ce",
         "files": [
-          "assets/Blueprints/agents/sdd-implementer.agent.md",
-          "assets/Blueprints/agents/sdd-orchestrator.agent.md",
-          "assets/Templates/project/ticket-tracker.md",
-          "docs/adr/0014-controller-owned-ticket-task-commits.md",
-          "docs/agents/ticket-tracker.md",
-          "src/SubagentDrivenDevelopment/Commands/ImplementCommand.ts",
-          "src/SubagentDrivenDevelopment/GLOSSARY.md",
-          "src/SubagentDrivenDevelopment/Models/Workflow.ts",
-          "src/SubagentDrivenDevelopment/Persistence/FeatureWorkspace.ts",
-          "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
-          "src/SubagentDrivenDevelopment/Policies/AcceptancePolicy.ts",
-          "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
-          "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
-          "src/SubagentDrivenDevelopment/Services/ChecksService.ts",
-          "src/SubagentDrivenDevelopment/Services/FeatureCreationService.ts",
-          "src/SubagentDrivenDevelopment/Services/FeatureWorktreeService.ts",
-          "src/SubagentDrivenDevelopment/Services/SubmissionService.ts",
-          "src/SubagentDrivenDevelopment/Services/TaskService.ts",
-          "src/SubagentDrivenDevelopment/Services/TicketService.ts",
-          "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
-          "tests/Helpers/SubagentDrivenDevelopment/WorkflowServices.ts",
-          "tests/Helpers/SubagentDrivenDevelopment/helpers.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Commands/CreateStatusCli.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Commands/Start.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Fixtures/FeatureFinalizationFixture.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Fixtures/TaskPlans.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Persistence/LedgerRepository.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Persistence/TicketRecovery.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/Assignments.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/Checks.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/Create.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryCleanup.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryReadiness.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryRetrospective.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalization.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationCleanup.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationGuards.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationPreservation.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationRecovery.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/FindingRegistration.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/PostMergeChecks.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketStartRecovery.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeDispatch.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeReviews.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
-          "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
+          "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts"
         ]
       },
       "tasks": [],
@@ -1790,7 +1742,30 @@
           "submittedAt": "2026-11-17T03:17:22.960Z",
           "submittedBy": "Copilot"
         }
-      ]
+      ],
+      "integration": {
+        "commitSha": "3f3ef82b0c18e3ac9f510166366005e2721ad9ce",
+        "mergeSha": "56e9f05db1379b5119de6e027be090674c3b370a",
+        "postMerge": {
+          "status": "pending",
+          "mergeSha": "56e9f05db1379b5119de6e027be090674c3b370a",
+          "checks": {
+            "required": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "addedAt": "2026-11-16T19:31:56.008Z",
+                "addedBy": "Copilot"
+              }
+            ],
+            "records": []
+          }
+        },
+        "integratedAt": "2026-11-17T03:35:49.662Z",
+        "integratedBy": "Copilot",
+        "files": [
+          "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts"
+        ]
+      }
     },
     {
       "id": "T-0005",
