@@ -1,9 +1,24 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type {
+  ApprovedTaskPlanException,
+  CorrectionAttempt,
+  ImplementationAssignment,
+} from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type { IntegrationRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type {
+  FeatureLedger,
+  TicketProgress,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { AcceptancePolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import {
   cliOutput,
   execute,
+  fixture,
   invokeAsync,
   recordReviewCheck,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
@@ -13,9 +28,282 @@ import {
   acceptedTicket,
   integrate,
 } from "@test/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures";
-import { expect, test } from "vitest";
+import { expect, test, afterEach, vi } from "vitest";
 
 import { acceptTaskPlan } from "../Fixtures/TaskPlans";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function integrationGateFixture(title = "Ticket Task Dispatch") {
+  const { repo } = fixture();
+  const created = await execute(repo, (services) =>
+    services.featureCreationService.create({ title, author: "controller" }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+  const initialSpec = JSON.parse(created.stdout).spec as string;
+  const parent = join(dirname(repo), "feature-worktrees");
+  mkdirSync(parent);
+  const started = await invokeAsync(repo, [
+    "start",
+    "--feature",
+    initialSpec.replace(/\/spec\.md$/, ""),
+    "--workspace",
+    parent,
+    "--confirm-records",
+  ]);
+  expect(started.status, started.stderr).toBe(0);
+  const { featureWorkspace: root, spec } = cliOutput(started) as {
+    featureWorkspace: string;
+    spec: string;
+  };
+  for (let index = 1; index <= 5; index++) {
+    const ticket = await execute(root, (services) =>
+      services.ticketService.ticketCreate({
+        spec,
+        title: `Integration gate ticket ${index}`,
+        reporter: "requester",
+        category: "enhancement",
+        author: "controller",
+      }),
+    );
+    expect(ticket.status, ticket.stderr).toBe(0);
+  }
+  const ledger = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")) as FeatureLedger;
+  return { root, spec, ledger };
+}
+
+function progressFor(ledger: FeatureLedger, ticket: string): TicketProgress {
+  const progress = ledger.tickets.find((candidate) => candidate.id === ticket);
+  if (!progress) throw new Error(`Missing fixture progress for ${ticket}.`);
+  return progress;
+}
+
+function setReviewing(progress: TicketProgress, root: string): void {
+  const baseSha = gitAt(root, "rev-parse", "HEAD");
+  progress.execution = "reviewing";
+  progress.owner = "controller";
+  progress.baseSha = baseSha;
+  progress.worktree = {
+    workspace: root,
+    branch: `tickets/0001-ticket-task-dispatch/${progress.id}`,
+    baseSha,
+  };
+}
+
+function pendingIntegration(commit = "a".repeat(40), merge = "b".repeat(40)): IntegrationRecord {
+  return {
+    commitSha: commit,
+    mergeSha: merge,
+    postMerge: { status: "pending", mergeSha: merge },
+    integratedAt: "2026-11-16T00:00:00.000Z",
+    integratedBy: "controller",
+    files: [],
+  };
+}
+
+function mockIntegrationGates(ledger: FeatureLedger, blockers: string[]) {
+  vi.spyOn(LedgerRepository.prototype, "readLedger").mockReturnValue(ledger);
+  vi.spyOn(GitEvidence.prototype, "commitIdentity").mockReturnValue({
+    headSha: "c".repeat(40),
+  });
+  return vi.spyOn(AcceptancePolicy.prototype, "acceptBlockers").mockReturnValue(blockers);
+}
+
+function integrateFixtureTicket(root: string, spec: string, ticket: string) {
+  return execute(root, (services) =>
+    services.ticketIntegrationService.integrate({ spec, ticket, author: "controller" }),
+  );
+}
+
+test("the T-0005 bootstrap reaches normal acceptance only with T-0004 as the sole pending integration", async () => {
+  const { root, spec, ledger } = await integrationGateFixture();
+  const prior = progressFor(ledger, "T-0004");
+  prior.execution = "integrated";
+  prior.status = "open";
+  prior.tasks = [];
+  prior.integration = pendingIntegration();
+  const bootstrap = progressFor(ledger, "T-0005");
+  setReviewing(bootstrap, root);
+  const unrelated = progressFor(ledger, "T-0001");
+  setReviewing(unrelated, root);
+  const acceptance = mockIntegrationGates(ledger, ["Required current check is missing."]);
+
+  const authorized = await integrateFixtureTicket(root, spec, "T-0005");
+  expect(authorized.status).not.toBe(0);
+  expect(authorized.stderr).toContain("Ticket review or checks are not current");
+  expect(authorized.stderr).toContain("Required current check is missing.");
+  expect(acceptance).toHaveBeenCalledTimes(1);
+  expect(prior.tasks).toEqual([]);
+  expect(prior.integration?.postMerge?.status).toBe("pending");
+
+  const wrongTicket = await integrateFixtureTicket(root, spec, "T-0001");
+  expect(wrongTicket.status).not.toBe(0);
+  expect(wrongTicket.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+  expect(acceptance).toHaveBeenCalledTimes(1);
+
+  const additional = progressFor(ledger, "T-0002");
+  additional.integration = pendingIntegration("d".repeat(40), "e".repeat(40));
+  const multiplePending = await integrateFixtureTicket(root, spec, "T-0005");
+  expect(multiplePending.status).not.toBe(0);
+  expect(multiplePending.stderr).toMatch(
+    /post-merge validation is pending or failed.*T-0002, T-0004/i,
+  );
+  expect(acceptance).toHaveBeenCalledTimes(1);
+});
+
+test("the T-0005 bootstrap rejects a different feature", async () => {
+  const { root, spec, ledger } = await integrationGateFixture("Unrelated Feature");
+  const prior = progressFor(ledger, "T-0004");
+  prior.execution = "integrated";
+  prior.status = "open";
+  prior.tasks = [];
+  prior.integration = pendingIntegration();
+  setReviewing(progressFor(ledger, "T-0005"), root);
+  const acceptance = mockIntegrationGates(ledger, []);
+
+  const rejected = await integrateFixtureTicket(root, spec, "T-0005");
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+  expect(acceptance).not.toHaveBeenCalled();
+});
+
+function seedValidatedCorrection(ledger: FeatureLedger, root: string): TicketProgress {
+  const target = progressFor(ledger, "T-0004");
+  const recovery = progressFor(ledger, "T-0005");
+  const prior = pendingIntegration();
+  const exceptionId = "exception-0001";
+  const assignmentId = "assignment-0001";
+  const objective = "Correct the approved T-0004 behavior.";
+  const mergeSha = "f".repeat(40);
+  const required = {
+    command: "fresh T-0005 check",
+    addedAt: "2026-11-16T00:00:00.000Z",
+    addedBy: "controller",
+  };
+  recovery.status = "closed";
+  recovery.execution = "integrated";
+  recovery.integration = {
+    commitSha: "e".repeat(40),
+    mergeSha,
+    postMerge: {
+      status: "passed",
+      mergeSha,
+      checks: {
+        required: [required],
+        records: [
+          {
+            command: required.command,
+            result: "passed",
+            author: "controller",
+            headSha: mergeSha,
+            recordedAt: "2026-11-16T00:00:00.000Z",
+          },
+        ],
+      },
+    },
+    integratedAt: "2026-11-16T00:00:00.000Z",
+    integratedBy: "controller",
+    files: [],
+  };
+
+  const assignment: ImplementationAssignment = {
+    id: assignmentId,
+    role: "implementation",
+    action: "correct",
+    controller: "controller",
+    report: join(root, ".spindle/features/0001-ticket-task-dispatch/reports/T-0004-fix.md"),
+    requestedAt: "2026-11-16T00:00:00.000Z",
+    status: "submitted",
+    attempt: 1,
+    findingIds: [],
+    objective,
+    approvedExceptionId: exceptionId,
+    handoffs: [],
+  };
+  const exception: ApprovedTaskPlanException = {
+    id: exceptionId,
+    feature: APPROVED_TASK_PLAN_EXCEPTION.feature,
+    ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    recoveryTicket: APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket,
+    scope: APPROVED_TASK_PLAN_EXCEPTION.scope,
+    approval: {
+      author: APPROVED_TASK_PLAN_EXCEPTION.approvalAuthor,
+      date: APPROVED_TASK_PLAN_EXCEPTION.approvalDate,
+      commentAt: APPROVED_TASK_PLAN_EXCEPTION.approvalCommentAt,
+      quote: APPROVED_TASK_PLAN_EXCEPTION.approvalQuote,
+      comment: APPROVED_TASK_PLAN_EXCEPTION.approvalComment,
+      source: APPROVED_TASK_PLAN_EXCEPTION.approvalSource,
+    },
+    controller: "controller",
+    recordedAt: "2026-11-16T00:00:00.000Z",
+    objective,
+    assignmentId,
+    attempt: 1,
+    priorIntegration: prior,
+    priorAcceptedEvidence: { commitSha: prior.commitSha, files: [] },
+  };
+  const attempt: CorrectionAttempt = {
+    number: 1,
+    findingIds: [],
+    objective,
+    approvedExceptionId: exceptionId,
+    startedAt: "2026-11-16T00:00:00.000Z",
+    startedBy: "controller",
+    assignmentId,
+    assignment,
+  };
+  target.status = "open";
+  target.execution = "reviewing";
+  target.tasks = [];
+  target.integration = undefined;
+  target.integrationHistory = [prior];
+  target.taskPlanException = exception;
+  target.assignment = assignment;
+  target.correctionAttempts = [attempt];
+  setReviewing(target, root);
+  return target;
+}
+
+test("exception-linked T-0004 integration requires a valid exception, validated T-0005, and current acceptance evidence", async () => {
+  const { root, spec, ledger } = await integrationGateFixture();
+  const target = seedValidatedCorrection(ledger, root);
+  const recovery = progressFor(ledger, "T-0005");
+  const acceptance = mockIntegrationGates(ledger, []);
+
+  for (const blocker of [
+    "Required check 'ticket test' has no current passing record.",
+    "Required check 'ticket test' is stale.",
+    "Independent corrective review coverage is missing.",
+    "Independent corrective review evidence is stale.",
+  ]) {
+    acceptance.mockReturnValue([blocker]);
+    const gated = await integrateFixtureTicket(root, spec, "T-0004");
+    expect(gated.status).not.toBe(0);
+    expect(gated.stderr).toContain("Ticket review or checks are not current");
+    expect(gated.stderr).toContain(blocker);
+  }
+  expect(acceptance).toHaveBeenCalledTimes(4);
+
+  target.taskPlanException = undefined;
+  const absent = await integrateFixtureTicket(root, spec, "T-0004");
+  expect(absent.status).not.toBe(0);
+  expect(absent.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+
+  const invalidTarget = seedValidatedCorrection(ledger, root);
+  if (!invalidTarget.assignment) throw new Error("Missing corrective assignment in fixture.");
+  invalidTarget.assignment.approvedExceptionId = "unlinked-exception";
+  const invalid = await integrateFixtureTicket(root, spec, "T-0004");
+  expect(invalid.status).not.toBe(0);
+  expect(invalid.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+
+  recovery.integration!.postMerge!.status = "pending";
+  const unvalidated = await integrateFixtureTicket(root, spec, "T-0004");
+  expect(unvalidated.status).not.toBe(0);
+  expect(unvalidated.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+  expect(acceptance).toHaveBeenCalledTimes(4);
+});
 
 test("integration preserves ignored collisions and permits unrelated ignored files on retry", async () => {
   const { root, spec, parent, workspace } = await acceptedTicket();
