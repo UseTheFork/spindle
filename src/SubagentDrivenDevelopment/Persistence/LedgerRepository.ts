@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { blueprintCatalog } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type { IntegrationRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import {
   FEATURE_DIRECTORY,
@@ -247,33 +248,9 @@ export class LedgerRepository extends Service {
               ProgressSchema.isAcceptedEvidence(ticket.acceptedEvidence) &&
               JSON.stringify(ticket.integration.files) ===
                 JSON.stringify(ticket.acceptedEvidence.files))) &&
-          (!Object.hasOwn(ticket, "integrationHistory") ||
-            (Array.isArray(ticket.integrationHistory) &&
-              ticket.integrationHistory.length > 0 &&
-              ticket.integrationHistory.every(ProgressSchema.isIntegrationRecord) &&
-              ticket.integrationHistory.every((integration) => {
-                const postMerge = integration.postMerge;
-                const records = postMerge?.checks?.records ?? [];
-                return (
-                  postMerge?.status === "pending" &&
-                  records.some(
-                    (record, index) =>
-                      record.result === "failed" &&
-                      !records.slice(index + 1).some((later) => later.command === record.command),
-                  )
-                );
-              }) &&
-              new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).size ===
-                ticket.integrationHistory.length &&
-              (!ProgressSchema.isIntegrationRecord(ticket.integration) ||
-                (!new Set(ticket.integrationHistory.map((integration) => integration.mergeSha)).has(
-                  ticket.integration.mergeSha,
-                ) &&
-                  LedgerRepository.matchingCorrectionChecks(
-                    ticket.integration,
-                    ticket.integrationHistory[ticket.integrationHistory.length - 1]!,
-                  ))) &&
-              LedgerRepository.matchingCorrectionHistory(ticket.integrationHistory))) &&
+          LedgerRepository.validIntegrationHistory(ticket, feature) &&
+          (!Object.hasOwn(ticket, "taskPlanException") ||
+            LedgerRepository.validTaskPlanException(ticket, feature)) &&
           (!Object.hasOwn(ticket, "reviewRequirements") ||
             (Array.isArray(ticket.reviewRequirements) &&
               ticket.reviewRequirements.every(ReviewSchema.isSpecialistReviewRequirement) &&
@@ -664,6 +641,119 @@ export class LedgerRepository extends Service {
       !!checks &&
       JSON.stringify(expected.required.map((item) => item.command)) ===
         JSON.stringify(checks.required.map((item) => item.command))
+    );
+  }
+
+  private static validIntegrationHistory(
+    ticket: Record<string, unknown>,
+    feature: string,
+  ): boolean {
+    if (!Object.hasOwn(ticket, "integrationHistory")) return true;
+    const history = ticket.integrationHistory;
+    if (
+      !Array.isArray(history) ||
+      history.length === 0 ||
+      !history.every(ProgressSchema.isIntegrationRecord) ||
+      new Set(history.map((integration) => integration.mergeSha)).size !== history.length
+    ) {
+      return false;
+    }
+
+    const exception = AssignmentSchema.isApprovedTaskPlanException(ticket.taskPlanException)
+      ? ticket.taskPlanException
+      : undefined;
+    const exceptionIndex = exception
+      ? history.findIndex(
+          (integration) =>
+            JSON.stringify(integration) === JSON.stringify(exception.priorIntegration),
+        )
+      : -1;
+    const ordinaryHistory = history.filter((_, index) => index !== exceptionIndex);
+    const validFailedHistory = ordinaryHistory.every((integration) => {
+      const records = integration.postMerge?.checks?.records ?? [];
+      return (
+        integration.postMerge?.status === "pending" &&
+        records.some(
+          (record, index) =>
+            record.result === "failed" &&
+            !records.slice(index + 1).some((later) => later.command === record.command),
+        )
+      );
+    });
+    if (!validFailedHistory) return false;
+
+    const current = ProgressSchema.isIntegrationRecord(ticket.integration)
+      ? ticket.integration
+      : undefined;
+    if (current && history.some((integration) => integration.mergeSha === current.mergeSha)) {
+      return false;
+    }
+    if (exceptionIndex >= 0 && exception) {
+      const earlier = history.slice(0, exceptionIndex);
+      if (
+        feature !== APPROVED_TASK_PLAN_EXCEPTION.feature ||
+        ticket.id !== APPROVED_TASK_PLAN_EXCEPTION.ticket ||
+        (earlier.length > 0 && !LedgerRepository.matchingCorrectionHistory(earlier)) ||
+        (current &&
+          exception.priorIntegration.postMerge?.checks &&
+          !LedgerRepository.matchingCorrectionChecks(current, exception.priorIntegration))
+      ) {
+        return false;
+      }
+      return true;
+    }
+    return (
+      !exception &&
+      (!current ||
+        LedgerRepository.matchingCorrectionChecks(current, history[history.length - 1]!)) &&
+      LedgerRepository.matchingCorrectionHistory(history)
+    );
+  }
+
+  private static validTaskPlanException(ticket: Record<string, unknown>, feature: string): boolean {
+    const exception = ticket.taskPlanException;
+    if (
+      feature !== APPROVED_TASK_PLAN_EXCEPTION.feature ||
+      ticket.id !== APPROVED_TASK_PLAN_EXCEPTION.ticket ||
+      !AssignmentSchema.isApprovedTaskPlanException(exception) ||
+      !Array.isArray(ticket.tasks) ||
+      ticket.tasks.length !== 0 ||
+      !ProgressSchema.isIntegrationRecord(exception.priorIntegration) ||
+      exception.priorIntegration.postMerge?.status !== "pending" ||
+      !exception.priorIntegration.mergeSha ||
+      !ProgressSchema.isAcceptedEvidence(exception.priorAcceptedEvidence) ||
+      exception.priorAcceptedEvidence.commitSha !== exception.priorIntegration.commitSha ||
+      ticket.owner !== exception.controller ||
+      !["implementing", "reviewing", "changes-requested", "integrated"].includes(
+        String(ticket.execution),
+      ) ||
+      !Array.isArray(ticket.integrationHistory) ||
+      !ticket.integrationHistory.some(
+        (integration) => JSON.stringify(integration) === JSON.stringify(exception.priorIntegration),
+      ) ||
+      !Array.isArray(ticket.correctionAttempts) ||
+      exception.attempt !== ticket.correctionAttempts.length
+    ) {
+      return false;
+    }
+    const attempt = ticket.correctionAttempts[exception.attempt - 1];
+    const assignment = ticket.assignment;
+    return (
+      AssignmentSchema.isCorrectionAttempt(attempt) &&
+      AssignmentSchema.isImplementationAssignment(assignment) &&
+      attempt.number === exception.attempt &&
+      attempt.assignmentId === exception.assignmentId &&
+      attempt.assignmentId === assignment.id &&
+      attempt.approvedExceptionId === exception.id &&
+      attempt.assignment.approvedExceptionId === exception.id &&
+      assignment.approvedExceptionId === exception.id &&
+      attempt.startedBy === exception.controller &&
+      attempt.objective === exception.objective &&
+      assignment.objective === exception.objective &&
+      attempt.findingIds.length === 0 &&
+      !attempt.checkFailure &&
+      assignment.findingIds?.length === 0 &&
+      !assignment.checkFailure
     );
   }
 

@@ -1,4 +1,25 @@
-import type { CheckRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type {
+  AcceptedEvidence,
+  CheckRecord,
+  IntegrationRecord,
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+
+export const APPROVED_TASK_PLAN_EXCEPTION = {
+  feature: "0001-ticket-task-dispatch",
+  ticket: "T-0004",
+  recoveryTicket: "T-0005",
+  scope: "one-corrective-cycle",
+  approvalAuthor: "User",
+  approvalDate: "2026-11-16",
+  approvalCommentAt: "2026-11-16T20:09:41.685Z",
+  approvalQuote:
+    "extend the SDD workflow with an auditable way to record this approved exception and reopen the already-integrated T-0004 for the necessary corrective change, while preserving its existing evidence and all remaining gates.",
+  approvalRemainder:
+    "Scope is limited to this feature and T-0004; do not fabricate findings or tasks, and preserve every remaining gate.",
+  approvalComment:
+    'User approval (2026-11-16): "extend the SDD workflow with an auditable way to record this approved exception and reopen the already-integrated T-0004 for the necessary corrective change, while preserving its existing evidence and all remaining gates." Scope is limited to this feature and T-0004; do not fabricate findings or tasks, and preserve every remaining gate.',
+  approvalSource: "tickets/T-0005.md",
+} as const;
 
 export interface ImplementationAssignment {
   id: string;
@@ -15,6 +36,7 @@ export interface ImplementationAssignment {
   findingIds?: string[];
   checkFailure?: string;
   objective?: string;
+  approvedExceptionId?: string;
   reportSha256?: string;
   submittedAt?: string;
   submittedBy?: string;
@@ -27,6 +49,7 @@ export interface CorrectionAttempt {
   findingIds: string[];
   checkFailure?: string;
   objective: string;
+  approvedExceptionId?: string;
   startedAt: string;
   startedBy: string;
   assignmentId: string;
@@ -47,6 +70,29 @@ export interface CorrectionAttempt {
     recordedAt: string;
     recordedBy: string;
   };
+}
+
+export interface ApprovedTaskPlanException {
+  id: string;
+  feature: typeof APPROVED_TASK_PLAN_EXCEPTION.feature;
+  ticket: typeof APPROVED_TASK_PLAN_EXCEPTION.ticket;
+  recoveryTicket: typeof APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket;
+  scope: typeof APPROVED_TASK_PLAN_EXCEPTION.scope;
+  approval: {
+    author: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalAuthor;
+    date: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalDate;
+    commentAt: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalCommentAt;
+    quote: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalQuote;
+    comment: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalComment;
+    source: typeof APPROVED_TASK_PLAN_EXCEPTION.approvalSource;
+  };
+  controller: string;
+  recordedAt: string;
+  objective: string;
+  assignmentId: string;
+  attempt: number;
+  priorIntegration: IntegrationRecord;
+  priorAcceptedEvidence: AcceptedEvidence;
 }
 
 export interface CorrectionAdjudication {

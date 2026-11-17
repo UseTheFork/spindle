@@ -1,7 +1,7 @@
+import { CorrectCommand } from "@spindle/SubagentDrivenDevelopment/Commands/CorrectCommand";
+import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Command } from "commander";
 import { expect, test } from "vitest";
-
-import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 
 test("SDD schemas allocate independent parsers on registration", () => {
   const never = async () => {
@@ -43,4 +43,16 @@ test("SDD schemas allocate independent parsers on registration", () => {
       }
     }
   }
+});
+
+test("correct exposes the explicit approved task-plan exception option", () => {
+  const root = new Command("spindle");
+  CorrectCommand.register(root, async () => {
+    throw new Error("Option schema inspection must not construct an Application.");
+  });
+  const sdd = root.commands.find((command) => command.name() === "sdd");
+  const correct = sdd?.commands.find((command) => command.name() === "correct");
+  expect(correct?.options.find((option) => option.long === "--approved-exception")?.flags).toBe(
+    "--approved-exception",
+  );
 });

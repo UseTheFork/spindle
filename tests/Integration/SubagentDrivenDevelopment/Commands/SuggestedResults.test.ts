@@ -2,8 +2,6 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import {
   execute,
   prepareImplementationForReview,
@@ -11,6 +9,7 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 import { repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { expect, test } from "vitest";
 
 function runSuggested(repo: string, lines: string[], operation: string, result: string) {
   const labels =
@@ -106,3 +105,16 @@ test.each(["passed", "failed", "unavailable"])(
     }
   },
 );
+
+test("next offers the explicit one-use approved T-0004 recovery choice", () => {
+  const lines = nextSummary({
+    feature: "0001-ticket-task-dispatch",
+    actions: [{ ticket: "T-0004", action: "approved-exception-correction" }],
+    blockers: [],
+    pendingAssignments: [],
+    delivery: { status: "active", execution: "unstarted", blockers: [] },
+  });
+  expect(lines).toContain(
+    "  Next: pnpm spindle sdd correct --feature .spindle/features/0001-ticket-task-dispatch --ticket T-0004 --details '<clear-correction-objective>' --approved-exception --actor <acting-agent>",
+  );
+});

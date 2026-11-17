@@ -100,6 +100,7 @@ export interface ImplementOptions extends TicketSelection {
 
 export interface CorrectOptions extends TicketSelection {
   scope?: string;
+  approvedException?: boolean;
   findings?: string[];
   checkFailure?: string;
   details: string;

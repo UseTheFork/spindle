@@ -2,16 +2,296 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
+import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
+import type {
+  FeaturePaths,
+  FeatureLedger,
+  TicketDocument,
+  TicketProgress,
+} from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
+import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { TicketRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/TicketRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
+import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
+import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import {
   commitTicketWorkspace,
   execute,
   prepareImplementationForReview,
   prepareReviewAssignment,
   recordReviewCheck,
+  serviceFixture,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
 import type { WorkflowServices } from "@test/Helpers/SubagentDrivenDevelopment/WorkflowServices";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+
+async function approvedExceptionFixture(
+  options: {
+    feature?: string;
+    includeApproval?: boolean;
+    execution?: TicketProgress["execution"];
+  } = {},
+) {
+  const { repo, app, service } = await serviceFixture();
+  const feature: FeaturePaths = {
+    feature: options.feature ?? APPROVED_TASK_PLAN_EXCEPTION.feature,
+    workspace: repo,
+    spec: join(repo, "spec.md"),
+    ledger: join(repo, "sdd.json"),
+  };
+  const commitSha = "a".repeat(40);
+  const mergeSha = "b".repeat(40);
+  const recordedAt = "2026-11-16T20:00:00.000Z";
+  const required = [{ command: "pnpm test", addedAt: recordedAt, addedBy: "controller" }];
+  const priorIntegration = {
+    commitSha,
+    mergeSha,
+    postMerge: {
+      status: "pending" as const,
+      mergeSha,
+      checks: { required, records: [] },
+    },
+    integratedAt: recordedAt,
+    integratedBy: "controller",
+    files: ["feature.ts"],
+  };
+  const recoveryIntegration = {
+    commitSha: "c".repeat(40),
+    mergeSha: "d".repeat(40),
+    postMerge: {
+      status: "passed" as const,
+      mergeSha: "d".repeat(40),
+      checks: {
+        required,
+        records: [
+          {
+            command: "pnpm test",
+            result: "passed" as const,
+            author: "controller",
+            headSha: "d".repeat(40),
+            recordedAt,
+          },
+        ],
+      },
+    },
+    integratedAt: recordedAt,
+    integratedBy: "controller",
+    files: ["recovery.ts"],
+  };
+  const target: TicketProgress = {
+    id: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    title: "Existing integrated ticket",
+    reporter: "requester",
+    category: "enhancement",
+    status: "open",
+    blockedBy: [],
+    tasks: [],
+    execution: options.execution ?? "integrated",
+    owner: "controller",
+    baseSha: commitSha,
+    worktree: {
+      workspace: repo,
+      branch: `tickets/${feature.feature}/${APPROVED_TASK_PLAN_EXCEPTION.ticket}`,
+      baseSha: commitSha,
+    },
+    acceptedEvidence: { commitSha, files: ["feature.ts"] },
+    integration: priorIntegration,
+    assignment: {
+      id: "prior-assignment",
+      role: "implementation",
+      action: "implement",
+      controller: "controller",
+      report: join(repo, "old-report.md"),
+      requestedAt: recordedAt,
+      status: "submitted",
+      handoffs: [],
+    },
+    correctionAttempts: [],
+  };
+  const recovery: TicketProgress = {
+    id: APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket,
+    title: "Recovery ticket",
+    reporter: "requester",
+    category: "enhancement",
+    status: "closed",
+    blockedBy: [],
+    tasks: [],
+    execution: "integrated",
+    integration: recoveryIntegration,
+  };
+  const ledger: FeatureLedger = {
+    schemaVersion: 4,
+    featureId: "0001",
+    title: "Ticket Task Dispatch",
+    createdBy: "controller",
+    createdAt: recordedAt,
+    retrospectiveRequired: false,
+    reviewPolicy: { version: 1, ticket: ["reviewer"], delivery: ["reviewer"] },
+    tickets: [target, recovery],
+    delivery: { execution: "unstarted", history: [] },
+  };
+  const ticket = (id: string, status: TicketDocument["status"], body: string): TicketDocument => ({
+    metadata: { id },
+    id,
+    title: id,
+    reporter: "requester",
+    category: "enhancement",
+    status,
+    blocked_by: [],
+    body,
+    path: join(repo, "tickets", `${id}.md`),
+    raw: body,
+  });
+  const targetTicket = ticket(APPROVED_TASK_PLAN_EXCEPTION.ticket, "open", "T-0004");
+  const recoveryTicket = ticket(
+    APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket,
+    "closed",
+    options.includeApproval === false ? "T-0005" : APPROVED_TASK_PLAN_EXCEPTION.approvalComment,
+  );
+  const inspection = await app.make(FeatureInspectionService);
+  const gitEvidence = await app.make(GitEvidence);
+  const reports = await app.make(ReportEvidence);
+  const tickets = await app.make(TicketRepository);
+  const ledgers = await app.make(LedgerRepository);
+  const transaction = await app.make(WorkspaceTransaction);
+  const workflow = await app.make(WorkflowPolicy);
+  vi.spyOn(inspection, "resolveFeature").mockReturnValue(feature);
+  vi.spyOn(ledgers, "readLedger").mockReturnValue(ledger);
+  vi.spyOn(tickets, "readTickets").mockReturnValue([targetTicket, recoveryTicket]);
+  vi.spyOn(tickets, "requireTicket").mockImplementation((_documents, id) =>
+    id === recoveryTicket.id ? recoveryTicket : targetTicket,
+  );
+  vi.spyOn(tickets, "appendAudit").mockImplementation(
+    (body, author, details) => `${body}\n${author}: ${details}`,
+  );
+  vi.spyOn(tickets, "metadata").mockReturnValue(targetTicket.metadata);
+  vi.spyOn(workflow, "requireProgress").mockReturnValue(target);
+  vi.spyOn(gitEvidence, "commitIdentity").mockReturnValue({ headSha: commitSha });
+  vi.spyOn(gitEvidence, "ticketWorkspace").mockReturnValue(repo);
+  vi.spyOn(gitEvidence, "headSha").mockReturnValue(commitSha);
+  vi.spyOn(gitEvidence, "gitBuffer").mockReturnValue(Buffer.alloc(0));
+  vi.spyOn(gitEvidence, "assertTicketCodeCommitted").mockImplementation(() => undefined);
+  vi.spyOn(reports, "assertReportPath").mockImplementation(() => undefined);
+  const writeWorkflowState = vi
+    .spyOn(transaction, "writeWorkflowState")
+    .mockImplementation(() => undefined);
+  return { repo, service, feature, ledger, target, targetTicket, writeWorkflowState };
+}
+
+test("the approved task-plan exception records one atomic, idempotent T-0004 correction", async () => {
+  const { feature, service, target, writeWorkflowState } = await approvedExceptionFixture();
+  expect(() => TaskPlanPolicy.assertAllAccepted(target)).toThrow(/no task plan/i);
+
+  const options = {
+    spec: feature.spec,
+    ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    details: "Correct the approved T-0004 behavior.",
+    approvedException: true,
+    author: "controller",
+  };
+  const dispatched = service.correctionService.correct(options);
+
+  expect(dispatched.execution).toBe("implementing");
+  expect(dispatched.taskPlanException).toMatchObject({
+    feature: APPROVED_TASK_PLAN_EXCEPTION.feature,
+    ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+    recoveryTicket: APPROVED_TASK_PLAN_EXCEPTION.recoveryTicket,
+    scope: "one-corrective-cycle",
+    controller: "controller",
+    objective: options.details,
+    approval: {
+      author: "User",
+      comment: APPROVED_TASK_PLAN_EXCEPTION.approvalComment,
+      source: "tickets/T-0005.md",
+    },
+  });
+  expect(dispatched.assignment).toMatchObject({
+    action: "correct",
+    findingIds: [],
+    objective: options.details,
+    approvedExceptionId: dispatched.taskPlanException?.id,
+    status: "pending",
+  });
+  expect(dispatched.assignment?.checkFailure).toBeUndefined();
+  expect(target.tasks).toEqual([]);
+  expect(target.integration).toBeUndefined();
+  expect(target.integrationHistory).toHaveLength(1);
+  expect(target.acceptedEvidence?.commitSha).toBe("a".repeat(40));
+  expect(target.correctionAttempts).toHaveLength(1);
+  expect(writeWorkflowState).toHaveBeenCalledTimes(1);
+  expect(() => TaskPlanPolicy.assertAllAccepted(target)).not.toThrow();
+
+  const retried = service.correctionService.correct(options);
+  expect(retried.idempotent).toBe(true);
+  expect(retried.assignment?.id).toBe(dispatched.assignment?.id);
+  expect(retried.taskPlanException?.id).toBe(dispatched.taskPlanException?.id);
+  expect(writeWorkflowState).toHaveBeenCalledTimes(1);
+  expect(() =>
+    service.correctionService.correct({ ...options, details: "A second correction." }),
+  ).toThrow(/already been used/i);
+});
+
+test.each([
+  {
+    label: "a different feature",
+    fixture: { feature: "0002-another-feature" },
+    options: {
+      ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+      author: "controller",
+      details: "Correct the behavior.",
+    },
+    message: /limited to 0001-ticket-task-dispatch\/T-0004/i,
+  },
+  {
+    label: "a different ticket",
+    fixture: {},
+    options: { ticket: "T-0003", author: "controller", details: "Correct the behavior." },
+    message: /limited to 0001-ticket-task-dispatch\/T-0004/i,
+  },
+  {
+    label: "a different owner",
+    fixture: {},
+    options: {
+      ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+      author: "not-controller",
+      details: "Correct the behavior.",
+    },
+    message: /owned by controller/i,
+  },
+  {
+    label: "an invalid lifecycle state",
+    fixture: { execution: "reviewing" as const },
+    options: {
+      ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+      author: "controller",
+      details: "Correct the behavior.",
+    },
+    message: /current open, integrated, taskless/i,
+  },
+  {
+    label: "missing approval context",
+    fixture: { includeApproval: false },
+    options: {
+      ticket: APPROVED_TASK_PLAN_EXCEPTION.ticket,
+      author: "controller",
+      details: "Correct the behavior.",
+    },
+    message: /exact recorded user approval/i,
+  },
+])("the approved exception rejects $label", async ({ fixture: setup, options, message }) => {
+  const { service, feature } = await approvedExceptionFixture(setup);
+  expect(() =>
+    service.correctionService.correct({
+      spec: feature.spec,
+      ...options,
+      approvedException: true,
+    }),
+  ).toThrow(message);
+});
 
 test("correct persists a finding-scoped attempt before returning an idempotent fix assignment", async () => {
   const { repo, spec, assignment, ticketWorkspace } = await prepareReviewAssignment();

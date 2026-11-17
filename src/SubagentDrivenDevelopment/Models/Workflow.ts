@@ -1,5 +1,6 @@
 import type {
   ImplementationAssignment,
+  ApprovedTaskPlanException,
   CorrectionAttempt,
   CorrectionAdjudication,
   ReviewAssignment,
@@ -64,6 +65,7 @@ export interface TicketProgress {
   integrationHistory?: IntegrationRecord[];
   assignment?: ImplementationAssignment;
   correctionAttempts?: CorrectionAttempt[];
+  taskPlanException?: ApprovedTaskPlanException;
   adjudication?: CorrectionAdjudication;
   reviewRequirements?: SpecialistReviewRequirement[];
   reviewAssignments?: ReviewAssignment[];
