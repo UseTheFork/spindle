@@ -2659,6 +2659,11 @@
         "at": "2026-11-17T14:02:51.853Z",
         "author": "Copilot",
         "action": "correction-paused:worker-blocked"
+      },
+      {
+        "at": "2026-11-17T14:04:59.909Z",
+        "author": "Copilot",
+        "action": "delivery-check-required:pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2691,6 +2696,11 @@
         {
           "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
           "addedAt": "2026-11-17T04:38:48.206Z",
+          "addedBy": "Copilot"
+        },
+        {
+          "command": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+          "addedAt": "2026-11-17T14:04:59.733Z",
           "addedBy": "Copilot"
         }
       ],
