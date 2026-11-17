@@ -1556,6 +1556,14 @@
             "author": "Copilot",
             "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
             "recordedAt": "2026-11-17T02:09:52.778Z"
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
+            "recordedAt": "2026-11-17T02:28:54.773Z",
+            "details": "Vitest passed: 52 files, 298 tests. The command chain then stopped at production tsc with TS2322 in tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:273: Type string | undefined is not assignable to type string. Test-project tsc and oxlint did not run because the && chain stopped."
           }
         ]
       },
@@ -1811,7 +1819,17 @@
             "details": "Round 1 added focused guard-block and rejection coverage and passed fresh ticket checks, but independent review found missing successful allowed-path progression, T-0004 evidence-preservation assertions, and wrong-target rejection for exception-linked correction. Continue because the attempt materially improved coverage; address these remaining F-0001 gaps.",
             "recordedAt": "2026-11-17T02:15:16.522Z",
             "recordedBy": "Copilot"
-          }
+          },
+          "checks": [
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "failed",
+              "author": "Copilot",
+              "headSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
+              "recordedAt": "2026-11-17T02:28:54.773Z",
+              "details": "Vitest passed: 52 files, 298 tests. The command chain then stopped at production tsc with TS2322 in tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:273: Type string | undefined is not assignable to type string. Test-project tsc and oxlint did not run because the && chain stopped."
+            }
+          ]
         }
       ]
     }
