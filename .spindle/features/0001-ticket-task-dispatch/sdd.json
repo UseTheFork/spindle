@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2609,6 +2609,11 @@
         "at": "2026-11-17T13:22:00.570Z",
         "author": "Copilot",
         "action": "correction-dispatched:7"
+      },
+      {
+        "at": "2026-11-17T13:33:51.219Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:e94b3c9c-b78d-444c-b9a1-2b2912fb3995"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3368,8 +3373,11 @@
           "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
           "requestedAt": "2026-11-17T13:22:00.570Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "594a2d08a2e031b0432ed92dbb6b884d95107a8ee08a5bb650eff6ba4af3d892",
+          "submittedAt": "2026-11-17T13:33:51.219Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "744e206a-806e-48a1-bbdc-d21d96e5b058",
@@ -3409,8 +3417,11 @@
       "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
       "requestedAt": "2026-11-17T13:22:00.570Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "594a2d08a2e031b0432ed92dbb6b884d95107a8ee08a5bb650eff6ba4af3d892",
+      "submittedAt": "2026-11-17T13:33:51.219Z",
+      "submittedBy": "Copilot"
     },
     "adjudication": {
       "status": "resolved",
