@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "reviewing",
+    "execution": "changes-requested",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2654,6 +2654,11 @@
         "at": "2026-11-17T13:51:53.868Z",
         "author": "Copilot",
         "action": "final-checks-declared"
+      },
+      {
+        "at": "2026-11-17T14:02:51.853Z",
+        "author": "Copilot",
+        "action": "correction-paused:worker-blocked"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3586,16 +3591,11 @@
       "submittedBy": "Copilot"
     },
     "adjudication": {
-      "status": "resolved",
+      "status": "pending",
       "reason": "worker-blocked",
-      "details": "The approved F-0001 fix cannot be dispatched: sdd next offers delivery correction, but sdd correct rejects it because delivery execution is reviewing and the corrective review passed. Finding verification is itself defective because Git path comparison runs from nested feature records and misses committed source changes. Preserve this blocker for controller adjudication; no failed review/check is claimed.",
-      "recordedAt": "2026-11-17T13:21:53.693Z",
-      "recordedBy": "Copilot",
-      "resolution": {
-        "details": "The previous correction implemented accepted-task report integrity and its corrective review passed, but recording F-0001 as fixed failed with the exact guard error. Reproduced against the current commit: deliveryInputsPreserved uses feature.workspace, a nested .spindle/features path, so changedPathsBetween excludes all source files. This is an SDD verification-path bug that prevents disposition despite committed correction and passing review. Continue with a focused guard fix and regression test.",
-        "recordedAt": "2026-11-17T13:22:00.570Z",
-        "recordedBy": "Copilot"
-      }
+      "details": "sdd finish is blocked before merge by two relocation defects in FeatureFinalizationService.relocate: (1) task records added by this feature store tickets[].tasks[].assignment.worktree as an absolute ticket-worktree path, which relocation rejects as 'Cannot safely relocate recorded path'; (2) finding history details written by FindingService/DeliveryFindingService embed absolute report paths ('Registered from <abs report>.md at commit ...', 'Linked observation from ...'), which relocation rejects as 'Embedded workflow path cannot be silently rewritten'. Both must be corrected so finalization can relocate the ledger.",
+      "recordedAt": "2026-11-17T14:02:51.853Z",
+      "recordedBy": "Copilot"
     },
     "reviewAssignments": [
       {
