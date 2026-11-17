@@ -1565,6 +1565,13 @@
             "headSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
             "recordedAt": "2026-11-17T02:28:54.773Z",
             "details": "Vitest passed: 52 files, 298 tests. The command chain then stopped at production tsc with TS2322 in tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:273: Type string | undefined is not assignable to type string. Test-project tsc and oxlint did not run because the && chain stopped."
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+            "recordedAt": "2026-11-17T02:38:37.189Z"
           }
         ]
       },
@@ -1893,6 +1900,13 @@
               "headSha": "1b99f0228d454713df9a496fda004f3b8a73ba4f",
               "recordedAt": "2026-11-17T02:28:54.773Z",
               "details": "Vitest passed: 52 files, 298 tests. The command chain then stopped at production tsc with TS2322 in tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts:273: Type string | undefined is not assignable to type string. Test-project tsc and oxlint did not run because the && chain stopped."
+            },
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+              "recordedAt": "2026-11-17T02:38:37.189Z"
             }
           ],
           "progressAssessment": {
