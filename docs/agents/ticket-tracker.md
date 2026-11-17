@@ -6,8 +6,10 @@ Spindle SDD stores feature work in `.spindle/features/` workspaces. A workspace 
 
 - Each ticket is `tickets/T-0001.md`, with IDs starting at `T-0001` independently in each feature. IDs use at least four digits.
 - `sdd.json` is authoritative for ticket metadata, status, dependencies, and execution state. Ticket Markdown contains only its ID in YAML front matter; requirements, acceptance criteria, and comments are the editable body.
+- Task definitions are stored in the ledger under their parent ticket, not duplicated in ticket Markdown. Use SDD task commands to create and update them.
 - Ticket creation copies the shared template, including `[REQUIREMENTS]` and `[ACCEPTANCE CRITERIA]` placeholders. Fill both before implementation.
 - Ticket status is `open` or `closed`. The workflow closes a ticket after integration and passing post-merge checks; do not set status manually. Dependencies must refer to existing tickets; cycles are rejected.
+- Task status is `unassigned`, `assigned`, `submitted`, `accepted`, or `changes-requested`. The controller owns task state changes; workers return reports and do not edit the ledger.
 - There is no general migration or compatibility support for `issues/`, `I-####`, or previous SDD ledger schemas. The active `0001-ticket-task-dispatch` workspace receives a one-time schema-version-3 to schema-version-4 conversion when it starts; all other previous ledger schemas remain unsupported.
 
 ## Create and maintain tickets
@@ -32,10 +34,26 @@ pnpm spindle sdd ticket comment --feature <feature-workspace> --ticket T-0001 --
 
 Use `--clear-blocked-by` to remove dependencies. Ticket Markdown remains editable; attributed comments are appended under `## Comments`. Do not add an execution field to the ticket file.
 
+## Create and maintain task plans
+
+Define the task plan before starting ticket implementation. Unless the project has a documented, approved exception, each ticket must have at least one task. Use one task when the ticket does not need meaningful decomposition; do not split work artificially.
+
+Each task has a title, self-contained instructions, non-empty acceptance criteria, explicit repository-relative paths to edit, create, and reference, optional dependencies on other tasks in the same ticket, and tracked workflow state. Do not use globs. List only paths relevant to that task. Edit/create paths reserve exclusive write ownership while a task is assigned, submitted, or changes-requested; accepted tasks release those reservations. Tasks assigned concurrently must not overlap edit/create paths. Tasks may share reference paths. Add a dependency when a task needs another task's output, not merely to serialize unrelated work.
+
+Task IDs start at `TASK-0001` and are assigned by the CLI, uniquely within their ticket. Create dependencies first; a task can depend only on an existing task in the same ticket, and cycles are rejected.
+
+```sh
+pnpm spindle sdd task create --feature <feature-workspace> --ticket T-0001 --title "..." --instructions "..." --acceptance-criteria "..." --edit-paths <paths...> --create-paths <paths...> --reference-paths <paths...> --dependencies <task-ids...> --actor <acting-agent>
+```
+
+Provide only the non-empty path lists and `--dependencies` that apply. Before creating tasks, obtain approval for their objectives, acceptance criteria, scopes, and dependencies. On resumption, inspect existing tasks before creating more. Use `pnpm spindle sdd task update` to revise a task plan before implementation assignment; assignment freezes the plan.
+
 ## Task-based ticket implementation
 
 Define the ticket's task plan before starting implementation. The controller
 starts or resumes one shared ticket worktree and coordinates task workers there.
+Before dispatch, revalidate task scopes against the current ticket worktree and
+the results of prerequisite tasks.
 Workers edit only their assigned task file scope and return task reports; they
 do not change workflow state or commit. The controller reviews each task report
 and accepts the task or requests changes. Do not submit a ticket implementation
@@ -43,25 +61,6 @@ report or complete the ticket while any task is not accepted. After all tasks
 are accepted, the controller commits the combined ticket changes and submits
 one ticket-level implementation report. Existing ticket checks, review,
 integration, and post-merge validation remain required.
-
-## Approved T-0004 recovery
-
-The task-plan exception is a one-use recovery path only for T-0004 in feature
-`0001-ticket-task-dispatch`. It becomes available only after T-0005 is closed
-with passing post-merge checks and `sdd next` offers the explicit recovery
-choice. The controller must use `sdd correct --approved-exception` with a clear
-objective. The operation records the exact approval, controller, time, feature,
-ticket, fixed one-correction scope, and corrective assignment atomically. It
-does not create tasks, findings, or failed-check claims.
-
-Do not use the exception for another ticket, feature, owner, or lifecycle state,
-or repeat it after use. T-0004 remains taskless. Existing reports, findings,
-checks, review history, integration, and post-merge evidence remain historical;
-they do not satisfy any gate for the correction. The correction still requires a
-fresh implementation report, the normal ticket checks, an independent focused
-corrective review, a new integration, and passing post-merge checks before
-closure. Ordinary implementation and all other ticket/task gates still require
-an accepted task plan.
 
 ## Delivery
 
