@@ -1537,7 +1537,15 @@
             "addedBy": "Copilot"
           }
         ],
-        "records": []
+        "records": [
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
+            "recordedAt": "2026-11-17T01:44:19.194Z"
+          }
+        ]
       }
     }
   ],
