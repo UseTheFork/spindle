@@ -1,24 +1,18 @@
 import { Command } from "commander";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 
 import { ChecksRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ChecksRecordCommand";
 import { ReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/ReviewCommand";
 
-function review(args: string[]): Promise<Command> {
+function review(args: string[], suppressExpectedStderr = false): Promise<Command> {
   const program = new Command("spindle").exitOverride();
+  if (suppressExpectedStderr) {
+    program.configureOutput({ writeErr: () => {} });
+  }
   ReviewCommand.register(program, async () => {
     throw new Error("review dispatched");
   });
   return program.parseAsync(["sdd", "review", ...args], { from: "user" });
-}
-
-async function suppressExpectedStderr<T>(action: () => Promise<T>): Promise<T> {
-  const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-  try {
-    return await action();
-  } finally {
-    stderrWrite.mockRestore();
-  }
 }
 
 test.each([
@@ -49,9 +43,9 @@ test("review require accepts a ticket selector", async () => {
 });
 
 test("review require rejects the removed agent alias", async () => {
-  await suppressExpectedStderr(() =>
-    expect(
-      review([
+  await expect(
+    review(
+      [
         "require",
         "--feature",
         "/feature",
@@ -63,9 +57,10 @@ test("review require rejects the removed agent alias", async () => {
         "Inspect the change",
         "--actor",
         "owner",
-      ]),
-    ).rejects.toThrow(/unknown option.*--agent/i),
-  );
+      ],
+      true,
+    ),
+  ).rejects.toThrow(/unknown option.*--agent/i);
 });
 
 test.each([
@@ -75,38 +70,37 @@ test.each([
   ["--scope", "final"],
 ])("checks record rejects removed paths for %s", async (...selector) => {
   const program = new Command("spindle").exitOverride();
+  program.configureOutput({ writeErr: () => {} });
   ChecksRecordCommand.register(program, async () => {
     throw new Error("checks dispatched");
   });
-  await suppressExpectedStderr(() =>
-    expect(
-      program.parseAsync(
-        [
-          "sdd",
-          "checks",
-          "record",
-          "--feature",
-          "/feature",
-          ...selector,
-          "--command",
-          "pnpm test",
-          "--result",
-          "passed",
-          "--paths",
-          "src/example.ts",
-          "--actor",
-          "owner",
-        ],
-        { from: "user" },
-      ),
-    ).rejects.toThrow(/unknown option.*--paths/i),
-  );
+  await expect(
+    program.parseAsync(
+      [
+        "sdd",
+        "checks",
+        "record",
+        "--feature",
+        "/feature",
+        ...selector,
+        "--command",
+        "pnpm test",
+        "--result",
+        "passed",
+        "--paths",
+        "src/example.ts",
+        "--actor",
+        "owner",
+      ],
+      { from: "user" },
+    ),
+  ).rejects.toThrow(/unknown option.*--paths/i);
 });
 
 test("review rejects caller-supplied inventory", async () => {
-  await suppressExpectedStderr(() =>
-    expect(
-      review([
+  await expect(
+    review(
+      [
         "--feature",
         "/feature",
         "--ticket",
@@ -115,9 +109,10 @@ test("review rejects caller-supplied inventory", async () => {
         "[]",
         "--actor",
         "owner",
-      ]),
-    ).rejects.toThrow(/unknown option.*inventory/i),
-  );
+      ],
+      true,
+    ),
+  ).rejects.toThrow(/unknown option.*inventory/i);
 });
 
 test.each([[], ["--ticket", "T-0001", "--scope", "delivery"]])(
