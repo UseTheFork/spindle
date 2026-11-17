@@ -2404,6 +2404,11 @@
         "at": "2026-11-17T03:42:59.123Z",
         "author": "Copilot",
         "action": "delivery-check-required:pnpm run lint"
+      },
+      {
+        "at": "2026-11-17T03:43:05.254Z",
+        "author": "Copilot",
+        "action": "delivery-check-required:pnpm run fmt:check"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2423,6 +2428,11 @@
         {
           "command": "pnpm run lint",
           "addedAt": "2026-11-17T03:42:59.039Z",
+          "addedBy": "Copilot"
+        },
+        {
+          "command": "pnpm run fmt:check",
+          "addedAt": "2026-11-17T03:43:05.163Z",
           "addedBy": "Copilot"
         }
       ],
