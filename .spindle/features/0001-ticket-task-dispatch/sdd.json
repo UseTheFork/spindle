@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2604,6 +2604,11 @@
         "at": "2026-11-17T13:21:53.693Z",
         "author": "Copilot",
         "action": "correction-paused:worker-blocked"
+      },
+      {
+        "at": "2026-11-17T13:22:00.570Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:7"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3248,8 +3253,8 @@
         "progressAssessment": {
           "decision": "continue",
           "result": "productive",
-          "details": "The required full test run exposed 39 failures across 11 integration files because synthetic accepted-task fixtures lack valid report files/digests. The focused F-0001 regression suite passes; continue with a bounded fixture correction and rerun the full suite.",
-          "recordedAt": "2026-11-17T05:11:47.044Z",
+          "details": "The previous correction implemented accepted-task report integrity and its corrective review passed, but recording F-0001 as fixed failed with the exact guard error. Reproduced against the current commit: deliveryInputsPreserved uses feature.workspace, a nested .spindle/features path, so changedPathsBetween excludes all source files. This is an SDD verification-path bug that prevents disposition despite committed correction and passing review. Continue with a focused guard fix and regression test.",
+          "recordedAt": "2026-11-17T13:22:00.570Z",
           "recordedBy": "Copilot"
         },
         "reviewAssignments": [
@@ -3341,31 +3346,83 @@
             "status": "pending"
           }
         ]
+      },
+      {
+        "number": 7,
+        "findingIds": [
+          "F-0001"
+        ],
+        "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
+        "startedAt": "2026-11-17T13:22:00.570Z",
+        "startedBy": "Copilot",
+        "assignmentId": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
+        "assignment": {
+          "id": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 7,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
+          "requestedAt": "2026-11-17T13:22:00.570Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "priorAssignment": {
+          "id": "744e206a-806e-48a1-bbdc-d21d96e5b058",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 6,
+          "findingIds": [],
+          "checkFailure": "pnpm test",
+          "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
+          "requestedAt": "2026-11-17T05:11:47.045Z",
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "5139b24e69d40c1e81bdcd88d5a65a6b434194294ac8718f5a9c22e6b4e54cb5",
+          "submittedAt": "2026-11-17T05:22:07.741Z",
+          "submittedBy": "Copilot"
+        },
+        "progressAssessment": {
+          "decision": "continue",
+          "result": "productive",
+          "details": "The previous correction implemented accepted-task report integrity and its corrective review passed, but recording F-0001 as fixed failed with the exact guard error. Reproduced against the current commit: deliveryInputsPreserved uses feature.workspace, a nested .spindle/features path, so changedPathsBetween excludes all source files. This is an SDD verification-path bug that prevents disposition despite committed correction and passing review. Continue with a focused guard fix and regression test.",
+          "recordedAt": "2026-11-17T13:22:00.570Z",
+          "recordedBy": "Copilot"
+        }
       }
     ],
     "assignment": {
-      "id": "744e206a-806e-48a1-bbdc-d21d96e5b058",
+      "id": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
       "role": "implementation",
       "action": "correct",
       "controller": "Copilot",
-      "attempt": 6,
-      "findingIds": [],
-      "checkFailure": "pnpm test",
-      "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
-      "requestedAt": "2026-11-17T05:11:47.045Z",
-      "status": "submitted",
-      "handoffs": [],
-      "reportSha256": "5139b24e69d40c1e81bdcd88d5a65a6b434194294ac8718f5a9c22e6b4e54cb5",
-      "submittedAt": "2026-11-17T05:22:07.741Z",
-      "submittedBy": "Copilot"
+      "attempt": 7,
+      "findingIds": [
+        "F-0001"
+      ],
+      "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
+      "requestedAt": "2026-11-17T13:22:00.570Z",
+      "status": "pending",
+      "handoffs": []
     },
     "adjudication": {
-      "status": "pending",
+      "status": "resolved",
       "reason": "worker-blocked",
       "details": "The approved F-0001 fix cannot be dispatched: sdd next offers delivery correction, but sdd correct rejects it because delivery execution is reviewing and the corrective review passed. Finding verification is itself defective because Git path comparison runs from nested feature records and misses committed source changes. Preserve this blocker for controller adjudication; no failed review/check is claimed.",
       "recordedAt": "2026-11-17T13:21:53.693Z",
-      "recordedBy": "Copilot"
+      "recordedBy": "Copilot",
+      "resolution": {
+        "details": "The previous correction implemented accepted-task report integrity and its corrective review passed, but recording F-0001 as fixed failed with the exact guard error. Reproduced against the current commit: deliveryInputsPreserved uses feature.workspace, a nested .spindle/features path, so changedPathsBetween excludes all source files. This is an SDD verification-path bug that prevents disposition despite committed correction and passing review. Continue with a focused guard fix and regression test.",
+        "recordedAt": "2026-11-17T13:22:00.570Z",
+        "recordedBy": "Copilot"
+      }
     },
     "reviewAssignments": [
       {
