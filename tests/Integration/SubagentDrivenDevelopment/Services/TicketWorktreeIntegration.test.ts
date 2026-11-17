@@ -20,7 +20,6 @@ import type {
   TicketProgress,
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
-import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
@@ -218,7 +217,6 @@ function allowSuccessfulIntegration(
   vi.spyOn(GitEvidence.prototype, "changedPaths").mockReturnValue([]);
   vi.spyOn(ReportEvidence.prototype, "assertAcceptedReportsCurrent").mockImplementation(() => {});
   vi.spyOn(WorkflowRecordsCommitter.prototype, "commit").mockReturnValue(undefined);
-  vi.spyOn(WorkspaceTransaction.prototype, "writeWorkflowState").mockImplementation(() => {});
 
   return {
     mergeCommit,
@@ -304,6 +302,13 @@ test("the allowed T-0005 bootstrap preserves T-0004 pending integration and acce
   expect(prior.integration).toEqual(integrationBefore);
   expect(prior.integrationHistory).toEqual(historyBefore);
   expect(prior.acceptedEvidence).toEqual(evidenceBefore);
+  const persistedPrior = progressFor(
+    JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")) as FeatureLedger,
+    "T-0004",
+  );
+  expect(persistedPrior.integration).toEqual(integrationBefore);
+  expect(persistedPrior.integrationHistory).toEqual(historyBefore);
+  expect(persistedPrior.acceptedEvidence).toEqual(evidenceBefore);
 });
 
 test("the T-0005 bootstrap rejects a different feature", async () => {
@@ -487,6 +492,15 @@ test("the allowed exception-linked correction preserves T-0004 prior integration
     files: [],
   });
   expect(target.integration?.postMerge?.status).toBe("pending");
+  const persistedTarget = progressFor(
+    JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")) as FeatureLedger,
+    "T-0004",
+  );
+  expect(persistedTarget.integrationHistory).toEqual(historyBefore);
+  expect(persistedTarget.taskPlanException).toEqual(exceptionBefore);
+  expect(persistedTarget.taskPlanException?.priorAcceptedEvidence).toEqual(
+    exceptionBefore?.priorAcceptedEvidence,
+  );
 });
 
 test("the exception-linked correction guard rejects a different ticket", async () => {
