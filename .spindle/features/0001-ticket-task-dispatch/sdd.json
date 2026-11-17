@@ -1058,6 +1058,13 @@
             "headSha": "590e9da23c97b0ded32c10ab5cc044c200609b2a",
             "recordedAt": "2026-11-16T19:21:50.291Z",
             "details": "Controller re-run on the corrected assigned T-0004 commit: 52 test files and 282 tests passed; both TypeScript checks and oxlint exited 0."
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "9716767e1f66c4007a9d1d2cb618aead7d8cd4f9",
+            "recordedAt": "2026-11-17T03:13:02.667Z"
           }
         ]
       },
@@ -1243,7 +1250,16 @@
             "reportSha256": "fc8c8c19401f258ac8d20f7fcd9a4b44855e59dea6426f67df3d78555d6e463c",
             "submittedAt": "2026-11-16T19:16:14.784Z",
             "submittedBy": "Copilot"
-          }
+          },
+          "checks": [
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "9716767e1f66c4007a9d1d2cb618aead7d8cd4f9",
+              "recordedAt": "2026-11-17T03:13:02.667Z"
+            }
+          ]
         }
       ],
       "reviewAssignments": [
