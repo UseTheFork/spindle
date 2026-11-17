@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "reviewing",
+    "execution": "changes-requested",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2529,6 +2529,11 @@
         "at": "2026-11-17T04:51:49.562Z",
         "author": "Copilot",
         "action": "finding-registered:F-0002"
+      },
+      {
+        "at": "2026-11-17T04:51:56.903Z",
+        "author": "Copilot",
+        "action": "finding-confirmed:F-0001"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3138,7 +3143,7 @@
       {
         "id": "F-0001",
         "blocking": true,
-        "status": "open",
+        "status": "confirmed",
         "summary": "Accepted task reports are not revalidated after acceptance",
         "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion.",
         "author": "Copilot",
@@ -3158,6 +3163,12 @@
             "author": "Copilot",
             "action": "registered",
             "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+          },
+          {
+            "at": "2026-11-17T04:51:56.903Z",
+            "author": "Copilot",
+            "action": "status:confirmed",
+            "details": "confirmed"
           }
         ]
       },
