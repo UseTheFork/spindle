@@ -1505,24 +1505,26 @@
           }
         }
       ],
-      "execution": "changes-requested",
+      "execution": "implementing",
       "owner": "Copilot",
       "baseSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
       "assignment": {
-        "id": "a3bc6010-c1f5-4910-8db2-09bb2778dd85",
+        "id": "3382d04a-1890-41a2-9ce5-ab0b54a3b28b",
         "role": "implementation",
-        "action": "implement",
+        "action": "correct",
         "controller": "Copilot",
-        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-implementation.md",
+        "attempt": 1,
+        "findingIds": [
+          "F-0001"
+        ],
+        "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
         "branch": "tickets/0001-ticket-task-dispatch/T-0005",
-        "startingHeadSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
-        "requestedAt": "2026-11-16T20:11:00.687Z",
-        "status": "submitted",
-        "handoffs": [],
-        "reportSha256": "9e57d9f2d19cab6957eac26cedb67eb43f030f1d7c14196af1d90e009a8cf28b",
-        "submittedAt": "2026-11-16T23:08:46.622Z",
-        "submittedBy": "Copilot"
+        "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
+        "requestedAt": "2026-11-17T01:51:03.272Z",
+        "status": "pending",
+        "handoffs": []
       },
       "worktree": {
         "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
@@ -1620,6 +1622,52 @@
               "details": "Confirmed as a blocking regression-coverage gap. Correction is required before T-0005 can be accepted or integrated; the new bootstrap and exception-linked integration guards need focused integration-service tests and fresh checks."
             }
           ]
+        }
+      ],
+      "correctionAttempts": [
+        {
+          "number": 1,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
+          "startedAt": "2026-11-17T01:51:03.272Z",
+          "startedBy": "Copilot",
+          "assignmentId": "3382d04a-1890-41a2-9ce5-ab0b54a3b28b",
+          "assignment": {
+            "id": "3382d04a-1890-41a2-9ce5-ab0b54a3b28b",
+            "role": "implementation",
+            "action": "correct",
+            "controller": "Copilot",
+            "attempt": 1,
+            "findingIds": [
+              "F-0001"
+            ],
+            "objective": "Add focused TicketIntegrationService regression tests for the authorized T-0005 bootstrap and T-0004 exception-linked corrective integration. Cover wrong ticket/feature, additional pending integration, missing or invalid exception, and unvalidated T-0005 rejection; prove current required-check and independent corrective-review gates still block missing or stale evidence. Preserve the existing implementation and all pending T-0004 evidence. Run fresh required ticket checks and submit an updated implementation report.",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-fix.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "startingHeadSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
+            "requestedAt": "2026-11-17T01:51:03.272Z",
+            "status": "pending",
+            "handoffs": []
+          },
+          "priorAssignment": {
+            "id": "a3bc6010-c1f5-4910-8db2-09bb2778dd85",
+            "role": "implementation",
+            "action": "implement",
+            "controller": "Copilot",
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-implementation.md",
+            "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+            "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+            "startingHeadSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
+            "requestedAt": "2026-11-16T20:11:00.687Z",
+            "status": "submitted",
+            "handoffs": [],
+            "reportSha256": "9e57d9f2d19cab6957eac26cedb67eb43f030f1d7c14196af1d90e009a8cf28b",
+            "submittedAt": "2026-11-16T23:08:46.622Z",
+            "submittedBy": "Copilot"
+          }
         }
       ]
     }
