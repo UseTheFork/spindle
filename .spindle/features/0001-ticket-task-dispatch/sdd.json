@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2454,6 +2454,11 @@
         "at": "2026-11-17T04:16:14.613Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm run fmt:check:failed"
+      },
+      {
+        "at": "2026-11-17T04:16:50.544Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:3"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2623,28 +2628,114 @@
         "progressAssessment": {
           "decision": "continue",
           "result": "productive",
-          "details": "The assigned check-only attempt made the requested progress: pnpm run build exited 0, then pnpm test exited 0 with 90 files and 641 tests passing plus 1 expected fail. No source changes or commits were made. Continue by recording these fresh check results and completing remaining delivery checks.",
-          "recordedAt": "2026-11-17T04:00:00.602Z",
+          "details": "This is the first correction attempt for the newly recorded delivery format-check failure. The check reports formatting issues in 109 of 452 scanned files, while no files were modified. Begin with a bounded feature-diff attribution; avoid broad repository reformatting.",
+          "recordedAt": "2026-11-17T04:16:50.544Z",
+          "recordedBy": "Copilot"
+        }
+      },
+      {
+        "number": 3,
+        "findingIds": [],
+        "checkFailure": "pnpm run fmt:check",
+        "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
+        "startedAt": "2026-11-17T04:16:50.544Z",
+        "startedBy": "Copilot",
+        "assignmentId": "7e5692af-b95f-4fa1-ba0b-ef43159c6932",
+        "assignment": {
+          "id": "7e5692af-b95f-4fa1-ba0b-ef43159c6932",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 3,
+          "findingIds": [],
+          "checkFailure": "pnpm run fmt:check",
+          "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
+          "requestedAt": "2026-11-17T04:16:50.544Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "priorAssignment": {
+          "id": "75d1eaec-5f07-4778-8696-a013f4509c61",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 2,
+          "findingIds": [],
+          "checkFailure": "pnpm test",
+          "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
+          "requestedAt": "2026-11-17T04:00:00.603Z",
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "f60099d718f50886f6408ec1be319981f64accbc660a5d7a78ba2fff550f5550",
+          "submittedAt": "2026-11-17T04:08:19.583Z",
+          "submittedBy": "Copilot"
+        },
+        "checks": [
+          {
+            "command": "pnpm test",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T03:50:00.353Z",
+            "details": "Full Vitest suite: 89 test files passed and 1 failed; 633 tests passed, 8 failed, 1 expected fail. All 8 failures are in PackagedCli.test.ts because build/ and build/index.js were absent. Run the declared build before rerunning pnpm test."
+          },
+          {
+            "command": "pnpm run build",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T04:15:42.136Z",
+            "details": "Controller-run on the delivery source snapshot; exited 0. No source changes from assigned check-only corrections; generated build output is ignored."
+          },
+          {
+            "command": "pnpm test",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T04:15:47.507Z",
+            "details": "Controller-run after pnpm run build; Vitest: 90 test files passed, 641 tests passed, 1 expected fail (642 total). No source changes from assigned check-only corrections."
+          },
+          {
+            "command": "pnpm run lint",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T04:15:59.301Z",
+            "details": "Controller-run; oxlint exited 0 with no diagnostics."
+          },
+          {
+            "command": "pnpm run fmt:check",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T04:16:14.613Z",
+            "details": "Controller-run oxfmt --check exited 1: formatting issues reported in 109 files (452 scanned). No files were modified."
+          }
+        ],
+        "progressAssessment": {
+          "decision": "continue",
+          "result": "productive",
+          "details": "This is the first correction attempt for the newly recorded delivery format-check failure. The check reports formatting issues in 109 of 452 scanned files, while no files were modified. Begin with a bounded feature-diff attribution; avoid broad repository reformatting.",
+          "recordedAt": "2026-11-17T04:16:50.544Z",
           "recordedBy": "Copilot"
         }
       }
     ],
     "assignment": {
-      "id": "75d1eaec-5f07-4778-8696-a013f4509c61",
+      "id": "7e5692af-b95f-4fa1-ba0b-ef43159c6932",
       "role": "implementation",
       "action": "correct",
       "controller": "Copilot",
-      "attempt": 2,
+      "attempt": 3,
       "findingIds": [],
-      "checkFailure": "pnpm test",
-      "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
-      "requestedAt": "2026-11-17T04:00:00.603Z",
-      "status": "submitted",
-      "handoffs": [],
-      "reportSha256": "f60099d718f50886f6408ec1be319981f64accbc660a5d7a78ba2fff550f5550",
-      "submittedAt": "2026-11-17T04:08:19.583Z",
-      "submittedBy": "Copilot"
+      "checkFailure": "pnpm run fmt:check",
+      "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
+      "requestedAt": "2026-11-17T04:16:50.544Z",
+      "status": "pending",
+      "handoffs": []
     }
   }
 }
