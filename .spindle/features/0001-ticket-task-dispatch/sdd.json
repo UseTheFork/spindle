@@ -2624,6 +2624,11 @@
         "at": "2026-11-17T13:41:11.361Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm test:passed"
+      },
+      {
+        "at": "2026-11-17T13:41:24.123Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run lint:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2796,6 +2801,14 @@
           "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
           "recordedAt": "2026-11-17T13:41:11.361Z",
           "details": "Full Vitest suite: 90 test files passed, 648 tests passed, 1 expected fail (649 total). Run after pnpm run build on current delivery target."
+        },
+        {
+          "command": "pnpm run lint",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+          "recordedAt": "2026-11-17T13:41:24.123Z",
+          "details": "oxlint exited 0 with no diagnostics on current delivery target."
         }
       ]
     },
