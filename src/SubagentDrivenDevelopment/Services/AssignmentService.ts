@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import matter from "gray-matter";
-
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
 import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
@@ -29,10 +27,12 @@ import { CheckPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/CheckPo
 import { InputValidation } from "@spindle/SubagentDrivenDevelopment/Policies/InputValidation";
 import { ReadinessPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReadinessPolicy";
 import { ReviewPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/ReviewPolicy";
+import { TaskPlanPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/TaskPlanPolicy";
 import { WorkflowPolicy } from "@spindle/SubagentDrivenDevelopment/Policies/WorkflowPolicy";
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { TicketWorktreeService } from "@spindle/SubagentDrivenDevelopment/Services/TicketWorktreeService";
 import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
+import matter from "gray-matter";
 
 export class AssignmentService extends Service {
   public constructor(
@@ -148,6 +148,7 @@ export class AssignmentService extends Service {
       if (ticket.status !== "open" || ticket.blocker) {
         throw new Error(`Ticket ${options.ticket} is not open and unblocked.`);
       }
+      TaskPlanPolicy.assertDefined(progress);
       const readiness = this.readinessPolicy.evaluate(tickets, ledger);
       if (!readiness.ready.includes(options.ticket)) {
         const unready = readiness.unready.find((item) => item.ticket === options.ticket);

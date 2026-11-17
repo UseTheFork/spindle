@@ -1,18 +1,19 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import { EXECUTION_STATES } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { ProgressSchema } from "@spindle/SubagentDrivenDevelopment/Persistence/ProgressSchema";
-
 import {
   cliOutput,
   execute,
   fixture,
   invokeAsync,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test } from "vitest";
+
+import { acceptTaskPlan, createTaskPlan } from "../Fixtures/TaskPlans";
 
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, {
@@ -55,15 +56,38 @@ async function setup() {
     );
     expect(ticket.status, ticket.stderr).toBe(0);
   }
+  await createTaskPlan(root, spec, "T-0001");
   const sha = git(root, "rev-parse", "HEAD");
   const ledgerPath = join(dirname(spec), "sdd.json");
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const first = ledger.tickets[0];
+  Object.assign(first, {
+    execution: "implementing",
+    owner: "controller",
+    baseSha: sha,
+    worktree: {
+      workspace: root,
+      branch: "tickets/0001-post-merge/T-0001",
+      baseSha: sha,
+    },
+  });
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  await acceptTaskPlan(root, spec, "T-0001");
+  const readyLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
+  const readyFirst = readyLedger.tickets[0];
+  const taskReportPath = join(dirname(root), "reports", "T-0001-TASK-0001-fixture.md");
+  const taskReport = "# Task report\n\nCompleted the assigned task.\n";
+  mkdirSync(dirname(taskReportPath), { recursive: true });
+  writeFileSync(taskReportPath, taskReport);
+  readyFirst.tasks[0].assignment.report = taskReportPath;
+  readyFirst.tasks[0].assignment.reportSha256 = createHash("sha256")
+    .update(taskReport)
+    .digest("hex");
   const evidence = {
     commitSha: sha,
     files: ["source.ts"],
   };
-  Object.assign(first, {
+  Object.assign(readyFirst, {
     status: "open",
     execution: "integrated",
     owner: "controller",
@@ -78,9 +102,9 @@ async function setup() {
       files: evidence.files,
     },
   });
-  ledger.tickets[1].blockedBy = ["T-0001"];
-  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  return { root, spec, sha, ledgerPath };
+  readyLedger.tickets[1].blockedBy = ["T-0001"];
+  writeFileSync(ledgerPath, `${JSON.stringify(readyLedger, null, 2)}\n`);
+  return { root, spec, sha, ledgerPath, taskReportPath };
 }
 
 function cli(root: string, spec: string, action: string, args: string[], author = "controller") {
@@ -203,6 +227,42 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
 });
+
+test.each(["modified", "deleted"] as const)(
+  "post-merge closure rejects an accepted task report that was %s",
+  async (change) => {
+    const { root, spec, ledgerPath, taskReportPath } = await setup();
+    const required = await cli(root, spec, "require", ["--command", "post-merge validation"]);
+    expect(required.status, required.stderr).toBe(0);
+    if (change === "modified") writeFileSync(taskReportPath, "# Changed task report\n");
+    else rmSync(taskReportPath);
+
+    const recorded = await cli(root, spec, "record", [
+      "--command",
+      "post-merge validation",
+      "--result",
+      "passed",
+    ]);
+
+    expect(recorded.status, recorded.stderr).toBe(0);
+    expect(cliOutput(recorded)).toMatchObject({
+      closed: false,
+      closureBlocked: [
+        change === "modified"
+          ? expect.stringMatching(
+              /Task TASK-0001 report changed after acceptance; accepted report integrity failed/i,
+            )
+          : expect.stringMatching(
+              /Task TASK-0001 report is missing; accepted report integrity cannot be verified/i,
+            ),
+      ],
+    });
+    const after = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    expect(after.tickets[0].status).toBe("open");
+    expect(after.tickets[0].integration.postMerge.status).toBe("pending");
+    expect(after.tickets[0].tasks[0].status).toBe("accepted");
+  },
+);
 
 test("post-merge rejects unauthorized, dirty, stale and wrong-branch evidence", async () => {
   const { root, spec } = await setup();

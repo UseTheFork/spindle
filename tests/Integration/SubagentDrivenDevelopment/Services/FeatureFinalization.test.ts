@@ -17,6 +17,8 @@ import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSumma
 import { repoRoot } from "@test/Helpers/TemporaryDirectories";
 import { expect, test, vi } from "vitest";
 
+import { acceptTaskPlan, createTaskPlan } from "../Fixtures/TaskPlans";
+
 vi.setConfig({ testTimeout: 60_000 });
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, {
@@ -167,6 +169,7 @@ async function readyFeature(
       }),
     ),
   );
+  await createTaskPlan(root, spec, "T-0001");
   output(
     await execute(root, (s) =>
       s.checksService.checksRequire({
@@ -188,6 +191,7 @@ async function readyFeature(
     ),
   );
   const ticketRoot = implemented.assignment.workspace as string;
+  await acceptTaskPlan(root, spec, "T-0001");
   mkdirSync(dirname(join(ticketRoot, codeFile)), { recursive: true });
   writeFileSync(join(ticketRoot, codeFile), "export const feature = 1;\n");
   git(ticketRoot, "add", codeFile);

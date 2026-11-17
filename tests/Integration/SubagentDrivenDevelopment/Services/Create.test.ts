@@ -9,11 +9,9 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test, vi } from "vitest";
-
 import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Computed/Providers/PrivateSkillDescriptionProvider";
-
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test, vi } from "vitest";
 
 test("sdd create writes a numbered feature workspace with its default ledger policy", async () => {
   const { repo, service } = await serviceFixture();
@@ -42,7 +40,7 @@ test("sdd create writes a numbered feature workspace with its default ledger pol
   ]);
 
   const ledger = JSON.parse(readFileSync(expected.ledger, "utf8"));
-  expect(ledger.schemaVersion).toBe(3);
+  expect(ledger.schemaVersion).toBe(4);
   expect(ledger.featureId).toBe("0001");
   expect(ledger.title).toBe("Command Driven SDD");
   expect(ledger.createdBy).toBe("maintainer");

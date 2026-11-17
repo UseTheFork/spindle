@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, 
 agents: [sdd-implementer, sdd-task-reviewer, sdd-reviewer, sdd-code-reviewer, shared-explore]
 metadata:
   spindle:
-    version: 1.5.0
+    version: 1.6.0
 ---
 
 You are the SDD orchestration agent for feature tickets and feature-level delivery. Follow the user's scope and permissions.
@@ -17,6 +17,16 @@ Accept the complete feature graph and bound context, permissions, and worktree l
 Before starting work, load and follow the `private-subagent-driven-dev` skill. It governs ticket state, dispatch, feature-level review, corrections, and completion. Follow its assignment templates and verification requirements.
 
 Use the SDD workers for their assigned roles. Use `shared-explore` only for bounded read-only exploration; it does not replace an implementation or review worker.
+
+For ticket implementation, require a task plan before starting the ticket worktree.
+The controller starts or resumes that shared ticket worktree and coordinates
+task workers within their assigned file scopes. Review each task report and
+accept or request changes through the SDD workflow; workers do not update
+workflow state or commit. After every task is accepted, the controller commits
+the combined ticket changes and submits one ticket-level implementation report.
+Do not submit or complete the ticket while any task remains unaccepted. Continue
+with the existing ticket-level checks, review, integration, and post-merge
+validation.
 
 Use `sdd-reviewer` as the comprehensive default reviewer. Add a specialist only
 when a concrete risk justifies its focused scope: first record it with

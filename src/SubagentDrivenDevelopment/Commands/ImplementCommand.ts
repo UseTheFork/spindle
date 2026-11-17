@@ -1,5 +1,3 @@
-import type { Command as CommanderCommand } from "commander";
-
 import { Command } from "@spindle/Commands/Command";
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
@@ -7,12 +5,15 @@ import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SddCommandGroups } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroups";
 import type { ImplementOptions } from "@spindle/SubagentDrivenDevelopment/Models/Options";
 import { AssignmentService } from "@spindle/SubagentDrivenDevelopment/Services/AssignmentService";
+import type { Command as CommanderCommand } from "commander";
 
 export class ImplementCommand extends Command {
   public static register(root: CommanderCommand, createApp: () => Promise<Application>): void {
     SddCommandGroups.group(root)
       .command("implement")
-      .description("Persist and return an implementation assignment.")
+      .description(
+        "Start or resume the controller's ticket worktree for task-based implementation.",
+      )
       .requiredOption(
         "--feature <directory>",
         "Feature workspace directory",
@@ -32,9 +33,9 @@ export class ImplementCommand extends Command {
         const data = await command.run(options);
         const output = await app.make(ConsoleOutputService);
         const human = [
-          `Implementation assignment ${data.assignment.id} for ticket ${data.ticket} (${data.assignment.status}).`,
-          `Report: ${data.assignment.report}`,
-          `Workspace: ${data.assignment.workspace ?? options.workspace}`,
+          `Ticket worktree ready for controller-led task implementation: ${data.ticket}.`,
+          `Ticket implementation report: ${data.assignment.report}`,
+          `Shared ticket worktree: ${data.assignment.workspace ?? options.workspace}`,
           ...(data.assignment.branch ? [`Branch: ${data.assignment.branch}`] : []),
         ];
         output.result({

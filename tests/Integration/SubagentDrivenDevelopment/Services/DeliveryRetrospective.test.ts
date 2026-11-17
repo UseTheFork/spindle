@@ -10,10 +10,13 @@ import {
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { expect, test, vi } from "vitest";
 
+import { rehomeTaskWorktreeForFinalizationFixture } from "../Fixtures/TaskPlans";
+
 vi.setConfig({ testTimeout: 60_000 });
 
 test("finish allows optional retrospective without a report and supports repeat finish", async () => {
   const optional = await prepareDeliveryReady();
+  rehomeTaskWorktreeForFinalizationFixture(optional.spec, "T-0001", optional.originalRepo);
   const optionalFinalization = await finalizeDelivery(optional);
   expect(optionalFinalization.completed).toMatchObject({ finished: true, cleanup: "complete" });
   expect(optionalFinalization.completed).not.toHaveProperty("retrospective");
@@ -40,6 +43,11 @@ test("finish allows optional retrospective without a report and supports repeat 
 
 test("finish attaches an optional retrospective report when provided", async () => {
   const optionalWithReport = await prepareDeliveryReady();
+  rehomeTaskWorktreeForFinalizationFixture(
+    optionalWithReport.spec,
+    "T-0001",
+    optionalWithReport.originalRepo,
+  );
   const optionalReport = join(
     optionalWithReport.repo,
     ".spindle/features",
@@ -62,6 +70,7 @@ test("finish attaches an optional retrospective report when provided", async () 
 
 test("finish validates required retrospective and completes with a valid report", async () => {
   const required = await prepareDeliveryReady(true);
+  rehomeTaskWorktreeForFinalizationFixture(required.spec, "T-0001", required.originalRepo);
   const missingRetrospective = await execute(required.repo, (service) =>
     service.deliveryService.finish({
       spec: required.spec,

@@ -395,6 +395,7 @@ export class StatusSummaryFormatter {
         return "ticket:sync";
       case "post-merge-correct":
       case "correct":
+      case "approved-exception-correction":
         return "ticket:correct";
       case "checks":
         return "ticket:checks";
@@ -409,6 +410,7 @@ export class StatusSummaryFormatter {
   }
 
   private static ticketActionState(action: string): string {
+    if (action === "approved-exception-correction") return "optional recovery choice";
     if (action.startsWith("await-")) return "awaiting report";
     if (
       [
@@ -440,6 +442,8 @@ export class StatusSummaryFormatter {
         return `${prefix} sdd integrate --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
       case "post-merge-sync":
         return `${prefix} sdd sync --feature ${feature} --ticket ${ticket} --actor <acting-agent>`;
+      case "approved-exception-correction":
+        return `${prefix} sdd correct --feature ${feature} --ticket ${ticket} --details '<clear-correction-objective>' --approved-exception --actor <acting-agent>`;
       default:
         return undefined;
     }

@@ -1,8 +1,6 @@
 import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import matter from "gray-matter";
-
 import type { Application } from "@spindle/Foundation/Application";
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -15,6 +13,7 @@ import type {
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { FileSystem } from "@spindle/SubagentDrivenDevelopment/Persistence/FileSystem";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import matter from "gray-matter";
 
 export class GitEvidence extends Service {
   public constructor(
@@ -423,7 +422,7 @@ export class GitEvidence extends Service {
     if (ancestor.status !== 0) {
       throw new Error(`Cannot validate commit ancestry: ${ancestor.stderr.trim()}`);
     }
-    if (this.changedPathsBetween(fromSha, toSha, workspace).length) {
+    if (this.changedPathsBetween(fromSha, toSha, realpathSync(this.app.workspaceRoot)).length) {
       return false;
     }
     return this.deliveryRequirementsMatchAtCommits(feature, fromSha, toSha, workspace);

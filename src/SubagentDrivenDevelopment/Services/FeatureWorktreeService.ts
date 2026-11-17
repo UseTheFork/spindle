@@ -23,6 +23,8 @@ import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persist
 import { FeatureInspectionService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureInspectionService";
 import { Records } from "@spindle/Support/Records";
 
+const TASK_LEDGER_ROLLOUT_FEATURE = "0001-ticket-task-dispatch";
+
 interface StartState {
   version: 1;
   id: string;
@@ -110,6 +112,7 @@ export class FeatureWorktreeService extends Service {
       this.assertNoUnrelatedChanges(root, prefix, lockPath);
       this.assertFeatureRecords(root, prefix, lockPath);
       this.assertNoDivergentStagedRecords(root);
+      this.migrateActiveTaskLedger(feature.feature, feature.ledger);
       const ignored = this.runBuffer(root, [
         "ls-files",
         "--others",
@@ -603,6 +606,35 @@ export class FeatureWorktreeService extends Service {
     }
     renameSync(temporary, path);
     this.syncDirectory(resolve(path, ".."));
+  }
+
+  private migrateActiveTaskLedger(feature: string, ledgerPath: string): void {
+    if (feature !== TASK_LEDGER_ROLLOUT_FEATURE) return;
+    const raw = readFileSync(ledgerPath, "utf8");
+    const value = JSON.parse(raw) as unknown;
+    if (!Records.isRecord(value) || value.schemaVersion !== 3) return;
+    if (!Array.isArray(value.tickets)) {
+      throw new Error("The active schema-version-3 ledger has no ticket list to migrate.");
+    }
+    const migrated = {
+      ...value,
+      schemaVersion: 4,
+      tickets: value.tickets.map((ticket) =>
+        Records.isRecord(ticket) && !Object.hasOwn(ticket, "tasks")
+          ? { ...ticket, tasks: [] }
+          : ticket,
+      ),
+    };
+    const temporary = `${ledgerPath}.${randomUUID()}.tmp`;
+    const fd = openSync(temporary, "wx", lstatSync(ledgerPath).mode & 0o777);
+    try {
+      writeFileSync(fd, `${JSON.stringify(migrated, null, 2)}\n`);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporary, ledgerPath);
+    this.syncDirectory(resolve(ledgerPath, ".."));
   }
 
   private syncDirectory(path: string): void {

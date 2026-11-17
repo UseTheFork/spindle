@@ -1,8 +1,6 @@
 import { readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import { runCli } from "@test/Helpers/Cli";
 import {
   commitTicketWorkspace,
@@ -12,6 +10,9 @@ import {
   prepareReviewAssignment,
 } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { nextSummary } from "@test/Helpers/SubagentDrivenDevelopment/StatusSummary";
+import { expect, test } from "vitest";
+
+import { acceptTaskPlan, createTaskPlan } from "../Fixtures/TaskPlans";
 
 test("implement reserves a ready ticket, creates its worktree, and resumes the same assignment", async () => {
   const { repo, git, spec, worktreeParent, baseSha } = await prepareReadyTicket();
@@ -157,6 +158,7 @@ test("implement refuses blocked and dependency-unready tickets without persistin
     }),
   );
   expect(second.status, second.stderr).toBe(0);
+  await createTaskPlan(repo, spec, "T-0002");
   const dependency = await execute(repo, (service) =>
     service.ticketService.ticketUpdate({
       spec,
@@ -314,6 +316,7 @@ test("implementation submission rejects missing, symlinked, and misdirected repo
   );
   expect(dispatched.status, dispatched.stderr).toBe(0);
   const assignment = JSON.parse(dispatched.stdout).assignment as { id: string; report: string };
+  await acceptTaskPlan(repo, spec, "T-0001");
   const { id: assignmentId, report } = assignment;
   const ledger = join(repo, ".spindle/features", "0001-ticket-flow", "sdd.json");
   const outside = join(repo, "outside.md");
@@ -364,6 +367,7 @@ test("submission derives implementation role and report from the assignment", as
     report: string;
     workspace: string;
   };
+  await acceptTaskPlan(repo, spec, "T-0001");
   const unavailable = await execute(repo, (service) =>
     service.submissionService.submit({
       spec,
@@ -483,6 +487,7 @@ test("next identifies missing and failed ticket checks after implementation subm
     report: string;
     workspace: string;
   };
+  await acceptTaskPlan(repo, spec, "T-0001");
   writeFileSync(join(assignment.workspace, "export.ts"), "export const exportRows = [];\n");
   git("-C", assignment.workspace, "add", "export.ts");
   git("-C", assignment.workspace, "commit", "-qm", "implement export");
