@@ -1324,7 +1324,12 @@
               ],
               "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-2e702aa2-18d4-4020-8281-88d1e7748e24.md",
               "requestedAt": "2026-11-17T03:13:19.460Z",
-              "status": "pending"
+              "status": "submitted",
+              "result": "passed",
+              "findingIds": [],
+              "reportSha256": "99bfb5f90e874217bbe50320348897fa7c76b7ae10e39f12061b6f038e3a4868",
+              "submittedAt": "2026-11-17T03:17:22.960Z",
+              "submittedBy": "Copilot"
             }
           ]
         }
