@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "reviewing",
+    "execution": "changes-requested",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2599,6 +2599,11 @@
         "at": "2026-11-17T05:33:16.232Z",
         "author": "Copilot",
         "action": "aggregate-review-submitted:d615aac7-84bb-4657-8316-4da2d64fb4a1:passed"
+      },
+      {
+        "at": "2026-11-17T13:21:53.693Z",
+        "author": "Copilot",
+        "action": "correction-paused:worker-blocked"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3356,16 +3361,11 @@
       "submittedBy": "Copilot"
     },
     "adjudication": {
-      "status": "resolved",
-      "reason": "requirements-disagreement",
-      "details": "Pause because the bounded correction formatted the only failing feature-changed file, but pnpm run fmt:check still fails in 108 files outside the feature diff. Resolving those requires repository-wide baseline formatting changes outside the current feature scope; do not broaden without explicit authorization.",
-      "recordedAt": "2026-11-17T04:29:09.572Z",
-      "recordedBy": "Copilot",
-      "resolution": {
-        "details": "Continue with a scoped formatter verification: the prior bounded correction formatted the only failing feature-changed file, and the remaining repository-wide formatter failures are unrelated baseline files.",
-        "recordedAt": "2026-11-17T04:31:33.081Z",
-        "recordedBy": "Copilot"
-      }
+      "status": "pending",
+      "reason": "worker-blocked",
+      "details": "The approved F-0001 fix cannot be dispatched: sdd next offers delivery correction, but sdd correct rejects it because delivery execution is reviewing and the corrective review passed. Finding verification is itself defective because Git path comparison runs from nested feature records and misses committed source changes. Preserve this blocker for controller adjudication; no failed review/check is claimed.",
+      "recordedAt": "2026-11-17T13:21:53.693Z",
+      "recordedBy": "Copilot"
     },
     "reviewAssignments": [
       {
