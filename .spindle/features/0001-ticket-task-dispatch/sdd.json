@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2559,6 +2559,11 @@
         "at": "2026-11-17T05:11:31.729Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm test:failed"
+      },
+      {
+        "at": "2026-11-17T05:11:47.045Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:6"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3107,29 +3112,90 @@
         "progressAssessment": {
           "decision": "continue",
           "result": "productive",
-          "details": "The aggregate review confirmed a blocking gap: accepted report digests are checked at acceptance but not reliably revalidated at ticket completion. A focused implementation and fresh gate coverage are required.",
-          "recordedAt": "2026-11-17T04:52:15.068Z",
+          "details": "The required full test run exposed 39 failures across 11 integration files because synthetic accepted-task fixtures lack valid report files/digests. The focused F-0001 regression suite passes; continue with a bounded fixture correction and rerun the full suite.",
+          "recordedAt": "2026-11-17T05:11:47.044Z",
+          "recordedBy": "Copilot"
+        }
+      },
+      {
+        "number": 6,
+        "findingIds": [],
+        "checkFailure": "pnpm test",
+        "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
+        "startedAt": "2026-11-17T05:11:47.045Z",
+        "startedBy": "Copilot",
+        "assignmentId": "744e206a-806e-48a1-bbdc-d21d96e5b058",
+        "assignment": {
+          "id": "744e206a-806e-48a1-bbdc-d21d96e5b058",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 6,
+          "findingIds": [],
+          "checkFailure": "pnpm test",
+          "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
+          "requestedAt": "2026-11-17T05:11:47.045Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "priorAssignment": {
+          "id": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 5,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
+          "requestedAt": "2026-11-17T04:52:15.069Z",
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "9de7ea93798734d0953d4eb55f3d97f1711a9ae773a5523041c333a24ed17498",
+          "submittedAt": "2026-11-17T05:05:32.280Z",
+          "submittedBy": "Copilot"
+        },
+        "checks": [
+          {
+            "command": "pnpm run build",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "bb69cdede781edb016aba4c915897cac6c39840f",
+            "recordedAt": "2026-11-17T05:05:49.941Z"
+          },
+          {
+            "command": "pnpm test",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "bb69cdede781edb016aba4c915897cac6c39840f",
+            "recordedAt": "2026-11-17T05:11:31.729Z",
+            "details": "Full Vitest suite exited 1: 39 failures across 11 integration test files. The failures are test fixtures that synthesize accepted task state without a valid on-disk task report and matching digest, so the new accepted-task integrity gate blocks ticket implementation submission with “Task TASK-0001 report is missing; accepted report integrity cannot be verified.” This includes Assignments, Checks, DeliveryReadiness, FeatureFinalization variants, FindingRegistration, TicketWorktreeReviews, and TicketWorktreeSync. The assigned focused suite separately passed 4 files/51 tests. Update the shared test fixtures for accepted task reports, preserve tests explicitly covering missing/symlinked evidence, then rerun the full suite."
+          }
+        ],
+        "progressAssessment": {
+          "decision": "continue",
+          "result": "productive",
+          "details": "The required full test run exposed 39 failures across 11 integration files because synthetic accepted-task fixtures lack valid report files/digests. The focused F-0001 regression suite passes; continue with a bounded fixture correction and rerun the full suite.",
+          "recordedAt": "2026-11-17T05:11:47.044Z",
           "recordedBy": "Copilot"
         }
       }
     ],
     "assignment": {
-      "id": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
+      "id": "744e206a-806e-48a1-bbdc-d21d96e5b058",
       "role": "implementation",
       "action": "correct",
       "controller": "Copilot",
-      "attempt": 5,
-      "findingIds": [
-        "F-0001"
-      ],
-      "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
-      "requestedAt": "2026-11-17T04:52:15.069Z",
-      "status": "submitted",
-      "handoffs": [],
-      "reportSha256": "9de7ea93798734d0953d4eb55f3d97f1711a9ae773a5523041c333a24ed17498",
-      "submittedAt": "2026-11-17T05:05:32.280Z",
-      "submittedBy": "Copilot"
+      "attempt": 6,
+      "findingIds": [],
+      "checkFailure": "pnpm test",
+      "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
+      "requestedAt": "2026-11-17T05:11:47.045Z",
+      "status": "pending",
+      "handoffs": []
     },
     "adjudication": {
       "status": "resolved",
