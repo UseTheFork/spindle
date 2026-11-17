@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.5.1
+
+### Patch Changes
+
+- [#14](https://github.com/UseTheFork/spindle/pull/14) [`5211fe5`](https://github.com/UseTheFork/spindle/commit/5211fe557fe992f76c05c99ce16d66fa0a385c7b) Thanks [@UseTheFork](https://github.com/UseTheFork)! - tickets now have tasks that are controlled via the sdd command.
+
 ## 0.5.0
 
 ### Minor Changes
