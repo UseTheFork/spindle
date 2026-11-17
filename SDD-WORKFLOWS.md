@@ -1,274 +1,367 @@
-# Current SDD commands and workflows
+# SDD target workflow
 
-This document is the starting point for future SDD work. It describes the
-current implementation in
-[`src/SubagentDrivenDevelopment/`](src/SubagentDrivenDevelopment/). It is a
-snapshot of existing behavior, not a specification for unimplemented behavior. The
-[batch-workflow-record spec](.spindle/features/0002-batch-workflow-record-commits/spec.md)
-is not implemented in the current checkout.
+This document defines the target design for subagent-driven development (SDD).
+It is the starting point for rebuilding
+[`src/SubagentDrivenDevelopment/`](src/SubagentDrivenDevelopment/). Where the
+current implementation differs, this document wins. The final section lists
+what the rebuild removes.
 
-The [SDD glossary](src/SubagentDrivenDevelopment/GLOSSARY.md) defines the domain
-terms. The [ticket tracker guide](docs/agents/ticket-tracker.md) describes the
-project's operating conventions.
+## Design principles
 
-## Records and worktrees
+1. **Tasks are the only dispatched work.** Every ticket needs at least one task.
+   Agents implement tasks; tickets hold requirements, acceptance criteria and
+   the acceptance review.
+2. **One worktree per ticket.** All tasks of a ticket run in its ticket
+   worktree. Several agents can work in the same ticket worktree at once.
+3. **Tasks declare their files.** Every task lists the files it edits, creates
+   and references. The CLI uses these lists to decide which tasks can run at
+   the same time.
+4. **Dependencies order the work.** Tickets depend on tickets, and tasks depend
+   on tasks in the same ticket. Work cannot start until its dependencies are
+   done.
+5. **Parallel across tasks, sequential within a task.** One task is always
+   implemented, then reviewed. Different tasks and tickets can be in
+   implementation and review at the same time.
+6. **Only feature merges are serial.** Accepted tickets merge into the feature
+   branch one at a time.
+7. **Corrections are new tasks.** Findings and failed checks become fix tasks.
+   There is no separate correction workflow.
+8. **The CLI runs checks.** Declared check commands are executed by the CLI,
+   so recorded results are real.
+9. **`next` is the only guide.** It prints every action that is currently
+   possible, including all parallel dispatches, with exact commands.
+
+## Records
 
 Each feature has a workspace under `.spindle/features/<feature>/`:
 
 ```text
-spec.md          Feature requirements
-design.md        Optional feature design
-sdd.json         Structured ledger: tickets, tasks, assignments and evidence
-tickets/         Ticket requirements, acceptance criteria and comments
-reports/         Assigned task, implementation, review and delivery reports
+spec.md     Feature requirements
+design.md   Optional feature design
+sdd.json    Ledger: tickets, tasks, dependencies, file lists, findings, checks
+tickets/    Ticket requirements, acceptance criteria and comments
+reports/    Worker, reviewer and check-output reports
 ```
 
-Ticket status is `open` or `closed`; execution state separately tracks progress.
-The ledger is authoritative for structured workflow state. A ticket dependency
-is ready only after its prerequisite is closed, integrated and post-merge
-validated. A task dependency must be accepted.
+The ledger is the source of truth for workflow state. Only the controller
+changes it, through the CLI. A workspace lock serializes ledger writes, and
+each write replaces the file atomically. Tasks never change files under
+`.spindle/`.
+
+## Worktrees
 
 ```mermaid
 flowchart LR
-    Original["Original checkout<br/>originating branch"]
-    Feature["Feature worktree<br/>features/&lt;feature&gt;<br/>canonical records"]
-    Ticket1["Ticket worktree<br/>tickets/&lt;feature&gt;/T-0001"]
-    Ticket2["Ticket worktree<br/>tickets/&lt;feature&gt;/T-0002"]
-    Original -->|"start"| Feature
-    Feature -->|"implement"| Ticket1
-    Feature -->|"implement"| Ticket2
-    Ticket1 -->|"integrate reviewed commit"| Feature
-    Ticket2 -->|"integrate reviewed commit"| Feature
-    Feature -->|"finish and final validation"| Original
+    O["Original checkout<br/>original branch"]
+    F["Feature worktree<br/>feature branch + ledger"]
+    T1["Ticket worktree T-0001<br/>task T-0001.1"]
+    T2["Ticket worktree T-0002<br/>tasks T-0002.2, T-0002.3 in parallel"]
+    O -->|"start"| F
+    F -->|"ticket ready"| T1
+    F -->|"ticket ready"| T2
+    T1 -->|"integrate accepted ticket"| F
+    T2 -->|"integrate accepted ticket"| F
+    F -->|"finish"| O
 ```
 
-`start` and `implement` use an existing, absolute parent directory outside the
-original checkout for their worktrees. Before `start`, inspect feature records
-for sensitive content and explicitly confirm they may be committed. Starting
-can commit those records on the original branch before creating the feature
-worktree. The feature worktree owns canonical records; ticket worktrees contain
-Git copies, not the canonical ledger. Do not assume commands run from a ticket
-worktree automatically locate the feature worktree.
+- **Feature worktree.** `start` creates the feature branch and worktree from
+  the original branch. It holds the ledger and reports. `start` does not
+  commit to the original branch.
+- **Ticket worktree.** When a ticket becomes ready, the CLI creates its branch
+  and worktree from the feature branch tip, then runs the project's setup
+  command (for example `pnpm install`) once. The ticket worktree is removed
+  after the ticket merges into the feature branch.
+- Worktrees live under a configured parent directory outside the original
+  checkout.
 
-## CLI conventions
+## Tickets and tasks
 
-Run commands as `pnpm spindle sdd <command>`. Use `--help` on a command for its
-complete options. Except for `create`, commands take `--feature <directory>`,
-the feature workspace directory. Mutating commands generally take
-`--actor <acting-agent>`: identify the agent executing the command, not the
-model, session, or intended recipient. Ownership rules apply to the operations
-that require a ticket or delivery controller.
+`ticket create` creates a ticket with no tasks. Add at least one task with
+`task create` before the ticket can become ready. Add more tasks when parts of
+the ticket can be done independently.
 
-`--json` produces a success envelope with `data` on stdout; errors and notices
-are written to stderr. Task handoffs should be read in JSON mode because the
-human-readable output is abbreviated. Assignment commands record assignments;
-they do not launch agents. Checks are run by the caller: `checks record`
-records a result rather than executing the command.
+Each task has:
 
-Use `sdd next` at the start, after a handoff, and after each workflow transition.
-It reports actions, assignments and blockers; it does not select a correction,
-run a check, or dispatch a worker. It does not enumerate task-level actions or
-guarantee that an `implement` suggestion has a task plan. Command-specific gates
-still apply, including the global post-merge integration gate. `ready` and
-`status` provide additional inspection.
+| Field              | Meaning                                                                  |
+| ------------------ | ------------------------------------------------------------------------ |
+| Instructions       | What to do, and the task's acceptance criteria.                          |
+| Files to edit      | Existing files the task may change or delete.                            |
+| Files to create    | New files the task may add. They must not exist when the task starts.    |
+| Files to reference | Files the task may read for context but must not change.                 |
+| Dependencies       | Tasks in the same ticket that must be committed before this task starts. |
 
-### Command inventory
+A task must list at least one file to edit or create. Paths are
+repository-relative file paths, not directories or patterns.
 
-All commands below are prefixed with `pnpm spindle sdd`.
+### File rules
 
-| Command                               | Purpose and important inputs                                                                                                                                         |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                              | Create a numbered workspace. Supply `--title` and `--actor`; `--with-design` and `--require-retrospective` are optional.                                             |
-| `start`                               | Commit initial records and create the feature worktree. Supply `--workspace` and `--confirm-records`.                                                                |
-| `ready`, `status`, `next`             | Inspect ticket readiness, detailed state, or next workflow actions.                                                                                                  |
-| `resume`                              | Restore a ticket or delivery gate and assignment. `--confirm-handoff` explicitly transfers ownership after the prior controller stops editing.                       |
-| `ticket create`                       | Create a ticket with `--title`, `--reporter` and `--category bug\|enhancement`. Fill its Markdown requirements and acceptance criteria.                              |
-| `ticket update`                       | Update ticket metadata, blockers or `--blocked-by` dependencies; clear options remove blockers or dependencies.                                                      |
-| `ticket comment`                      | Append attributed `--details` to a ticket.                                                                                                                           |
-| `task create`, `task update`          | Define or revise a task's instructions, acceptance criteria, explicit edit/create/reference paths and task dependencies.                                             |
-| `task assign`                         | Assign a ready task to `--worker` and return its assignment and handoff.                                                                                             |
-| `task instructions`                   | Read the current task handoff without changing workflow state.                                                                                                       |
-| `task submit`                         | Register the report for the exact task `--assignment`.                                                                                                               |
-| `task accept`, `task request-changes` | Record the controller's decision on a submitted task report; a change request requires `--details`.                                                                  |
-| `implement`                           | Start or resume the controller's shared ticket worktree, using `--ticket` and `--workspace`.                                                                         |
-| `submit`                              | Submit a ticket or delivery implementation, correction or review report for the exact `--assignment`. A review also supplies `--result passed\|failed\|unavailable`. |
-| `checks require`                      | Declare or remove an exact external check command. Post-merge and final scopes use a complete list of repeated `--command` options.                                  |
-| `checks record`                       | Record `passed`, `failed` or `unavailable` for an exact required command. Failed and unavailable results require details.                                            |
-| `checks revalidate`                   | Revalidate a final-check target after a committed fix; rerun the complete final-check list.                                                                          |
-| `review`                              | Dispatch the required ticket or feature review assignments.                                                                                                          |
-| `review require`                      | Pin a justified specialist with `--type` and `--details` before review assignments freeze. `require` is a positional action.                                         |
-| `finding create`                      | Register a finding from a review assignment, with summary, details and blocking or non-blocking classification.                                                      |
-| `finding update`                      | Record an explicit disposition: `open`, `confirmed`, `fixed`, `dismissed` or `deferred`. Applicable rulings require rationale, follow-up or a requirements decision. |
-| `requirements decide`                 | Approve or reject a requirements change associated with `--finding`; previous review is invalidated.                                                                 |
-| `correct`                             | Record a ticket or delivery correction using selected findings and/or an exact failed check. Later attempts require a continuation assessment or a pause decision.   |
-| `integrate`                           | Merge the reviewed ticket commit into the feature worktree. Post-merge validation remains pending.                                                                   |
-| `sync`                                | Update a ticket baseline for review or synchronize it to a failed post-merge commit before correction.                                                               |
-| `claim`                               | Claim `--scope delivery` after all tickets are complete.                                                                                                             |
-| `finish`                              | Begin or complete feature finalization; an optional or policy-required `--report` supplies retrospective evidence.                                                   |
+Two tasks in the same ticket **conflict** when:
 
-Most review, finding, correction, submission and resume operations select
-either `--ticket <id>` or `--scope delivery`. Checks additionally support
-`--ticket <id> --scope post-merge` and `--scope final`. Consult individual
-help output for exact combinations and required options.
+- they both list the same file to edit or create, or
+- one lists a file to reference that the other edits or creates.
 
-## Feature and ticket lifecycle
+Conflicting tasks must be ordered by a dependency, in either direction.
+`task create` and `task update` refuse a change that leaves two conflicting
+tasks unordered, and print the dependency to add. Tasks that do not conflict
+can run at the same time.
 
 ```mermaid
 flowchart TD
-    A["Create feature and approve spec"] --> B["Create tickets and task plans"]
-    B --> C["Start feature worktree"]
-    C --> D["Implement ready ticket"]
-    D --> E["Accept all tasks and submit ticket implementation"]
-    E --> F["Record ticket checks and review"]
-    F --> G{"Accepted?"}
-    G -->|"No: findings or failed checks"| H["Correct, check and review again"]
-    H --> F
-    G -->|"Yes"| I["Integrate ticket"]
-    I --> J["Run and record post-merge checks"]
-    J --> K{"Checks and gates pass?"}
-    K -->|"No"| L["Recover or sync and correct"]
-    L --> F
-    K -->|"Yes"| M["Close ticket; unblock dependents"]
-    M --> N{"All tickets complete?"}
-    N -->|"No"| D
-    N -->|"Yes"| O["Claim and complete delivery"]
+    subgraph T2["T-0002 ticket worktree"]
+        B1["T-0002.1 schema<br/>edit: Models/Ledger.ts"]
+        B2["T-0002.2 service<br/>create: Services/Dispatch.ts<br/>reference: Models/Ledger.ts"]
+        B3["T-0002.3 CLI<br/>create: Commands/Dispatch.ts<br/>reference: Models/Ledger.ts"]
+        B1 --> B2
+        B1 --> B3
+    end
 ```
 
-Create tickets from the approved spec and fill their requirements before
-implementation. Plan at least one task per ticket, unless a documented,
-approved exception applies. Define task dependencies and explicit
-repository-relative paths before `implement`: the plan is frozen after the
-ticket implementation assignment. The existing `correct --approved-exception`
-is a narrowly scoped, one-use exception for the `0001-ticket-task-dispatch`
-feature's T-0004 correction; it is not a general task-plan recovery command.
+T-0002.2 and T-0002.3 reference the file that T-0002.1 edits, so both depend
+on it. They do not conflict with each other, so they run in parallel after
+T-0002.1 is committed.
 
-### Task implementation
+### Dependency rules
+
+- A ticket is **ready** when it has at least one task and every ticket it
+  depends on has merged into the feature branch.
+- A task is **ready** when its ticket is ready, it has files listed, and every
+  task it depends on has been committed in the ticket worktree.
+- Tasks can be added to a ticket at any time before the ticket is accepted. A
+  task can be removed only before it is dispatched. A task's file lists can
+  change only before it is dispatched, or when the controller accepts an
+  out-of-scope file at submission.
+
+## Parallel dispatch
+
+Each feature sets a limit on agents working at once. `next` lists one
+`dispatch` command for every ready task, across all tickets, up to that limit.
+The controller launches those agents together.
 
 ```mermaid
-flowchart LR
-    U["Unassigned"] -->|"task assign"| A["Assigned"]
-    A -->|"worker writes report;<br/>controller task submit"| S["Submitted"]
-    S -->|"task accept"| OK["Accepted"]
-    S -->|"task request-changes"| R["Changes requested"]
-    R -->|"task assign"| A
-    OK -->|"all tasks accepted"| C["Controller commits combined ticket work"]
-    C --> T["Submit ticket implementation report"]
+sequenceDiagram
+    participant C as Controller
+    participant CLI as sdd CLI
+    participant W1 as Agent T-0002.2
+    participant W2 as Agent T-0002.3
+    participant R as Task reviewer
+    C->>CLI: next
+    CLI-->>C: dispatch T-0002.2, dispatch T-0002.3
+    C->>CLI: dispatch --task T-0002.2
+    C->>CLI: dispatch --task T-0002.3
+    par same ticket worktree
+        C->>W1: handoff
+        C->>W2: handoff
+    end
+    W1-->>C: report (changes left uncommitted)
+    C->>CLI: submit --task T-0002.2
+    C->>CLI: review --task T-0002.2
+    C->>R: review handoff
+    Note over W2: still editing its own files
+    R-->>C: review report
+    C->>CLI: submit --review T-0002.2 --result passed
+    Note over CLI: commits only T-0002.2's files
 ```
 
-The controller assigns workers to the shared ticket worktree. Tasks with unmet
-dependencies cannot be assigned. Edit and create paths are reserved while a
-task is assigned, submitted or changes-requested; accepted tasks release their
-reservations. Reference paths are shared. The current implementation compares
-reserved paths by exact string, not directory ancestry. Follow the tracker
-convention to avoid overlapping scopes, including nested paths.
+A handoff contains the ticket worktree path, the task's instructions and
+acceptance criteria, its three file lists, links to the ticket and spec, and the
+absolute report path.
 
-Workers edit their assigned scope, write their assigned reports, and do not
-commit or change ledger state. The controller submits and reviews each report,
-then commits the combined ticket changes after all tasks are accepted.
-Submission verifies task state, report hashes, a clean ticket worktree and a
-new descendant commit. It does not verify who made the commit or enforce each
-worker's actual file edits.
+Workers:
 
-### Checks, review and correction
+- change only their files to edit and create;
+- do not commit, stage or run SDD commands;
+- may run focused tests, knowing that other agents may be editing other files
+  in the same worktree;
+- write their report to the assigned path.
 
-Declare required ticket checks, run them against the relevant committed inputs,
-and record their actual results. Review requires current passing check evidence.
-Review dispatch freezes the target commit, changed-path inventory, reviewer
-roles and report destinations. Feature and ticket requirements must be
-committed and match the reviewed inputs.
+## Task lifecycle
 
-The controller reads each review report, registers accepted findings before
-submitting the review result, and supplies the verdict explicitly. The CLI
-does not infer a verdict from report text. Blocking findings prevent acceptance
-until fixed, dismissed with rationale, or deferred under the required approved
-requirements decision and fresh review. Corrections require fresh evidence,
-checks and review. An unavailable review remains an explicit result, not a
-passing review.
+```mermaid
+stateDiagram-v2
+    [*] --> Planned
+    Planned --> Ready: files listed and dependencies committed
+    Ready --> InProgress: dispatch
+    InProgress --> Submitted: submit
+    Submitted --> InReview: review
+    InReview --> Committed: review passed (CLI commits task files)
+    InReview --> InProgress: changes requested
+    Committed --> [*]
+```
 
-### Integration and post-merge validation
+- **Submit** checks which files changed. A changed file outside the task's
+  lists is reported. The controller either adds it to the task, if that
+  creates no conflict with an unfinished task, or returns the task as changes
+  requested.
+- **Task review** reads only the diff of the task's listed files. Other
+  agents' unfinished changes are not part of the review.
+- **Committed.** When the review passes, the CLI commits exactly the task's
+  listed files to the ticket branch. Commits in one ticket worktree are
+  serialized by the workspace lock.
+- **Changes requested** returns the task to the same ticket worktree. The
+  review findings are attached to the next handoff.
+- An agent that stops without submitting leaves its files in place. The task
+  can be dispatched again.
 
-`integrate` verifies the reviewed target, task and report evidence, current
-requirements, and merge contents before merging the ticket into the feature
-branch. It records the actual merge commit and leaves post-merge validation
-pending; integration alone does not close the ticket.
+## Ticket lifecycle
 
-Declare the complete nonempty post-merge check list, run the checks on the
-feature worktree and record their results. Passing checks and the remaining
-gates close the ticket. Pending or failed post-merge validation normally
-prevents another ticket integration and blocks dependents. For failed
-post-merge recovery, `sync` first fast-forwards a clean, non-divergent ticket
-worktree to the recorded failed merge before correction. A later passing result
-can also be recorded against the same target; `next` guides a current failure
-toward sync and correction.
+```mermaid
+stateDiagram-v2
+    [*] --> Planned
+    Planned --> Ready: has tasks, dependencies merged (worktree created)
+    Ready --> InProgress: first task dispatched
+    InProgress --> Checking: all tasks committed
+    Checking --> InAcceptance: ticket checks pass
+    Checking --> InProgress: checks fail (fix task)
+    InAcceptance --> Accepted: acceptance review passed
+    InAcceptance --> InProgress: findings (fix tasks)
+    Accepted --> Merged: integrate
+    Accepted --> InProgress: conflict or post-merge checks fail (fix task)
+    Merged --> [*]
+```
 
-## Delivery and finalization
+- **Ticket checks** run in the ticket worktree after every task is committed,
+  so no agent is still editing. A failure creates a fix task with the check
+  output.
+- **Acceptance review** reads the ticket branch diff from the feature branch,
+  against the ticket's acceptance criteria.
+- **Single-task shortcut.** When a ticket has exactly one task, its task
+  review runs after the ticket checks and serves as the acceptance review,
+  against the ticket's acceptance criteria.
+
+## Integration
 
 ```mermaid
 flowchart TD
-    A["All tickets closed and post-merge validated"] --> B["claim --scope delivery"]
-    B --> C["Run and record delivery checks"]
-    C --> D["Feature review"]
-    D --> E{"Review and findings resolved?"}
-    E -->|"No"| F["Delivery correction, checks and review"]
-    F --> D
-    E -->|"Yes"| G["Declare complete final-check list"]
-    G --> H["finish: merge into original branch"]
-    H --> I["Run and record final checks in original checkout"]
-    I --> J{"Final checks pass?"}
-    J -->|"No: committed fix"| K["checks revalidate; rerun complete list"]
-    K --> I
-    J -->|"Yes"| L["finish: completion metadata and safe cleanup"]
+    A["integrate --ticket T"] --> B{"Ticket accepted?"}
+    B -->|"No"| Z["Refuse"]
+    B -->|"Yes"| C["In the ticket worktree: merge feature branch tip"]
+    C --> D{"Conflict?"}
+    D -->|"Yes"| E["Abort merge; create fix task with conflict details"]
+    D -->|"No"| F["Run post-merge checks on the merge commit"]
+    F --> G{"Pass?"}
+    G -->|"No"| H["Reset ticket branch to before the merge;<br/>create fix task with check output"]
+    G -->|"Yes"| I["Feature worktree fast-forwards to the tested commit"]
+    I --> J["Commit ledger; remove ticket worktree and branch"]
 ```
 
-Delivery requires all tickets to be closed, integrated and post-merge
-validated. The controller claims delivery, records required feature-level
-checks and obtains the required feature review. A delivery finding may
-reference a ticket, but a delivery correction creates a delivery assignment;
-it does not automatically reopen that ticket.
+- The feature branch moves only by a fast-forward to the exact commit that was
+  tested. A failure never changes the feature branch and never blocks other
+  tickets.
+- Ticket integrations are serial. Ledger changes are uncommitted in the
+  feature worktree, and tickets never touch `.spindle/`, so they do not
+  conflict with the fast-forward.
+- A fix task from a failed integration returns the ticket to InProgress. It
+  goes through checks and acceptance again, focused on the fix.
 
-Before `finish`, declare the complete final-check list and satisfy review,
-finding, check and retrospective gates. The first `finish` merges the feature
-into the originating branch and can return with final validation still pending.
-Run and record every final check in the original checkout. If a failed check
-needs a committed fix, `checks revalidate` selects the new target and clears
-previous final-check results; run the whole list again. A later result may
-also be recorded for the same target.
+## Reviews and findings
 
-After passing validation, finish from the original checkout records completion
-in a ledger-only metadata commit and removes owned worktrees and branches when
-safe. The final checks cover the validation target, not the subsequent
-metadata-only commit.
+| Level             | Target                                       | Checks against             |
+| ----------------- | -------------------------------------------- | -------------------------- |
+| Task review       | Uncommitted diff of the task's listed files  | Task instructions          |
+| Ticket acceptance | Ticket branch diff from the feature branch   | Ticket acceptance criteria |
+| Feature review    | Feature branch diff from the original branch | Feature spec               |
 
-## Persistence, safety and recovery
+Task review findings do not create fix tasks. They return the task to its
+worker as changes requested.
 
-- [`WorkspaceTransaction`](src/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction.ts)
-  locks the feature workspace, recovers pending journal writes, and atomically
-  updates ledger and ticket records. Conflicting external contents are
-  preserved and cause an error.
-- In a started feature worktree,
-  [`WorkflowRecordsCommitter`](src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts)
-  currently commits canonical workflow-record changes after writes. Pending
-  records are not generally batched until delivery.
-- Reports live at assigned paths directly inside `reports/`. Submission records
-  a SHA-256 digest; later gates recheck it. A digest establishes content
-  identity, not the quality of the report.
-- Feature start, ticket start, record commits, integration and finalization use
-  journals in the common Git directory. On interruption, preserve the worktree,
-  index, reports and journal; inspect the reported state and follow the
-  applicable recovery action. Unsafe or ambiguous recovery stops rather than
-  silently discarding work.
-- The project convention is to integrate tickets serially and validate each
-  merge before treating it as complete. A changed review baseline or correction
-  requires fresh checks and review.
+For ticket acceptance and feature review, a reviewer writes a report with a
+verdict and findings. The controller records the verdict and each accepted
+finding. Each finding ends in one of two ways:
 
-## Implementation map
+- **`finding fix`** creates a fix task with its own file lists. For ticket
+  acceptance, it belongs to that ticket. For feature review, it belongs to the
+  ticket the finding names, which reopens with a new ticket worktree; if it
+  names none, the CLI creates a new ticket for it.
+- **`finding dismiss --reason`** closes it with a recorded reason.
 
-| Area                                                         | Responsibility                                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| [`Commands/`](src/SubagentDrivenDevelopment/Commands/)       | CLI schemas, option handling and service delegation.                            |
-| [`Services/`](src/SubagentDrivenDevelopment/Services/)       | Feature, ticket, task, assignment, review, integration and delivery operations. |
-| [`Persistence/`](src/SubagentDrivenDevelopment/Persistence/) | Ledger validation, ticket records, transactions, locks and path safety.         |
-| [`Evidence/`](src/SubagentDrivenDevelopment/Evidence/)       | Git and report evidence, commit identity and report integrity.                  |
-| [`Policies/`](src/SubagentDrivenDevelopment/Policies/)       | Readiness, ownership, task-plan, check, review and finding gates.               |
-| [`Models/`](src/SubagentDrivenDevelopment/Models/)           | Ledger, assignment, evidence and workflow types.                                |
-| [`Support/`](src/SubagentDrivenDevelopment/Support/)         | SDD-specific parsing and status formatting.                                     |
+When every fix task from a review is committed, the same review level runs
+again, focused on the fixes.
+
+## Delivery
+
+```mermaid
+flowchart TD
+    A["All tickets merged into feature branch"] --> B["Feature review"]
+    B --> C{"Open findings?"}
+    C -->|"Yes"| D["Fix tasks; ticket checks, acceptance, integrate"]
+    D --> B
+    C -->|"No"| E["Merge original branch tip into feature branch"]
+    E --> F["Run final checks"]
+    F --> G{"Pass?"}
+    G -->|"No"| H["Fix task"]
+    H --> D
+    G -->|"Yes"| I["finish: fast-forward original branch to tested commit"]
+    I --> J["Mark complete; remove feature worktree and branches"]
+```
+
+- Final checks run on the feature branch after it includes the original
+  branch tip. The commit that is tested is the commit that lands.
+- `finish` refuses if the original branch has moved since the final checks
+  ran. Repeat the update and the checks.
+- An optional retrospective report can be required by the feature settings.
+  `finish` requires it when set.
+- `finish` never pushes, publishes or force-deletes. It removes a worktree or
+  branch only after confirming that its work is merged.
+
+## Checks
+
+Check commands are declared once per feature, with project defaults:
+
+- **ticket** checks run in a ticket worktree after all its tasks are
+  committed.
+- **post-merge** checks run during every `integrate`.
+- **final** checks run before `finish`.
+
+The CLI runs each command in the relevant worktree, writes its output to
+`reports/`, and records pass or fail. `check --scope <scope>` runs a set on
+demand without changing workflow state.
+
+## Commands
+
+All commands run as `pnpm spindle sdd <command> --feature <directory>`, except
+`create`. `--json` returns a success envelope on stdout and errors on stderr.
+
+| Command                          | Purpose                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `create`                         | Create a numbered feature workspace with `spec.md` and optional `design.md`.                |
+| `start`                          | Create the feature branch and worktree; commit workspace records on the feature branch.     |
+| `ticket create`, `ticket update` | Create or edit tickets, their dependencies and blockers. A new ticket has no tasks.         |
+| `task create`, `task update`     | Add or edit tasks: instructions, file lists and dependencies. Refuses unordered conflicts.  |
+| `next`                           | List every available action with exact commands. `--verbose` adds the full graph and state. |
+| `dispatch`                       | Mark a ready task in progress and return its handoff.                                       |
+| `submit`                         | Record a worker's submission, or a reviewer's verdict with `--review`.                      |
+| `review`                         | Create a task, ticket or feature review assignment and return its handoff.                  |
+| `finding`                        | `create`, `fix` (creates a fix task) or `dismiss --reason`.                                 |
+| `integrate`                      | Merge an accepted ticket into the feature branch and run post-merge checks.                 |
+| `check`                          | Run a declared check set on demand.                                                         |
+| `finish`                         | Run final checks, merge into the original branch and clean up.                              |
+
+## Recovery and safety
+
+- Ledger writes are atomic file replacements under the workspace lock.
+- The feature branch moves only by fast-forward to a tested commit, so an
+  interrupted `integrate` leaves it either unchanged or fully updated.
+- `start`, `integrate` and `finish` write a small journal before they change
+  branches. If a command is interrupted, the next SDD command completes or
+  rolls back the operation, or stops and prints what it found. It never
+  discards uncommitted work.
+- One controller runs a feature at a time. The workspace lock prevents two
+  controllers from writing at once; there is no per-command actor identity.
+
+## Removed from the current implementation
+
+| Removed                                                              | Replaced by                                                             |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Path reservations held while a task is assigned                      | File conflicts checked when tasks are planned, ordered by dependencies  |
+| Optional task plans, frozen plans and `correct --approved-exception` | Every ticket has tasks; tasks can be added until the ticket is accepted |
+| Task-specific assign, submit, accept and request-changes commands    | `dispatch`, `submit` and `review`                                       |
+| A controller commit of combined ticket work after all tasks          | The CLI commits each task's files when its review passes                |
+| `--actor`, `claim` and `resume --confirm-handoff`                    | One controller per feature, enforced by the workspace lock              |
+| A records commit after every ledger write                            | Ledger commits at `start`, each `integrate` and `finish`                |
+| `checks require`, `checks record` and `checks revalidate`            | Declared checks that the CLI runs                                       |
+| Global block on merges after a failed post-merge check, and `sync`   | The feature branch moves only after checks pass                         |
+| `correct` and the correction assignment types                        | Fix tasks                                                               |
+| `requirements decide` and the `deferred`/`confirmed` outcomes        | Two finding outcomes: fix or dismiss                                    |
+| Review pinning, frozen changed-path inventories and report hashes    | Reviews of a stated diff; reports committed with the ledger             |
+| Final checks after merging into the original branch                  | Final checks on the feature branch before `finish`                      |
+| `ready` and `status`                                                 | `next --verbose`                                                        |

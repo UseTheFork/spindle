@@ -11,8 +11,8 @@
 - [Settings](src/Settings/GLOSSARY.md): Project Settings and their lifecycle.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
   features, tickets, assignments, findings, evidence, and delivery.
-- [Current SDD workflows](SDD-WORKFLOWS.md): command reference, workflow
-  lifecycle, and known implementation limits.
+- [SDD target workflow](SDD-WORKFLOWS.md): target design for the SDD rebuild:
+  work graph, parallel dispatch, integration, reviews and delivery.
 - [Git](src/Git/GLOSSARY.md): repositories, working trees, index, and commits.
 
 Shared template rendering ownership is documented in
