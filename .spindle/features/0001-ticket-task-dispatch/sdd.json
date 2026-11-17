@@ -2644,6 +2644,11 @@
         "at": "2026-11-17T13:51:29.040Z",
         "author": "Copilot",
         "action": "aggregate-review-submitted:57377960-e1c4-4b46-bafb-f73233eef325:passed"
+      },
+      {
+        "at": "2026-11-17T13:51:38.611Z",
+        "author": "Copilot",
+        "action": "finding-fixed:F-0001"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3689,7 +3694,7 @@
       {
         "id": "F-0001",
         "blocking": true,
-        "status": "confirmed",
+        "status": "fixed",
         "summary": "Accepted task reports are not revalidated after acceptance",
         "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion.",
         "author": "Copilot",
@@ -3715,8 +3720,25 @@
             "author": "Copilot",
             "action": "status:confirmed",
             "details": "confirmed"
+          },
+          {
+            "at": "2026-11-17T13:51:38.611Z",
+            "author": "Copilot",
+            "action": "status:fixed",
+            "details": "Verified at commit a1cac8bb1f83eed75113ed590d0b23a0f3c50fff."
           }
-        ]
+        ],
+        "verification": {
+          "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+          "checkCommands": [
+            "pnpm test",
+            "pnpm run build",
+            "pnpm run lint",
+            "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')"
+          ],
+          "verifiedAt": "2026-11-17T13:51:38.490Z",
+          "verifiedBy": "Copilot"
+        }
       },
       {
         "id": "F-0002",
