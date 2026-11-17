@@ -1505,7 +1505,7 @@
           }
         }
       ],
-      "execution": "reviewing",
+      "execution": "integrated",
       "owner": "Copilot",
       "baseSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
       "assignment": {
@@ -1971,7 +1971,60 @@
             }
           ]
         }
-      ]
+      ],
+      "integration": {
+        "commitSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+        "mergeSha": "cb679ea3ea98011019dc79d40a470907d68283b3",
+        "postMerge": {
+          "status": "pending",
+          "mergeSha": "cb679ea3ea98011019dc79d40a470907d68283b3"
+        },
+        "integratedAt": "2026-11-17T02:45:51.414Z",
+        "integratedBy": "Copilot",
+        "files": [
+          "docs/agents/ticket-tracker.md",
+          "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+          "src/SubagentDrivenDevelopment/GLOSSARY.md",
+          "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+          "src/SubagentDrivenDevelopment/Models/Options.ts",
+          "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+          "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+          "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+          "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+          "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+          "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
+        ]
+      },
+      "acceptedEvidence": {
+        "commitSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+        "files": [
+          "docs/agents/ticket-tracker.md",
+          "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+          "src/SubagentDrivenDevelopment/GLOSSARY.md",
+          "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+          "src/SubagentDrivenDevelopment/Models/Options.ts",
+          "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+          "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+          "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+          "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+          "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+          "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
+        ]
+      }
     }
   ],
   "delivery": {
