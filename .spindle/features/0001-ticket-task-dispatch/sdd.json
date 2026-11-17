@@ -2474,6 +2474,11 @@
         "at": "2026-11-17T04:28:19.797Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm test:passed"
+      },
+      {
+        "at": "2026-11-17T04:28:29.874Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run lint:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2557,6 +2562,14 @@
           "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
           "recordedAt": "2026-11-17T04:28:19.797Z",
           "details": "Controller-run on the post-format-correction target after pnpm run build; 90 test files passed, 641 tests passed, 1 expected fail (642 total)."
+        },
+        {
+          "command": "pnpm run lint",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
+          "recordedAt": "2026-11-17T04:28:29.874Z",
+          "details": "Controller-run on the post-format-correction target; oxlint exited 0 with no diagnostics."
         }
       ]
     },
