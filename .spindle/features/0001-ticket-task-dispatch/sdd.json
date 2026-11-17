@@ -2434,6 +2434,11 @@
         "at": "2026-11-17T04:08:19.583Z",
         "author": "Copilot",
         "action": "correction-report-submitted:75d1eaec-5f07-4778-8696-a013f4509c61"
+      },
+      {
+        "at": "2026-11-17T04:15:42.136Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run build:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2469,6 +2474,14 @@
           "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
           "recordedAt": "2026-11-17T03:50:00.353Z",
           "details": "Full Vitest suite: 89 test files passed and 1 failed; 633 tests passed, 8 failed, 1 expected fail. All 8 failures are in PackagedCli.test.ts because build/ and build/index.js were absent. Run the declared build before rerunning pnpm test."
+        },
+        {
+          "command": "pnpm run build",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+          "recordedAt": "2026-11-17T04:15:42.136Z",
+          "details": "Controller-run on the delivery source snapshot; exited 0. No source changes from assigned check-only corrections; generated build output is ignored."
         }
       ]
     },
