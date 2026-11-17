@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2414,6 +2414,11 @@
         "at": "2026-11-17T03:50:00.353Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm test:failed"
+      },
+      {
+        "at": "2026-11-17T03:50:30.307Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:1"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2451,6 +2456,55 @@
           "details": "Full Vitest suite: 89 test files passed and 1 failed; 633 tests passed, 8 failed, 1 expected fail. All 8 failures are in PackagedCli.test.ts because build/ and build/index.js were absent. Run the declared build before rerunning pnpm test."
         }
       ]
+    },
+    "correctionAttempts": [
+      {
+        "number": 1,
+        "findingIds": [],
+        "checkFailure": "pnpm test",
+        "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
+        "startedAt": "2026-11-17T03:50:30.307Z",
+        "startedBy": "Copilot",
+        "assignmentId": "fafa3517-5767-477c-b7cc-5f0d724a874f",
+        "assignment": {
+          "id": "fafa3517-5767-477c-b7cc-5f0d724a874f",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 1,
+          "findingIds": [],
+          "checkFailure": "pnpm test",
+          "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
+          "requestedAt": "2026-11-17T03:50:30.307Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "checks": [
+          {
+            "command": "pnpm test",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+            "recordedAt": "2026-11-17T03:50:00.353Z",
+            "details": "Full Vitest suite: 89 test files passed and 1 failed; 633 tests passed, 8 failed, 1 expected fail. All 8 failures are in PackagedCli.test.ts because build/ and build/index.js were absent. Run the declared build before rerunning pnpm test."
+          }
+        ]
+      }
+    ],
+    "assignment": {
+      "id": "fafa3517-5767-477c-b7cc-5f0d724a874f",
+      "role": "implementation",
+      "action": "correct",
+      "controller": "Copilot",
+      "attempt": 1,
+      "findingIds": [],
+      "checkFailure": "pnpm test",
+      "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
+      "requestedAt": "2026-11-17T03:50:30.307Z",
+      "status": "pending",
+      "handoffs": []
     }
   }
 }
