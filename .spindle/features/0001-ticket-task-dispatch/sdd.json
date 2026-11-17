@@ -1505,7 +1505,7 @@
           }
         }
       ],
-      "execution": "reviewing",
+      "execution": "changes-requested",
       "owner": "Copilot",
       "baseSha": "a78eb61bfdcf9acaa75e05a85164d9d42626f614",
       "assignment": {
@@ -1577,7 +1577,15 @@
           ],
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md",
           "requestedAt": "2026-11-17T01:44:37.579Z",
-          "status": "pending"
+          "status": "submitted",
+          "result": "failed",
+          "findingIds": [
+            "F-0001"
+          ],
+          "reportSha256": "27d86e5c6e7b040ce6c05f593b8f8810df6ada4ee65365af88b883a2957f40ff",
+          "submittedAt": "2026-11-17T01:50:13.008Z",
+          "submittedBy": "Copilot",
+          "details": "The required ticket review failed because the new T-0005 bootstrap and T-0004 exception-linked integration guards lack focused integration-service regression coverage. Registered blocking finding F-0001 requires tests for authorized/rejected lifecycle paths and proof that fresh check and corrective-review gates remain enforced."
         }
       ],
       "findings": [
