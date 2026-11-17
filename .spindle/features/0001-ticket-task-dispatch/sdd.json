@@ -1444,7 +1444,7 @@
       "title": "Record approved T-0004 corrective task-plan exception",
       "reporter": "User",
       "category": "enhancement",
-      "status": "open",
+      "status": "closed",
       "blockedBy": [],
       "tasks": [
         {
@@ -1976,7 +1976,7 @@
         "commitSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
         "mergeSha": "cb679ea3ea98011019dc79d40a470907d68283b3",
         "postMerge": {
-          "status": "pending",
+          "status": "passed",
           "mergeSha": "cb679ea3ea98011019dc79d40a470907d68283b3",
           "checks": {
             "required": [
@@ -1986,7 +1986,15 @@
                 "addedBy": "Copilot"
               }
             ],
-            "records": []
+            "records": [
+              {
+                "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+                "result": "passed",
+                "author": "Copilot",
+                "headSha": "cb679ea3ea98011019dc79d40a470907d68283b3",
+                "recordedAt": "2026-11-17T02:55:19.507Z"
+              }
+            ]
           }
         },
         "integratedAt": "2026-11-17T02:45:51.414Z",
