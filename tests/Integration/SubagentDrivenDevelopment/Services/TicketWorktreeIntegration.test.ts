@@ -2,19 +2,28 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 
 import { GitEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/GitEvidence";
+import { ReportEvidence } from "@spindle/SubagentDrivenDevelopment/Evidence/ReportEvidence";
 import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   ApprovedTaskPlanException,
   CorrectionAttempt,
   ImplementationAssignment,
 } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
-import type { IntegrationRecord } from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
+import type {
+  AcceptedEvidence,
+  CommitIdentity,
+  IntegrationRecord,
+} from "@spindle/SubagentDrivenDevelopment/Models/Evidence";
 import type {
   FeatureLedger,
+  FeaturePaths,
   TicketProgress,
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 import { LedgerRepository } from "@spindle/SubagentDrivenDevelopment/Persistence/LedgerRepository";
+import { WorkspaceTransaction } from "@spindle/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction";
 import { AcceptancePolicy } from "@spindle/SubagentDrivenDevelopment/Policies/AcceptancePolicy";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { WorkflowRecordsCommitter } from "@spindle/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter";
 import {
   cliOutput,
   execute,
@@ -111,10 +120,110 @@ function mockIntegrationGates(ledger: FeatureLedger, blockers: string[]) {
   return vi.spyOn(AcceptancePolicy.prototype, "acceptBlockers").mockReturnValue(blockers);
 }
 
-function integrateFixtureTicket(root: string, spec: string, ticket: string) {
-  return execute(root, (services) =>
-    services.ticketIntegrationService.integrate({ spec, ticket, author: "controller" }),
-  );
+function integrateFixtureTicket(
+  root: string,
+  spec: string,
+  ticket: string,
+  prepare?: (service: TicketIntegrationService) => void,
+) {
+  return execute(root, (services) => {
+    prepare?.(services.ticketIntegrationService);
+    return services.ticketIntegrationService.integrate({ spec, ticket, author: "controller" });
+  });
+}
+
+interface IntegrationServiceSeam {
+  run(root: string, args: string[]): string;
+  assertCanonical(root: string, feature: FeaturePaths): void;
+  assertNoOperation(root: string, allowMerge?: boolean): void;
+  assertNoHooks(root: string): void;
+  assertClean(root: string, feature: FeaturePaths): void;
+  assertAncestor(root: string, ancestor: string, descendant: string, message: string): void;
+  isAncestor(root: string, ancestor: string, descendant: string): boolean;
+  assertMergePreflight(
+    root: string,
+    featureHead: string,
+    ticketHead: string,
+    files: string[],
+    workspace: string,
+  ): void;
+  assertNoIgnoredCollisions(root: string, journal: object): void;
+  assertIndexMatchesReview(root: string, journal: object): void;
+  assertMergeCommit(root: string, journal: object, mergeSha: string): void;
+  acceptedEvidence(
+    feature: FeaturePaths,
+    progress: TicketProgress,
+    identity: CommitIdentity,
+  ): AcceptedEvidence;
+}
+
+function allowSuccessfulIntegration(
+  service: TicketIntegrationService,
+  root: string,
+  ticketCommit: string,
+) {
+  const seam = service as unknown as IntegrationServiceSeam;
+  const featureHead = gitAt(root, "rev-parse", "--verify", "HEAD");
+  const commonDirectory = gitAt(root, "rev-parse", "--path-format=absolute", "--git-common-dir");
+  const mergeCommit = "9".repeat(40);
+  let mergeStarted = false;
+  let mergeCommitted = false;
+
+  vi.spyOn(seam, "assertCanonical").mockImplementation(() => {});
+  vi.spyOn(seam, "assertNoOperation").mockImplementation(() => {});
+  vi.spyOn(seam, "assertNoHooks").mockImplementation(() => {});
+  vi.spyOn(seam, "assertClean").mockImplementation(() => {});
+  vi.spyOn(seam, "assertAncestor").mockImplementation(() => {});
+  vi.spyOn(seam, "isAncestor").mockReturnValue(false);
+  vi.spyOn(seam, "assertMergePreflight").mockImplementation(() => {});
+  vi.spyOn(seam, "assertNoIgnoredCollisions").mockImplementation(() => {});
+  vi.spyOn(seam, "assertIndexMatchesReview").mockImplementation(() => {});
+  vi.spyOn(seam, "assertMergeCommit").mockImplementation(() => {});
+  vi.spyOn(seam, "acceptedEvidence").mockImplementation((_feature, _progress, identity) => ({
+    commitSha: identity.headSha,
+    files: [],
+  }));
+  vi.spyOn(seam, "run").mockImplementation((_root, args) => {
+    if (
+      args[0] === "rev-parse" &&
+      args[1] === "--path-format=absolute" &&
+      args[2] === "--git-common-dir"
+    ) {
+      return commonDirectory;
+    }
+    if (args[0] === "-c" && args.includes("merge")) {
+      mergeStarted = true;
+      return "";
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === "MERGE_HEAD") {
+      if (!mergeStarted) throw new Error("The integration seam did not reach the merge boundary.");
+      return ticketCommit;
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === "HEAD") {
+      return mergeCommitted ? mergeCommit : featureHead;
+    }
+    if (args[0] === "commit") {
+      if (!mergeStarted)
+        throw new Error("The integration seam committed before the merge boundary.");
+      mergeCommitted = true;
+      return "";
+    }
+    throw new Error(`Unexpected integration Git command: ${args.join(" ")}`);
+  });
+
+  vi.spyOn(GitEvidence.prototype, "ticketWorkspace").mockReturnValue(root);
+  vi.spyOn(GitEvidence.prototype, "assertTicketCodeCommitted").mockImplementation(() => {});
+  vi.spyOn(GitEvidence.prototype, "assertCommittedRequirements").mockImplementation(() => {});
+  vi.spyOn(GitEvidence.prototype, "assertTicketRequirementsCurrent").mockImplementation(() => {});
+  vi.spyOn(GitEvidence.prototype, "changedPaths").mockReturnValue([]);
+  vi.spyOn(ReportEvidence.prototype, "assertAcceptedReportsCurrent").mockImplementation(() => {});
+  vi.spyOn(WorkflowRecordsCommitter.prototype, "commit").mockReturnValue(undefined);
+  vi.spyOn(WorkspaceTransaction.prototype, "writeWorkflowState").mockImplementation(() => {});
+
+  return {
+    mergeCommit,
+    mergeWasStubbed: () => mergeStarted && mergeCommitted,
+  };
 }
 
 test("the T-0005 bootstrap reaches normal acceptance only with T-0004 as the sole pending integration", async () => {
@@ -151,6 +260,50 @@ test("the T-0005 bootstrap reaches normal acceptance only with T-0004 as the sol
     /post-merge validation is pending or failed.*T-0002, T-0004/i,
   );
   expect(acceptance).toHaveBeenCalledTimes(1);
+});
+
+test("the allowed T-0005 bootstrap preserves T-0004 pending integration and accepted history", async () => {
+  const { root, spec, ledger } = await integrationGateFixture();
+  const prior = progressFor(ledger, "T-0004");
+  prior.execution = "integrated";
+  prior.status = "open";
+  prior.tasks = [];
+  prior.integration = pendingIntegration();
+  const historicalIntegration = pendingIntegration("4".repeat(40), "5".repeat(40));
+  historicalIntegration.postMerge = {
+    status: "passed",
+    mergeSha: historicalIntegration.mergeSha,
+    checks: { required: [], records: [] },
+  };
+  prior.integrationHistory = [historicalIntegration];
+  prior.acceptedEvidence = {
+    commitSha: historicalIntegration.commitSha,
+    files: ["previously-accepted.ts"],
+  };
+  const integrationBefore = structuredClone(prior.integration);
+  const historyBefore = structuredClone(prior.integrationHistory);
+  const evidenceBefore = structuredClone(prior.acceptedEvidence);
+  setReviewing(progressFor(ledger, "T-0005"), root);
+  const acceptance = mockIntegrationGates(ledger, []);
+  let seam: ReturnType<typeof allowSuccessfulIntegration> | undefined;
+
+  const integrated = await integrateFixtureTicket(root, spec, "T-0005", (service) => {
+    seam = allowSuccessfulIntegration(service, root, "c".repeat(40));
+  });
+
+  expect(integrated.status, integrated.stderr).toBe(0);
+  expect(JSON.parse(integrated.stdout)).toMatchObject({
+    ticket: "T-0005",
+    ticketCommit: "c".repeat(40),
+    mergeCommit: seam?.mergeCommit,
+    postMerge: "pending",
+  });
+  expect(seam?.mergeWasStubbed()).toBe(true);
+  expect(acceptance).toHaveBeenCalledTimes(2);
+  expect(prior.tasks).toEqual([]);
+  expect(prior.integration).toEqual(integrationBefore);
+  expect(prior.integrationHistory).toEqual(historyBefore);
+  expect(prior.acceptedEvidence).toEqual(evidenceBefore);
 });
 
 test("the T-0005 bootstrap rejects a different feature", async () => {
@@ -303,6 +456,62 @@ test("exception-linked T-0004 integration requires a valid exception, validated 
   expect(unvalidated.status).not.toBe(0);
   expect(unvalidated.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
   expect(acceptance).toHaveBeenCalledTimes(4);
+});
+
+test("the allowed exception-linked correction preserves T-0004 prior integration and evidence", async () => {
+  const { root, spec, ledger } = await integrationGateFixture();
+  const target = seedValidatedCorrection(ledger, root);
+  const historyBefore = structuredClone(target.integrationHistory);
+  const exceptionBefore = structuredClone(target.taskPlanException);
+  const acceptance = mockIntegrationGates(ledger, []);
+  let seam: ReturnType<typeof allowSuccessfulIntegration> | undefined;
+
+  const integrated = await integrateFixtureTicket(root, spec, "T-0004", (service) => {
+    seam = allowSuccessfulIntegration(service, root, "c".repeat(40));
+  });
+
+  expect(integrated.status, integrated.stderr).toBe(0);
+  expect(JSON.parse(integrated.stdout)).toMatchObject({
+    ticket: "T-0004",
+    ticketCommit: "c".repeat(40),
+    mergeCommit: seam?.mergeCommit,
+    postMerge: "pending",
+  });
+  expect(seam?.mergeWasStubbed()).toBe(true);
+  expect(acceptance).toHaveBeenCalledTimes(2);
+  expect(target.integrationHistory).toEqual(historyBefore);
+  expect(target.taskPlanException).toEqual(exceptionBefore);
+  expect(target.taskPlanException?.priorIntegration).toEqual(historyBefore?.at(-1));
+  expect(target.taskPlanException?.priorAcceptedEvidence).toEqual({
+    commitSha: historyBefore?.at(-1)?.commitSha,
+    files: [],
+  });
+  expect(target.integration?.postMerge?.status).toBe("pending");
+});
+
+test("the exception-linked correction guard rejects a different ticket", async () => {
+  const { root, spec, ledger } = await integrationGateFixture();
+  seedValidatedCorrection(ledger, root);
+  setReviewing(progressFor(ledger, "T-0003"), root);
+  const acceptance = mockIntegrationGates(ledger, []);
+
+  const rejected = await integrateFixtureTicket(root, spec, "T-0003");
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+  expect(acceptance).not.toHaveBeenCalled();
+});
+
+test("the exception-linked correction guard rejects a different feature", async () => {
+  const { root, spec, ledger } = await integrationGateFixture("Unrelated Feature");
+  seedValidatedCorrection(ledger, root);
+  const acceptance = mockIntegrationGates(ledger, []);
+
+  const rejected = await integrateFixtureTicket(root, spec, "T-0004");
+
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toMatch(/post-merge validation is pending or failed.*T-0004/i);
+  expect(acceptance).not.toHaveBeenCalled();
 });
 
 test("integration preserves ignored collisions and permits unrelated ignored files on retry", async () => {
