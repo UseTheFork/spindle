@@ -1915,7 +1915,42 @@
             "details": "Round 2 added allowed success-boundary paths, preservation checks, and exception-path wrong-target rejections. Fresh vitest passed 298 tests but production tsc exposed TS2322 in the new test at line 273; later checks did not run. Continue because coverage materially improved; fix the type error, retain all guard tests, and rerun fresh full checks.",
             "recordedAt": "2026-11-17T02:29:03.534Z",
             "recordedBy": "Copilot"
-          }
+          },
+          "reviewAssignments": [
+            {
+              "id": "d1306771-29af-4458-934b-5b0b6aed4649",
+              "agent": "sdd-task-reviewer",
+              "role": "review",
+              "scope": "corrective",
+              "attempt": 3,
+              "headSha": "73afdc4208b3c5cc5ec161724fa5e726b8ed69dc",
+              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+              "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+              "inventory": [
+                "docs/agents/ticket-tracker.md",
+                "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+                "src/SubagentDrivenDevelopment/GLOSSARY.md",
+                "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+                "src/SubagentDrivenDevelopment/Models/Options.ts",
+                "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+                "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+                "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+                "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+                "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+                "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+                "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+                "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
+              ],
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-3-review-d1306771-29af-4458-934b-5b0b6aed4649.md",
+              "requestedAt": "2026-11-17T02:38:44.993Z",
+              "status": "pending"
+            }
+          ]
         }
       ]
     }
