@@ -2569,6 +2569,11 @@
         "at": "2026-11-17T05:22:07.741Z",
         "author": "Copilot",
         "action": "correction-report-submitted:744e206a-806e-48a1-bbdc-d21d96e5b058"
+      },
+      {
+        "at": "2026-11-17T05:22:20.509Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run build:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2698,6 +2703,13 @@
           "headSha": "bb69cdede781edb016aba4c915897cac6c39840f",
           "recordedAt": "2026-11-17T05:11:31.729Z",
           "details": "Full Vitest suite exited 1: 39 failures across 11 integration test files. The failures are test fixtures that synthesize accepted task state without a valid on-disk task report and matching digest, so the new accepted-task integrity gate blocks ticket implementation submission with “Task TASK-0001 report is missing; accepted report integrity cannot be verified.” This includes Assignments, Checks, DeliveryReadiness, FeatureFinalization variants, FindingRegistration, TicketWorktreeReviews, and TicketWorktreeSync. The assigned focused suite separately passed 4 files/51 tests. Update the shared test fixtures for accepted task reports, preserve tests explicitly covering missing/symlinked evidence, then rerun the full suite."
+        },
+        {
+          "command": "pnpm run build",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "65b798340b98630df22939b74df35ec9266bc4e3",
+          "recordedAt": "2026-11-17T05:22:20.509Z"
         }
       ]
     },
