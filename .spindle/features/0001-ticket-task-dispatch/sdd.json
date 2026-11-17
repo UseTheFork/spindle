@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "changes-requested",
+    "execution": "implementing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2669,6 +2669,11 @@
         "at": "2026-11-17T14:05:00.618Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle:failed"
+      },
+      {
+        "at": "2026-11-17T14:05:08.657Z",
+        "author": "Copilot",
+        "action": "correction-dispatched:8"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3498,8 +3503,8 @@
         "progressAssessment": {
           "decision": "continue",
           "result": "productive",
-          "details": "The previous correction implemented accepted-task report integrity and its corrective review passed, but recording F-0001 as fixed failed with the exact guard error. Reproduced against the current commit: deliveryInputsPreserved uses feature.workspace, a nested .spindle/features path, so changedPathsBetween excludes all source files. This is an SDD verification-path bug that prevents disposition despite committed correction and passing review. Continue with a focused guard fix and regression test.",
-          "recordedAt": "2026-11-17T13:22:00.570Z",
+          "details": "Round 7 correction was productive: F-0001 fixed, guard fix reviewed, all declared checks passed. Finalization then exposed relocation defects not covered by prior review.",
+          "recordedAt": "2026-11-17T14:05:08.656Z",
           "recordedBy": "Copilot"
         },
         "reviewAssignments": [
@@ -3593,32 +3598,122 @@
             "status": "pending"
           }
         ]
+      },
+      {
+        "number": 8,
+        "findingIds": [],
+        "checkFailure": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+        "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
+        "startedAt": "2026-11-17T14:05:08.657Z",
+        "startedBy": "Copilot",
+        "assignmentId": "a2f3aa88-7a53-40ab-b26b-2890a8c92537",
+        "assignment": {
+          "id": "a2f3aa88-7a53-40ab-b26b-2890a8c92537",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 8,
+          "findingIds": [],
+          "checkFailure": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+          "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
+          "requestedAt": "2026-11-17T14:05:08.657Z",
+          "status": "pending",
+          "handoffs": []
+        },
+        "priorAssignment": {
+          "id": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
+          "role": "implementation",
+          "action": "correct",
+          "controller": "Copilot",
+          "attempt": 7,
+          "findingIds": [
+            "F-0001"
+          ],
+          "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
+          "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
+          "requestedAt": "2026-11-17T13:22:00.570Z",
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "594a2d08a2e031b0432ed92dbb6b884d95107a8ee08a5bb650eff6ba4af3d892",
+          "submittedAt": "2026-11-17T13:33:51.219Z",
+          "submittedBy": "Copilot"
+        },
+        "checks": [
+          {
+            "command": "pnpm run build",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+            "recordedAt": "2026-11-17T13:34:27.178Z"
+          },
+          {
+            "command": "pnpm test",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+            "recordedAt": "2026-11-17T13:41:11.361Z",
+            "details": "Full Vitest suite: 90 test files passed, 648 tests passed, 1 expected fail (649 total). Run after pnpm run build on current delivery target."
+          },
+          {
+            "command": "pnpm run lint",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+            "recordedAt": "2026-11-17T13:41:24.123Z",
+            "details": "oxlint exited 0 with no diagnostics on current delivery target."
+          },
+          {
+            "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+            "recordedAt": "2026-11-17T13:41:41.713Z",
+            "details": "Oxfmt checked all 76 tracked feature-changed files outside workflow record paths; all files passed."
+          },
+          {
+            "command": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+            "result": "failed",
+            "author": "Copilot",
+            "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+            "recordedAt": "2026-11-17T14:05:00.618Z",
+            "details": "Runs FeatureFinalizationService.relocate (the exact sdd finish ledger relocation step) against this feature's real ledger and recorded cleanup targets. Fails with 'Embedded workflow path cannot be silently rewritten; resolve it before finishing.' because finding history details embed absolute report paths; tickets[].tasks[].assignment.worktree also holds an absolute ticket-worktree path relocation cannot handle."
+          }
+        ],
+        "progressAssessment": {
+          "decision": "continue",
+          "result": "productive",
+          "details": "Round 7 correction was productive: F-0001 fixed, guard fix reviewed, all declared checks passed. Finalization then exposed relocation defects not covered by prior review.",
+          "recordedAt": "2026-11-17T14:05:08.656Z",
+          "recordedBy": "Copilot"
+        }
       }
     ],
     "assignment": {
-      "id": "e94b3c9c-b78d-444c-b9a1-2b2912fb3995",
+      "id": "a2f3aa88-7a53-40ab-b26b-2890a8c92537",
       "role": "implementation",
       "action": "correct",
       "controller": "Copilot",
-      "attempt": 7,
-      "findingIds": [
-        "F-0001"
-      ],
-      "objective": "Fix delivery finding verification so committed code changes after an observation are detected from the repository root, not hidden by running Git path comparisons from the nested .spindle/features directory. Add a regression test that demonstrates a feature source commit satisfies the change-after-observation guard; retain rejection when there is no relevant committed change. Then run fresh delivery checks and submit the correction report.",
-      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-fix.md",
-      "requestedAt": "2026-11-17T13:22:00.570Z",
-      "status": "submitted",
-      "handoffs": [],
-      "reportSha256": "594a2d08a2e031b0432ed92dbb6b884d95107a8ee08a5bb650eff6ba4af3d892",
-      "submittedAt": "2026-11-17T13:33:51.219Z",
-      "submittedBy": "Copilot"
+      "attempt": 8,
+      "findingIds": [],
+      "checkFailure": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+      "objective": "Fix FeatureFinalizationService.relocate so sdd finish can relocate this feature's ledger without weakening its safety guards. (1) A ticket task assignment 'worktree' field whose value exactly equals a recorded cleanup target workspace must be handled like the existing 'workspace' handling: record a journal:execution-location mapping and remove it from the relocated ledger; any other non-report path inside a target must still be rejected. (2) For string values that embed absolute assigned report paths of the form <feature records>/reports/<name>.md (as written in finding history by FindingService and DeliveryFindingService, e.g. 'Registered from <path> at commit <sha>.' and 'Linked observation from <path> at commit ...'), rewrite each embedded report path to its destination in the original checkout, verify it is an existing regular file, and record a mapping with its sha256; still throw 'Embedded workflow path cannot be silently rewritten' if any other target-workspace path remains embedded after that rewrite. Add focused regression coverage in the existing finalization tests: a feature with a registered finding (embedded report path) and a submitted task assignment finishes, and the relocated ledger references original-checkout report paths with no worktree paths; an unexpected embedded worktree path is still rejected. The failed check reproduces the defect and must pass after the fix.",
+      "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-fix.md",
+      "requestedAt": "2026-11-17T14:05:08.657Z",
+      "status": "pending",
+      "handoffs": []
     },
     "adjudication": {
-      "status": "pending",
+      "status": "resolved",
       "reason": "worker-blocked",
       "details": "sdd finish is blocked before merge by two relocation defects in FeatureFinalizationService.relocate: (1) task records added by this feature store tickets[].tasks[].assignment.worktree as an absolute ticket-worktree path, which relocation rejects as 'Cannot safely relocate recorded path'; (2) finding history details written by FindingService/DeliveryFindingService embed absolute report paths ('Registered from <abs report>.md at commit ...', 'Linked observation from ...'), which relocation rejects as 'Embedded workflow path cannot be silently rewritten'. Both must be corrected so finalization can relocate the ledger.",
       "recordedAt": "2026-11-17T14:02:51.853Z",
-      "recordedBy": "Copilot"
+      "recordedBy": "Copilot",
+      "resolution": {
+        "details": "Round 7 correction was productive: F-0001 fixed, guard fix reviewed, all declared checks passed. Finalization then exposed relocation defects not covered by prior review.",
+        "recordedAt": "2026-11-17T14:05:08.656Z",
+        "recordedBy": "Copilot"
+      }
     },
     "reviewAssignments": [
       {
