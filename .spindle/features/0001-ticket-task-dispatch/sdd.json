@@ -1287,6 +1287,24 @@
               "headSha": "3f3ef82b0c18e3ac9f510166366005e2721ad9ce",
               "recordedAt": "2026-11-17T03:33:11.810Z"
             }
+          ],
+          "reviewAssignments": [
+            {
+              "id": "e0a9eaed-e245-481d-b478-7ccc703c1b1c",
+              "agent": "sdd-task-reviewer",
+              "role": "review",
+              "scope": "corrective",
+              "attempt": 2,
+              "headSha": "3f3ef82b0c18e3ac9f510166366005e2721ad9ce",
+              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0004",
+              "branch": "tickets/0001-ticket-task-dispatch/T-0004",
+              "inventory": [
+                "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts"
+              ],
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0004-round-2-review-e0a9eaed-e245-481d-b478-7ccc703c1b1c.md",
+              "requestedAt": "2026-11-17T03:33:25.052Z",
+              "status": "pending"
+            }
           ]
         }
       ],
