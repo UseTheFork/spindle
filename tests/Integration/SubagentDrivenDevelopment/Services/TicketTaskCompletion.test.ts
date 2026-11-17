@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { APPROVED_TASK_PLAN_EXCEPTION } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
@@ -170,6 +170,38 @@ test.each(["unassigned", "assigned", "submitted", "changes-requested"] as const)
     const progress = JSON.parse(readFileSync(join(dirname(spec), "sdd.json"), "utf8")).tickets[0];
     expect(progress.execution).toBe("implementing");
     expect(progress.assignment.status).toBe("pending");
+  },
+);
+
+test.each(["modified", "deleted"] as const)(
+  "ticket submission rejects an accepted task report that was %s",
+  async (change) => {
+    const { root, spec } = await acceptedTicket();
+    const ledgerPath = join(dirname(spec), "sdd.json");
+    const before = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    const task = before.tickets[0].tasks[0];
+    const report = task.assignment.report as string;
+    if (change === "modified") writeFileSync(report, "# Changed task report\n");
+    else unlinkSync(report);
+
+    const result = await execute(root, (services) =>
+      services.submissionService.submit({
+        spec,
+        ticket: "T-0001",
+        assignment: before.tickets[0].assignment.id,
+        author: "controller",
+      }),
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(
+      change === "modified"
+        ? /Task TASK-0001 report changed after acceptance; accepted report integrity failed/i
+        : /Task TASK-0001 report is missing; accepted report integrity cannot be verified/i,
+    );
+    const after = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    expect(after.tickets[0].tasks[0].status).toBe("accepted");
+    expect(after.tickets[0].assignment.status).toBe("submitted");
   },
 );
 

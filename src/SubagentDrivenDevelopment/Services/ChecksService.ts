@@ -341,7 +341,7 @@ export class ChecksService extends Service {
     const closureBlocked = [
       ...(ticket.blocker ? [`Ticket blocker: ${ticket.blocker}`] : []),
       ...(unmet.length ? [`Unmet or unvalidated dependencies: ${unmet.join(", ")}`] : []),
-      ...TaskPlanPolicy.acceptanceBlockers(progress),
+      ...TaskPlanPolicy.acceptanceBlockers(progress, feature),
     ];
     if (closureBlocked.length) {
       return {

@@ -1045,3 +1045,29 @@ test("an automatic merge cannot silently change reviewed file content", async ()
   ).toBe(false);
   expect(readFileSync(join(workspace, "tracked.txt"), "utf8")).toBe(ticketContent);
 });
+
+test.each(["modified", "deleted"] as const)(
+  "ticket integration rejects an accepted task report that was %s",
+  async (change) => {
+    const { root, spec } = await acceptedTicket();
+    const ledgerPath = join(dirname(spec), "sdd.json");
+    const before = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    const task = before.tickets[0].tasks[0];
+    const report = task.assignment.report as string;
+    if (change === "modified") writeFileSync(report, "# Changed task report\n");
+    else rmSync(report);
+
+    const result = await integrate(root, spec);
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(
+      change === "modified"
+        ? /Task TASK-0001 report changed after acceptance; accepted report integrity failed/i
+        : /Task TASK-0001 report is missing; accepted report integrity cannot be verified/i,
+    );
+    const after = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    expect(after.tickets[0].execution).toBe("reviewing");
+    expect(after.tickets[0].integration).toBeUndefined();
+    expect(after.tickets[0].tasks[0].status).toBe("accepted");
+  },
+);

@@ -1,9 +1,14 @@
+import { createHash } from "node:crypto";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
+
 import {
   APPROVED_TASK_PLAN_EXCEPTION,
   type ApprovedTaskPlanException,
 } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   FeatureLedger,
+  FeaturePaths,
   TicketProgress,
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
@@ -105,18 +110,88 @@ export class TaskPlanPolicy {
     }
   }
 
-  public static acceptanceBlockers(progress: TicketProgress): string[] {
+  public static acceptanceBlockers(progress: TicketProgress, feature?: FeaturePaths): string[] {
     if (progress.tasks.length === 0) {
       if (TaskPlanPolicy.isApprovedTasklessCorrection(progress)) return [];
       return [`Ticket ${progress.id} has no task plan; define tasks before ticket completion.`];
     }
-    return progress.tasks
+    const blockers = progress.tasks
       .filter((task) => task.status !== "accepted")
       .map((task) => `Task ${task.id} is ${task.status}, not accepted.`);
+    if (feature)
+      blockers.push(...TaskPlanPolicy.acceptedReportIntegrityBlockers(feature, progress));
+    return blockers;
   }
 
-  public static assertAllAccepted(progress: TicketProgress): void {
-    const blockers = TaskPlanPolicy.acceptanceBlockers(progress);
+  public static acceptedReportIntegrityBlockers(
+    feature: FeaturePaths,
+    progress: TicketProgress,
+  ): string[] {
+    const reportsDirectory = resolve(feature.workspace, "reports");
+    const blockers: string[] = [];
+    for (const task of progress.tasks) {
+      if (task.status !== "accepted") continue;
+      const assignment = task.assignment;
+      if (!assignment || !assignment.reportSha256) {
+        blockers.push(
+          `Task ${task.id} has no stored report digest; accepted report integrity cannot be verified.`,
+        );
+        continue;
+      }
+
+      const report = assignment.report;
+      const resolvedReport = resolve(report);
+      if (
+        !isAbsolute(report) ||
+        resolvedReport !== report ||
+        dirname(resolvedReport) !== reportsDirectory ||
+        basename(resolvedReport) === "." ||
+        !basename(resolvedReport).endsWith(".md")
+      ) {
+        blockers.push(
+          `Task ${task.id} report path is unsafe; accepted report integrity cannot be verified.`,
+        );
+        continue;
+      }
+
+      let digest: string;
+      try {
+        const directory = lstatSync(reportsDirectory);
+        const entry = lstatSync(resolvedReport);
+        if (
+          !directory.isDirectory() ||
+          directory.isSymbolicLink() ||
+          !entry.isFile() ||
+          entry.isSymbolicLink() ||
+          dirname(realpathSync(resolvedReport)) !== realpathSync(reportsDirectory)
+        ) {
+          blockers.push(
+            `Task ${task.id} report path is unsafe; accepted report integrity cannot be verified.`,
+          );
+          continue;
+        }
+        digest = createHash("sha256").update(readFileSync(resolvedReport)).digest("hex");
+      } catch (error) {
+        const missing = error instanceof Error && "code" in error && error.code === "ENOENT";
+        blockers.push(
+          missing
+            ? `Task ${task.id} report is missing; accepted report integrity cannot be verified.`
+            : `Task ${task.id} report is unavailable; accepted report integrity cannot be verified.`,
+        );
+        continue;
+      }
+
+      if (digest !== assignment.reportSha256) {
+        blockers.push(
+          `Task ${task.id} report changed after acceptance; accepted report integrity failed.`,
+        );
+      }
+    }
+    return blockers;
+  }
+
+  public static assertAllAccepted(progress: TicketProgress, feature?: FeaturePaths): void {
+    const blockers = TaskPlanPolicy.acceptanceBlockers(progress, feature);
     if (blockers.length > 0) {
       throw new Error(
         `Ticket ${progress.id} cannot submit implementation:\n${blockers.join("\n")}`,

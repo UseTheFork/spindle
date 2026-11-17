@@ -211,6 +211,12 @@ export class TicketIntegrationService extends Service {
       const blockers = this.acceptance.acceptBlockers(feature, ledger, ticket, progress, identity);
       if (blockers.length)
         throw new Error(`Ticket review or checks are not current:\n${blockers.join("\n")}`);
+      const taskReportBlockers = TaskPlanPolicy.acceptedReportIntegrityBlockers(feature, progress);
+      if (taskReportBlockers.length) {
+        throw new Error(
+          `Ticket task report integrity check failed:\n${taskReportBlockers.join("\n")}`,
+        );
+      }
       const accepted = this.acceptedEvidence(feature, progress, identity);
       if (alreadyIntegrated && identity.headSha !== accepted.commitSha) {
         throw new Error("Ticket review evidence is stale; fresh review is required.");

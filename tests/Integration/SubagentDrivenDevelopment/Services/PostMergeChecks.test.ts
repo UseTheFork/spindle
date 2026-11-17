@@ -74,6 +74,7 @@ async function setup() {
   await acceptTaskPlan(root, spec, "T-0001");
   const readyLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const readyFirst = readyLedger.tickets[0];
+  const taskReportPath = readyFirst.tasks[0].assignment.report as string;
   const evidence = {
     commitSha: sha,
     files: ["source.ts"],
@@ -95,7 +96,7 @@ async function setup() {
   });
   readyLedger.tickets[1].blockedBy = ["T-0001"];
   writeFileSync(ledgerPath, `${JSON.stringify(readyLedger, null, 2)}\n`);
-  return { root, spec, sha, ledgerPath };
+  return { root, spec, sha, ledgerPath, taskReportPath };
 }
 
 function cli(root: string, spec: string, action: string, args: string[], author = "controller") {
@@ -218,6 +219,42 @@ test("closure retry reports stale evidence and requires a fresh check", async ()
   expect(ledger.tickets[0].status).toBe("closed");
   expect(ledger.tickets[0].integration.postMerge.checks.records).toHaveLength(2);
 });
+
+test.each(["modified", "deleted"] as const)(
+  "post-merge closure rejects an accepted task report that was %s",
+  async (change) => {
+    const { root, spec, ledgerPath, taskReportPath } = await setup();
+    const required = await cli(root, spec, "require", ["--command", "post-merge validation"]);
+    expect(required.status, required.stderr).toBe(0);
+    if (change === "modified") writeFileSync(taskReportPath, "# Changed task report\n");
+    else rmSync(taskReportPath);
+
+    const recorded = await cli(root, spec, "record", [
+      "--command",
+      "post-merge validation",
+      "--result",
+      "passed",
+    ]);
+
+    expect(recorded.status, recorded.stderr).toBe(0);
+    expect(cliOutput(recorded)).toMatchObject({
+      closed: false,
+      closureBlocked: [
+        change === "modified"
+          ? expect.stringMatching(
+              /Task TASK-0001 report changed after acceptance; accepted report integrity failed/i,
+            )
+          : expect.stringMatching(
+              /Task TASK-0001 report is missing; accepted report integrity cannot be verified/i,
+            ),
+      ],
+    });
+    const after = JSON.parse(readFileSync(ledgerPath, "utf8"));
+    expect(after.tickets[0].status).toBe("open");
+    expect(after.tickets[0].integration.postMerge.status).toBe("pending");
+    expect(after.tickets[0].tasks[0].status).toBe("accepted");
+  },
+);
 
 test("post-merge rejects unauthorized, dirty, stale and wrong-branch evidence", async () => {
   const { root, spec } = await setup();
