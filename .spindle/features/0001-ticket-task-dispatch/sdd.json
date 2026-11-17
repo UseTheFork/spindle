@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "reviewing",
+    "execution": "changes-requested",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2449,6 +2449,11 @@
         "at": "2026-11-17T04:15:59.301Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm run lint:passed"
+      },
+      {
+        "at": "2026-11-17T04:16:14.613Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run fmt:check:failed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2508,6 +2513,14 @@
           "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
           "recordedAt": "2026-11-17T04:15:59.301Z",
           "details": "Controller-run; oxlint exited 0 with no diagnostics."
+        },
+        {
+          "command": "pnpm run fmt:check",
+          "result": "failed",
+          "author": "Copilot",
+          "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+          "recordedAt": "2026-11-17T04:16:14.613Z",
+          "details": "Controller-run oxfmt --check exited 1: formatting issues reported in 109 files (452 scanned). No files were modified."
         }
       ]
     },
