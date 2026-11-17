@@ -14,6 +14,66 @@ import { expect, test, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 60_000 });
 
+test("delivery finding verification requires a committed feature change after observation", async () => {
+  const { repo, spec } = await prepareIntegratedTicket();
+  await recordDeliveryCheck(repo, spec);
+
+  const review = await execute(repo, (service) =>
+    service.reviewService.review({ spec, scope: "delivery", author: "controller" }),
+  );
+  expect(review.status, review.stderr).toBe(0);
+  const assignment = JSON.parse(review.stdout).assignments[0] as {
+    id: string;
+    report: string;
+    headSha: string;
+  };
+  writeFileSync(assignment.report, "# Aggregate review\n\nA blocking issue.\n");
+  const created = await execute(repo, (service) =>
+    service.findingService.findingCreate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      assignment: assignment.id,
+      blocking: true,
+      summary: "Feature behavior needs correction",
+      details: "The feature source does not satisfy the delivery requirement.",
+      author: "controller",
+    }),
+  );
+  expect(created.status, created.stderr).toBe(0);
+
+  const premature = await execute(repo, (service) =>
+    service.findingService.findingUpdate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      finding: "F-0001",
+      status: "fixed",
+      author: "controller",
+    }),
+  );
+  expect(premature.status).not.toBe(0);
+  expect(premature.stderr).toMatch(/committed change since every finding observation/i);
+
+  writeFileSync(join(repo, "feature.ts"), "export const feature = 'corrected';\n");
+  commitRequirement(repo, "feature.ts", "fix feature source after observation");
+  await recordDeliveryCheck(repo, spec);
+
+  const fixed = await execute(repo, (service) =>
+    service.findingService.findingUpdate({
+      ticket: "",
+      spec,
+      scope: "delivery",
+      finding: "F-0001",
+      status: "fixed",
+      author: "controller",
+    }),
+  );
+  expect(fixed.status, fixed.stderr).toBe(0);
+  expect(JSON.parse(fixed.stdout).finding.status).toBe("fixed");
+  expect(JSON.parse(fixed.stdout).finding.verification.headSha).not.toBe(assignment.headSha);
+});
+
 test("delivery correction attempts resume independently with the same assignment and finding history", async () => {
   const { repo, spec } = await prepareIntegratedTicket();
   await recordDeliveryCheck(repo, spec);
