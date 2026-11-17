@@ -2504,6 +2504,11 @@
         "at": "2026-11-17T04:38:24.502Z",
         "author": "Copilot",
         "action": "delivery-check-removed:pnpm run fmt:check"
+      },
+      {
+        "at": "2026-11-17T04:38:48.329Z",
+        "author": "Copilot",
+        "action": "delivery-check-required:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2532,6 +2537,11 @@
           "removedAt": "2026-11-17T04:38:24.351Z",
           "removedBy": "Copilot",
           "removalDetails": "Remove only the repository-wide pnpm run fmt:check delivery requirement because it scans 452 repository files and continues to fail on 108 pre-existing files outside this feature diff. Repository-wide reformatting is outside authorized feature scope. The scoped formatter verification on the exact committed delivery target checked all 112 changed paths with Oxfmt and found no formatting differences; the configured file-based invocation also passed on all 74 non-ignored files. Replace this requirement with a diff-scoped Oxfmt check that checks all changed files subject to project formatting policy and leaves .spindle/features/** excluded as configured. Preserve the historical failure record."
+        },
+        {
+          "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+          "addedAt": "2026-11-17T04:38:48.206Z",
+          "addedBy": "Copilot"
         }
       ],
       "records": [
