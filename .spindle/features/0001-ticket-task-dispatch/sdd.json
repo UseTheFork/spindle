@@ -2714,6 +2714,11 @@
         "at": "2026-11-17T14:42:24.580Z",
         "author": "Copilot",
         "action": "finding-registered:F-0003"
+      },
+      {
+        "at": "2026-11-17T14:42:25.475Z",
+        "author": "Copilot",
+        "action": "finding-registered:F-0004"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -4089,6 +4094,32 @@
         "history": [
           {
             "at": "2026-11-17T14:42:24.580Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
+          }
+        ]
+      },
+      {
+        "id": "F-0004",
+        "blocking": false,
+        "status": "open",
+        "summary": "Finalization fixtures still hide realistic task worktree assignments",
+        "details": "tests/.../TaskPlans.ts:53 seeds task worktrees outside cleanup targets and rehomeTaskWorktreeForFinalizationFixture moves them before finish in DeliveryReadiness and DeliveryRetrospective tests; only one single-ticket test exercises the real shape that broke finish in round 8.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T14:42:25.475Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
+            "author": "Copilot",
+            "summary": "Finalization fixtures still hide realistic task worktree assignments",
+            "details": "tests/.../TaskPlans.ts:53 seeds task worktrees outside cleanup targets and rehomeTaskWorktreeForFinalizationFixture moves them before finish in DeliveryReadiness and DeliveryRetrospective tests; only one single-ticket test exercises the real shape that broke finish in round 8."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T14:42:25.475Z",
             "author": "Copilot",
             "action": "registered",
             "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
