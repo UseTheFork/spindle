@@ -2649,6 +2649,11 @@
         "at": "2026-11-17T13:51:38.611Z",
         "author": "Copilot",
         "action": "finding-fixed:F-0001"
+      },
+      {
+        "at": "2026-11-17T13:51:53.868Z",
+        "author": "Copilot",
+        "action": "final-checks-declared"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3968,6 +3973,28 @@
         "reportSha256": "0a6433c0c835aca5df7ca0de6f07ba1dac673c264a4a79d4034da71afcd23bf6",
         "submittedAt": "2026-11-17T05:33:16.232Z",
         "submittedBy": "Copilot"
+      }
+    ],
+    "finalChecks": [
+      {
+        "command": "pnpm run build",
+        "addedAt": "2026-11-17T13:51:53.868Z",
+        "addedBy": "Copilot"
+      },
+      {
+        "command": "pnpm test",
+        "addedAt": "2026-11-17T13:51:53.868Z",
+        "addedBy": "Copilot"
+      },
+      {
+        "command": "pnpm run lint",
+        "addedAt": "2026-11-17T13:51:53.868Z",
+        "addedBy": "Copilot"
+      },
+      {
+        "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+        "addedAt": "2026-11-17T13:51:53.868Z",
+        "addedBy": "Copilot"
       }
     ]
   }
