@@ -2509,6 +2509,11 @@
         "at": "2026-11-17T04:38:48.329Z",
         "author": "Copilot",
         "action": "delivery-check-required:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')"
+      },
+      {
+        "at": "2026-11-17T04:39:15.001Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/'):passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2616,6 +2621,13 @@
           "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
           "recordedAt": "2026-11-17T04:28:44.889Z",
           "details": "Controller-run after format-only feature correction; oxfmt --check still reports 108 of 452 files, all outside the feature diff. No files were modified by the check."
+        },
+        {
+          "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
+          "recordedAt": "2026-11-17T04:39:15.001Z"
         }
       ]
     },
