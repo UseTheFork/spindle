@@ -2589,6 +2589,11 @@
         "at": "2026-11-17T05:29:23.974Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/'):passed"
+      },
+      {
+        "at": "2026-11-17T05:29:40.433Z",
+        "author": "Copilot",
+        "action": "aggregate-review-dispatched"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3236,7 +3241,96 @@
           "details": "The required full test run exposed 39 failures across 11 integration files because synthetic accepted-task fixtures lack valid report files/digests. The focused F-0001 regression suite passes; continue with a bounded fixture correction and rerun the full suite.",
           "recordedAt": "2026-11-17T05:11:47.044Z",
           "recordedBy": "Copilot"
-        }
+        },
+        "reviewAssignments": [
+          {
+            "id": "d615aac7-84bb-4657-8316-4da2d64fb4a1",
+            "agent": "sdd-reviewer",
+            "role": "review",
+            "scope": "delivery",
+            "attempt": 6,
+            "headSha": "65b798340b98630df22939b74df35ec9266bc4e3",
+            "inventory": [
+              "assets/Blueprints/agents/sdd-implementer.agent.md",
+              "assets/Blueprints/agents/sdd-orchestrator.agent.md",
+              "assets/Templates/project/ticket-tracker.md",
+              "docs/adr/0014-controller-owned-ticket-task-commits.md",
+              "docs/agents/ticket-tracker.md",
+              "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/ImplementCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskAcceptCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskAssignCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskCommandFields.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskCreateCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskInstructionsCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskRequestChangesCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskSubmitCommand.ts",
+              "src/SubagentDrivenDevelopment/Commands/TaskUpdateCommand.ts",
+              "src/SubagentDrivenDevelopment/GLOSSARY.md",
+              "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+              "src/SubagentDrivenDevelopment/Models/Options.ts",
+              "src/SubagentDrivenDevelopment/Models/Tasks.ts",
+              "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+              "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+              "src/SubagentDrivenDevelopment/Persistence/FeatureWorkspace.ts",
+              "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+              "src/SubagentDrivenDevelopment/Persistence/TaskSchema.ts",
+              "src/SubagentDrivenDevelopment/Policies/AcceptancePolicy.ts",
+              "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+              "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
+              "src/SubagentDrivenDevelopment/Services/ChecksService.ts",
+              "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+              "src/SubagentDrivenDevelopment/Services/FeatureCreationService.ts",
+              "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+              "src/SubagentDrivenDevelopment/Services/FeatureWorktreeService.ts",
+              "src/SubagentDrivenDevelopment/Services/SubmissionService.ts",
+              "src/SubagentDrivenDevelopment/Services/TaskService.ts",
+              "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+              "src/SubagentDrivenDevelopment/Services/TicketService.ts",
+              "src/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider.ts",
+              "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+              "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
+              "tests/Helpers/SubagentDrivenDevelopment/WorkflowServices.ts",
+              "tests/Helpers/SubagentDrivenDevelopment/helpers.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/CreateStatusCli.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/Start.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Fixtures/FeatureFinalizationFixture.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Fixtures/TaskPlans.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Persistence/LedgerRepository.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Persistence/TicketRecovery.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Assignments.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Checks.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Create.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryCleanup.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryReadiness.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryRetrospective.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalization.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationCleanup.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationGuards.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationPreservation.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationRecovery.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/FindingRegistration.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/PostMergeChecks.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketStartRecovery.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeDispatch.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeReviews.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
+              "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
+            ],
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
+            "requestedAt": "2026-11-17T05:29:40.433Z",
+            "status": "pending"
+          }
+        ]
       }
     ],
     "assignment": {
@@ -3269,6 +3363,155 @@
       }
     },
     "reviewAssignments": [
+      {
+        "id": "d615aac7-84bb-4657-8316-4da2d64fb4a1",
+        "agent": "sdd-reviewer",
+        "role": "review",
+        "scope": "delivery",
+        "attempt": 6,
+        "headSha": "65b798340b98630df22939b74df35ec9266bc4e3",
+        "inventory": [
+          "assets/Blueprints/agents/sdd-implementer.agent.md",
+          "assets/Blueprints/agents/sdd-orchestrator.agent.md",
+          "assets/Templates/project/ticket-tracker.md",
+          "docs/adr/0014-controller-owned-ticket-task-commits.md",
+          "docs/agents/ticket-tracker.md",
+          "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/ImplementCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/SddCommandGroups.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskAcceptCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskAssignCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskCommandFields.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskCreateCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskInstructionsCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskRequestChangesCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskSubmitCommand.ts",
+          "src/SubagentDrivenDevelopment/Commands/TaskUpdateCommand.ts",
+          "src/SubagentDrivenDevelopment/GLOSSARY.md",
+          "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+          "src/SubagentDrivenDevelopment/Models/Options.ts",
+          "src/SubagentDrivenDevelopment/Models/Tasks.ts",
+          "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+          "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+          "src/SubagentDrivenDevelopment/Persistence/FeatureWorkspace.ts",
+          "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+          "src/SubagentDrivenDevelopment/Persistence/TaskSchema.ts",
+          "src/SubagentDrivenDevelopment/Policies/AcceptancePolicy.ts",
+          "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+          "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
+          "src/SubagentDrivenDevelopment/Services/ChecksService.ts",
+          "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/FeatureCreationService.ts",
+          "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+          "src/SubagentDrivenDevelopment/Services/FeatureWorktreeService.ts",
+          "src/SubagentDrivenDevelopment/Services/SubmissionService.ts",
+          "src/SubagentDrivenDevelopment/Services/TaskService.ts",
+          "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+          "src/SubagentDrivenDevelopment/Services/TicketService.ts",
+          "src/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider.ts",
+          "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+          "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
+          "tests/Helpers/SubagentDrivenDevelopment/WorkflowServices.ts",
+          "tests/Helpers/SubagentDrivenDevelopment/helpers.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/CreateStatusCli.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/Provider.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/ReviewCli.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/Start.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Fixtures/FeatureFinalizationFixture.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Fixtures/TaskPlans.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Persistence/LedgerRepository.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Persistence/TicketRecovery.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Assignments.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Checks.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Create.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryCleanup.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryReadiness.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryRetrospective.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalization.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationCleanup.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationGuards.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationPreservation.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationRecovery.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/FindingRegistration.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/PostMergeChecks.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Tasks.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketStartRecovery.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeDispatch.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeReviews.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts",
+          "tests/Integration/SubagentDrivenDevelopment/Services/Tickets.test.ts"
+        ],
+        "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-review-d615aac7-84bb-4657-8316-4da2d64fb4a1.md",
+        "requestedAt": "2026-11-17T05:29:40.433Z",
+        "status": "pending"
+      }
+    ],
+    "findings": [
+      {
+        "id": "F-0001",
+        "blocking": true,
+        "status": "confirmed",
+        "summary": "Accepted task reports are not revalidated after acceptance",
+        "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T04:51:42.634Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
+            "author": "Copilot",
+            "summary": "Accepted task reports are not revalidated after acceptance",
+            "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T04:51:42.634Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+          },
+          {
+            "at": "2026-11-17T04:51:56.903Z",
+            "author": "Copilot",
+            "action": "status:confirmed",
+            "details": "confirmed"
+          }
+        ]
+      },
+      {
+        "id": "F-0002",
+        "blocking": false,
+        "status": "open",
+        "summary": "Task assignment can persist when handoff construction fails",
+        "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T04:51:49.562Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
+            "author": "Copilot",
+            "summary": "Task assignment can persist when handoff construction fails",
+            "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T04:51:49.562Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+          }
+        ]
+      }
+    ],
+    "reviewHistory": [
       {
         "id": "635e4c03-5e6f-4c24-8f2a-14c61b11166f",
         "agent": "sdd-reviewer",
@@ -3364,66 +3607,6 @@
         "submittedAt": "2026-11-17T04:52:03.786Z",
         "submittedBy": "Copilot",
         "details": "Aggregate reviewer found one confirmed blocking task-report integrity gap (F-0001) and one accepted non-blocking handoff assignment side effect (F-0002). Review covered the exact assigned delivery target, complete inventory, requirements, and recorded checks. Delivery correction is required for F-0001."
-      }
-    ],
-    "findings": [
-      {
-        "id": "F-0001",
-        "blocking": true,
-        "status": "confirmed",
-        "summary": "Accepted task reports are not revalidated after acceptance",
-        "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion.",
-        "author": "Copilot",
-        "createdAt": "2026-11-17T04:51:42.634Z",
-        "provenance": [
-          {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
-            "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
-            "author": "Copilot",
-            "summary": "Accepted task reports are not revalidated after acceptance",
-            "details": "TaskService verifies the report digest during acceptance (TaskService.ts:332-342), but ticket submission, integration, and closure gates rely on accepted status without revalidating the report (TaskPlanPolicy.ts:108-115, SubmissionService.ts:114, TicketIntegrationService.ts:211-218, ChecksService.ts:341-345). Mutating or deleting an accepted report therefore does not invalidate acceptance or prevent ticket completion. Preserve the accepted evidence by validating stored digests at completion gates or making evidence immutable, and test both mutation and deletion."
-          }
-        ],
-        "history": [
-          {
-            "at": "2026-11-17T04:51:42.634Z",
-            "author": "Copilot",
-            "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
-          },
-          {
-            "at": "2026-11-17T04:51:56.903Z",
-            "author": "Copilot",
-            "action": "status:confirmed",
-            "details": "confirmed"
-          }
-        ]
-      },
-      {
-        "id": "F-0002",
-        "blocking": false,
-        "status": "open",
-        "summary": "Task assignment can persist when handoff construction fails",
-        "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged.",
-        "author": "Copilot",
-        "createdAt": "2026-11-17T04:51:49.562Z",
-        "provenance": [
-          {
-            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
-            "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
-            "author": "Copilot",
-            "summary": "Task assignment can persist when handoff construction fails",
-            "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged."
-          }
-        ],
-        "history": [
-          {
-            "at": "2026-11-17T04:51:49.562Z",
-            "author": "Copilot",
-            "action": "registered",
-            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
-          }
-        ]
       }
     ]
   }
