@@ -2484,6 +2484,11 @@
         "at": "2026-11-17T04:28:44.889Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm run fmt:check:failed"
+      },
+      {
+        "at": "2026-11-17T04:29:09.572Z",
+        "author": "Copilot",
+        "action": "correction-paused:requirements-disagreement"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2799,6 +2804,13 @@
       "reportSha256": "5b26746c061dcc929e7f16533f08989ee13660d74403f00966d040ae2d5d8a06",
       "submittedAt": "2026-11-17T04:21:23.221Z",
       "submittedBy": "Copilot"
+    },
+    "adjudication": {
+      "status": "pending",
+      "reason": "requirements-disagreement",
+      "details": "Pause because the bounded correction formatted the only failing feature-changed file, but pnpm run fmt:check still fails in 108 files outside the feature diff. Resolving those requires repository-wide baseline formatting changes outside the current feature scope; do not broaden without explicit authorization.",
+      "recordedAt": "2026-11-17T04:29:09.572Z",
+      "recordedBy": "Copilot"
     }
   }
 }
