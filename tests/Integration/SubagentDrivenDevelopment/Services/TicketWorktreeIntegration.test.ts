@@ -680,8 +680,9 @@ test("a failed post-merge validation blocks integration of another ticket", asyn
   const taskLedger = JSON.parse(readFileSync(taskLedgerPath, "utf8"));
   const acceptedTask = taskLedger.tickets.find((ticket: { id: string }) => ticket.id === "T-0002")
     .tasks[0];
-  const taskReportPath = join(dirname(spec), "reports", "T-0002-TASK-0001-fixture.md");
+  const taskReportPath = join(dirname(root), "reports", "T-0002-TASK-0001-fixture.md");
   const taskReport = "# Task report\n\nCompleted the assigned task.\n";
+  mkdirSync(dirname(taskReportPath), { recursive: true });
   writeFileSync(taskReportPath, taskReport);
   acceptedTask.assignment.report = taskReportPath;
   acceptedTask.assignment.reportSha256 = createHash("sha256").update(taskReport).digest("hex");

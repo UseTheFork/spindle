@@ -211,7 +211,7 @@ export class TicketIntegrationService extends Service {
       const blockers = this.acceptance.acceptBlockers(feature, ledger, ticket, progress, identity);
       if (blockers.length)
         throw new Error(`Ticket review or checks are not current:\n${blockers.join("\n")}`);
-      const taskReportBlockers = TaskPlanPolicy.acceptedReportIntegrityBlockers(feature, progress);
+      const taskReportBlockers = TaskPlanPolicy.acceptedReportIntegrityBlockers(progress);
       if (taskReportBlockers.length) {
         throw new Error(
           `Ticket task report integrity check failed:\n${taskReportBlockers.join("\n")}`,

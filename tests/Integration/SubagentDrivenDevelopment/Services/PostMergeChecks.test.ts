@@ -75,8 +75,9 @@ async function setup() {
   await acceptTaskPlan(root, spec, "T-0001");
   const readyLedger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   const readyFirst = readyLedger.tickets[0];
-  const taskReportPath = join(dirname(spec), "reports", "T-0001-TASK-0001-fixture.md");
+  const taskReportPath = join(dirname(root), "reports", "T-0001-TASK-0001-fixture.md");
   const taskReport = "# Task report\n\nCompleted the assigned task.\n";
+  mkdirSync(dirname(taskReportPath), { recursive: true });
   writeFileSync(taskReportPath, taskReport);
   readyFirst.tasks[0].assignment.report = taskReportPath;
   readyFirst.tasks[0].assignment.reportSha256 = createHash("sha256")

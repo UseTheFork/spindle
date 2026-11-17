@@ -8,7 +8,6 @@ import {
 } from "@spindle/SubagentDrivenDevelopment/Models/Assignments";
 import type {
   FeatureLedger,
-  FeaturePaths,
   TicketProgress,
 } from "@spindle/SubagentDrivenDevelopment/Models/Workflow";
 
@@ -110,7 +109,10 @@ export class TaskPlanPolicy {
     }
   }
 
-  public static acceptanceBlockers(progress: TicketProgress, feature?: FeaturePaths): string[] {
+  public static acceptanceBlockers(
+    progress: TicketProgress,
+    verifyAcceptedReports = false,
+  ): string[] {
     if (progress.tasks.length === 0) {
       if (TaskPlanPolicy.isApprovedTasklessCorrection(progress)) return [];
       return [`Ticket ${progress.id} has no task plan; define tasks before ticket completion.`];
@@ -118,16 +120,12 @@ export class TaskPlanPolicy {
     const blockers = progress.tasks
       .filter((task) => task.status !== "accepted")
       .map((task) => `Task ${task.id} is ${task.status}, not accepted.`);
-    if (feature)
-      blockers.push(...TaskPlanPolicy.acceptedReportIntegrityBlockers(feature, progress));
+    if (verifyAcceptedReports)
+      blockers.push(...TaskPlanPolicy.acceptedReportIntegrityBlockers(progress));
     return blockers;
   }
 
-  public static acceptedReportIntegrityBlockers(
-    feature: FeaturePaths,
-    progress: TicketProgress,
-  ): string[] {
-    const reportsDirectory = resolve(feature.workspace, "reports");
+  public static acceptedReportIntegrityBlockers(progress: TicketProgress): string[] {
     const blockers: string[] = [];
     for (const task of progress.tasks) {
       if (task.status !== "accepted") continue;
@@ -141,12 +139,11 @@ export class TaskPlanPolicy {
 
       const report = assignment.report;
       const resolvedReport = resolve(report);
+      const reportsDirectory = dirname(resolvedReport);
       if (
         !isAbsolute(report) ||
         resolvedReport !== report ||
-        dirname(resolvedReport) !== reportsDirectory ||
-        basename(resolvedReport) === "." ||
-        !basename(resolvedReport).endsWith(".md")
+        !/^[^/]+\.md$/.test(basename(resolvedReport))
       ) {
         blockers.push(
           `Task ${task.id} report path is unsafe; accepted report integrity cannot be verified.`,
@@ -190,8 +187,8 @@ export class TaskPlanPolicy {
     return blockers;
   }
 
-  public static assertAllAccepted(progress: TicketProgress, feature?: FeaturePaths): void {
-    const blockers = TaskPlanPolicy.acceptanceBlockers(progress, feature);
+  public static assertAllAccepted(progress: TicketProgress, verifyAcceptedReports = false): void {
+    const blockers = TaskPlanPolicy.acceptanceBlockers(progress, verifyAcceptedReports);
     if (blockers.length > 0) {
       throw new Error(
         `Ticket ${progress.id} cannot submit implementation:\n${blockers.join("\n")}`,

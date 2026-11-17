@@ -111,7 +111,7 @@ export class SubmissionService extends Service {
           `Ticket ${ticketId} owner ${progress.owner} does not match assignment controller ${assignment.controller}. Inspect the recorded assignment and handoff before submitting.`,
         );
       }
-      TaskPlanPolicy.assertAllAccepted(progress, feature);
+      TaskPlanPolicy.assertAllAccepted(progress, true);
       if (unavailable) {
         const details = options.details!.trim();
         if (assignment.status === "unavailable" && assignment.unavailableDetails === details) {
