@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2459,6 +2459,11 @@
         "at": "2026-11-17T04:16:50.544Z",
         "author": "Copilot",
         "action": "correction-dispatched:3"
+      },
+      {
+        "at": "2026-11-17T04:21:23.221Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:7e5692af-b95f-4fa1-ba0b-ef43159c6932"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2652,8 +2657,11 @@
           "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
           "requestedAt": "2026-11-17T04:16:50.544Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "5b26746c061dcc929e7f16533f08989ee13660d74403f00966d040ae2d5d8a06",
+          "submittedAt": "2026-11-17T04:21:23.221Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "75d1eaec-5f07-4778-8696-a013f4509c61",
@@ -2734,8 +2742,11 @@
       "objective": "Inspect the 109-file oxfmt --check failure against the feature delivery diff. Identify affected feature-changed files and apply formatting only to those feature-changed files if needed; do not reformat unrelated baseline files or alter SDD records. Rerun pnpm run fmt:check and report any remaining failures precisely; no source changes beyond formatting feature-changed files.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-3-fix.md",
       "requestedAt": "2026-11-17T04:16:50.544Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "5b26746c061dcc929e7f16533f08989ee13660d74403f00966d040ae2d5d8a06",
+      "submittedAt": "2026-11-17T04:21:23.221Z",
+      "submittedBy": "Copilot"
     }
   }
 }
