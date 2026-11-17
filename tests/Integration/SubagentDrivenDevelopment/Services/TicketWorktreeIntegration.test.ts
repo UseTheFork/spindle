@@ -267,10 +267,11 @@ test("the allowed T-0005 bootstrap preserves T-0004 pending integration and acce
   prior.status = "open";
   prior.tasks = [];
   prior.integration = pendingIntegration();
-  const historicalIntegration = pendingIntegration("4".repeat(40), "5".repeat(40));
+  const historicalMergeSha = "5".repeat(40);
+  const historicalIntegration = pendingIntegration("4".repeat(40), historicalMergeSha);
   historicalIntegration.postMerge = {
     status: "passed",
-    mergeSha: historicalIntegration.mergeSha,
+    mergeSha: historicalMergeSha,
     checks: { required: [], records: [] },
   };
   prior.integrationHistory = [historicalIntegration];
