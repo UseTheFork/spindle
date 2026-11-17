@@ -1549,6 +1549,13 @@
             "author": "Copilot",
             "headSha": "6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e",
             "recordedAt": "2026-11-17T01:44:19.194Z"
+          },
+          {
+            "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+            "result": "passed",
+            "author": "Copilot",
+            "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
+            "recordedAt": "2026-11-17T02:09:52.778Z"
           }
         ]
       },
@@ -1673,7 +1680,16 @@
             "reportSha256": "9e57d9f2d19cab6957eac26cedb67eb43f030f1d7c14196af1d90e009a8cf28b",
             "submittedAt": "2026-11-16T23:08:46.622Z",
             "submittedBy": "Copilot"
-          }
+          },
+          "checks": [
+            {
+              "command": "pnpm exec vitest run tests/Integration/SubagentDrivenDevelopment && pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json && pnpm exec oxlint src/SubagentDrivenDevelopment tests/Integration/SubagentDrivenDevelopment",
+              "result": "passed",
+              "author": "Copilot",
+              "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
+              "recordedAt": "2026-11-17T02:09:52.778Z"
+            }
+          ]
         }
       ]
     }
