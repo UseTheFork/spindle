@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2544,6 +2544,11 @@
         "at": "2026-11-17T04:52:15.069Z",
         "author": "Copilot",
         "action": "correction-dispatched:5"
+      },
+      {
+        "at": "2026-11-17T05:05:32.280Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:f16acd40-cc06-4e0d-a3fd-2be45fb8ce51"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3051,8 +3056,11 @@
           "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
           "requestedAt": "2026-11-17T04:52:15.069Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "9de7ea93798734d0953d4eb55f3d97f1711a9ae773a5523041c333a24ed17498",
+          "submittedAt": "2026-11-17T05:05:32.280Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "2dd96731-17ed-4f87-ba59-7858fd74f348",
@@ -3092,8 +3100,11 @@
       "objective": "Preserve the accepted task report evidence invariant. Ensure a task that was accepted cannot pass ticket submission, integration, or closure if its report is modified or deleted; validate stored report digests at applicable ticket gates (or use an equally strong immutable-evidence design). Add regression coverage for both mutation and deletion. Keep changes limited to this finding and do not reformat unrelated baseline files.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-5-fix.md",
       "requestedAt": "2026-11-17T04:52:15.069Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "9de7ea93798734d0953d4eb55f3d97f1711a9ae773a5523041c333a24ed17498",
+      "submittedAt": "2026-11-17T05:05:32.280Z",
+      "submittedBy": "Copilot"
     },
     "adjudication": {
       "status": "resolved",
