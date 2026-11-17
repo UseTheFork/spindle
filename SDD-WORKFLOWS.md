@@ -143,7 +143,6 @@ sequenceDiagram
     participant CLI as sdd CLI
     participant W1 as Agent T-0002.2
     participant W2 as Agent T-0002.3
-    participant R as Task reviewer
     C->>CLI: next
     CLI-->>C: dispatch T-0002.2, dispatch T-0002.3
     C->>CLI: dispatch --task T-0002.2
@@ -154,12 +153,8 @@ sequenceDiagram
     end
     W1-->>C: report (changes left uncommitted)
     C->>CLI: submit --task T-0002.2
-    C->>CLI: review --task T-0002.2
-    C->>R: review handoff
     Note over W2: still editing its own files
-    R-->>C: review report
-    C->>CLI: submit --review T-0002.2 --result passed
-    Note over CLI: commits only T-0002.2's files
+    Note over CLI: checks file scope and commits T-0002.2's files
 ```
 
 A handoff contains the ticket worktree path, the task's instructions and
@@ -178,27 +173,21 @@ Workers:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Planned
-    Planned --> Ready: files listed and dependencies committed
-    Ready --> InProgress: dispatch
-    InProgress --> Submitted: submit
-    Submitted --> InReview: review
-    InReview --> Committed: review passed (CLI commits task files)
-    InReview --> InProgress: changes requested
-    Committed --> [*]
+    [*] --> Pending
+    Pending --> InProgress: dispatch (dependencies done)
+    InProgress --> Done: submit accepted (CLI commits task files)
+    InProgress --> InProgress: submit rejected (file outside task lists)
+    Done --> [*]
 ```
 
 - **Submit** checks which files changed. A changed file outside the task's
-  lists is reported. The controller either adds it to the task, if that
-  creates no conflict with an unfinished task, or returns the task as changes
-  requested.
-- **Task review** reads only the diff of the task's listed files. Other
-  agents' unfinished changes are not part of the review.
-- **Committed.** When the review passes, the CLI commits exactly the task's
-  listed files to the ticket branch. Commits in one ticket worktree are
-  serialized by the workspace lock.
-- **Changes requested** returns the task to the same ticket worktree. The
-  review findings are attached to the next handoff.
+  lists is reported and leaves the task in progress. The controller can update
+  the file lists if doing so creates no conflict with another unfinished task,
+  then submit again.
+- **Done** means the CLI verified the task's file scope and committed exactly
+  those files to the ticket branch. Commits in one ticket worktree are
+  serialized by the workspace lock. It does not mean the ticket has passed
+  checks or acceptance review.
 - An agent that stops without submitting leaves its files in place. The task
   can be dispatched again.
 
@@ -224,9 +213,8 @@ stateDiagram-v2
   output.
 - **Acceptance review** reads the ticket branch diff from the feature branch,
   against the ticket's acceptance criteria.
-- **Single-task shortcut.** When a ticket has exactly one task, its task
-  review runs after the ticket checks and serves as the acceptance review,
-  against the ticket's acceptance criteria.
+- Ticket acceptance is the required review gate whether the ticket has one
+  task or many.
 
 ## Integration
 
@@ -257,12 +245,8 @@ flowchart TD
 
 | Level             | Target                                       | Checks against             |
 | ----------------- | -------------------------------------------- | -------------------------- |
-| Task review       | Uncommitted diff of the task's listed files  | Task instructions          |
 | Ticket acceptance | Ticket branch diff from the feature branch   | Ticket acceptance criteria |
 | Feature review    | Feature branch diff from the original branch | Feature spec               |
-
-Task review findings do not create fix tasks. They return the task to its
-worker as changes requested.
 
 For ticket acceptance and feature review, a reviewer writes a report with a
 verdict and findings. The controller records the verdict and each accepted
@@ -330,7 +314,7 @@ All commands run as `pnpm spindle sdd <command> --feature <directory>`, except
 | `next`                           | List every available action with exact commands. `--verbose` adds the full graph and state. |
 | `dispatch`                       | Mark a ready task in progress and return its handoff.                                       |
 | `submit`                         | Record a worker's submission, or a reviewer's verdict with `--review`.                      |
-| `review`                         | Create a task, ticket or feature review assignment and return its handoff.                  |
+| `review`                         | Create a ticket-acceptance or feature review assignment and return its handoff.             |
 | `finding`                        | `create`, `fix` (creates a fix task) or `dismiss --reason`.                                 |
 | `integrate`                      | Merge an accepted ticket into the feature branch and run post-merge checks.                 |
 | `check`                          | Run a declared check set on demand.                                                         |
