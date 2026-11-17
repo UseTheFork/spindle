@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2494,6 +2494,11 @@
         "at": "2026-11-17T04:31:33.081Z",
         "author": "Copilot",
         "action": "correction-dispatched:4"
+      },
+      {
+        "at": "2026-11-17T04:37:53.230Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:2dd96731-17ed-4f87-ba59-7858fd74f348"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2811,8 +2816,11 @@
           "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
           "requestedAt": "2026-11-17T04:31:33.081Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "510d415be1c0a1b9283dc3e3a2ea759e813f3a502745d82639c8ae18a4521539",
+          "submittedAt": "2026-11-17T04:37:53.230Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "7e5692af-b95f-4fa1-ba0b-ef43159c6932",
@@ -2885,8 +2893,11 @@
       "objective": "Verify formatting for every format-capable file changed by the feature delivery diff using an explicit scoped oxfmt --check invocation. Do not modify unrelated baseline files or SDD records. Report the exact file list, command, and result; make no source changes.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-fix.md",
       "requestedAt": "2026-11-17T04:31:33.081Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "510d415be1c0a1b9283dc3e3a2ea759e813f3a502745d82639c8ae18a4521539",
+      "submittedAt": "2026-11-17T04:37:53.230Z",
+      "submittedBy": "Copilot"
     },
     "adjudication": {
       "status": "resolved",
