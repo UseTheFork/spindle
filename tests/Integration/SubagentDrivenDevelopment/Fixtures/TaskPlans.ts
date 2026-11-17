@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { execute } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
@@ -40,17 +41,21 @@ export function acceptTaskPlan(
   // real assignment, report, and acceptance commands separately.
   const at = new Date().toISOString();
   const assignment = `fixture-${ticket}-${task}`;
+  const report = join(dirname(root), "reports", `${ticket}-${task}-fixture.md`);
+  const reportContent = "# Task report\n\nTask accepted in the downstream fixture.\n";
+  mkdirSync(dirname(report), { recursive: true });
+  writeFileSync(report, reportContent);
   definition.status = "accepted";
   definition.assignment = {
     id: assignment,
     controller: "controller",
     worker: "task-worker",
     worktree: dirname(root),
-    report: join(dirname(root), "reports", `${ticket}-${task}-fixture.md`),
+    report,
     assignedAt: at,
     submittedAt: at,
     submittedBy: "controller",
-    reportSha256: "a".repeat(64),
+    reportSha256: createHash("sha256").update(reportContent).digest("hex"),
   };
   definition.review = {
     assignment,
