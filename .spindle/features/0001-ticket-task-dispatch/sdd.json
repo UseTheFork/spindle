@@ -2709,6 +2709,11 @@
         "at": "2026-11-17T14:33:09.278Z",
         "author": "Copilot",
         "action": "aggregate-review-dispatched"
+      },
+      {
+        "at": "2026-11-17T14:42:24.580Z",
+        "author": "Copilot",
+        "action": "finding-registered:F-0003"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -4061,6 +4066,32 @@
             "author": "Copilot",
             "action": "observation-linked",
             "details": "Linked observation from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-7-review-57377960-e1c4-4b46-bafb-f73233eef325.md at commit a1cac8bb1f83eed75113ed590d0b23a0f3c50fff: Task assignment can persist when handoff generation fails — A malformed parent ticket can make handoff generation fail after assignment and path reservations are persisted. This is the previously registered non-blocking observation F-0002; link this report to the existing finding."
+          }
+        ]
+      },
+      {
+        "id": "F-0003",
+        "blocking": false,
+        "status": "open",
+        "summary": "Embedded report-path rewrite accepts a trailing '.' followed by further path text",
+        "details": "FeatureFinalizationService.relocate embedded-report regex (lines ~745-748, 804-818) accepts '.' after '.md' regardless of what follows, so strings like '<records>/reports/a.md.bak' or '<records>/reports/a.md./../x' get their prefix rewritten and the residual target-path guard no longer sees the suffix. Ledger prose is SDD-generated, so practical exposure is low; tighten the lookahead to sentence-ending '.' and add negative tests.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T14:42:24.580Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
+            "author": "Copilot",
+            "summary": "Embedded report-path rewrite accepts a trailing '.' followed by further path text",
+            "details": "FeatureFinalizationService.relocate embedded-report regex (lines ~745-748, 804-818) accepts '.' after '.md' regardless of what follows, so strings like '<records>/reports/a.md.bak' or '<records>/reports/a.md./../x' get their prefix rewritten and the residual target-path guard no longer sees the suffix. Ledger prose is SDD-generated, so practical exposure is low; tighten the lookahead to sentence-ending '.' and add negative tests."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T14:42:24.580Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
           }
         ]
       }
