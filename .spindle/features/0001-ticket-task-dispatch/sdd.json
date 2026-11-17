@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2564,6 +2564,11 @@
         "at": "2026-11-17T05:11:47.045Z",
         "author": "Copilot",
         "action": "correction-dispatched:6"
+      },
+      {
+        "at": "2026-11-17T05:22:07.741Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:744e206a-806e-48a1-bbdc-d21d96e5b058"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3136,8 +3141,11 @@
           "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
           "requestedAt": "2026-11-17T05:11:47.045Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "5139b24e69d40c1e81bdcd88d5a65a6b434194294ac8718f5a9c22e6b4e54cb5",
+          "submittedAt": "2026-11-17T05:22:07.741Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "f16acd40-cc06-4e0d-a3fd-2be45fb8ce51",
@@ -3194,8 +3202,11 @@
       "objective": "Update accepted-task test fixture builders to create real report files with matching stored digests so existing tests continue to exercise their intended ticket submission, integration, and closure paths under the new evidence-integrity gate. Preserve tests specifically asserting that missing, mutated, deleted, symlinked, or misdirected task reports block completion. Do not weaken production integrity checks. Then rerun pnpm test with pnpm run build first and report all results; make test/helper changes only unless a distinct production defect is demonstrated.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-6-fix.md",
       "requestedAt": "2026-11-17T05:11:47.045Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "5139b24e69d40c1e81bdcd88d5a65a6b434194294ac8718f5a9c22e6b4e54cb5",
+      "submittedAt": "2026-11-17T05:22:07.741Z",
+      "submittedBy": "Copilot"
     },
     "adjudication": {
       "status": "resolved",
