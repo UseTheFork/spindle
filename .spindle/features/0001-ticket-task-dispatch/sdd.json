@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2429,6 +2429,11 @@
         "at": "2026-11-17T04:00:00.603Z",
         "author": "Copilot",
         "action": "correction-dispatched:2"
+      },
+      {
+        "at": "2026-11-17T04:08:19.583Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:75d1eaec-5f07-4778-8696-a013f4509c61"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2530,8 +2535,11 @@
           "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
           "requestedAt": "2026-11-17T04:00:00.603Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "f60099d718f50886f6408ec1be319981f64accbc660a5d7a78ba2fff550f5550",
+          "submittedAt": "2026-11-17T04:08:19.583Z",
+          "submittedBy": "Copilot"
         },
         "priorAssignment": {
           "id": "fafa3517-5767-477c-b7cc-5f0d724a874f",
@@ -2580,8 +2588,11 @@
       "objective": "Run pnpm run build before rerunning pnpm test because the packaged CLI suite requires generated build artifacts. No source changes are assigned.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-2-fix.md",
       "requestedAt": "2026-11-17T04:00:00.603Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "f60099d718f50886f6408ec1be319981f64accbc660a5d7a78ba2fff550f5550",
+      "submittedAt": "2026-11-17T04:08:19.583Z",
+      "submittedBy": "Copilot"
     }
   }
 }
