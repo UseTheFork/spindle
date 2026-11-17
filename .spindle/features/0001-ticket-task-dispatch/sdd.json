@@ -1592,7 +1592,7 @@
         {
           "id": "F-0001",
           "blocking": true,
-          "status": "open",
+          "status": "confirmed",
           "summary": "The new bootstrap and exception-linked integration guards lack focused regression coverage.",
           "details": "Impact: These are the security- and lifecycle-sensitive paths that relax the normal pending-post-merge integration block. Without tests invoking the new branches, the passing suite does not verify that only T-0005 can use the bootstrap with T-0004 as the sole pending ticket, or that T-0004 exception-linked integration remains contingent on the validated T-0005 state and ordinary acceptance gates. This leaves essential acceptance behavior unverified. Evidence: src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts:429-478; the assigned diff does not modify tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts. Existing TicketTaskCompletion and Corrections tests cover recovery eligibility and exception creation/rejection, but not these integration branches. Required correction: Add focused integration-service tests for authorized T-0005 bootstrap and T-0004 exception-linked correction; cover rejection for wrong ticket/feature, additional pending integration, absent or invalid exception, and unvalidated T-0005. Assert current-check and corrective-review gates still block missing or stale evidence, then obtain fresh covering checks.",
           "author": "Copilot",
@@ -1612,6 +1612,12 @@
               "author": "Copilot",
               "action": "registered",
               "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-review-68914973-1bb8-498b-9bf3-903449b66d50.md at commit 6771bf71bb80b07a2ec9119fe67bf95ad0dfd59e."
+            },
+            {
+              "at": "2026-11-17T01:50:54.469Z",
+              "author": "Copilot",
+              "action": "status:confirmed",
+              "details": "Confirmed as a blocking regression-coverage gap. Correction is required before T-0005 can be accepted or integrated; the new bootstrap and exception-linked integration guards need focused integration-service tests and fresh checks."
             }
           ]
         }
