@@ -81,10 +81,9 @@ when compiled), not the Git root. `assetsPath(path = "")` joins the package's
 which preserves the base for an empty suffix, replaces it for an absolute suffix,
 and joins relative suffixes without resolving relative bases against cwd.
 Application does not read `process.cwd()`; the executable supplies it.
-its initially empty mutable `config` is isolated between applications and available
-before provider construction. Application Configuration is distinct from the
-project's `.spindle/config.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
-adds a distinct Project Settings snapshot bootstrap adapter without populating `app.config`.
+Its initially empty mutable `config` is isolated between applications and
+available before provider construction. Application Configuration is distinct
+from Project Settings in `.spindle/config.json`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
 then queues its instance for boot. Providers receive getter-only application
