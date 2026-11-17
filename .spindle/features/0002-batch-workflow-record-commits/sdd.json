@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "featureId": "0002",
+  "title": "Batch Workflow Record Commits",
+  "createdBy": "Copilot",
+  "createdAt": "2026-11-17T16:09:44.625Z",
+  "retrospectiveRequired": false,
+  "reviewPolicy": {
+    "version": 1,
+    "ticket": [
+      "sdd-task-reviewer"
+    ],
+    "delivery": [
+      "sdd-reviewer"
+    ]
+  },
+  "tickets": [],
+  "delivery": {
+    "status": "active",
+    "execution": "unstarted",
+    "history": [],
+    "baseSha": "a5c425ab538c8fa1c1c69c7f63bc654964c76ce6"
+  }
+}
