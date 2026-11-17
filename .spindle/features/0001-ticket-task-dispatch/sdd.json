@@ -2524,6 +2524,11 @@
         "at": "2026-11-17T04:51:42.634Z",
         "author": "Copilot",
         "action": "finding-registered:F-0001"
+      },
+      {
+        "at": "2026-11-17T04:51:49.562Z",
+        "author": "Copilot",
+        "action": "finding-registered:F-0002"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -3150,6 +3155,32 @@
         "history": [
           {
             "at": "2026-11-17T04:51:42.634Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
+          }
+        ]
+      },
+      {
+        "id": "F-0002",
+        "blocking": false,
+        "status": "open",
+        "summary": "Task assignment can persist when handoff construction fails",
+        "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T04:51:49.562Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md",
+            "headSha": "c424a3fb813ee9656fbcdddd1dc9d48bea1ab621",
+            "author": "Copilot",
+            "summary": "Task assignment can persist when handoff construction fails",
+            "details": "TaskService marks and persists the task as assigned before handoff() validates the parent ticket sections (TaskService.ts:241-246, 481-500; WorkspaceTransaction.ts:170-197, 232-239). A missing or empty Requirements or Acceptance Criteria section can therefore make the command fail after reserving the task and its write paths, leaving an assignment without a delivered handoff. Build/validate the handoff before persistence or roll back, and test that failure leaves the ledger unchanged."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T04:51:49.562Z",
             "author": "Copilot",
             "action": "registered",
             "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-4-review-635e4c03-5e6f-4c24-8f2a-14c61b11166f.md at commit c424a3fb813ee9656fbcdddd1dc9d48bea1ab621."
