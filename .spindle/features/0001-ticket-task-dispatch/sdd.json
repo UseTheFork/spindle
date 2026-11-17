@@ -2664,6 +2664,11 @@
         "at": "2026-11-17T14:04:59.909Z",
         "author": "Copilot",
         "action": "delivery-check-required:pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle"
+      },
+      {
+        "at": "2026-11-17T14:05:00.618Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle:failed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2857,6 +2862,14 @@
           "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
           "recordedAt": "2026-11-17T13:41:41.713Z",
           "details": "Oxfmt checked all 76 tracked feature-changed files outside workflow record paths; all files passed."
+        },
+        {
+          "command": "pnpm exec tsx --tsconfig tsconfig.json /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-checks/finish-relocation-check.mts 0001-ticket-task-dispatch /home/nixos/source/spindle",
+          "result": "failed",
+          "author": "Copilot",
+          "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+          "recordedAt": "2026-11-17T14:05:00.618Z",
+          "details": "Runs FeatureFinalizationService.relocate (the exact sdd finish ledger relocation step) against this feature's real ledger and recorded cleanup targets. Fails with 'Embedded workflow path cannot be silently rewritten; resolve it before finishing.' because finding history details embed absolute report paths; tickets[].tasks[].assignment.worktree also holds an absolute ticket-worktree path relocation cannot handle."
         }
       ]
     },
