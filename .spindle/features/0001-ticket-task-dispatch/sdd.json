@@ -2629,6 +2629,11 @@
         "at": "2026-11-17T13:41:24.123Z",
         "author": "Copilot",
         "action": "delivery-check-recorded:pnpm run lint:passed"
+      },
+      {
+        "at": "2026-11-17T13:41:41.713Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/'):passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2809,6 +2814,14 @@
           "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
           "recordedAt": "2026-11-17T13:41:24.123Z",
           "details": "oxlint exited 0 with no diagnostics on current delivery target."
+        },
+        {
+          "command": "pnpm exec oxfmt --check $(git diff --name-only --diff-filter=ACMRT 6d270a6b60e7f94a47cdcc58973cf77a069ad118..HEAD | grep -v '^\\.spindle/features/')",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
+          "recordedAt": "2026-11-17T13:41:41.713Z",
+          "details": "Oxfmt checked all 76 tracked feature-changed files outside workflow record paths; all files passed."
         }
       ]
     },
