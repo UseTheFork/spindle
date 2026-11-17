@@ -1689,6 +1689,41 @@
               "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
               "recordedAt": "2026-11-17T02:09:52.778Z"
             }
+          ],
+          "reviewAssignments": [
+            {
+              "id": "e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1",
+              "agent": "sdd-task-reviewer",
+              "role": "review",
+              "scope": "corrective",
+              "attempt": 1,
+              "headSha": "0fabebc3f69c123839e2e197029ffc3d2dda99d1",
+              "workspace": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/sdd-worktrees/0001-ticket-task-dispatch-T-0005",
+              "branch": "tickets/0001-ticket-task-dispatch/T-0005",
+              "inventory": [
+                "docs/agents/ticket-tracker.md",
+                "src/SubagentDrivenDevelopment/Commands/CorrectCommand.ts",
+                "src/SubagentDrivenDevelopment/GLOSSARY.md",
+                "src/SubagentDrivenDevelopment/Models/Assignments.ts",
+                "src/SubagentDrivenDevelopment/Models/Options.ts",
+                "src/SubagentDrivenDevelopment/Models/Workflow.ts",
+                "src/SubagentDrivenDevelopment/Persistence/AssignmentSchema.ts",
+                "src/SubagentDrivenDevelopment/Persistence/LedgerRepository.ts",
+                "src/SubagentDrivenDevelopment/Policies/TaskPlanPolicy.ts",
+                "src/SubagentDrivenDevelopment/Services/CorrectionService.ts",
+                "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+                "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+                "src/SubagentDrivenDevelopment/Support/StatusSummaryFormatter.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Commands/Options.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Commands/SuggestedResults.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/Corrections.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/TicketTaskCompletion.test.ts",
+                "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts"
+              ],
+              "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/T-0005-round-1-review-e379bab3-dbc9-4e79-8b86-e3b0a66b6eb1.md",
+              "requestedAt": "2026-11-17T02:10:00.213Z",
+              "status": "pending"
+            }
           ]
         }
       ]
