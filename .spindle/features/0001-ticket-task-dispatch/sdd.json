@@ -2719,6 +2719,11 @@
         "at": "2026-11-17T14:42:25.475Z",
         "author": "Copilot",
         "action": "finding-registered:F-0004"
+      },
+      {
+        "at": "2026-11-17T14:42:26.295Z",
+        "author": "Copilot",
+        "action": "finding-registered:F-0005"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -4120,6 +4125,32 @@
         "history": [
           {
             "at": "2026-11-17T14:42:25.475Z",
+            "author": "Copilot",
+            "action": "registered",
+            "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
+          }
+        ]
+      },
+      {
+        "id": "F-0005",
+        "blocking": false,
+        "status": "open",
+        "summary": "Task handoff missing-worktree guard is untested",
+        "details": "TaskService.ts:473-475 guard rejecting a handoff for an assignment without a recorded worktree has no direct test.",
+        "author": "Copilot",
+        "createdAt": "2026-11-17T14:42:26.295Z",
+        "provenance": [
+          {
+            "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md",
+            "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
+            "author": "Copilot",
+            "summary": "Task handoff missing-worktree guard is untested",
+            "details": "TaskService.ts:473-475 guard rejecting a handoff for an assignment without a recorded worktree has no direct test."
+          }
+        ],
+        "history": [
+          {
+            "at": "2026-11-17T14:42:26.295Z",
             "author": "Copilot",
             "action": "registered",
             "details": "Registered from /home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-8-review-9837e4f4-177d-4c6a-87cb-a9b1c03e16c0.md at commit 8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106."
