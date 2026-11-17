@@ -8,6 +8,7 @@ metadata:
   spindle:
     version: 1.7.0
 ---
+
 # SDD implementer
 
 Implement one orchestrator-assigned ticket or delivery correction in its assigned worktree. The orchestrator owns dispatch, execution states, acceptance, and broader ticket or feature checks. Other tickets may run concurrently in their own worktrees.
@@ -24,19 +25,19 @@ integration, and post-merge validation remain required.
 
 Before entering the flowchart, loading implementation skills, inspecting the checkout, running commands, or editing files, validate the assignment supplied by the orchestrator. Every field below must be explicitly supplied with a concrete value; empty values and unresolved template placeholders are missing inputs.
 
-| Field | Required content |
-| --- | --- |
-| `SCOPE` | `ticket` or `delivery`. Initial assignments use `ticket`. |
-| `TICKET_ID` | The single assigned ticket ID for ticket scope; explicitly `NONE` for delivery scope. |
-| `CHECKOUT` | Absolute path to the assigned ticket worktree, or the assigned feature worktree for delivery scope. |
-| `ABSOLUTE_SOURCE_POINTERS` | For ticket scope, canonical ticket, comments, and spec/brief. For delivery scope, feature spec and assigned correction, finding/check, and prior-attempt/ruling sources. Explicitly identify any source that does not apply. |
-| `CRITERIA_AND_SEAMS` | Ticket acceptance criteria and test seams, or the delivery correction objective and assigned evidence/test seams. |
-| `DEPENDENCIES_AND_REQUIREMENTS` | Completed ticket dependencies and committed requirements; explicitly state `NONE` when ticket dependencies do not apply to delivery scope. |
-| `FILE_SCOPE` | Allowed code, test, and `.spindle/features` files in the assigned checkout. |
-| `CHECKS_AND_DIRECTORY` | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker. |
-| `PERMISSIONS` | Allowed actions, including explicit commit authorization or denial. |
-| `REPORT_PATH` | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`. |
-| `MODE` | `INITIAL` or `CORRECTIVE`. |
+| Field                           | Required content                                                                                                                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCOPE`                         | `ticket` or `delivery`. Initial assignments use `ticket`.                                                                                                                                                                    |
+| `TICKET_ID`                     | The single assigned ticket ID for ticket scope; explicitly `NONE` for delivery scope.                                                                                                                                        |
+| `CHECKOUT`                      | Absolute path to the assigned ticket worktree, or the assigned feature worktree for delivery scope.                                                                                                                          |
+| `ABSOLUTE_SOURCE_POINTERS`      | For ticket scope, canonical ticket, comments, and spec/brief. For delivery scope, feature spec and assigned correction, finding/check, and prior-attempt/ruling sources. Explicitly identify any source that does not apply. |
+| `CRITERIA_AND_SEAMS`            | Ticket acceptance criteria and test seams, or the delivery correction objective and assigned evidence/test seams.                                                                                                            |
+| `DEPENDENCIES_AND_REQUIREMENTS` | Completed ticket dependencies and committed requirements; explicitly state `NONE` when ticket dependencies do not apply to delivery scope.                                                                                   |
+| `FILE_SCOPE`                    | Allowed code, test, and `.spindle/features` files in the assigned checkout.                                                                                                                                                  |
+| `CHECKS_AND_DIRECTORY`          | Approved project checks and their test working directory; identify any checks explicitly scheduled for this worker.                                                                                                          |
+| `PERMISSIONS`                   | Allowed actions, including explicit commit authorization or denial.                                                                                                                                                          |
+| `REPORT_PATH`                   | Assigned absolute report path in the canonical feature workspace, within `FILE_SCOPE`.                                                                                                                                       |
+| `MODE`                          | `INITIAL` or `CORRECTIVE`.                                                                                                                                                                                                   |
 
 Accept populated template labels or equivalent structured fields, including grouped headings with labeled values beneath them. For `CORRECTIVE`, read `references/implementer-corrections.md` in the `private-subagent-driven-dev` skill before accepting the gate. Initial assignments need no corrective fields or resource.
 
