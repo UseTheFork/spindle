@@ -2679,6 +2679,11 @@
         "at": "2026-11-17T14:25:47.867Z",
         "author": "Copilot",
         "action": "correction-report-submitted:a2f3aa88-7a53-40ab-b26b-2890a8c92537"
+      },
+      {
+        "at": "2026-11-17T14:32:55.858Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm run build:passed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2880,6 +2885,13 @@
           "headSha": "a1cac8bb1f83eed75113ed590d0b23a0f3c50fff",
           "recordedAt": "2026-11-17T14:05:00.618Z",
           "details": "Runs FeatureFinalizationService.relocate (the exact sdd finish ledger relocation step) against this feature's real ledger and recorded cleanup targets. Fails with 'Embedded workflow path cannot be silently rewritten; resolve it before finishing.' because finding history details embed absolute report paths; tickets[].tasks[].assignment.worktree also holds an absolute ticket-worktree path relocation cannot handle."
+        },
+        {
+          "command": "pnpm run build",
+          "result": "passed",
+          "author": "Copilot",
+          "headSha": "8d8cd3bfb4c5ac4a9c9b0645604934a7b523e106",
+          "recordedAt": "2026-11-17T14:32:55.858Z"
         }
       ]
     },
