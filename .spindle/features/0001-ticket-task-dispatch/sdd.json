@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "unstarted",
+    "execution": "changes-requested",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2409,6 +2409,11 @@
         "at": "2026-11-17T03:43:05.254Z",
         "author": "Copilot",
         "action": "delivery-check-required:pnpm run fmt:check"
+      },
+      {
+        "at": "2026-11-17T03:50:00.353Z",
+        "author": "Copilot",
+        "action": "delivery-check-recorded:pnpm test:failed"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2436,7 +2441,16 @@
           "addedBy": "Copilot"
         }
       ],
-      "records": []
+      "records": [
+        {
+          "command": "pnpm test",
+          "result": "failed",
+          "author": "Copilot",
+          "headSha": "f98db989572c2c6929df4668aaf11db5b7c91e4d",
+          "recordedAt": "2026-11-17T03:50:00.353Z",
+          "details": "Full Vitest suite: 89 test files passed and 1 failed; 633 tests passed, 8 failed, 1 expected fail. All 8 failures are in PackagedCli.test.ts because build/ and build/index.js were absent. Run the declared build before rerunning pnpm test."
+        }
+      ]
     }
   }
 }
