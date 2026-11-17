@@ -14,7 +14,303 @@
       "sdd-reviewer"
     ]
   },
-  "tickets": [],
+  "tickets": [
+    {
+      "id": "T-0001",
+      "title": "Record workflow updates without per-update commits",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Decouple workflow writes from Git commits",
+          "instructions": "Change WorkspaceTransaction so successful workflow-record writes are durable and recoverable without committing them. Preserve the feature-scoped lock, bounded retry behavior, atomic write journal, and error reporting. Keep explicit record commits used at dispatch, integration, or delivery boundaries unchanged in this task. Update focused tests to cover consecutive writes, concurrent writes, lock timeout, and interrupted-write recovery without per-update commits.",
+          "acceptanceCriteria": [
+            "After an authorized workflow write, the record files contain the new state and HEAD is unchanged.",
+            "A subsequent command reads the uncommitted state.",
+            "Concurrent workflow writes serialize and retain every successful update.",
+            "A lock timeout reports failure and does not silently lose or overwrite records.",
+            "An interrupted write is recovered idempotently on the next command.",
+            "Focused tests no longer assert a commit after each record write."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Persistence/WorkspaceTransaction.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Persistence/TicketConcurrency.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Persistence/TicketRecovery.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/WorkflowRecordRecovery.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Persistence/FileSystem.ts",
+            "src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts",
+            "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
+            "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/helpers.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0002",
+      "title": "Resolve canonical records from ticket worktrees",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Add canonical feature-worktree resolution",
+          "instructions": "Implement a typed resolver that finds the registered feature worktree from a ticket worktree using Git worktree metadata and the exact features/<id> branch identity. Validate that the selected worktree belongs to the expected repository and that its feature files and ledger match the ticket's feature identity. Route authorized workflow record operations to the resolved canonical workspace; preserve direct feature-worktree behavior. Do not add a committed absolute-path locator and do not fall back to records in the ticket worktree. Add integration coverage with real Git worktrees, including a moved and re-registered feature worktree and explicit failure cases.",
+          "acceptanceCriteria": [
+            "A command from a ticket worktree updates the matching feature worktree's canonical ledger, while the ticket-worktree copy remains unchanged.",
+            "After git worktree move, the resolver uses the updated registered location.",
+            "Missing or unregistered feature worktrees and repository, branch, or feature-identity mismatches produce explicit errors without changing any records.",
+            "Commands from the feature worktree retain their existing canonical-record behavior."
+          ],
+          "editPaths": [
+            "src/Git/Services/GitService.ts",
+            "src/SubagentDrivenDevelopment/Services/FeatureInspectionService.ts",
+            "src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts",
+            "src/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider.ts"
+          ],
+          "createPaths": [
+            "src/SubagentDrivenDevelopment/Services/CanonicalFeatureResolver.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/CanonicalFeatureResolution.test.ts"
+          ],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Persistence/FeatureWorkspace.ts",
+            "src/SubagentDrivenDevelopment/Services/FeatureWorktreeService.ts",
+            "src/SubagentDrivenDevelopment/Services/TicketWorktreeService.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0003",
+      "title": "Dispatch tickets with pending records",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0001"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Replace the clean-worktree dispatch check with record-aware checks",
+          "instructions": "Remove the record commit performed before dispatch. Replace the blanket clean-worktree requirement with a single record-aware dispatch rule, used consistently by AssignmentService and TicketWorktreeService. Permit only unstaged canonical bookkeeping: ledger and report changes, and ticket-file changes whose Requirements and Acceptance Criteria are unchanged. Keep code, spec/design and authoritative ticket requirements committed; reject staged index changes and untracked non-record files. Preserve recovery, ownership, and ticket baseline behavior.",
+          "acceptanceCriteria": [
+            "With only permitted bookkeeping pending, dispatch creates no commit and the ticket worktree baseline is the committed feature HEAD.",
+            "Permitted pending records remain intact in the feature worktree after dispatch.",
+            "Changed code, spec/design or ticket requirements, staged index content, and untracked non-record content cause an actionable failure without a new dispatch or loss of work.",
+            "Focused tests cover permitted pending bookkeeping and each unsafe category."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
+            "src/SubagentDrivenDevelopment/Evidence/GitEvidence.ts",
+            "src/SubagentDrivenDevelopment/Services/TicketWorktreeService.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeDispatch.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/Assignments.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/TicketStartRecovery.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts",
+            "src/SubagentDrivenDevelopment/Persistence/FeatureWorkspace.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0004",
+      "title": "Integrate tickets with pending records",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0003"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Merge reviewed changes over pending records",
+          "instructions": "Remove the record flush before integration. Replace blanket clean-worktree checks with the record-aware checks. Before merge, reject incoming changes that overwrite canonical records. Preserve the journaled merge/resume path, reviewed-index match, report and committed-input checks, and actual merge-commit identity while records remain pending.",
+          "acceptanceCriteria": [
+            "With only permitted workflow bookkeeping pending, a reviewed ticket merges without a record-only commit and the pending records remain uncommitted and intact.",
+            "The integration ledger entry records the actual merge commit SHA.",
+            "Incoming canonical-record collisions, code changes, or staged index changes stop before destructive merge state and preserve all existing work.",
+            "An interrupted merge resumes idempotently and does not create a duplicate merge commit."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeIntegration.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeRecovery.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Evidence/GitEvidence.ts",
+            "src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
+            "tests/Helpers/Preloads/interrupt-after-git-merge-commit.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        },
+        {
+          "id": "TASK-0002",
+          "title": "Validate post-merge and sync with pending records",
+          "instructions": "Update post-merge identity checks so they bind results to the recorded merge commit even while canonical records remain pending. Update feature ticket-sync safety checks to allow only the same permitted pending bookkeeping and continue rejecting uncommitted code. Preserve the existing post-merge gate that prevents dependent tickets from unblocking and prevents the next integration until validation passes.",
+          "acceptanceCriteria": [
+            "Post-merge checks recorded with pending records apply to the actual recorded merge commit.",
+            "Dependent tickets remain blocked and further integration is refused until post-merge validation passes.",
+            "Ticket sync permits only allowed pending bookkeeping and rejects uncommitted code."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Services/ChecksService.ts",
+            "src/SubagentDrivenDevelopment/Services/TicketSyncService.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/PostMergeChecks.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/TicketWorktreeSync.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Evidence/GitEvidence.ts",
+            "src/SubagentDrivenDevelopment/Services/TicketIntegrationService.ts",
+            "src/SubagentDrivenDevelopment/Policies/ReadinessPolicy.ts"
+          ],
+          "dependencies": [
+            "TASK-0001"
+          ],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0005",
+      "title": "Checkpoint workflow records before delivery evidence",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0004"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Add the automatic delivery checkpoint",
+          "instructions": "At delivery claim, commit accumulated canonical records through the journaled workflow-record commit mechanism, after all tickets are complete and before feature checks or review can be recorded. Ensure no commit is created when there are no pending records. Preserve committed-input evidence identity across the checkpoint and ensure finalization can checkpoint later records without an empty commit.",
+          "acceptanceCriteria": [
+            "Delivery claim creates one checkpoint commit for pending canonical records before feature-level checks or review.",
+            "Delivery claim with no pending records does not create an empty commit.",
+            "Interrupted checkpoint recovery completes idempotently and does not duplicate a commit.",
+            "Recorded feature checks and reviews bind to the intended committed code and requirements.",
+            "Finalization can checkpoint any additional pending records once."
+          ],
+          "editPaths": [
+            "src/SubagentDrivenDevelopment/Services/AssignmentService.ts",
+            "src/SubagentDrivenDevelopment/Services/WorkflowRecordsCommitter.ts",
+            "src/SubagentDrivenDevelopment/Evidence/GitEvidence.ts",
+            "src/SubagentDrivenDevelopment/Services/FeatureFinalizationService.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Commands/DeliveryClaim.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/DeliveryReadiness.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalization.test.ts",
+            "tests/Integration/SubagentDrivenDevelopment/Services/FeatureFinalizationRecovery.test.ts"
+          ],
+          "createPaths": [],
+          "referencePaths": [
+            "src/SubagentDrivenDevelopment/Services/ChecksService.ts",
+            "src/SubagentDrivenDevelopment/Services/ReviewService.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/FeatureFinalizationFixture.ts"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        },
+        {
+          "id": "TASK-0002",
+          "title": "Add an end-to-end batched-records integration test",
+          "instructions": "Add a CLI integration test using real Git worktrees that dispatches and integrates at least two tickets with pending workflow records, completes post-merge gates, and then claims delivery. Inspect commit history and ledger evidence to verify that batching survives the full ticket lifecycle and is checkpointed at the delivery boundary.",
+          "acceptanceCriteria": [
+            "The test verifies there are no record-only commits during ticket execution.",
+            "The reviewed code is merged, pending records are retained, and recorded merge identities match the actual merges.",
+            "Exactly one non-empty records checkpoint is present before the first feature-level delivery check."
+          ],
+          "editPaths": [],
+          "createPaths": [
+            "tests/Integration/SubagentDrivenDevelopment/Services/BatchedRecordCommits.test.ts"
+          ],
+          "referencePaths": [
+            "tests/Helpers/SubagentDrivenDevelopment/TicketWorktreeFixtures.ts",
+            "tests/Helpers/SubagentDrivenDevelopment/helpers.ts",
+            "src/SubagentDrivenDevelopment/Services/AssignmentService.ts"
+          ],
+          "dependencies": [
+            "TASK-0001"
+          ],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    },
+    {
+      "id": "T-0006",
+      "title": "Document batched workflow record commits",
+      "reporter": "User",
+      "category": "enhancement",
+      "status": "open",
+      "blockedBy": [
+        "T-0002",
+        "T-0005"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-0001",
+          "title": "Update guidance and record the ADR",
+          "instructions": "Revise the SDD tracker template and rendered guide, the private subagent-driven development skill and its relevant references, and the SDD glossary to match the approved spec and implemented behavior. Remove obsolete claims about per-update commits or blanket cleanliness. Define canonical workflow records and pending workflow records in domain terms without implementation details. Add ADR-0015 describing the selected shared-record and checkpoint decision, its trade-offs, and its relationship to ADR-0011.",
+          "acceptanceCriteria": [
+            "Guidance describes canonical record resolution, permitted pending workflow records, and the delivery checkpoint without requiring per-update commits or a blanket clean worktree.",
+            "The glossary defines the relevant workflow-record terms without implementation details.",
+            "ADR-0015 records the decision, trade-offs, and relationship to ADR-0011.",
+            "The rendered docs/agents/ticket-tracker.md matches assets/Templates/project/ticket-tracker.md."
+          ],
+          "editPaths": [
+            "assets/Templates/project/ticket-tracker.md",
+            "docs/agents/ticket-tracker.md",
+            "assets/Blueprints/skills/private-subagent-driven-dev/SKILL.md",
+            "assets/Blueprints/skills/private-subagent-driven-dev/references/full-spec.md",
+            "assets/Blueprints/skills/private-subagent-driven-dev/references/review-inputs.md",
+            "src/SubagentDrivenDevelopment/GLOSSARY.md"
+          ],
+          "createPaths": [
+            "docs/adr/0015-batched-workflow-record-commits.md"
+          ],
+          "referencePaths": [
+            "docs/adr/0011-isolated-sdd-worktrees.md",
+            "docs/adr/0014-controller-owned-ticket-task-commits.md",
+            "docs/adr/0006-feature-scoped-sdd-workflow.md"
+          ],
+          "dependencies": [],
+          "status": "unassigned"
+        }
+      ],
+      "execution": "unstarted"
+    }
+  ],
   "delivery": {
     "status": "active",
     "execution": "unstarted",
