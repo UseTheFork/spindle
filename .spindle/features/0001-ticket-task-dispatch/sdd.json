@@ -2383,7 +2383,7 @@
   ],
   "delivery": {
     "status": "active",
-    "execution": "implementing",
+    "execution": "reviewing",
     "history": [
       {
         "at": "2026-11-17T03:42:10.023Z",
@@ -2419,6 +2419,11 @@
         "at": "2026-11-17T03:50:30.307Z",
         "author": "Copilot",
         "action": "correction-dispatched:1"
+      },
+      {
+        "at": "2026-11-17T03:59:43.935Z",
+        "author": "Copilot",
+        "action": "correction-report-submitted:fafa3517-5767-477c-b7cc-5f0d724a874f"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
@@ -2477,8 +2482,11 @@
           "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
           "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
           "requestedAt": "2026-11-17T03:50:30.307Z",
-          "status": "pending",
-          "handoffs": []
+          "status": "submitted",
+          "handoffs": [],
+          "reportSha256": "21f13962cd726957fc79f802f905a4a5aec4cd54527eee17694c6c7914641ee8",
+          "submittedAt": "2026-11-17T03:59:43.935Z",
+          "submittedBy": "Copilot"
         },
         "checks": [
           {
@@ -2503,8 +2511,11 @@
       "objective": "The required full test suite failed because PackagedCli.test.ts expects the generated build/ directory, which was absent when pnpm test ran before the declared build. Run pnpm run build first, then rerun pnpm test on the assigned feature target. Do not edit source, tests, or SDD records unless a new independent defect is demonstrated; report the original failure and fresh results accurately.",
       "report": "/home/nixos/.copilot/session-state/7ea7f718-aea2-497a-bdb3-c9bd27b0cb67/files/0001-ticket-task-dispatch/.spindle/features/0001-ticket-task-dispatch/reports/final-round-1-fix.md",
       "requestedAt": "2026-11-17T03:50:30.307Z",
-      "status": "pending",
-      "handoffs": []
+      "status": "submitted",
+      "handoffs": [],
+      "reportSha256": "21f13962cd726957fc79f802f905a4a5aec4cd54527eee17694c6c7914641ee8",
+      "submittedAt": "2026-11-17T03:59:43.935Z",
+      "submittedBy": "Copilot"
     }
   }
 }
