@@ -2389,9 +2389,24 @@
         "at": "2026-11-17T03:42:10.023Z",
         "author": "Copilot",
         "action": "controller-claimed"
+      },
+      {
+        "at": "2026-11-17T03:42:48.065Z",
+        "author": "Copilot",
+        "action": "delivery-check-required:pnpm test"
       }
     ],
     "baseSha": "6d270a6b60e7f94a47cdcc58973cf77a069ad118",
-    "owner": "Copilot"
+    "owner": "Copilot",
+    "checks": {
+      "required": [
+        {
+          "command": "pnpm test",
+          "addedAt": "2026-11-17T03:42:47.991Z",
+          "addedBy": "Copilot"
+        }
+      ],
+      "records": []
+    }
   }
 }
