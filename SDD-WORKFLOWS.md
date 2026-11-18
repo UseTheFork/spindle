@@ -132,7 +132,7 @@ original checkout:
 ```text
 spec.md     Feature requirements
 design.md   Optional feature design
-sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, findings, checks
+sdd.json    Ledger: feature settings, worktree paths, tickets, tasks, dependencies, links, write scopes, findings, checks
 tickets/    Ticket requirements, acceptance criteria and comments
 reports/    Worker and check-output reports
 ```
@@ -152,6 +152,37 @@ write replaces the file atomically. Workers do not change workflow records,
 except to write their assigned report. A final-delivery merge may bring
 committed `.spindle/` files from the original branch into the feature branch;
 those copies are ordinary repository files, not live records.
+
+## Configuration
+
+Project settings and feature settings do not overlap. There is no inheritance
+or override mechanism between `.spindle/config.json` and a feature's
+`sdd.json`.
+
+- **Project settings** live under the `sdd` key in
+  [`.spindle/config.json`](.spindle/config.json). `worktree_directory` sets the
+  shared parent directory for all feature and ticket worktrees.
+  `setup_command` is an array of commands to run in each new ticket worktree.
+  It can be empty. Features cannot override either setting.
+- **Feature settings** are written into `sdd.json` with built-in defaults
+  when `create` creates the feature. They include the check commands.
+  These defaults do not come from project configuration. `start` does not
+  initialize or replace them.
+
+Example SDD configuration:
+
+```json
+{
+  "sdd": {
+    "worktree_directory": "../spindle-worktrees",
+    "setup_command": ["pnpm install"]
+  }
+}
+```
+
+Relative worktree directories resolve from the original checkout root. The
+ledger stores each created worktree's resolved path, not a feature-level copy
+of the project setting.
 
 ## Worktrees
 
@@ -176,12 +207,26 @@ flowchart LR
   the original branch and records both in the ledger. `start` does not commit.
 - **Ticket worktree.** When a ticket becomes ready, the CLI creates its branch
   and worktree from the feature branch tip and records both in the ledger. The
-  CLI then runs the project's setup command (for example `pnpm install`) once.
-  The ticket worktree is removed after the ticket merges into the feature
-  branch.
-- Worktrees live under a configured parent directory outside the original
-  checkout. The CLI resolves feature and ticket worktree paths from the
-  ledger, so SDD commands work from the original checkout.
+  CLI reads `sdd.setup_command` from the original checkout's configuration and
+  runs each command once, in array order, in the new ticket worktree. An empty
+  array skips setup. The ticket worktree is removed after the ticket merges
+  into the feature branch.
+- Worktrees live under `sdd.worktree_directory`, outside the original
+  checkout. The setting applies to all features. The CLI resolves existing
+  feature and ticket worktree paths from the ledger, so SDD commands work from
+  the original checkout.
+
+Branch and worktree names use fixed patterns, not configurable templates.
+`<feature>` is the numbered feature workspace name, such as
+`0003-sdd-rebuild`; `<ticket-id>` is the ticket ID, such as `T-0002`.
+`<worktree-directory>` is the resolved project-wide worktree directory.
+
+| Item             | Fixed pattern                                  |
+| ---------------- | ---------------------------------------------- |
+| Feature branch   | `sdd/<feature>/feature`                         |
+| Ticket branch    | `sdd/<feature>/<ticket-id>`                     |
+| Feature worktree | `<worktree-directory>/<feature>/feature`        |
+| Ticket worktree  | `<worktree-directory>/<feature>/<ticket-id>`    |
 
 ## Dispatch and `next`
 
@@ -559,8 +604,6 @@ flowchart TD
   integration; final checks then run again on the resulting feature revision.
 - If the original branch's code revision changes before `finish`, update the
   feature branch from its current state and run final checks again.
-- An optional retrospective report can be required by the feature settings.
-  `finish` requires it when set.
 - `finish` never pushes, publishes or force-deletes. It removes a worktree or
   branch only after confirming that its work is merged.
 
@@ -597,7 +640,8 @@ report does not approve it.
 
 ## Checks
 
-Check commands are declared once per feature, with project defaults:
+`create` writes default commands for the following check sets into the
+feature's `sdd.json`. The exact default commands will be specified separately.
 
 - **ticket** checks run in a ticket worktree after the current work round's
   ticket commit exists.
@@ -643,7 +687,7 @@ success envelope on stdout and errors on stderr.
 
 | Command                          | Purpose                                                                                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md` and optional `design.md`.                                                     |
+| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md`, and `sdd.json` initialized with feature defaults.        |
 | `start`                          | Create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                   |
 | `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
