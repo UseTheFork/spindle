@@ -131,10 +131,10 @@ reports/    Worker and check-output reports
 ```
 
 The ledger stores workflow facts: task states, dependencies, findings and
-their links, check runs, review recommendations and controller decisions, and
-integration journals. Ticket
-state is derived from these facts; it is not stored separately. Only the
-controller changes the ledger, through the CLI. A workspace lock serializes
+their links, ticket commits, check runs, review recommendations and controller
+decisions, and operation journals. Ticket state is derived from these facts;
+it is not stored separately. Only the controller changes the ledger, through
+the CLI. A workspace lock serializes
 ledger writes, and each write replaces the file atomically. Tasks never change
 files under `.spindle/`, except that a final-delivery merge may import committed
 records from the original branch. The merge must preserve the active feature's
@@ -271,8 +271,8 @@ stateDiagram-v2
   result against the acceptance criteria.
 - For a final-delivery merge task, the agent creates the merge commit instead.
   `submit` verifies and records that existing commit as the ticket commit; it
-  does not create another commit. The merge task has exclusive use of its ticket
-  worktree until the agent stops and the CLI verifies the submission.
+  does not create another commit. The merge task has exclusive use of its
+  ticket worktree until the agent stops and the CLI verifies the submission.
 - An agent that stops without submitting leaves its files in place. The task
   can be dispatched again.
 
@@ -301,8 +301,8 @@ stateDiagram-v2
 
 - Ticket state is a CLI-derived view, not a separately edited ledger field.
   The CLI derives it from task states, ticket dependencies, open findings,
-  check results for the current code revision, the acceptance verdict and the
-  integration journal.
+  the ticket commit, check results for the current code revision, the acceptance
+  verdict and operation journals.
 - Derive the state in this order:
   1. **Merged** when the ticket has been integrated and its worktree has been
      cleaned up.
@@ -404,8 +404,8 @@ flowchart TD
   creates a fix task whose write scope covers those paths. No other task in
   that ticket is dispatched while the merge is unresolved. Submitting the
   conflict-resolution task completes the pending merge commit; its changes
-  are part of that merge commit rather than a separate task commit. The ticket then runs
-  checks and acceptance again before integration continues.
+  are part of that merge commit rather than a separate task commit. The ticket
+  then runs checks and acceptance again before integration continues.
 - After either kind of fix, the ticket goes through checks and acceptance
   again before integration resumes. A linked fix task added after acceptance
   pauses integration and returns the ticket to InProgress. Integrations are
@@ -606,7 +606,7 @@ All commands run as `spindle sdd <command> --feature <directory>`, except
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                             |
 | `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                          |
-| `submit`                         | Record task completion; commit combined ticket work when all tasks are Done, or amend its pending commit after fixes. With `--review`, record the recommendation and controller decision. |
+| `submit`                         | Record task completion and prepare the combined ticket commit when ready; with `--review`, record the recommendation and controller decision.            |
 | `review`                         | Create a ticket-acceptance or feature review assignment and return its ID and `assignment` command.                                                       |
 | `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path. |
 | `finding`                        | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                      |
