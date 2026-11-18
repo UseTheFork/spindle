@@ -16,5 +16,37 @@ export async function reviewFixture() {
     invoke("task", "submit", ...featureFlag, "--task", id, "--attempt", "1");
     invoke("ticket", "commit", ...featureFlag, "--ticket", "T-0001", "--message", `Add ${file}`);
   };
-  return { ...fixture, worktree, complete, initialTask: task };
+  const startReview = () => invoke("review", ...featureFlag, "--ticket", "T-0001").review as string;
+  const submitReview = (review: string, recommendation: string, ...args: string[]) =>
+    invoke(
+      "review",
+      "submit",
+      ...featureFlag,
+      "--review",
+      review,
+      "--recommendation",
+      recommendation,
+      ...args,
+    );
+  const reportFinding = (review: string) =>
+    submitReview(
+      review,
+      "changes-required",
+      "--finding",
+      "Missing assertion",
+      "major",
+      "first.ts",
+      "Done",
+      "No assertion ran",
+      "Add an assertion",
+    ).findings[0] as string;
+  return {
+    ...fixture,
+    worktree,
+    complete,
+    initialTask: task,
+    startReview,
+    submitReview,
+    reportFinding,
+  };
 }

@@ -3,6 +3,8 @@ import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 import { SddAssignmentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddAssignmentCommand";
 import { SddCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddCreateCommand";
 import { SddDispatchCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDispatchCommand";
+import { SddFindingDismissCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingDismissCommand";
+import { SddFindingFixCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingFixCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
 import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
 import { SddReviewSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewSubmitCommand";
@@ -34,6 +36,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddTicketCommitCommand,
       SddReviewCommand,
       SddReviewSubmitCommand,
+      SddFindingDismissCommand,
+      SddFindingFixCommand,
     ];
   }
 

@@ -669,8 +669,9 @@ directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
 `ticket start`, `dispatch`, and ticket `review` when available. Worker
 assignments, ordinary task submission, and ticket acceptance review are
-supported. Finding decisions, feature review, and merge-task submission are
-not implemented yet. If a start is interrupted, `next` reports the
+supported, including dismissal and linked fix tasks for ticket review
+findings. Feature review, integration conflict handling, and merge-task
+submission are not implemented yet. If a start is interrupted, `next` reports the
 pending start and prints the
 command to resume it. Resume uses the journaled branch, path, and base
 commit rather than recomputing them.
@@ -693,6 +694,20 @@ Use `--recommendation pass` without `--finding` for a clean review. For
 `changes-required`, supply each finding's title, severity, location, criterion,
 evidence, and suggested fix in that order. Repeat `--finding` for additional
 findings.
+
+```sh
+spindle sdd finding dismiss --feature 0001-dispatch --finding F-... \
+  --reason 'The criterion does not require this behavior.'
+spindle sdd finding fix --feature 0001-dispatch --finding F-... \
+  --instructions 'Add the blocked-task test.' --write-scope tests/Dispatch.test.ts \
+  --depends-on T-0001.1
+```
+
+Wait for all pending reviews on the ticket before creating fix work. As with
+ordinary tasks, use `--depends-on` to order overlapping write scopes. Dispatch,
+submit, and commit the fix through the normal ticket workflow. The next review
+round on changed code includes the linked findings to verify. They remain open
+until all reviewers finish and no finding raised in that round remains open.
 
 For ticket and task creation, repeat `--depends-on` for each prerequisite.
 For task creation, repeat `--write-scope` and optionally `--context` for

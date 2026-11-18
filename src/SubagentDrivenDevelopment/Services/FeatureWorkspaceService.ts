@@ -152,14 +152,61 @@ export class FeatureWorkspaceService extends Service {
       if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
       if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
       await (await this.app.make(TicketReviewService)).assertOrdinaryTaskAllowed(ledger, ticket);
-      const number = FeatureWorkspaceService.nextNumber(
-        ticket.tasks.map(({ id }) => id.slice(ticketId.length + 1)),
-      );
-      taskId = `${ticketId}.${number}`;
-      ticket.tasks.push({ ...input, id: taskId, state: "Pending", attempt: 0 });
+      taskId = this.appendTask(ticket, input);
       return ledger;
     });
     return { ticket: ticketId, task: taskId };
+  }
+
+  public async createFindingFixTask(reference: string, findingId: string, input: NewTask) {
+    if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
+    let result: { finding: string; ticket: string; task: string } | undefined;
+    await this.updateLedger(reference, (ledger) => {
+      if (ledger.pendingStart)
+        throw new Error("Resume the pending start before creating fix work.");
+      const finding = ledger.findings.find(({ id }) => id === findingId);
+      if (!finding) throw new Error(`Unknown finding '${findingId}'.`);
+      if (finding.type !== "review") throw new Error("Conflict fix work is not supported yet.");
+      if (finding.decision.status !== "open" || finding.fixWork) {
+        throw new Error(`Finding '${findingId}' must be open and have no existing fix work.`);
+      }
+      const round = ledger.reviewRounds.find(({ reviews }) =>
+        reviews.some(({ id }) => id === finding.reviewId),
+      );
+      if (round?.target.type !== "ticket")
+        throw new Error("Only ticket review findings support fix work.");
+      const ticketId = round.target.ticketId;
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket?.worktree || ticket.merged)
+        throw new Error(`Ticket '${ticketId}' has no active worktree.`);
+      if (
+        ledger.reviewRounds.some(
+          ({ target, reviews }) =>
+            target.type === "ticket" &&
+            target.ticketId === ticketId &&
+            reviews.some(({ result }) => result === undefined),
+        )
+      )
+        throw new Error(`Wait for all reviews on '${ticketId}' before creating fix work.`);
+      const task = this.appendTask(ticket, { ...input, discoveredFrom: findingId });
+      finding.fixWork = { type: "task", taskId: task };
+      result = { finding: findingId, ticket: ticketId, task };
+      return ledger;
+    });
+    if (!result) throw new Error("Fix task was not created.");
+    return result;
+  }
+
+  private appendTask(
+    ticket: Pick<Ticket, "id" | "tasks">,
+    input: NewTask & Pick<Task, "discoveredFrom">,
+  ): string {
+    const number = FeatureWorkspaceService.nextNumber(
+      ticket.tasks.map(({ id }) => id.slice(ticket.id.length + 1)),
+    );
+    const id = `${ticket.id}.${number}`;
+    ticket.tasks.push({ ...input, id, state: "Pending", attempt: 0 });
+    return id;
   }
 
   private workspaceName(reference: string): string {

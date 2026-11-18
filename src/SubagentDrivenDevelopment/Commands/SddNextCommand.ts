@@ -86,6 +86,18 @@ export class SddNextCommand extends Command {
         }
       }
       for (const ticket of tickets) {
+        for (const blocker of ticket.blockers) {
+          if (blocker.code !== "undecided-finding") continue;
+          const finding = feature.findings.find(({ id }) => id === blocker.findingId);
+          if (
+            finding?.type === "review" &&
+            !feature.tickets.find(({ id }) => id === ticket.ticketId)?.merged
+          ) {
+            notices.push(
+              `${ticket.ticketId}: finding ${finding.id} needs a decision. Use finding fix or finding dismiss.`,
+            );
+          }
+        }
         for (const task of ticket.tasks) {
           if (task.ready)
             actions.push(`spindle sdd dispatch --feature ${feature.name} --task ${task.taskId}`);
