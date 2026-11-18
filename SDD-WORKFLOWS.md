@@ -8,15 +8,16 @@ what the rebuild removes.
 
 ## Concepts
 
-| Term       | Meaning                                                                                                                                        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Feature    | The complete unit of work, with a spec, a feature branch and one or more tickets.                                                              |
-| Ticket     | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, ticket checks, acceptance review and integration. |
-| Task       | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.                         |
-| Finding    | A recorded issue from a review, check or integration. Review findings may be dismissed; gate failures require resolution.                      |
-| Controller | The single operator coordinating the feature through the SDD CLI.                                                                              |
-| Worker     | An agent implementing one dispatched task.                                                                                                     |
-| Reviewer   | An agent reviewing a ticket or the completed feature against its acceptance criteria.                                                          |
+| Term         | Meaning                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Feature      | The complete unit of work, with a spec, a feature branch and one or more tickets.                                               |
+| Ticket       | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, acceptance review and integration. |
+| Task         | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.          |
+| Finding      | A recorded issue from a review or an integration conflict. Review findings may be dismissed; conflicts require resolution.      |
+| Controller   | The single operator coordinating the feature through the SDD CLI.                                                               |
+| Worker       | An agent implementing one dispatched task.                                                                                      |
+| Reviewer     | An agent reviewing a ticket against its acceptance criteria, or the completed feature against the feature spec.                 |
+| Review round | One or more reviews of the same target at the same code revision.                                                               |
 
 ## Design principles
 
@@ -31,8 +32,7 @@ what the rebuild removes.
    file hashes or snapshots.
 4. **Dependencies order the work.** Tickets depend on tickets, and tasks depend
    on tasks in the same ticket. Work cannot start until its dependencies are
-   done. Findings and failed checks link to the fix tasks or tickets they
-   create.
+   done. Findings link to the fix tasks or tickets they create.
 5. **Tasks submit; the controller commits ticket work.** Workers leave
    ordinary task changes uncommitted. The controller records task completion
    through the CLI, then creates a ticket commit after all tasks are Done and
@@ -42,10 +42,11 @@ what the rebuild removes.
    the ticket's combined diff against its acceptance criteria.
 6. **Only feature merges are serial.** Accepted tickets merge into the feature
    branch one at a time.
-7. **Corrections are normal work.** Findings and failed checks become fix tasks
-   or fix tickets. There is no separate correction workflow.
-8. **The CLI runs checks.** Declared check commands are executed by the CLI,
-   so recorded results are real.
+7. **Corrections are normal work.** Findings become fix tasks or fix tickets.
+   There is no separate correction workflow.
+8. **Reviews are the quality gate.** One or more review agents review each
+   completed ticket and the completed feature. The CLI does not run check
+   commands.
 9. **`next` is the only guide.** It lists all currently available actions with
    exact commands and explains why other work is blocked.
 
@@ -53,8 +54,8 @@ what the rebuild removes.
 
 Tickets and tasks form one hierarchical work graph. A ticket is the parent of
 its tasks; task IDs use the ticket ID as a prefix (for example,
-`T-0002.1`). A ticket groups the work that shares a branch, worktree, checks
-and acceptance review. Tasks are the only nodes dispatched to workers.
+`T-0002.1`). A ticket groups the work that shares a branch, worktree and
+acceptance review. Tasks are the only nodes dispatched to workers.
 
 `ticket create` creates a ticket with no tasks. Add at least one task with
 `task create` before the ticket can become ready. Add more tasks when parts of
@@ -106,9 +107,9 @@ Done. They use its uncommitted changes in the shared ticket worktree.
   depends on has merged into the feature branch.
 - A task is **ready** when its ticket is ready, it has a write scope, and every
   task it depends on is Done.
-- A task created to fix a finding or failed check has a `discovered-from` link
-  to that finding or check. This records why the task exists; it does not
-  replace task or ticket dependencies.
+- A task created to fix a finding has a `discovered-from` link to that
+  finding. This records why the task exists; it does not replace task or
+  ticket dependencies.
 - The feature spec is fixed when `start` creates the feature branch. Ticket
   requirements and acceptance criteria are fixed when the first task is
   dispatched. Before dispatch, `ticket update` can edit them; after dispatch,
@@ -117,8 +118,8 @@ Done. They use its uncommitted changes in the shared ticket worktree.
 - Tasks can be added to a ticket before it is accepted. After acceptance and
   before merge, the controller can add only fix tasks linked to findings.
   Adding a fix task pauses integration and returns the ticket to InProgress.
-  The ticket must pass checks and acceptance review again after the fix. No
-  tasks can be added after merge. A task can be removed only before it is
+  The ticket must pass acceptance review again after the fix. No tasks can
+  be added after merge. A task can be removed only before it is
   dispatched. A task's write scope can change only before it is dispatched,
   or when the controller accepts an out-of-scope file at submission. A scope
   change must not create an unordered write conflict with another unfinished
@@ -132,9 +133,9 @@ original checkout:
 ```text
 spec.md     Feature requirements
 design.md   Optional feature design
-sdd.json    Ledger: feature settings, worktree paths, tickets, tasks, dependencies, links, write scopes, findings, checks
+sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, reviews, findings
 tickets/    Ticket requirements, acceptance criteria and comments
-reports/    Worker and check-output reports
+reports/    Worker reports
 ```
 
 The feature workspace in the original checkout is the only live copy of the
@@ -144,30 +145,25 @@ Feature and ticket worktrees do not hold live records.
 
 The ledger stores workflow facts: the feature branch and worktree path, each
 ticket's branch and worktree path, task states, dependencies, findings and
-their links, ticket work-round completion, check runs, review recommendations,
-controller decisions and operation journals. Ticket state is derived from
-these facts; it is not stored separately. Only the controller changes the
-ledger, through the CLI. A workspace lock serializes ledger writes, and each
-write replaces the file atomically. Workers do not change workflow records,
-except to write their assigned report. A final-delivery merge may bring
+their links, ticket work-round completion, reviews with their code revisions
+and recommendations, finding decisions and operation journals. Ticket state is
+derived from these facts; it is not stored separately. Only the controller
+changes the ledger, through the CLI. A workspace lock serializes ledger writes,
+and each write replaces the file atomically. Workers do not change workflow
+records, except to write their assigned report. A final-delivery merge may bring
 committed `.spindle/` files from the original branch into the feature branch;
 those copies are ordinary repository files, not live records.
 
 ## Configuration
 
-Project settings and feature settings do not overlap. There is no inheritance
-or override mechanism between `.spindle/config.json` and a feature's
-`sdd.json`.
+SDD settings live under the `sdd` key in
+[`.spindle/config.json`](.spindle/config.json) and apply to all features.
+Features cannot override them, and `sdd.json` holds no feature settings.
 
-- **Project settings** live under the `sdd` key in
-  [`.spindle/config.json`](.spindle/config.json). `worktree_directory` sets the
-  shared parent directory for all feature and ticket worktrees.
-  `setup_command` is an array of commands to run in each new ticket worktree.
-  It can be empty. Features cannot override either setting.
-- **Feature settings** are written into `sdd.json` with built-in defaults
-  when `create` creates the feature. They include the check commands.
-  These defaults do not come from project configuration. `start` does not
-  initialize or replace them.
+- `worktree_directory` sets the shared parent directory for all feature and
+  ticket worktrees.
+- `setup_command` is an array of commands to run in each new ticket worktree.
+  It can be empty.
 
 Example SDD configuration:
 
@@ -221,12 +217,12 @@ Branch and worktree names use fixed patterns, not configurable templates.
 `0003-sdd-rebuild`; `<ticket-id>` is the ticket ID, such as `T-0002`.
 `<worktree-directory>` is the resolved project-wide worktree directory.
 
-| Item             | Fixed pattern                                  |
-| ---------------- | ---------------------------------------------- |
-| Feature branch   | `sdd/<feature>/feature`                         |
-| Ticket branch    | `sdd/<feature>/<ticket-id>`                     |
-| Feature worktree | `<worktree-directory>/<feature>/feature`        |
-| Ticket worktree  | `<worktree-directory>/<feature>/<ticket-id>`    |
+| Item             | Fixed pattern                                |
+| ---------------- | -------------------------------------------- |
+| Feature branch   | `sdd/<feature>/feature`                      |
+| Ticket branch    | `sdd/<feature>/<ticket-id>`                  |
+| Feature worktree | `<worktree-directory>/<feature>/feature`     |
+| Ticket worktree  | `<worktree-directory>/<feature>/<ticket-id>` |
 
 ## Dispatch and `next`
 
@@ -294,8 +290,9 @@ output includes the role, feature/ticket/task IDs, attempt, ticket worktree
 path, task instructions and completion criteria, write scope, optional
 context, ticket requirements, acceptance criteria, originating finding and
 evidence, worker rules and response/report instructions. Review mode returns
-the role, review ID, target diff and revision, review criteria, current check
-results and response template. It reads a complete ledger snapshot and does
+the role, review ID, target worktree, review scope, code revision, review
+criteria, optional focus, findings to verify and response template. It reads a
+complete ledger snapshot and does
 not acquire the workspace write lock or change workflow state. Without
 `--json`, it renders the same content for a person to read.
 
@@ -333,11 +330,11 @@ stateDiagram-v2
 - For ordinary tasks, **Done** means the CLI accepted the submission and
   recorded completion. It does not create an individual task commit.
   Dependent tasks can use the completed work in the shared worktree.
-  Done does not mean the ticket passed checks or acceptance review.
+  Done does not mean the ticket passed acceptance review.
 - The CLI does not keep per-task file hashes, snapshots or change baselines.
-  Scope checks identify unassigned paths, not which worker changed a scoped
-  file. Workers must obey their own scopes; ticket review assesses the combined
-  result against the acceptance criteria.
+  Scope validation identifies unassigned paths, not which worker changed a
+  scoped file. Workers must obey their own scopes; ticket review assesses the
+  combined result against the acceptance criteria.
 - For a final-delivery merge task, the agent creates the merge commit instead.
   `task submit` verifies the merge and records task completion. The controller
   does not run `ticket commit` unless later task work adds changes. The merge
@@ -353,26 +350,22 @@ stateDiagram-v2
     [*] --> Planned
     Planned --> Ready: has tasks, dependencies merged (worktree created)
     Ready --> InProgress: first task dispatched
-    InProgress --> Checking: ticket commit created, checks pending
-    Checking --> InAcceptance: ticket checks pass for current code revision
-    Checking --> Blocked: check fails (open finding)
-    Checking --> Checking: interrupted or environment error (rerun)
-    InAcceptance --> Accepted: acceptance review passed
+    InProgress --> InAcceptance: ticket commit created
+    InAcceptance --> Accepted: review round passed
     InAcceptance --> Blocked: review finding needs a decision
     Accepted --> Integrating: integrate
     Accepted --> InProgress: linked fix task added before merge
-    Integrating --> Merged: post-merge checks pass, checked code promoted
-    Integrating --> Blocked: conflict or post-merge check fails
+    Integrating --> Merged: clean merge, feature branch fast-forwarded
+    Integrating --> Blocked: merge conflict
     Blocked --> InProgress: fix task added
-    Blocked --> InAcceptance: review finding dismissed or check passes
-    Blocked --> Merged: pending integration passes checks
+    Blocked --> InAcceptance: review finding dismissed
     Merged --> [*]
 ```
 
 - Ticket state is a CLI-derived view, not a separately edited ledger field.
   The CLI derives it from task states, ticket dependencies, open findings,
-  the ticket commit, check results for the current code revision, the acceptance
-  verdict and operation journals.
+  the ticket commit, review rounds for the current code revision and operation
+  journals.
 - Derive the state in this order:
   1. **Merged** when the ticket has been integrated and its worktree has been
      cleaned up.
@@ -388,19 +381,17 @@ stateDiagram-v2
      unfinished, or all tasks are Done but the controller has not created the
      ticket commit. Adding a fix task to a ticket with completed tasks
      naturally returns it to InProgress; there is no separate reopen operation.
-  7. **Checking** when the ticket commit exists but checks have not passed for
-     the current code revision.
-  8. **InAcceptance** when checks pass for the current code revision but
-     acceptance has not passed for it.
-  9. **Accepted** when checks and acceptance pass for the current code
+  7. **InAcceptance** when the ticket commit exists but no review round has
+     passed for the current code revision.
+  8. **Accepted** when a review round has passed for the current code
      revision.
 - A finding blocks the ticket only while it has no linked fix work and has not
-  been dismissed or resolved by its gate. A check finding is resolved when
-  that check passes for the current code revision. A review finding is resolved
-  by dismissal or by a passing review of the fix.
+  been dismissed or resolved. A review finding is resolved by dismissal, or
+  when a review round passes for the fixed code. A conflict finding is
+  resolved when `task submit` verifies the merge commit.
 - `next` reports the derived state and its blockers. For a blocked ticket, it
-  offers the permitted action, such as rerunning a failed gate, creating fix
-  work or dismissing a review finding. Adding the task changes the derived
+  offers the permitted action, such as creating fix work or dismissing a
+  review finding. Adding the task changes the derived
   state; there is no separate reopen command.
 - **Ticket commits.** After all tasks for a work round are Done and no workers
   are running, the controller runs
@@ -417,34 +408,26 @@ stateDiagram-v2
   and `task submit` verifies and records it. If later tasks change files, the
   controller uses `ticket commit` to commit those changes with a required
   message.
-- **Ticket checks** run after the work round's ticket commit exists and no task
-  workers are running. A missing ticket commit prevents checks and acceptance
-  review from proceeding. The ticket remains InProgress while the controller
-  prepares the commit, then moves to Checking. No task can be dispatched during
-  Checking or InAcceptance.
-- If a check fails, the controller records a finding linked to the check run
-  and creates fix work. Until then, the ticket is Blocked on that finding.
-  The CLI does not infer a task's instructions or write scope from check
-  output.
-- An interrupted check or environment error is incomplete, not a code failure.
-  It does not create a finding or fix task; resolve the interruption or
-  environment problem and rerun the check.
-- Adding a fix task moves the derived state to InProgress. Earlier check runs
-  stay recorded against the revision they tested, but cannot satisfy the gate
-  after a code change. Once all fix tasks are Done, the controller creates a
-  follow-up ticket commit with a required message. Ticket checks and acceptance
-  then run again on the updated revision.
-- **Acceptance review** reads the ticket branch diff from the feature branch,
-  against the ticket's acceptance criteria.
+- **Acceptance review** starts after the work round's ticket commit exists and
+  no task workers are running. A missing ticket commit prevents review. The
+  ticket remains InProgress while the controller prepares the commit, then
+  moves to InAcceptance. The controller starts a review round of one or more
+  reviewers against the ticket's acceptance criteria. No task in the ticket
+  can be dispatched while a review of it is active.
+- Adding a fix task moves the derived state to InProgress. Earlier reviews
+  stay recorded against the code revision they reviewed, but cannot accept a
+  later revision. Once all fix tasks are Done, the controller creates a
+  follow-up ticket commit with a required message. A new review round then
+  runs on the updated revision.
 - Ticket acceptance is the required review gate whether the ticket has one
   task or many.
 - Review findings block the ticket until the controller creates linked fix
-  work or dismisses the finding with a reason. Check failures and integration
-  conflicts cannot be dismissed; their gate must pass.
+  work or dismisses the finding with a reason. Integration conflict findings
+  cannot be dismissed; the merge must be resolved.
 - After acceptance and before merge, the controller can create only fix tasks
   linked to findings. Creating one pauses integration and returns the ticket
-  to InProgress. After the fix is submitted, the ticket must pass checks and
-  acceptance review again before integration resumes. A merged ticket cannot
+  to InProgress. After the fix is submitted, the ticket must pass a new
+  acceptance review round before integration resumes. A merged ticket cannot
   receive more tasks.
 
 ## Integration
@@ -458,60 +441,73 @@ flowchart TD
     D -->|"Yes"| E["Keep merge in progress; record conflict finding"]
     E --> F["Create scoped fix task for conflicted files"]
     F --> G["Merge agent creates merge commit; task submit verifies it"]
-    G --> H["Ticket checks and acceptance review"]
+    G --> H["Acceptance review round"]
     H --> C
-    D -->|"No"| I["Run post-merge checks on the merge commit"]
-    I --> J{"Pass?"}
-    J -->|"No"| K["Keep merge commit; record check finding and fix task"]
-    K --> L["Ticket checks and acceptance review"]
-    L --> C
-    J -->|"Yes"| M["Feature branch fast-forwards to ticket branch"]
+    D -->|"No"| M["Feature branch fast-forwards to ticket branch"]
     M --> N["Record merge in ledger; remove ticket worktree and branch"]
 ```
 
-- The feature branch moves only by a fast-forward when the ticket worktree's
-  code revision matches the revision that passed post-merge checks. A failed
-  post-merge check leaves the merge in the ticket branch and does not change
-  the feature branch. The controller records a finding linked to that check
-  run and creates a fix task. Once all fix tasks are Done and workers have
-  stopped, the controller creates a follow-up ticket commit with a required
-  message. The failed merge remains unchanged.
+- The feature branch moves only by a fast-forward to the ticket branch. A
+  clean merge fast-forwards the feature branch without another review. The
+  CLI does not verify the combined code; feature review covers the integrated
+  result.
 - If the merge has conflicts, `integrate` leaves it in progress on the ticket
   branch and records a finding with the conflicted paths. The controller
   creates a fix task whose write scope covers those paths. No other task in
   that ticket is dispatched while the merge is unresolved. The merge agent's
   conflict resolutions are part of the merge commit; `task submit` verifies
-  that commit. Later fixes create follow-up ticket commits. The ticket then
-  runs checks and acceptance again before integration continues.
-- After either kind of fix, the ticket goes through checks and acceptance
-  again before integration resumes. A linked fix task added after acceptance
-  pauses integration and returns the ticket to InProgress. Integrations are
-  serial, but a failed or paused integration does not move the feature branch
-  or prevent other tickets from integrating.
+  that commit. Later fixes create follow-up ticket commits.
+- After a conflict resolution or other fix, the ticket needs a new acceptance
+  review round before integration resumes. A linked fix task added after
+  acceptance pauses integration and returns the ticket to InProgress.
+  Integrations are serial, but a failed or paused integration does not move
+  the feature branch or prevent other tickets from integrating.
 - Workflow records stay uncommitted in the original checkout. They are not in
   the feature or ticket branches, so they do not affect merges or
   fast-forwards.
 
 ## Reviews and findings
 
-| Level             | Target                                               | Checks against             |
-| ----------------- | ---------------------------------------------------- | -------------------------- |
-| Ticket acceptance | Controller-selected ticket worktree and review scope | Ticket acceptance criteria |
+| Level             | Target                                                | Reviewed against           |
+| ----------------- | ----------------------------------------------------- | -------------------------- |
+| Ticket acceptance | Controller-selected ticket worktree and review scope  | Ticket acceptance criteria |
 | Feature review    | Controller-selected feature worktree and review scope | Feature spec               |
 
-The controller runs `review`, which creates a review ID and returns an
-assignment command for the reviewer:
+### Review rounds
+
+At ticket completion and feature completion, the controller starts a **review
+round**: one or more reviews of the same target at the same code revision. The
+controller decides how many reviewers to start and can give each one a focus,
+such as security, tests or a specific acceptance criterion. Reviewers in a
+round can run at the same time.
+
+A review round passes when every review in it has a recorded result and no
+finding from it is open. If every reviewer finds nothing, the round passes
+with no further controller action. A round passes only for the code revision
+it reviewed.
+
+The code revision identifies the state of the tracked code that a review
+looked at. Changes under `.spindle/` do not change it. This document does not
+define how the CLI computes it.
+
+### Review assignments
+
+Each `review` call creates one review in the round for its target and code
+revision. It returns the review ID and an assignment command for the reviewer:
 
 ```text
 spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
 ```
 
-The controller selects the target worktree and review scope. The assignment
-includes that target, the relevant spec or ticket acceptance criteria, context,
-current check results and the response template below. It has no report-file
-path. Reviewers run the read-only `assignment` command from the original
-checkout. They do not write files or run other SDD commands; their final
-response is the review.
+The controller selects the target worktree, review scope and optional focus.
+The assignment includes that target, the code revision, the relevant spec or
+ticket acceptance criteria, context, the focus, any findings to verify and the
+response template below. It has no report-file path.
+
+Reviewers run the read-only `assignment` command from the original checkout.
+They may run tests, builds and type-checking commands in the target worktree
+and cite the output as evidence. They must not change tracked files, commit or
+run other SDD commands. Their final response is the review.
 
 ```text
 Recommendation: pass | changes-required
@@ -542,68 +538,59 @@ decides each finding:
   belongs to an active ticket, the fix is a task in that ticket. If it is
   feature-level, the CLI creates a new fix ticket from the feature branch tip;
   it does not reopen an already merged ticket. The new ticket goes through the
-  normal checks, acceptance and integration lifecycle.
+  normal acceptance and integration lifecycle.
 - **`finding dismiss --reason`** closes it with a recorded reason.
 
-The controller records the final review decision after all proposed findings
-are fixed or dismissed. A reviewer's recommendation does not accept or reject a
-ticket by itself, and a ticket cannot be accepted while any finding is open.
-Review findings may be dismissed with a reason. Check failures and integration
-conflicts cannot be dismissed; their gate must pass. If a check failure or
-conflict needs correction, the controller creates a finding and then a fix
-task or fix ticket with a write scope. The CLI does not infer the scope from
-diagnostic output.
+A reviewer's recommendation does not accept or reject a ticket by itself. The
+CLI derives the result from the round: a ticket or feature cannot pass while
+any finding is open, and passes once every review in its round is recorded and
+no finding is open. Review findings may be dismissed with a reason.
+Integration conflict findings cannot be dismissed; the merge must be resolved.
+The CLI does not infer a fix task's write scope from review output or conflict
+details.
 
-The controller decides when another review is needed and selects its target
-worktree and scope. When a review checks a fix, its assignment includes the
-finding to verify. A delivery ticket's acceptance review checks its selected
-worktree against the ticket criteria; a feature review checks the selected
-feature worktree against the feature spec. The reviewer returns its response
-to the controller; no review report file is created or stored verbatim. The
-ledger keeps the recommendation, proposed findings and controller decisions.
-After check-related fix work is integrated, the affected check set runs again
-on the updated code revision.
+A ticket needs a new review round whenever its code revision changes. For the
+feature, the controller decides when another feature review round is needed;
+`finish` requires at least one passed round. When a review verifies a fix, its
+assignment includes the finding to verify. A delivery ticket's acceptance
+review assesses its selected worktree against the ticket criteria; a feature
+review assesses the selected feature worktree against the feature spec. The
+reviewer returns its response to the controller; no review report file is
+created or stored verbatim. The ledger keeps each review's code revision,
+recommendation, proposed findings and the fix or dismiss decision for each
+finding.
 
 ## Delivery
 
 ```mermaid
 flowchart TD
-    A["All tickets merged into feature branch"] --> B["Feature review"]
+    A["All tickets merged into feature branch"] --> B["Feature review round"]
     B --> C{"Open findings?"}
-    C -->|"Yes"| D["Ticket work; checks, acceptance, integrate"]
+    C -->|"Yes"| D["Fix tickets: acceptance review, integrate"]
     D --> B
     C -->|"No"| E{"Original branch tip already included?"}
     E -->|"No"| M["Create delivery ticket and dispatch merge task"]
     M --> N["Merge agent runs merge, resolves conflicts, commits and reports"]
-    N --> O["CLI verifies merge submission"]
+    N --> O["CLI verifies merge; acceptance review, integrate"]
     O --> P{"Controller requests another feature review?"}
     P -->|"Yes"| B
-    P -->|"No"| F
-    E -->|"Yes"| F["Run final checks"]
-    F --> G{"Pass?"}
-    G -->|"No"| H["Finding and fix ticket"]
-    H --> D
-    G -->|"Yes"| I["finish: fast-forward original branch to feature branch"]
+    P -->|"No"| I
+    E -->|"Yes"| I["finish: fast-forward original branch to feature branch"]
     I --> J["Mark complete; remove feature worktree and branches"]
 ```
 
-- Final checks run on the feature branch after it includes the original
-  branch's current state. `finish` delivers code whose revision matches the
-  revision that passed final checks.
+- `finish` requires that all tickets are merged, no finding is open, the
+  feature branch includes the original branch tip, and at least one feature
+  review round has passed.
 - If the feature branch does not include the original branch tip, the
   controller creates a delivery ticket from the feature branch tip. Its merge
   task goes to a specialized merge agent, which performs the merge itself.
   The CLI does not start the Git merge or create its merge commit.
-- The delivery ticket follows the normal ticket checks, acceptance review
-  and integration process. After integration, the controller decides whether
-  to request another feature review before final checks. If the original
-  branch's code revision changes again, repeat the delivery merge with its
-  latest state.
-- A failed final check creates a feature-level finding and a fix ticket from
-  the feature branch tip. The ticket goes through checks, acceptance and
-  integration; final checks then run again on the resulting feature revision.
-- If the original branch's code revision changes before `finish`, update the
-  feature branch from its current state and run final checks again.
+- The delivery ticket follows the normal acceptance review and integration
+  process. After integration, the controller decides whether to start another
+  feature review round before `finish`.
+- If the original branch tip changes before `finish`, `finish` refuses. Repeat
+  the delivery merge with the original branch's latest state.
 - `finish` never pushes, publishes or force-deletes. It removes a worktree or
   branch only after confirming that its work is merged.
 
@@ -635,48 +622,8 @@ The result must be the ticket branch tip and include a merge of the original
 branch. The worktree must have no unresolved conflicts or uncommitted changes.
 Changes made by the merge must stay within the assigned scope. Verification
 failures leave the task InProgress and report the reason. A verified merge
-still needs the normal checks and independent acceptance review; the agent's
-report does not approve it.
-
-## Checks
-
-`create` writes default commands for the following check sets into the
-feature's `sdd.json`. The exact default commands will be specified separately.
-
-- **ticket** checks run in a ticket worktree after the current work round's
-  ticket commit exists.
-- **post-merge** checks run during every `integrate`.
-- **final** checks run before `finish`.
-
-The CLI runs each command against the code in the relevant worktree and
-records the code revision, the commands actually run, the result and the
-report paths. Results are `passed`, `failed`, `interrupted` or
-`environment-error`. Every run remains in the history; a retry does not erase
-an earlier failure.
-
-The code revision is computed from the checked worktree's tracked files,
-excluding `.spindle/`. Live records stay in the original checkout, so ledger
-and report updates do not invalidate code checks.
-A run is current only when both its code revision and the declared commands
-match the current check set. Changes to tracked content outside `.spindle/`
-make the code revision different; a change to declared commands invalidates
-the corresponding check results even though the configuration is in the
-ledger. Earlier results remain in history but cannot satisfy a gate for a
-different revision or command set.
-
-| Change after a check passes                                     | Effect                                                                                        |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Tracked content outside `.spindle/` changes                     | Change the code revision; rerun checks before the gate can pass.                              |
-| Declared check commands change                                  | Invalidate results for that check set; rerun before the gate can pass.                        |
-| Ledger, report or review-comment changes under `.spindle/`      | Do not invalidate code checks.                                                                |
-| Another ticket merges into the feature branch                   | Keep this ticket's result; run post-merge checks on the combined revision during integration. |
-| Command fails                                                   | Record a failed run and create a linked finding with fix work.                                |
-| Command is interrupted or cannot run because of the environment | Leave the gate incomplete; resolve the issue and rerun without creating a code-fix task.      |
-
-During Checking and InAcceptance, no worker may change the ticket branch. A
-check result is valid only for its recorded code revision. `check --scope
-<scope>` runs a set on demand and records the result without changing ticket
-state.
+still needs an independent acceptance review round; the agent's report does
+not approve it.
 
 ## Commands
 
@@ -685,28 +632,27 @@ All commands run from the original checkout as
 resolves feature and ticket worktree paths from the ledger. `--json` returns a
 success envelope on stdout and errors on stderr.
 
-| Command                          | Purpose                                                                                                                                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md`, and `sdd.json` initialized with feature defaults.        |
-| `start`                          | Create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                   |
+| Command                          | Purpose                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                             |
+| `start`                          | Create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                    |
 | `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
-| `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
-| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                             |
-| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                          |
-| `task submit`                    | Record a worker's task completion, or verify and record a final-delivery merge commit.                                                                    |
-| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                         |
-| `review submit`                  | Record the review recommendation and controller decision.                                                                                                 |
-| `review`                         | Create a ticket-acceptance or feature review assignment and return its ID and `assignment` command.                                                       |
-| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path. |
-| `finding`                        | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                      |
-| `integrate`                      | Merge an accepted ticket into the feature branch and run post-merge checks.                                                                               |
-| `check`                          | Run a declared check set on demand.                                                                                                                       |
-| `finish`                         | Run final checks, merge into the original branch and clean up.                                                                                            |
+| `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                                         |
+| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                              |
+| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                                           |
+| `task submit`                    | Record a worker's task completion, or verify and record a final-delivery merge commit.                                                                                     |
+| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                          |
+| `review submit`                  | Record one review's recommendation.                                                                                                                                        |
+| `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                   |
+| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                  |
+| `finding`                        | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                       |
+| `integrate`                      | Merge the feature branch tip into an accepted ticket and fast-forward the feature branch after a clean merge.                                                              |
+| `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                       |
 
 ## Recovery and safety
 
 - Ledger writes are atomic file replacements under the workspace lock.
-- The feature branch moves only by fast-forward to checked code, so an
+- The feature branch moves only by fast-forward, so an
   interrupted `integrate` leaves it either unchanged or fully updated.
 - `start`, `integrate`, `finish` and `ticket commit` operations
   write a small journal before they change branches. If a command is
