@@ -206,10 +206,10 @@ sequenceDiagram
     W1-->>C: report (changes left uncommitted)
     C->>CLI: submit --task T-0002.2
     Note over W2: still editing its own files
-    Note over CLI: checks changed paths; records task Done without committing
+    Note over CLI: checks changed paths<br/>records task Done without committing
     W2-->>C: report (changes left uncommitted)
     C->>CLI: submit --task T-0002.3
-    Note over CLI: all ticket tasks Done and workers stopped; create one ticket commit
+    Note over CLI: all ticket tasks Done and workers stopped<br/>create one ticket commit
 ```
 
 The controller gives the worker the command printed by `dispatch`, not a
