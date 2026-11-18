@@ -1,4 +1,4 @@
-import { taskSchema } from "@spindle/SubagentDrivenDevelopment/Models/Task";
+import { taskIdSchema, taskSchema } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import { z } from "zod";
 
 export const ticketIdSchema = z.string().regex(/^T-\d{4,}$/);
@@ -13,6 +13,7 @@ export const ticketSchema = z.strictObject({
   branch: z.string().min(1).optional(),
   worktree: z.string().min(1).optional(),
   workRoundCommits: z.array(z.string().min(1)),
+  committedTaskIds: z.array(taskIdSchema).optional(),
   merged: z.boolean(),
 });
 

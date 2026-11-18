@@ -193,25 +193,37 @@ export class FeatureWorkspaceService extends Service {
       ledger: FeatureLedger,
       publish: (ledger: FeatureLedger) => Promise<void>,
     ) => Promise<T>,
+    options: { resumeTicketCommit?: boolean } = {},
   ): Promise<T> {
-    return this.withLedger(reference, async (ledger, name, workspace) => {
-      const feature = await this.assemble(name, workspace, ledger);
-      return operation(feature, ledger, async (next) => {
-        await this.replaceLedger(workspace, featureLedgerSchema.parse(next));
-      });
-    });
+    return this.withLedger(
+      reference,
+      async (ledger, name, workspace) => {
+        const feature = await this.assemble(name, workspace, ledger);
+        return operation(feature, ledger, async (next) => {
+          await this.replaceLedger(workspace, featureLedgerSchema.parse(next));
+        });
+      },
+      options.resumeTicketCommit,
+    );
   }
 
   private async withLedger<T>(
     reference: string,
     operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,
+    resumeTicketCommit = false,
   ): Promise<T> {
     this.assertApplicationBooted();
     const name = this.workspaceName(reference);
     const workspace = await this.workspacePath(name);
-    return this.withLock(join(workspace, ".ledger-lock"), async () =>
-      operation(await this.readLedger(workspace), name, workspace),
-    );
+    return this.withLock(join(workspace, ".ledger-lock"), async () => {
+      const ledger = await this.readLedger(workspace);
+      if (ledger.pendingTicketCommit && !resumeTicketCommit) {
+        throw new Error(
+          "Resume the pending ticket commit first. Run sdd next for the resume command.",
+        );
+      }
+      return operation(ledger, name, workspace);
+    });
   }
 
   private static nextNumber(numbers: string[]): string {

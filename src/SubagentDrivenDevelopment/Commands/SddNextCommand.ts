@@ -47,7 +47,17 @@ export class SddNextCommand extends Command {
     const start = `spindle sdd start --feature ${feature.name}`;
     const ticketStart = (ticketId: string) =>
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
-    if (feature.pendingStart) {
+    if (feature.pendingTicketCommit) {
+      const { ticketId, message } = feature.pendingTicketCommit;
+      notices.push("A ticket commit is pending. Run the listed command to resume it.");
+      const quoted = `'${message.replaceAll("'", "'\\''")}'`;
+      const command = `spindle sdd ticket commit --feature ${feature.name} --ticket ${ticketId}`;
+      actions.push(
+        message === "-"
+          ? `printf '%s' '-' | ${command} --message -`
+          : `${command} --message=${quoted}`,
+      );
+    } else if (feature.pendingStart) {
       notices.push("A start is pending. Run the listed command to resume it.");
       actions.push(
         feature.pendingStart.kind === "feature"
@@ -73,6 +83,26 @@ export class SddNextCommand extends Command {
         for (const task of ticket.tasks) {
           if (task.ready)
             actions.push(`spindle sdd dispatch --feature ${feature.name} --task ${task.taskId}`);
+        }
+      }
+      for (const ticket of feature.tickets) {
+        if (
+          ticket.worktree &&
+          ticket.branch &&
+          !ticket.merged &&
+          ticket.tasks.length > 0 &&
+          ticket.tasks.every(({ state }) => state === "Done") &&
+          ticket.tasks.some(({ id }) => !ticket.committedTaskIds?.includes(id)) &&
+          !feature.findings.some(
+            (finding) =>
+              finding.type === "conflict" &&
+              finding.ticketId === ticket.id &&
+              finding.decision === "open",
+          )
+        ) {
+          notices.push(
+            `All tasks on ${ticket.id} are Done. Run ticket commit with a commit message.`,
+          );
         }
       }
     }

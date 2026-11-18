@@ -737,8 +737,9 @@ failure. `error.details` is optional and provides additional context.
   interrupted, the next SDD command completes or rolls back the operation,
   or stops and prints what it found. It never discards uncommitted work.
 - Ticket commit creation uses the journal to recover an interrupted command.
-  If Git succeeds before the ledger update, recovery verifies the operation
-  against the branch and records its completion. It does not create a duplicate
-  commit or infer success from a clean worktree.
+  The journal records the exact commit object before the branch moves. If Git
+  succeeds before the ledger update, retry with the same ticket and message
+  (shown by `next`) to record that commit without creating a duplicate. Git
+  commit hooks do not run for these work-round commits.
 - One controller runs a feature at a time. The workspace lock prevents two
   controllers from writing at once; there is no per-command actor identity.

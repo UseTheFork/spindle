@@ -1,4 +1,3 @@
-import { realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
@@ -142,21 +141,9 @@ export class TaskDispatchService extends Service {
         );
       }
 
-      const worktree = await realpath(ticket.worktree);
-      if (worktree !== ticket.worktree || git.discoverRoot(worktree) !== worktree) {
-        throw new Error(
-          `The recorded ticket worktree is not a Git worktree root: '${ticket.worktree}'.`,
-        );
-      }
-      const head = git.run(["symbolic-ref", "HEAD"], { cwd: worktree, encoding: "utf8" });
-      if (head.error) throw head.error;
-      if (
-        !ticket.branch ||
-        head.status !== 0 ||
-        head.stdout.trim() !== `refs/heads/${ticket.branch}`
-      ) {
-        throw new Error(`The recorded ticket branch is not checked out at '${worktree}'.`);
-      }
+      const worktree = ticket.worktree;
+      if (!ticket.branch) throw new Error(`Ticket '${ticket.id}' has no recorded branch.`);
+      await git.requireWorktreeBranch(worktree, ticket.branch);
       const assigned = new Set(
         ticket.tasks
           .filter(({ state }) => state === "InProgress" || state === "Done")

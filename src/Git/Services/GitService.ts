@@ -4,6 +4,7 @@ import type {
   SpawnSyncOptionsWithStringEncoding,
   SpawnSyncReturns,
 } from "node:child_process";
+import { realpath } from "node:fs/promises";
 
 import { Service } from "@spindle/Foundation/Service";
 
@@ -78,6 +79,18 @@ export class GitService extends Service {
     const entries = output.split("\0");
     entries.pop();
     return [...new Set(entries.map((entry) => entry.slice(3)))].sort();
+  }
+
+  public async requireWorktreeBranch(path: string, branch: string): Promise<void> {
+    const worktree = await realpath(path);
+    if (worktree !== path || this.discoverRoot(worktree) !== worktree) {
+      throw new Error(`The recorded ticket worktree is not a Git worktree root: '${path}'.`);
+    }
+    const head = this.run(["symbolic-ref", "HEAD"], { cwd: worktree, encoding: "utf8" });
+    if (head.error) throw head.error;
+    if (head.status !== 0 || head.stdout.trim() !== `refs/heads/${branch}`) {
+      throw new Error(`The recorded ticket branch is not checked out at '${worktree}'.`);
+    }
   }
 
   private discoveryError(): Error {
