@@ -143,6 +143,11 @@ feature's records. The CLI creates and updates these records there but does
 not commit them. They stay uncommitted while the feature is in progress.
 Feature and ticket worktrees do not hold live records.
 
+`sdd.json` uses a versioned schema and does not duplicate the feature spec,
+design, ticket requirements, or acceptance criteria. Ticket Markdown supplies
+the requirements and acceptance criteria under those headings. A ledger update
+that adds a ticket needs its Markdown record in place before publication.
+
 The ledger stores workflow facts: the original branch, the feature branch and
 worktree path, each ticket's branch and worktree path, task states,
 dependencies, findings and their links, ticket work-round completion, reviews
@@ -641,8 +646,20 @@ resolves feature and ticket worktree paths from the ledger.
 
 Commands use named flags for inputs. Repeat a flag to provide multiple values
 for a list. A long-text flag accepts text as its value, or `-` to read the
-value from standard input. Use a quoted heredoc for multi-line text so the
-shell passes it unchanged:
+value from standard input.
+
+```sh
+spindle sdd create --slug dispatch --spec 'Add task dispatch.'
+spindle sdd next --feature 0001-dispatch --json
+```
+
+`create` accepts an optional `--design`. Only one of `--spec` and `--design`
+can read from standard input. `next` accepts a numbered workspace name or a
+directory under `.spindle/features/` in the original checkout. In the initial
+CLI slice, `next` reports readiness and blockers but suggests no actions
+until the corresponding workflow commands exist.
+
+Use a quoted heredoc for multi-line text so the shell passes it unchanged:
 
 ```bash
 spindle sdd task create --feature <directory> --ticket T-0002 \
@@ -690,6 +707,10 @@ failure. `error.details` is optional and provides additional context.
 ## Recovery and safety
 
 - Ledger writes are atomic file replacements under the workspace lock.
+- A second writer fails while the workspace lock is held. Readers can continue
+  to read the last published ledger without acquiring that lock. If an
+  interruption leaves the lock behind, confirm no writer is active before
+  removing it.
 - The feature branch moves only by fast-forward, so an
   interrupted `integrate` leaves it either unchanged or fully updated.
 - `start`, `integrate`, `finish` and `ticket commit` operations

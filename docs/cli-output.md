@@ -4,8 +4,8 @@ Every workflow command supports human-readable output by default and
 machine-readable output with the global `--json` option:
 
 ```sh
-spindle sdd status --spec /absolute/path/spec.md
-spindle --json sdd status --spec /absolute/path/spec.md
+spindle sdd next --feature 0001-example
+spindle --json sdd next --feature 0001-example
 spindle tool list --json
 ```
 
