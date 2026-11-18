@@ -46,7 +46,11 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
       feature: "0002-second",
       actions: [],
       tickets: [],
-      notices: ["No tickets in this feature.", "No workflow actions available in this CLI yet."],
+      notices: [
+        "No tickets in this feature.",
+        "No workflow actions available in this CLI yet.",
+        "Configure sdd.worktree_directory in .spindle/config.json to start worktrees.",
+      ],
     },
   });
 });

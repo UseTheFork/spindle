@@ -2,6 +2,7 @@ import { Command } from "@spindle/Commands/Command";
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
+import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
@@ -23,6 +24,7 @@ export class SddNextCommand extends Command {
         const app = await createApp();
         const data = await (await app.make(SddNextCommand)).run(feature, verbose);
         const human = [`Feature ${data.feature}`, ...data.notices];
+        if (data.actions.length > 0) human.push("Available actions:", ...data.actions);
         for (const ticket of data.tickets) {
           human.push(`${ticket.ticketId}: ${SddNextCommand.describe(ticket.blockers)}`);
           for (const task of ticket.tasks) {
@@ -38,10 +40,38 @@ export class SddNextCommand extends Command {
     this.assertApplicationBooted();
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
     const { tickets } = (await this.app.make(WorkGraphService)).readiness(feature);
-    const notices = [
-      ...(tickets.length === 0 ? ["No tickets in this feature."] : []),
-      "No workflow actions available in this CLI yet.",
-    ];
+    const settings = ProjectSettingsService.current(this.app);
+    const actions: string[] = [];
+    const notices = tickets.length === 0 ? ["No tickets in this feature."] : [];
+    const start = `spindle sdd start --feature ${feature.name}`;
+    const ticketStart = (ticketId: string) =>
+      `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
+    if (feature.pendingStart) {
+      notices.push("A start is pending. Run the listed command to resume it.");
+      actions.push(
+        feature.pendingStart.kind === "feature"
+          ? start
+          : ticketStart(feature.pendingStart.ticketId),
+      );
+    } else if (settings.status === "valid" && settings.data.sdd) {
+      if (!feature.featureBranch && !feature.featureWorktree && !feature.originalBranch) {
+        actions.push(start);
+      } else if (feature.featureBranch && feature.featureWorktree) {
+        const ready = new Set(tickets.filter(({ ready }) => ready).map(({ ticketId }) => ticketId));
+        for (const ticket of feature.tickets) {
+          if (ready.has(ticket.id) && !ticket.worktree && !ticket.branch)
+            actions.push(ticketStart(ticket.id));
+        }
+      }
+    }
+    if (actions.length === 0) {
+      notices.push("No workflow actions available in this CLI yet.");
+      if (settings.status === "valid" && !settings.data.sdd) {
+        notices.push(
+          "Configure sdd.worktree_directory in .spindle/config.json to start worktrees.",
+        );
+      }
+    }
     const graph = verbose
       ? feature.tickets.map(({ id, dependencies, merged, worktree, tasks }) => ({
           id,
@@ -56,7 +86,7 @@ export class SddNextCommand extends Command {
           })),
         }))
       : undefined;
-    return { feature: feature.name, actions: [], notices, tickets, ...(graph ? { graph } : {}) };
+    return { feature: feature.name, actions, notices, tickets, ...(graph ? { graph } : {}) };
   }
 
   private static describe(blockers: readonly { code: string }[]): string {

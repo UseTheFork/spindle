@@ -186,6 +186,22 @@ export class FeatureWorkspaceService extends Service {
     });
   }
 
+  public async withStartTransaction<T>(
+    reference: string,
+    operation: (
+      feature: Feature,
+      ledger: FeatureLedger,
+      publish: (ledger: FeatureLedger) => Promise<void>,
+    ) => Promise<T>,
+  ): Promise<T> {
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      const feature = await this.assemble(name, workspace, ledger);
+      return operation(feature, ledger, async (next) => {
+        await this.replaceLedger(workspace, featureLedgerSchema.parse(next));
+      });
+    });
+  }
+
   private async withLedger<T>(
     reference: string,
     operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,

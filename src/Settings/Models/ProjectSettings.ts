@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 
-import { z } from "zod";
-
-import { commitSettingsSchema, defaultCommitSettings } from "@spindle/Settings/Models/CommitSettings";
+import {
+  commitSettingsSchema,
+  defaultCommitSettings,
+} from "@spindle/Settings/Models/CommitSettings";
+import { sddSettingsSchema } from "@spindle/Settings/Models/SddSettings";
 import { Stacks } from "@spindle/Support/Stacks";
 import { BuiltInTooling } from "@spindle/Tooling/Models/BuiltInTooling";
+import { z } from "zod";
 
 const singleLine = z.string().regex(/^(?=.*\S)[^\r\n]+$/, "Must be a non-empty single line.");
 const toolingEntrySchema = z.looseObject({
@@ -41,6 +44,7 @@ export const projectSettingsSchema = z.looseObject({
       }
     }),
   commit: commitSettingsSchema.default(defaultCommitSettings),
+  sdd: sddSettingsSchema.optional(),
 });
 
 export type ProjectSettings = z.output<typeof projectSettingsSchema>;

@@ -659,9 +659,12 @@ spindle sdd next --feature 0001-dispatch --json
 
 `create` accepts an optional `--design`. Only one of `--spec` and `--design`
 can read from standard input. `next` accepts a numbered workspace name or a
-directory under `.spindle/features/` in the original checkout. In the initial
-CLI slice, `next` reports readiness and blockers but suggests no actions
-until the corresponding workflow commands exist.
+directory under `.spindle/features/` in the original checkout. Set
+`sdd.worktree_directory` before starting worktrees. `next` offers `start`
+and `ticket start` when available; dispatch is not offered yet. If a
+start is interrupted, `next` reports the pending start and prints the
+command to resume it. Resume uses the journaled branch, path, and base
+commit rather than recomputing them.
 
 For ticket and task creation, repeat `--depends-on` for each prerequisite.
 For task creation, repeat `--write-scope` and optionally `--context` for
