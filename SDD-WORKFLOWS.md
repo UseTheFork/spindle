@@ -105,8 +105,8 @@ Done. They use its uncommitted changes in the shared ticket worktree.
 
 - A ticket is **ready** when it has at least one task and every ticket it
   depends on has merged into the feature branch.
-- A task is **ready** when its ticket is ready, it has a write scope, and every
-  task it depends on is Done.
+- A task is **ready** when its ticket has a worktree from `ticket start`, it
+  has a write scope, and every task it depends on is Done.
 - A task created to fix a finding has a `discovered-from` link to that
   finding. This records why the task exists; it does not replace task or
   ticket dependencies.
@@ -143,13 +143,14 @@ feature's records. The CLI creates and updates these records there but does
 not commit them. They stay uncommitted while the feature is in progress.
 Feature and ticket worktrees do not hold live records.
 
-The ledger stores workflow facts: the feature branch and worktree path, each
-ticket's branch and worktree path, task states, dependencies, findings and
-their links, ticket work-round completion, reviews with their code revisions
-and recommendations, finding decisions and operation journals. Ticket state is
-derived from these facts; it is not stored separately. Only the controller
-changes the ledger, through the CLI. A workspace lock serializes ledger writes,
-and each write replaces the file atomically. Workers do not change workflow
+The ledger stores workflow facts: the original branch, the feature branch and
+worktree path, each ticket's branch and worktree path, task states,
+dependencies, findings and their links, ticket work-round completion, reviews
+with their code revisions and recommendations, finding decisions and operation
+journals. Ticket state is derived from these facts; it is not stored
+separately. Only the controller changes the ledger, through the CLI. A
+workspace lock serializes ledger writes, and each write replaces the file
+atomically. Workers do not change workflow
 records, except to write their assigned report. A final-delivery merge may bring
 committed `.spindle/` files from the original branch into the feature branch;
 those copies are ordinary repository files, not live records.
@@ -162,8 +163,9 @@ Features cannot override them, and `sdd.json` holds no feature settings.
 
 - `worktree_directory` sets the shared parent directory for all feature and
   ticket worktrees.
-- `setup_command` is an array of commands to run in each new ticket worktree.
-  It can be empty.
+- `setup_command` is an array of commands for the controller to run in each
+  new ticket worktree. The CLI returns these commands but does not run them.
+  The array can be empty.
 
 Example SDD configuration:
 
@@ -189,8 +191,8 @@ flowchart LR
     T1["Ticket worktree T-0001<br/>task T-0001.1"]
     T2["Ticket worktree T-0002<br/>tasks T-0002.2, T-0002.3 in parallel"]
     O -->|"start"| F
-    F -->|"ticket ready"| T1
-    F -->|"ticket ready"| T2
+    F -->|"ticket start"| T1
+    F -->|"ticket start"| T2
     T1 -->|"integrate accepted ticket"| F
     T2 -->|"integrate accepted ticket"| F
     F -->|"finish"| O
@@ -199,14 +201,17 @@ flowchart LR
 - **Original checkout.** The checkout where the feature starts. It holds the
   feature workspace and its uncommitted records. The controller and all agents
   run SDD commands from this checkout.
-- **Feature worktree.** `start` creates the feature branch and worktree from
-  the original branch and records both in the ledger. `start` does not commit.
-- **Ticket worktree.** When a ticket becomes ready, the CLI creates its branch
-  and worktree from the feature branch tip and records both in the ledger. The
-  CLI reads `sdd.setup_command` from the original checkout's configuration and
-  runs each command once, in array order, in the new ticket worktree. An empty
-  array skips setup. The ticket worktree is removed after the ticket merges
-  into the feature branch.
+- **Feature worktree.** `start` records the original branch, creates the
+  feature branch and worktree from it and records both in the ledger. `start`
+  does not commit.
+- **Ticket worktree.** `ticket start` creates a Ready ticket's branch and
+  worktree from the current feature branch tip and records both in the
+  ledger. The CLI does not run setup. `ticket start` returns the new worktree
+  path and `sdd.setup_command` from the original checkout's configuration.
+  The controller runs each command once, in array order, in the new ticket
+  worktree before it dispatches the ticket's tasks. An empty array means no
+  setup. The ticket worktree is removed after the ticket merges into the
+  feature branch.
 - Worktrees live under `sdd.worktree_directory`, outside the original
   checkout. The setting applies to all features. The CLI resolves existing
   feature and ticket worktree paths from the ledger, so SDD commands work from
@@ -226,7 +231,8 @@ Branch and worktree names use fixed patterns, not configurable templates.
 
 ## Dispatch and `next`
 
-`next` lists one `dispatch` command for every ready task across all tickets.
+`next` lists one `ticket start` command for every Ready ticket without a
+worktree, and one `dispatch` command for every ready task across all tickets.
 It also lists blocked tickets and tasks with the dependencies or state that
 prevents each from becoming ready. Human-readable and JSON output report the
 same actions and blockers.
@@ -238,11 +244,11 @@ dispatching a task before its dependencies are Done, assigning one task twice
 or using a ticket worktree that a merge agent holds exclusively.
 
 `dispatch` rechecks readiness and marks the task in progress in one
-workspace-locked ledger write. It returns the attempt number and exact
-`assignment` command, and refuses a second active assignment. If a worker
-stops without submitting, the controller can confirm the worker has stopped
-and dispatch the in-progress task again; the new attempt number makes an
-earlier assignment stale.
+workspace-locked ledger write. It refuses a task whose ticket has no worktree.
+It returns the attempt number and exact `assignment` command, and refuses a
+second active assignment. If a worker stops without submitting, the controller
+can confirm the worker has stopped and dispatch the in-progress task again;
+the new attempt number makes an earlier assignment stale.
 
 ```mermaid
 sequenceDiagram
@@ -349,7 +355,8 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> Planned
-    Planned --> Ready: has tasks, dependencies merged (worktree created)
+    Planned --> Ready: has tasks, dependencies merged
+    Ready --> Ready: ticket start (worktree created)
     Ready --> InProgress: first task dispatched
     InProgress --> InAcceptance: work-round commit recorded
     InAcceptance --> Accepted: review round passed
@@ -665,11 +672,12 @@ failure. `error.details` is optional and provides additional context.
 | Command                          | Purpose                                                                                                                                                                    |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                             |
-| `start`                          | Create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                    |
+| `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                        |
 | `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
+| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup commands.                       |
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                                         |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                              |
-| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                                           |
+| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                               |
 | `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                   |
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                          |
 | `review submit`                  | Record one review's recommendation.                                                                                                                                        |
