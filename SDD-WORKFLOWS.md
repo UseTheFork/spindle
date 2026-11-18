@@ -126,34 +126,39 @@ Done. They use its uncommitted changes in the shared ticket worktree.
 
 ## Records
 
-Each feature has a workspace under `.spindle/features/<feature>/`:
+Each feature has a workspace under `.spindle/features/<feature>/` in the
+original checkout:
 
 ```text
 spec.md     Feature requirements
 design.md   Optional feature design
-sdd.json    Ledger: tickets, tasks, dependencies, links, write scopes, findings, checks
+sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, findings, checks
 tickets/    Ticket requirements, acceptance criteria and comments
 reports/    Worker and check-output reports
 ```
 
-The ledger stores workflow facts: task states, dependencies, findings and
+The feature workspace in the original checkout is the only live copy of the
+feature's records. The CLI creates and updates these records there but does
+not commit them. They stay uncommitted while the feature is in progress.
+Feature and ticket worktrees do not hold live records.
+
+The ledger stores workflow facts: the feature branch and worktree path, each
+ticket's branch and worktree path, task states, dependencies, findings and
 their links, ticket work-round completion, check runs, review recommendations,
 controller decisions and operation journals. Ticket state is derived from
 these facts; it is not stored separately. Only the controller changes the
 ledger, through the CLI. A workspace lock serializes ledger writes, and each
-write replaces the file atomically. Tasks never change files under `.spindle/`,
-except that a final-delivery merge may import committed records from the
-original branch. The merge must preserve the active feature's records. A
-conflict in workflow records, or an incoming change to the active feature's
-records, requires a controller decision; the merge agent reports it as a
-blocker rather than editing those records.
+write replaces the file atomically. Workers do not change workflow records,
+except to write their assigned report. A final-delivery merge may bring
+committed `.spindle/` files from the original branch into the feature branch;
+those copies are ordinary repository files, not live records.
 
 ## Worktrees
 
 ```mermaid
 flowchart LR
-    O["Original checkout<br/>original branch"]
-    F["Feature worktree<br/>feature branch + ledger"]
+    O["Original checkout<br/>original branch + feature records"]
+    F["Feature worktree<br/>feature branch"]
     T1["Ticket worktree T-0001<br/>task T-0001.1"]
     T2["Ticket worktree T-0002<br/>tasks T-0002.2, T-0002.3 in parallel"]
     O -->|"start"| F
@@ -164,23 +169,32 @@ flowchart LR
     F -->|"finish"| O
 ```
 
+- **Original checkout.** The checkout where the feature starts. It holds the
+  feature workspace and its uncommitted records. The controller and all agents
+  run SDD commands from this checkout.
 - **Feature worktree.** `start` creates the feature branch and worktree from
-  the original branch. The worktree holds the ledger and reports. `start` does
-  not commit to the original branch.
+  the original branch and records both in the ledger. `start` does not commit.
 - **Ticket worktree.** When a ticket becomes ready, the CLI creates its branch
-  and worktree from the feature branch tip. The CLI then runs the project's
-  setup command (for example `pnpm install`) once. The ticket worktree is
-  removed after the ticket merges into the feature branch.
+  and worktree from the feature branch tip and records both in the ledger. The
+  CLI then runs the project's setup command (for example `pnpm install`) once.
+  The ticket worktree is removed after the ticket merges into the feature
+  branch.
 - Worktrees live under a configured parent directory outside the original
-  checkout.
+  checkout. The CLI resolves feature and ticket worktree paths from the
+  ledger, so SDD commands work from the original checkout.
 
 ## Dispatch and `next`
 
-Each feature sets a limit on agents working at once. `next` lists one
-`dispatch` command for every ready task, across all tickets, up to that limit.
+`next` lists one `dispatch` command for every ready task across all tickets.
 It also lists blocked tickets and tasks with the dependencies or state that
 prevents each from becoming ready. Human-readable and JSON output report the
 same actions and blockers.
+
+The CLI does not limit how many agents run at once or choose which ready work
+starts first. The controller decides which actions to take, in what order and
+how many agents to run. The CLI still refuses unsafe actions, such as
+dispatching a task before its dependencies are Done, assigning one task twice
+or using a ticket worktree that a merge agent holds exclusively.
 
 `dispatch` rechecks readiness and marks the task in progress in one
 workspace-locked ledger write. It returns the attempt number and exact
@@ -220,8 +234,8 @@ sequenceDiagram
 ```
 
 The controller gives the worker the command printed by `dispatch`, not a
-rewritten task prompt. It includes the absolute feature-workspace path, task
-ID and attempt number:
+rewritten task prompt. The worker runs it from the original checkout. It
+includes the absolute feature-workspace path, task ID and attempt number:
 
 ```text
 spindle sdd assignment --feature <absolute-feature-directory> --task T-0002.2 --attempt 1 --json
@@ -242,6 +256,8 @@ not acquire the workspace write lock or change workflow state. Without
 
 Workers:
 
+- run the `assignment` command from the original checkout and do their task
+  work in the ticket worktree that the assignment names;
 - change only files in their write scope, and write their report only to the
   separately assigned report path;
 - do not commit, stage or run SDD commands other than the read-only
@@ -405,7 +421,7 @@ flowchart TD
     K --> L["Ticket checks and acceptance review"]
     L --> C
     J -->|"Yes"| M["Feature branch fast-forwards to ticket branch"]
-    M --> N["Commit ledger; remove ticket worktree and branch"]
+    M --> N["Record merge in ledger; remove ticket worktree and branch"]
 ```
 
 - The feature branch moves only by a fast-forward when the ticket worktree's
@@ -427,8 +443,9 @@ flowchart TD
   pauses integration and returns the ticket to InProgress. Integrations are
   serial, but a failed or paused integration does not move the feature branch
   or prevent other tickets from integrating.
-- Ledger changes are uncommitted in the feature worktree, and tickets never
-  touch `.spindle/`, so they do not conflict with the fast-forward.
+- Workflow records stay uncommitted in the original checkout. They are not in
+  the feature or ticket branches, so they do not affect merges or
+  fast-forwards.
 
 ## Reviews and findings
 
@@ -447,8 +464,9 @@ spindle sdd assignment --feature <absolute-feature-directory> --review <review-i
 The controller selects the target worktree and review scope. The assignment
 includes that target, the relevant spec or ticket acceptance criteria, context,
 current check results and the response template below. It has no report-file
-path. Reviewers do not write files or run SDD commands other than the read-only
-`assignment` command; their final response is the review.
+path. Reviewers run the read-only `assignment` command from the original
+checkout. They do not write files or run other SDD commands; their final
+response is the review.
 
 ```text
 Recommendation: pass | changes-required
@@ -593,8 +611,8 @@ report paths. Results are `passed`, `failed`, `interrupted` or
 an earlier failure.
 
 The code revision is computed from the checked worktree's tracked files,
-excluding `.spindle/`. Ledger and report updates therefore do not invalidate
-code checks.
+excluding `.spindle/`. Live records stay in the original checkout, so ledger
+and report updates do not invalidate code checks.
 A run is current only when both its code revision and the declared commands
 match the current check set. Changes to tracked content outside `.spindle/`
 make the code revision different; a change to declared commands invalidates
@@ -618,13 +636,15 @@ state.
 
 ## Commands
 
-All commands run as `spindle sdd <command> --feature <directory>`, except
-`create`. `--json` returns a success envelope on stdout and errors on stderr.
+All commands run from the original checkout as
+`spindle sdd <command> --feature <directory>`, except `create`. The CLI
+resolves feature and ticket worktree paths from the ledger. `--json` returns a
+success envelope on stdout and errors on stderr.
 
 | Command                          | Purpose                                                                                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace with `spec.md` and optional `design.md`.                                                                              |
-| `start`                          | Create the feature branch and worktree; commit workspace records on the feature branch.                                                                   |
+| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md` and optional `design.md`.                                                     |
+| `start`                          | Create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                   |
 | `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                             |
