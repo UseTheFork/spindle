@@ -650,6 +650,10 @@ value from standard input.
 
 ```sh
 spindle sdd create --slug dispatch --spec 'Add task dispatch.'
+spindle sdd ticket create --feature 0001-dispatch --title 'Dispatch tasks' \
+  --requirements 'Dispatch ready tasks.' --acceptance-criteria 'Blocked tasks cannot start.'
+spindle sdd task create --feature 0001-dispatch --ticket T-0001 \
+  --instructions 'Implement readiness checks.' --write-scope src/Dispatch.ts
 spindle sdd next --feature 0001-dispatch --json
 ```
 
@@ -659,11 +663,18 @@ directory under `.spindle/features/` in the original checkout. In the initial
 CLI slice, `next` reports readiness and blockers but suggests no actions
 until the corresponding workflow commands exist.
 
+For ticket and task creation, repeat `--depends-on` for each prerequisite.
+For task creation, repeat `--write-scope` and optionally `--context` for
+multiple entries. Use level 3 or deeper headings within ticket requirements
+or acceptance criteria so the Markdown sections remain unambiguous. If a
+ticket write is interrupted before ledger publication, its unlisted Markdown
+file is preserved and its ID will not be reused.
+
 Use a quoted heredoc for multi-line text so the shell passes it unchanged:
 
 ```bash
-spindle sdd task create --feature <directory> --ticket T-0002 \
-  --instructions - <<'EOF'
+spindle sdd task create --feature 0001-dispatch --ticket T-0001 \
+  --write-scope src/Dispatch.ts --instructions - <<'EOF'
 Update the dispatch flow.
 Keep the existing retry behavior.
 EOF

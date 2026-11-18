@@ -18,9 +18,13 @@ import {
   featureLedgerSchema,
   type FeatureLedger,
 } from "@spindle/SubagentDrivenDevelopment/Models/FeatureLedger";
+import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
+import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
+type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">;
+type NewTask = Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">;
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const numberedWorkspace = /^([0-9]{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
@@ -79,6 +83,84 @@ export class FeatureWorkspaceService extends Service {
 
   public async load(reference: string): Promise<Feature> {
     this.assertApplicationBooted();
+    const name = this.workspaceName(reference);
+    const workspace = await this.workspacePath(name);
+    return this.assemble(name, workspace, await this.readLedger(workspace));
+  }
+
+  public async createTicket(reference: string, input: NewTicket) {
+    this.assertApplicationBooted();
+    const title = input.title.trim();
+    const requirements = input.requirements.trim().replaceAll("\r\n", "\n");
+    const acceptanceCriteria = input.acceptanceCriteria.trim().replaceAll("\r\n", "\n");
+    if (!title || /[\r\n]/.test(title))
+      throw new Error("Ticket title must be a non-empty single line.");
+    if (!requirements || !acceptanceCriteria) {
+      throw new Error("Ticket requirements and acceptance criteria must not be empty.");
+    }
+
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      const directory = join(workspace, "tickets");
+      await this.requireDirectory(directory);
+      const ids = [
+        ...ledger.tickets.map(({ id }) => id),
+        ...(await readdir(directory))
+          .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
+          .map((entry) => basename(entry, ".md")),
+      ];
+      const number = FeatureWorkspaceService.nextNumber(ids.map((id) => id.slice(2)));
+      const id = `T-${number.padStart(4, "0")}`;
+      const path = join(directory, `${id}.md`);
+      const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
+      const parsed = this.ticketRequirements(markdown, path);
+      if (
+        parsed.requirements !== requirements ||
+        parsed.acceptanceCriteria !== acceptanceCriteria
+      ) {
+        throw new Error(
+          "Ticket requirements and acceptance criteria must not contain level 1 or 2 headings outside code fences.",
+        );
+      }
+
+      const next = featureLedgerSchema.parse({
+        ...ledger,
+        tickets: [
+          ...ledger.tickets,
+          {
+            id,
+            title,
+            dependencies: input.dependencies,
+            tasks: [],
+            workRoundCommits: [],
+            merged: false,
+          },
+        ],
+      });
+      await this.assemble(name, workspace, next, { id, markdown });
+      await writeFile(path, markdown, { flag: "wx", flush: true });
+      await this.replaceLedger(workspace, next);
+      return { ticket: id, path };
+    });
+  }
+
+  public async createTask(reference: string, ticketId: string, input: NewTask) {
+    if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
+    let taskId = "";
+    await this.updateLedger(reference, (ledger) => {
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
+      if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
+      const number = FeatureWorkspaceService.nextNumber(
+        ticket.tasks.map(({ id }) => id.slice(ticketId.length + 1)),
+      );
+      taskId = `${ticketId}.${number}`;
+      ticket.tasks.push({ ...input, id: taskId, state: "Pending", attempt: 0 });
+      return ledger;
+    });
+    return { ticket: ticketId, task: taskId };
+  }
+
+  private workspaceName(reference: string): string {
     const name = basename(reference);
     if (
       reference !== name &&
@@ -89,23 +171,40 @@ export class FeatureWorkspaceService extends Service {
         "Feature directory must be under .spindle/features in the original checkout.",
       );
     }
-    const workspace = await this.workspacePath(name);
-    return this.assemble(name, workspace, await this.readLedger(workspace));
+    return name;
   }
 
   public async updateLedger(
-    name: string,
+    reference: string,
     update: (ledger: FeatureLedger) => FeatureLedger | Promise<FeatureLedger>,
   ): Promise<Feature> {
-    this.assertApplicationBooted();
-    const workspace = await this.workspacePath(name);
-    return this.withLock(join(workspace, ".ledger-lock"), async () => {
-      const current = await this.readLedger(workspace);
+    return this.withLedger(reference, async (current, name, workspace) => {
       const next = featureLedgerSchema.parse(await update(current));
       const feature = await this.assemble(name, workspace, next);
       await this.replaceLedger(workspace, next);
       return feature;
     });
+  }
+
+  private async withLedger<T>(
+    reference: string,
+    operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,
+  ): Promise<T> {
+    this.assertApplicationBooted();
+    const name = this.workspaceName(reference);
+    const workspace = await this.workspacePath(name);
+    return this.withLock(join(workspace, ".ledger-lock"), async () =>
+      operation(await this.readLedger(workspace), name, workspace),
+    );
+  }
+
+  private static nextNumber(numbers: string[]): string {
+    let highest = 0n;
+    for (const number of numbers) {
+      const value = BigInt(number);
+      if (value > highest) highest = value;
+    }
+    return String(highest + 1n);
   }
 
   private async withLock<T>(lock: string, operation: () => Promise<T>): Promise<T> {
@@ -184,7 +283,12 @@ export class FeatureWorkspaceService extends Service {
     }
   }
 
-  private async assemble(name: string, workspace: string, ledger: FeatureLedger): Promise<Feature> {
+  private async assemble(
+    name: string,
+    workspace: string,
+    ledger: FeatureLedger,
+    pending?: { id: string; markdown: string },
+  ): Promise<Feature> {
     const design = await this.readRecord(join(workspace, "design.md")).catch((error: unknown) => {
       if (!FeatureWorkspaceService.hasCode(error, "ENOENT")) throw error;
       return undefined;
@@ -194,7 +298,8 @@ export class FeatureWorkspaceService extends Service {
     const tickets = await Promise.all(
       ledger.tickets.map(async (ticket) => {
         const path = join(ticketsDirectory, `${ticket.id}.md`);
-        return { ...ticket, ...this.ticketRequirements(await this.readRecord(path), path) };
+        const markdown = pending?.id === ticket.id ? pending.markdown : await this.readRecord(path);
+        return { ...ticket, ...this.ticketRequirements(markdown, path) };
       }),
     );
     const { version: _version, ...facts } = ledger;

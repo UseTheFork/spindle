@@ -1,8 +1,6 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
-import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import { runCli, runCliRaw } from "@test/Helpers/Cli";
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 import { expect, test } from "vitest";
@@ -53,47 +51,114 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
   });
 });
 
-test("next reports persisted blockers without offering unimplemented commands or writing records", async () => {
+test("ticket and task creation drive readiness and reject invalid graph changes", async () => {
   const project = await makeTempDir();
   await mkdir(join(project, ".spindle"));
   await writeFile(join(project, ".spindle", "config.json"), '{"stacks":["typescript"]}');
-  const app = applicationFixture(project, "");
-  await app.boot();
-  const service = await app.make(FeatureWorkspaceService);
-  const { name, workspace } = await service.createNumbered("blocked", { specification: "# Spec" });
-  await writeFile(
-    join(workspace, "tickets", "T-0001.md"),
-    "## Requirements\nScope.\n## Acceptance Criteria\nDone.",
-  );
-  await service.updateLedger(name, (ledger) => ({
-    ...ledger,
-    tickets: [
-      {
-        id: "T-0001",
-        title: "Implement",
-        dependencies: [],
-        tasks: [],
-        workRoundCommits: [],
-        merged: false,
-      },
-    ],
-  }));
+  const run = (args: string[]) => runCli(project, ["sdd", ...args], process.env.PATH ?? "");
+  const created = run(["create", "--slug", "blocked", "--spec", "# Spec"]);
+  expect(created.status, created.stderr).toBe(0);
+  const name = "0001-blocked";
+  const workspace = join(project, ".spindle", "features", name);
   const ledgerPath = join(workspace, "sdd.json");
-  const before = await readFile(ledgerPath, "utf8");
-  const run = (args: string[]) => runCli(project, args, process.env.PATH ?? "");
+  const ticketArgs = [
+    "ticket",
+    "create",
+    "--feature",
+    workspace,
+    "--title",
+    "Implement",
+    "--requirements",
+    "Scope.",
+    "--acceptance-criteria",
+    "Done.",
+    "--json",
+  ];
+  const emptyLedger = await readFile(ledgerPath, "utf8");
+  const invalidTicket = run([...ticketArgs, "--depends-on", "T-9999"]);
+  expect(invalidTicket.status).toBe(1);
+  expect(invalidTicket.stderr).toContain("unknown-ticket-dependency");
+  expect(await readdir(join(workspace, "tickets"))).toEqual([]);
+  expect(await readFile(ledgerPath, "utf8")).toBe(emptyLedger);
 
-  const human = run(["sdd", "next", "--feature", name]);
+  const ticket = run(ticketArgs);
+  expect(ticket.status, ticket.stderr).toBe(0);
+  const ticketPath = join(workspace, "tickets", "T-0001.md");
+  expect(JSON.parse(ticket.stdout)).toEqual({
+    ok: true,
+    data: { ticket: "T-0001", path: ticketPath },
+  });
+  expect(await readFile(ticketPath, "utf8")).toContain(
+    "## Requirements\n\nScope.\n\n## Acceptance Criteria\n\nDone.",
+  );
+
+  const human = run(["next", "--feature", name]);
   expect(human.status, human.stderr).toBe(0);
   expect(human.stdout).toContain("T-0001: no tasks");
-  const json = run(["sdd", "next", "--feature", name, "--verbose", "--json"]);
+
+  const taskArgs = [
+    "task",
+    "create",
+    "--feature",
+    name,
+    "--ticket",
+    "T-0001",
+    "--instructions",
+    "Edit the schema.",
+    "--write-scope",
+    "src/Schema.ts",
+    "--json",
+  ];
+  const task = run([...taskArgs, "--write-scope", "src/Schema.test.ts"]);
+  expect(task.status, task.stderr).toBe(0);
+  expect(JSON.parse(task.stdout)).toEqual({
+    ok: true,
+    data: { ticket: "T-0001", task: "T-0001.1" },
+  });
+  const before = await readFile(ledgerPath, "utf8");
+  const conflict = run(taskArgs);
+  expect(conflict.status).toBe(1);
+  expect(conflict.stderr).toContain("unordered-write-conflict");
+  expect(await readFile(ledgerPath, "utf8")).toBe(before);
+  const ordered = run([...taskArgs, "--depends-on", "T-0001.1"]);
+  expect(ordered.status, ordered.stderr).toBe(0);
+  expect(JSON.parse(ordered.stdout)).toMatchObject({ data: { task: "T-0001.2" } });
+
+  const published = await readFile(ledgerPath, "utf8");
+  const json = run(["next", "--feature", name, "--verbose", "--json"]);
   expect(json.status, json.stderr).toBe(0);
   expect(JSON.parse(json.stdout)).toMatchObject({
     ok: true,
     data: {
       actions: [],
-      tickets: [{ ticketId: "T-0001", ready: false, blockers: [{ code: "no-tasks" }] }],
-      graph: [{ id: "T-0001", dependencies: [], merged: false, tasks: [] }],
+      tickets: [
+        {
+          ticketId: "T-0001",
+          ready: true,
+          blockers: [],
+          tasks: [
+            { taskId: "T-0001.1", ready: false, blockers: [{ code: "no-worktree" }] },
+            {
+              taskId: "T-0001.2",
+              ready: false,
+              blockers: [
+                { code: "no-worktree" },
+                { code: "dependency-not-done", dependencyId: "T-0001.1" },
+              ],
+            },
+          ],
+        },
+      ],
+      graph: [
+        {
+          id: "T-0001",
+          tasks: [
+            { id: "T-0001.1", writeScope: ["src/Schema.ts", "src/Schema.test.ts"] },
+            { id: "T-0001.2", dependencies: ["T-0001.1"] },
+          ],
+        },
+      ],
     },
   });
-  expect(await readFile(ledgerPath, "utf8")).toBe(before);
+  expect(await readFile(ledgerPath, "utf8")).toBe(published);
 });
