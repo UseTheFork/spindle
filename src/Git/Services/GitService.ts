@@ -57,7 +57,7 @@ export class GitService extends Service {
     return paths;
   }
 
-  public changedPaths(worktree: string): string[] {
+  public changedPaths(worktree: string, includeUntracked = true): string[] {
     const result = this.run(
       [
         "--no-optional-locks",
@@ -65,7 +65,7 @@ export class GitService extends Service {
         "--porcelain=v1",
         "-z",
         "--no-renames",
-        "--untracked-files=all",
+        includeUntracked ? "--untracked-files=all" : "--untracked-files=no",
         "--ignore-submodules=none",
       ],
       { cwd: worktree, encoding: "buffer" },

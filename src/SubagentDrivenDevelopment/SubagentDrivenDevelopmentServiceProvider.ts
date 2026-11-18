@@ -4,6 +4,8 @@ import { SddAssignmentCommand } from "@spindle/SubagentDrivenDevelopment/Command
 import { SddCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddCreateCommand";
 import { SddDispatchCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDispatchCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
+import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
+import { SddReviewSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewSubmitCommand";
 import { SddStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddStartCommand";
 import { SddTaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskCreateCommand";
 import { SddTaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskSubmitCommand";
@@ -13,6 +15,7 @@ import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Comman
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
 import { TicketCommitService } from "@spindle/SubagentDrivenDevelopment/Services/TicketCommitService";
+import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { WorktreeStartService } from "@spindle/SubagentDrivenDevelopment/Services/WorktreeStartService";
 
@@ -29,6 +32,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddAssignmentCommand,
       SddTaskSubmitCommand,
       SddTicketCommitCommand,
+      SddReviewCommand,
+      SddReviewSubmitCommand,
     ];
   }
 
@@ -38,6 +43,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(WorktreeStartService);
     this.app.singleton(TaskDispatchService);
     this.app.singleton(TicketCommitService);
+    this.app.singleton(TicketReviewService);
   }
 
   public async boot(): Promise<void> {}

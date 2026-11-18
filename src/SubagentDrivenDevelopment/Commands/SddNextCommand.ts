@@ -5,6 +5,7 @@ import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
+import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import type { Command as CommanderCommand } from "commander";
 
@@ -26,7 +27,9 @@ export class SddNextCommand extends Command {
         const human = [`Feature ${data.feature}`, ...data.notices];
         if (data.actions.length > 0) human.push("Available actions:", ...data.actions);
         for (const ticket of data.tickets) {
-          human.push(`${ticket.ticketId}: ${SddNextCommand.describe(ticket.blockers)}`);
+          human.push(
+            `${ticket.ticketId}: ${ticket.acceptance ?? SddNextCommand.describe(ticket.blockers)}`,
+          );
           for (const task of ticket.tasks) {
             human.push(`  ${task.taskId}: ${SddNextCommand.describe(task.blockers)}`);
           }
@@ -39,7 +42,10 @@ export class SddNextCommand extends Command {
   public async run(reference: string, verbose = false) {
     this.assertApplicationBooted();
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
-    const { tickets } = (await this.app.make(WorkGraphService)).readiness(feature);
+    const { tickets: readiness } = (await this.app.make(WorkGraphService)).readiness(feature);
+    const tickets: ((typeof readiness)[number] & {
+      acceptance?: "Accepted" | "InAcceptance" | "Blocked";
+    })[] = readiness.map((ticket) => ({ ...ticket }));
     const settings = ProjectSettingsService.current(this.app);
     const canStart = settings.status === "valid" && settings.data.sdd !== undefined;
     const actions: string[] = [];
@@ -103,6 +109,24 @@ export class SddNextCommand extends Command {
           notices.push(
             `All tasks on ${ticket.id} are Done. Run ticket commit with a commit message.`,
           );
+        }
+        if (
+          ticket.merged ||
+          ticket.workRoundCommits.length === 0 ||
+          ticket.tasks.some(
+            ({ id, state }) => state !== "Done" || !ticket.committedTaskIds?.includes(id),
+          )
+        )
+          continue;
+        const status = await (await this.app.make(TicketReviewService)).status(feature, ticket);
+        if (status.blocker !== undefined) {
+          notices.push(status.blocker);
+        } else {
+          const item = tickets.find(({ ticketId }) => ticketId === ticket.id);
+          if (item) item.acceptance = status.state;
+          if (status.state === "InAcceptance" && !status.hasRound) {
+            actions.push(`spindle sdd review --feature ${feature.name} --ticket ${ticket.id}`);
+          }
         }
       }
     }

@@ -20,6 +20,7 @@ import {
 } from "@spindle/SubagentDrivenDevelopment/Models/FeatureLedger";
 import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
+import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
@@ -146,10 +147,11 @@ export class FeatureWorkspaceService extends Service {
   public async createTask(reference: string, ticketId: string, input: NewTask) {
     if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
     let taskId = "";
-    await this.updateLedger(reference, (ledger) => {
+    await this.updateLedger(reference, async (ledger) => {
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
       if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
+      await (await this.app.make(TicketReviewService)).assertOrdinaryTaskAllowed(ledger, ticket);
       const number = FeatureWorkspaceService.nextNumber(
         ticket.tasks.map(({ id }) => id.slice(ticketId.length + 1)),
       );

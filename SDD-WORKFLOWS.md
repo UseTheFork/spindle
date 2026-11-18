@@ -515,7 +515,9 @@ revision. It returns the review ID and an assignment command for the reviewer:
 spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
 ```
 
-The controller selects the target worktree, review scope and optional focus.
+For ticket acceptance, the controller selects the target by ticket ID; the CLI
+uses that ticket's recorded worktree. The controller can set the review scope
+and optional focus. The default scope is the combined ticket changes.
 The assignment includes that target, the code revision, the relevant spec or
 ticket acceptance criteria, context, the focus, any findings to verify and the
 response template below. It has no report-file path.
@@ -543,10 +545,11 @@ with all fields shown above.
 Each finding must identify the criterion or spec requirement it breaks and
 include evidence and a suggested fix.
 
-The recommendation is advisory. The controller records it and creates a
-ledger finding with `finding create` for **every** finding the reviewer
-proposes, not only the ones the controller agrees with. The controller then
-decides each finding:
+The recommendation is advisory. The controller uses `review submit` to record
+it and **every** finding the reviewer proposes, not only the ones the controller
+agrees with. The CLI writes the recommendation and findings together, so a
+review cannot count toward acceptance before its findings are recorded. The
+controller then decides each finding:
 
 - **`finding fix`** creates ordinary fix work with its own write scope and a
   `discovered-from` link to the finding. Every finding records its title,
@@ -664,12 +667,32 @@ spindle sdd next --feature 0001-dispatch --json
 can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
-`ticket start`, and `dispatch` when available. Worker assignments and ordinary
-task submission are supported; review assignments and merge-task submission
-are not implemented yet. If a start is interrupted, `next` reports the
+`ticket start`, `dispatch`, and ticket `review` when available. Worker
+assignments, ordinary task submission, and ticket acceptance review are
+supported. Finding decisions, feature review, and merge-task submission are
+not implemented yet. If a start is interrupted, `next` reports the
 pending start and prints the
 command to resume it. Resume uses the journaled branch, path, and base
 commit rather than recomputing them.
+
+Start all reviewers in a ticket's round before submitting results. Do not
+add tasks while a review result is pending. A ticket
+must be at its recorded work-round commit with all tasks committed and no
+outstanding tracked code changes. Untracked test artifacts and changes under
+`.spindle/` do not affect the reviewed code revision.
+
+```sh
+spindle sdd review --feature 0001-dispatch --ticket T-0001 --focus 'Readiness tests'
+spindle sdd review submit --feature 0001-dispatch --review <review-id> \
+  --recommendation changes-required \
+  --finding 'Missing test' major tests/Dispatch.test.ts 'Blocked tasks cannot start' \
+    'No test covers a blocked task.' 'Add a blocked-task test.'
+```
+
+Use `--recommendation pass` without `--finding` for a clean review. For
+`changes-required`, supply each finding's title, severity, location, criterion,
+evidence, and suggested fix in that order. Repeat `--finding` for additional
+findings.
 
 For ticket and task creation, repeat `--depends-on` for each prerequisite.
 For task creation, repeat `--write-scope` and optionally `--context` for
@@ -716,10 +739,10 @@ failure. `error.details` is optional and provides additional context.
 | `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                               |
 | `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                   |
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                          |
-| `review submit`                  | Record one review's recommendation.                                                                                                                                        |
+| `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                     |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                   |
 | `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                  |
-| `finding`                        | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                       |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                 |
 | `integrate`                      | Merge the feature branch tip into an accepted ticket and fast-forward the feature branch after a clean merge.                                                              |
 | `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                       |
 

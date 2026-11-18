@@ -8,7 +8,11 @@ export class SddCommandGroup {
     );
   }
 
-  public static subgroup(root: Command, name: "ticket" | "task", description: string): Command {
+  public static subgroup(
+    root: Command,
+    name: "ticket" | "task" | "review",
+    description: string,
+  ): Command {
     const sdd = this.register(root);
     return (
       sdd.commands.find((command) => command.name() === name) ??
