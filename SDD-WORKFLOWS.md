@@ -33,13 +33,13 @@ what the rebuild removes.
 4. **Dependencies order the work.** Tickets depend on tickets, and tasks depend
    on tasks in the same ticket. Work cannot start until its dependencies are
    done. Findings link to the fix tasks or tickets they create.
-5. **Tasks submit; the controller commits ticket work.** Workers leave
-   ordinary task changes uncommitted. The controller records task completion
-   through the CLI, then creates a ticket commit after all tasks are Done and
-   workers have stopped. Each completed round of ticket work has one commit;
-   fixes create follow-up commits. A final-delivery merge agent creates its own
-   merge commit, which the CLI verifies instead of replacing. Reviewers assess
-   the ticket's combined diff against its acceptance criteria.
+5. **Commits record completed ticket work.** Workers leave ordinary task
+   changes uncommitted. After all tasks are Done and workers have stopped, the
+   controller creates a ticket commit. For a merge task, the assigned agent
+   creates the merge commit, and the CLI verifies it instead of replacing it.
+   Each completed round has one work-round commit; fixes create follow-up
+   commits. Reviewers assess the ticket's combined diff against its acceptance
+   criteria.
 6. **Only feature merges are serial.** Accepted tickets merge into the feature
    branch one at a time.
 7. **Corrections are normal work.** Findings become fix tasks or fix tickets.
@@ -303,8 +303,8 @@ Workers:
 - change only files in their write scope, and write their report only to the
   separately assigned report path;
 - do not commit, stage or run SDD commands other than the read-only
-  `assignment` command, except that a final-delivery merge agent may run Git
-  merge, stage conflict resolutions and create the assigned merge commit;
+  `assignment` command, except that an assigned merge agent may run Git merge,
+  stage conflict resolutions and create the assigned merge commit;
 - may read other repository files and run focused tests, knowing that other
   agents may be editing files outside their write scope in the same worktree.
 
@@ -335,11 +335,12 @@ stateDiagram-v2
   Scope validation identifies unassigned paths, not which worker changed a
   scoped file. Workers must obey their own scopes; ticket review assesses the
   combined result against the acceptance criteria.
-- For a final-delivery merge task, the agent creates the merge commit instead.
-  `task submit` verifies the merge and records task completion. The controller
-  does not run `ticket commit` unless later task work adds changes. The merge
-  task has exclusive use of its ticket worktree until the agent stops and the
-  CLI verifies the submission.
+- For an assigned merge task, such as a delivery merge or conflict resolution,
+  the agent creates the merge commit instead. `task submit` verifies the merge,
+  records task completion and counts the merge commit as the work-round
+  commit. The controller does not run `ticket commit` unless later task work
+  adds changes. The merge task has exclusive use of its ticket worktree until
+  the agent stops and the CLI verifies the submission.
 - An agent that stops without submitting leaves its files in place. The task
   can be dispatched again.
 
@@ -350,7 +351,7 @@ stateDiagram-v2
     [*] --> Planned
     Planned --> Ready: has tasks, dependencies merged (worktree created)
     Ready --> InProgress: first task dispatched
-    InProgress --> InAcceptance: ticket commit created
+    InProgress --> InAcceptance: work-round commit recorded
     InAcceptance --> Accepted: review round passed
     InAcceptance --> Blocked: review finding needs a decision
     Accepted --> Integrating: integrate
@@ -364,25 +365,25 @@ stateDiagram-v2
 
 - Ticket state is a CLI-derived view, not a separately edited ledger field.
   The CLI derives it from task states, ticket dependencies, open findings,
-  the ticket commit, review rounds for the current code revision and operation
-  journals.
+  the work-round commit, review rounds for the current code revision and
+  operation journals.
 - Derive the state in this order:
   1. **Merged** when the ticket has been integrated and its worktree has been
      cleaned up.
   2. **Blocked** when an open finding has no linked fix work, or an integration
      conflict has no resolution task yet.
-  3. **Integrating** while an integration operation is active and is not
-     paused for a fix task.
+  3. **Integrating** while an `integrate` command is running or its operation
+     journal is still open after an interruption.
   4. **Planned** when the ticket has no tasks or its ticket dependencies have
      not merged.
   5. **Ready** when the ticket's prerequisites are met and none of its tasks
      has started.
   6. **InProgress** when task work has started and at least one task remains
-     unfinished, or all tasks are Done but the controller has not created the
-     ticket commit. Adding a fix task to a ticket with completed tasks
-     naturally returns it to InProgress; there is no separate reopen operation.
-  7. **InAcceptance** when the ticket commit exists but no review round has
-     passed for the current code revision.
+     unfinished, or all tasks are Done but no work-round commit is recorded.
+     Adding a fix task to a ticket with completed tasks naturally returns it
+     to InProgress; there is no separate reopen operation.
+  7. **InAcceptance** when a work-round commit is recorded but no review round
+     has passed for the current code revision.
   8. **Accepted** when a review round has passed for the current code
      revision.
 - A finding blocks the ticket only while it has no linked fix work and has not
@@ -393,27 +394,27 @@ stateDiagram-v2
   offers the permitted action, such as creating fix work or dismissing a
   review finding. Adding the task changes the derived
   state; there is no separate reopen command.
-- **Ticket commits.** After all tasks for a work round are Done and no workers
-  are running, the controller runs
-  `ticket commit --ticket <id> --message <message>`. The CLI checks the
-  combined changed paths against the Done tasks' scopes, then
-  creates one commit for that round under the workspace lock. Every
-  `ticket commit` requires a message. The commit records that round's work;
-  task submissions do not create commits.
+- **Work-round commits.** Each completed task round has one work-round commit.
+  For ordinary tasks, after all tasks are Done and no workers are running, the
+  controller runs `ticket commit --ticket <id> --message <message>`. The CLI
+  checks the combined changed paths against the Done tasks' scopes, then
+  creates one ticket commit for that round under the workspace lock. Every
+  `ticket commit` requires a message. For an assigned merge task, such as a
+  delivery merge or conflict resolution, the agent creates the merge commit,
+  and `task submit` verifies it and records it as the work-round commit.
+  Ordinary task submissions do not create commits.
 - Additional work or fixes create a new ticket commit after the new tasks are
   Done. They do not amend an earlier commit. If integration has created a
   pending merge commit, later fixes create a follow-up commit after it. No
   existing commit is amended.
-- A final-delivery merge task is different: its agent creates the merge commit,
-  and `task submit` verifies and records it. If later tasks change files, the
-  controller uses `ticket commit` to commit those changes with a required
-  message.
-- **Acceptance review** starts after the work round's ticket commit exists and
-  no task workers are running. A missing ticket commit prevents review. The
-  ticket remains InProgress while the controller prepares the commit, then
-  moves to InAcceptance. The controller starts a review round of one or more
-  reviewers against the ticket's acceptance criteria. No task in the ticket
-  can be dispatched while a review of it is active.
+- If later tasks change files after a merge commit, the controller uses
+  `ticket commit` to commit those changes with a required message.
+- **Acceptance review** starts after the work-round commit is recorded and no
+  task workers are running. A missing work-round commit prevents review. The
+  ticket remains InProgress while the controller prepares or verifies the
+  commit, then moves to InAcceptance. The controller starts a review round of
+  one or more reviewers against the ticket's acceptance criteria. No task in
+  the ticket can be dispatched while a review of it is active.
 - Adding a fix task moves the derived state to InProgress. Earlier reviews
   stay recorded against the code revision they reviewed, but cannot accept a
   later revision. Once all fix tasks are Done, the controller creates a
@@ -425,10 +426,10 @@ stateDiagram-v2
   work or dismisses the finding with a reason. Integration conflict findings
   cannot be dismissed; the merge must be resolved.
 - After acceptance and before merge, the controller can create only fix tasks
-  linked to findings. Creating one pauses integration and returns the ticket
-  to InProgress. After the fix is submitted, the ticket must pass a new
-  acceptance review round before integration resumes. A merged ticket cannot
-  receive more tasks.
+  linked to findings. Creating one returns the ticket to InProgress. After the
+  fix is submitted, the ticket must pass a new acceptance review round before
+  the controller can run `integrate` again. A merged ticket cannot receive
+  more tasks.
 
 ## Integration
 
@@ -451,17 +452,17 @@ flowchart TD
   clean merge fast-forwards the feature branch without another review. The
   CLI does not verify the combined code; feature review covers the integrated
   result.
-- If the merge has conflicts, `integrate` leaves it in progress on the ticket
-  branch and records a finding with the conflicted paths. The controller
-  creates a fix task whose write scope covers those paths. No other task in
-  that ticket is dispatched while the merge is unresolved. The merge agent's
-  conflict resolutions are part of the merge commit; `task submit` verifies
-  that commit. Later fixes create follow-up ticket commits.
-- After a conflict resolution or other fix, the ticket needs a new acceptance
-  review round before integration resumes. A linked fix task added after
-  acceptance pauses integration and returns the ticket to InProgress.
-  Integrations are serial, but a failed or paused integration does not move
-  the feature branch or prevent other tickets from integrating.
+- If the merge has conflicts, `integrate` leaves the Git merge unresolved on
+  the ticket branch and records a finding with the conflicted paths. The
+  controller creates a fix task whose write scope covers those paths. No other
+  task in that ticket is dispatched while the merge is unresolved. The merge
+  agent's conflict resolutions are part of the merge commit; `task submit`
+  verifies that commit. Later fixes create follow-up ticket commits.
+- A conflict ends the current `integrate` command. After conflict resolution,
+  the ticket follows its normal work and review lifecycle. The controller runs
+  `integrate` again only after the ticket is Accepted. Integrations are serial,
+  but an incomplete integration does not move the feature branch or prevent
+  other tickets from integrating.
 - Workflow records stay uncommitted in the original checkout. They are not in
   the feature or ticket branches, so they do not affect merges or
   fast-forwards.
@@ -640,7 +641,7 @@ success envelope on stdout and errors on stderr.
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                                         |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                              |
 | `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                                           |
-| `task submit`                    | Record a worker's task completion, or verify and record a final-delivery merge commit.                                                                                     |
+| `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                   |
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                          |
 | `review submit`                  | Record one review's recommendation.                                                                                                                                        |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                   |
