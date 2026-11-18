@@ -1,6 +1,8 @@
+import { realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
 import type { Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
@@ -60,9 +62,7 @@ export class TaskDispatchService extends Service {
     this.requireAttempt(attempt);
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
     const { ticket, task } = this.findTask(feature.tickets, taskId);
-    if (task.state !== "InProgress" || task.attempt !== attempt) {
-      throw new Error(`Attempt ${attempt} is not the active assignment for '${taskId}'.`);
-    }
+    this.requireActiveAssignment(task, attempt);
     if (!ticket.worktree || ticket.merged)
       throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
     const finding =
@@ -116,6 +116,70 @@ export class TaskDispatchService extends Service {
     };
   }
 
+  public async submit(reference: string, taskId: string, attempt: number) {
+    this.assertApplicationBooted();
+    this.requireAttempt(attempt);
+    const workspace = await this.app.make(FeatureWorkspaceService);
+    const git = await this.app.make(GitService);
+    return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
+      if (feature.pendingStart)
+        throw new Error("Resume the pending start before submitting tasks.");
+      const { ticket, task } = this.findTask(ledger.tickets, taskId);
+      this.requireActiveAssignment(task, attempt);
+      if (!ticket.worktree || ticket.merged) {
+        throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
+      }
+      if (
+        feature.findings.some(
+          (finding) =>
+            finding.type === "conflict" &&
+            finding.ticketId === ticket.id &&
+            finding.decision === "open",
+        )
+      ) {
+        throw new Error(
+          "Ordinary task submission cannot complete while the ticket has a pending merge conflict.",
+        );
+      }
+
+      const worktree = await realpath(ticket.worktree);
+      if (worktree !== ticket.worktree || git.discoverRoot(worktree) !== worktree) {
+        throw new Error(
+          `The recorded ticket worktree is not a Git worktree root: '${ticket.worktree}'.`,
+        );
+      }
+      const head = git.run(["symbolic-ref", "HEAD"], { cwd: worktree, encoding: "utf8" });
+      if (head.error) throw head.error;
+      if (
+        !ticket.branch ||
+        head.status !== 0 ||
+        head.stdout.trim() !== `refs/heads/${ticket.branch}`
+      ) {
+        throw new Error(`The recorded ticket branch is not checked out at '${worktree}'.`);
+      }
+      const assigned = new Set(
+        ticket.tasks
+          .filter(({ state }) => state === "InProgress" || state === "Done")
+          .flatMap(({ writeScope }) => writeScope),
+      );
+      const unassigned = git.changedPaths(worktree).filter((path) => !assigned.has(path));
+      if (unassigned.length > 0) {
+        throw new Error(
+          `Task '${taskId}' has unassigned changed paths in its ticket worktree: ${JSON.stringify(unassigned)}`,
+        );
+      }
+      task.state = "Done";
+      await publish(ledger);
+      return {
+        feature: feature.name,
+        ticket: ticket.id,
+        task: task.id,
+        attempt,
+        state: task.state,
+      };
+    });
+  }
+
   private findTask<T extends Pick<Feature["tickets"][number], "id" | "tasks">>(
     tickets: readonly T[],
     taskId: string,
@@ -133,6 +197,15 @@ export class TaskDispatchService extends Service {
   private requireAttempt(attempt: number): void {
     if (!Number.isSafeInteger(attempt) || attempt < 1)
       throw new Error("Attempt must be a positive safe integer.");
+  }
+
+  private requireActiveAssignment(
+    task: Pick<Feature["tickets"][number]["tasks"][number], "id" | "state" | "attempt">,
+    attempt: number,
+  ): void {
+    if (task.state !== "InProgress" || task.attempt !== attempt) {
+      throw new Error(`Attempt ${attempt} is not the active assignment for '${task.id}'.`);
+    }
   }
 
   private shellArgument(value: string): string {

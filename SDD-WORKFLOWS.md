@@ -331,8 +331,10 @@ stateDiagram-v2
     Done --> [*]
 ```
 
-- **`task submit`** runs after the submitting worker stops. It checks changed
-  paths against the scopes of in-progress and Done tasks in the ticket.
+- **`task submit --task <id> --attempt <n>`** runs after the submitting worker
+  stops. The attempt must match the current assignment. It checks staged,
+  unstaged, and untracked paths against the scopes of in-progress and Done
+  tasks in the ticket.
   Changes within another such task's scope do not block submission. Changes
   from completed tasks remain in the worktree until the ticket commit. A
   changed path outside these scopes is unassigned; it is reported and leaves
@@ -662,9 +664,10 @@ spindle sdd next --feature 0001-dispatch --json
 can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
-`ticket start`, and `dispatch` when available. Worker assignments are supported;
-review assignments and task submission are not implemented yet. If a
-start is interrupted, `next` reports the pending start and prints the
+`ticket start`, and `dispatch` when available. Worker assignments and ordinary
+task submission are supported; review assignments and merge-task submission
+are not implemented yet. If a start is interrupted, `next` reports the
+pending start and prints the
 command to resume it. Resume uses the journaled branch, path, and base
 commit rather than recomputing them.
 

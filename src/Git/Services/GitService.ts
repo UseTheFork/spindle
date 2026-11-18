@@ -56,6 +56,30 @@ export class GitService extends Service {
     return paths;
   }
 
+  public changedPaths(worktree: string): string[] {
+    const result = this.run(
+      [
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--no-renames",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+      ],
+      { cwd: worktree, encoding: "buffer" },
+    );
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`git status failed: ${result.stderr.toString("utf8").trim()}`);
+    }
+
+    const output = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.stdout);
+    const entries = output.split("\0");
+    entries.pop();
+    return [...new Set(entries.map((entry) => entry.slice(3)))].sort();
+  }
+
   private discoveryError(): Error {
     return new Error(
       "Unable to discover the Git working-tree root. Ensure Git is available and run Spindle inside a Git working tree.",
