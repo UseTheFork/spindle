@@ -165,9 +165,11 @@ prevents each from becoming ready. Human-readable and JSON output report the
 same actions and blockers.
 
 `dispatch` rechecks readiness and marks the task in progress in one
-workspace-locked ledger write. It refuses a second active assignment. If a
-worker stops without submitting, the controller can confirm the worker has
-stopped and dispatch the in-progress task again.
+workspace-locked ledger write. It returns the attempt number and exact
+`assignment` command, and refuses a second active assignment. If a worker
+stops without submitting, the controller can confirm the worker has stopped
+and dispatch the in-progress task again; the new attempt number makes an
+earlier assignment stale.
 
 ```mermaid
 sequenceDiagram
@@ -178,28 +180,52 @@ sequenceDiagram
     C->>CLI: next
     CLI-->>C: ready actions and blocked items with reasons
     C->>CLI: dispatch --task T-0002.2
+    CLI-->>C: attempt 1
     C->>CLI: dispatch --task T-0002.3
+    CLI-->>C: attempt 1
     par same ticket worktree
-        C->>W1: handoff
-        C->>W2: handoff
+        C->>W1: assignment command
+        C->>W2: assignment command
     end
+    W1->>CLI: assignment --task T-0002.2 --attempt 1
+    CLI-->>W1: structured task assignment
+    W2->>CLI: assignment --task T-0002.3 --attempt 1
+    CLI-->>W2: structured task assignment
     W1-->>C: report (changes left uncommitted)
     C->>CLI: submit --task T-0002.2
     Note over W2: still editing its own files
     Note over CLI: checks write scope and commits T-0002.2's changes
 ```
 
-A handoff contains the ticket worktree path, the task's instructions and
-completion criteria, its write scope, optional context paths, links to the
-ticket and spec, and the absolute report path.
+The controller gives the worker the command printed by `dispatch`, not a
+rewritten task prompt. It includes the absolute feature-workspace path, task
+ID and attempt number:
+
+```text
+pnpm spindle sdd assignment --feature <absolute-feature-directory> --task T-0002.2 --attempt 1 --json
+```
+
+`assignment` is read-only. Use exactly one mode: `--task <id> --attempt <n>`
+for a worker, or `--review <id>` for a reviewer. Both modes require the
+absolute `--feature` path. Task mode returns the assignment only when the task
+is in progress and the attempt matches the current dispatch. Its structured
+output includes the role, feature/ticket/task IDs, attempt, ticket worktree
+path, task instructions and completion criteria, write scope, optional
+context, ticket requirements, acceptance criteria, originating finding and
+evidence, worker rules and response/report instructions. Review mode returns
+the role, review ID, target diff and revision, review criteria, current check
+results and response template. It reads a complete ledger snapshot and does
+not acquire the workspace write lock or change workflow state. Without
+`--json`, it renders the same content for a person to read.
 
 Workers:
 
-- change only files in their write scope;
-- do not commit, stage or run SDD commands;
+- change only files in their write scope, and write their report only to the
+  separately assigned report path;
+- do not commit, stage or run SDD commands other than the read-only
+  `assignment` command;
 - may read other repository files and run focused tests, knowing that other
-  agents may be editing files outside their write scope in the same worktree;
-- write their report to the assigned path.
+  agents may be editing files outside their write scope in the same worktree.
 
 ## Task lifecycle
 
@@ -350,10 +376,18 @@ flowchart TD
 | Ticket acceptance | Ticket branch diff from the feature branch | Ticket acceptance criteria |
 | Feature review | Feature branch diff from the original branch | Feature spec |
 
-The `review` handoff includes the target diff, relevant spec or ticket
+The controller runs `review`, which creates a review ID and returns an
+assignment command for the reviewer:
+
+```text
+pnpm spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
+```
+
+The review assignment includes the target diff, relevant spec or ticket
 acceptance criteria, the code revision, current check results and the response
-template below. It has no report-file path. Reviewers do not run SDD commands
-or write files; their final response is the review.
+template below. It has no report-file path. Reviewers do not write files or run
+SDD commands other than the read-only `assignment` command; their final
+response is the review.
 
 ```text
 Recommendation: pass | changes-required
@@ -482,9 +516,10 @@ All commands run as `pnpm spindle sdd <command> --feature <directory>`, except
 | `ticket create`, `ticket update` | Create or edit tickets, their dependencies and blockers. A new ticket has no tasks. |
 | `task create`, `task update` | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts. |
 | `next` | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state. |
-| `dispatch` | Atomically mark a ready task in progress and return its handoff. |
+| `dispatch` | Atomically mark a ready task in progress and return the attempt number and `assignment` command. |
 | `submit` | Record a worker's submission, or the review recommendation and controller decision with `--review`. |
-| `review` | Create a ticket-acceptance or feature review assignment and return its handoff. |
+| `review` | Create a ticket-acceptance or feature review assignment and return its ID and `assignment` command. |
+| `assignment` | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path. |
 | `finding` | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings. |
 | `integrate` | Merge an accepted ticket into the feature branch and run post-merge checks. |
 | `check` | Run a declared check set on demand. |
