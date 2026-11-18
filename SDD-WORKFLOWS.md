@@ -8,15 +8,15 @@ what the rebuild removes.
 
 ## Concepts
 
-| Term | Meaning |
-| ---- | ------- |
-| Feature | The complete unit of work, with a spec, a feature branch and one or more tickets. |
-| Ticket | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, ticket checks, acceptance review and integration. |
-| Task | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies. |
-| Finding | A recorded issue from a review, check or integration. Review findings may be dismissed; gate failures require resolution. |
-| Controller | The single operator coordinating the feature through the SDD CLI. |
-| Worker | An agent implementing one dispatched task. |
-| Reviewer | An agent reviewing a ticket or the completed feature against its acceptance criteria. |
+| Term       | Meaning                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feature    | The complete unit of work, with a spec, a feature branch and one or more tickets.                                                              |
+| Ticket     | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, ticket checks, acceptance review and integration. |
+| Task       | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.                         |
+| Finding    | A recorded issue from a review, check or integration. Review findings may be dismissed; gate failures require resolution.                      |
+| Controller | The single operator coordinating the feature through the SDD CLI.                                                                              |
+| Worker     | An agent implementing one dispatched task.                                                                                                     |
+| Reviewer   | An agent reviewing a ticket or the completed feature against its acceptance criteria.                                                          |
 
 ## Design principles
 
@@ -58,12 +58,12 @@ same ticket; a ticket may depend on other tickets in the feature.
 
 Each task has:
 
-| Field | Meaning |
-| ----- | ------- |
-| Instructions | What to do and the task's completion criteria. |
-| Write scope | Exact repository-relative files the task may create, edit or delete. Paths may exist or not exist when the task starts. |
-| Context | Optional files or links that may help the worker. This list is not exhaustive; workers may read other repository files. |
-| Dependencies | Tasks in the same ticket that must be committed before this task starts. |
+| Field        | Meaning                                                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Instructions | What to do and the task's completion criteria.                                                                          |
+| Write scope  | Exact repository-relative files the task may create, edit or delete. Paths may exist or not exist when the task starts. |
+| Context      | Optional files or links that may help the worker. This list is not exhaustive; workers may read other repository files. |
+| Dependencies | Tasks in the same ticket that must be committed before this task starts.                                                |
 
 A task must list at least one path in its write scope. Paths are repository-
 relative file paths, not directories or patterns.
@@ -104,11 +104,15 @@ committed.
 - A task created to fix a finding or failed check has a `discovered-from` link
   to that finding or check. This records why the task exists; it does not
   replace task or ticket dependencies.
-- Tasks can be added to a ticket at any time before the ticket is accepted. A
-  task can be removed only before it is dispatched. A task's write scope can
-  change only before it is dispatched, or when the controller accepts an
-  out-of-scope file at submission. A scope change must not create an unordered
-  write conflict with another unfinished task.
+- Tasks can be added to a ticket before it is accepted. After acceptance and
+  before merge, the controller can add only fix tasks linked to findings.
+  Adding a fix task pauses integration and returns the ticket to InProgress.
+  The ticket must pass checks and acceptance review again after the fix. No
+  tasks can be added after merge. A task can be removed only before it is
+  dispatched. A task's write scope can change only before it is dispatched,
+  or when the controller accepts an out-of-scope file at submission. A scope
+  change must not create an unordered write conflict with another unfinished
+  task.
 
 ## Records
 
@@ -202,7 +206,7 @@ rewritten task prompt. It includes the absolute feature-workspace path, task
 ID and attempt number:
 
 ```text
-pnpm spindle sdd assignment --feature <absolute-feature-directory> --task T-0002.2 --attempt 1 --json
+spindle sdd assignment --feature <absolute-feature-directory> --task T-0002.2 --attempt 1 --json
 ```
 
 `assignment` is read-only. Use exactly one mode: `--task <id> --attempt <n>`
@@ -266,6 +270,7 @@ stateDiagram-v2
     InAcceptance --> Accepted: acceptance review passed
     InAcceptance --> Blocked: review finding needs a decision
     Accepted --> Integrating: integrate
+    Accepted --> InProgress: linked fix task added before merge
     Integrating --> Merged: post-merge checks pass, tested commit promoted
     Integrating --> Blocked: conflict or post-merge check fails
     Blocked --> InProgress: fix task added
@@ -283,8 +288,8 @@ stateDiagram-v2
      cleaned up.
   2. **Blocked** when an open finding has no linked fix work, or an integration
      conflict has no resolution task yet.
-  3. **Integrating** while an integration operation is active and has no
-     unresolved conflict.
+  3. **Integrating** while an integration operation is active and is not
+     paused for a fix task.
   4. **Planned** when the ticket has no tasks or its ticket dependencies have
      not merged.
   5. **Ready** when the ticket's prerequisites are met and none of its tasks
@@ -328,6 +333,11 @@ stateDiagram-v2
 - Review findings block the ticket until the controller creates linked fix
   work or dismisses the finding with a reason. Check failures and integration
   conflicts cannot be dismissed; their gate must pass.
+- After acceptance and before merge, the controller can create only fix tasks
+  linked to findings. Creating one pauses integration and returns the ticket
+  to InProgress. After the fix is submitted, the ticket must pass checks and
+  acceptance review again before integration resumes. A merged ticket cannot
+  receive more tasks.
 
 ## Integration
 
@@ -364,23 +374,25 @@ flowchart TD
   that merge commit rather than a separate task commit. The ticket then runs
   checks and acceptance again before integration continues.
 - After either kind of fix, the ticket goes through checks and acceptance
-  again. Integrations are serial, but a failed or paused integration does not
-  move the feature branch or prevent other tickets from integrating.
+  again before integration resumes. A linked fix task added after acceptance
+  pauses integration and returns the ticket to InProgress. Integrations are
+  serial, but a failed or paused integration does not move the feature branch
+  or prevent other tickets from integrating.
 - Ledger changes are uncommitted in the feature worktree, and tickets never
   touch `.spindle/`, so they do not conflict with the fast-forward.
 
 ## Reviews and findings
 
-| Level | Target | Checks against |
-| ----- | ------ | ------------- |
-| Ticket acceptance | Ticket branch diff from the feature branch | Ticket acceptance criteria |
-| Feature review | Feature branch diff from the original branch | Feature spec |
+| Level             | Target                                       | Checks against             |
+| ----------------- | -------------------------------------------- | -------------------------- |
+| Ticket acceptance | Ticket branch diff from the feature branch   | Ticket acceptance criteria |
+| Feature review    | Feature branch diff from the original branch | Feature spec               |
 
 The controller runs `review`, which creates a review ID and returns an
 assignment command for the reviewer:
 
 ```text
-pnpm spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
+spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
 ```
 
 The review assignment includes the target diff, relevant spec or ticket
@@ -490,14 +502,14 @@ the corresponding check results even though the configuration is in the
 ledger. Earlier results remain in history but cannot satisfy a gate for a
 different revision or command set.
 
-| Change after a check passes | Effect |
-| --------------------------- | ------ |
-| Tracked content outside `.spindle/` changes | Change the code revision; rerun checks before the gate can pass. |
-| Declared check commands change | Invalidate results for that check set; rerun before the gate can pass. |
-| Ledger, report or review-comment changes under `.spindle/` | Do not invalidate code checks. |
-| Another ticket merges into the feature branch | Keep this ticket's result; run post-merge checks on the combined revision during integration. |
-| Command fails | Record a failed run and create a linked finding with fix work. |
-| Command is interrupted or cannot run because of the environment | Leave the gate incomplete; resolve the issue and rerun without creating a code-fix task. |
+| Change after a check passes                                     | Effect                                                                                        |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Tracked content outside `.spindle/` changes                     | Change the code revision; rerun checks before the gate can pass.                              |
+| Declared check commands change                                  | Invalidate results for that check set; rerun before the gate can pass.                        |
+| Ledger, report or review-comment changes under `.spindle/`      | Do not invalidate code checks.                                                                |
+| Another ticket merges into the feature branch                   | Keep this ticket's result; run post-merge checks on the combined revision during integration. |
+| Command fails                                                   | Record a failed run and create a linked finding with fix work.                                |
+| Command is interrupted or cannot run because of the environment | Leave the gate incomplete; resolve the issue and rerun without creating a code-fix task.      |
 
 During Checking and InAcceptance, no worker may change the ticket branch. A
 check result is valid only for its recorded code revision. `check --scope
@@ -506,24 +518,24 @@ state.
 
 ## Commands
 
-All commands run as `pnpm spindle sdd <command> --feature <directory>`, except
+All commands run as `spindle sdd <command> --feature <directory>`, except
 `create`. `--json` returns a success envelope on stdout and errors on stderr.
 
-| Command | Purpose |
-| ------- | ------- |
-| `create` | Create a numbered feature workspace with `spec.md` and optional `design.md`. |
-| `start` | Create the feature branch and worktree; commit workspace records on the feature branch. |
-| `ticket create`, `ticket update` | Create or edit tickets, their dependencies and blockers. A new ticket has no tasks. |
-| `task create`, `task update` | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts. |
-| `next` | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state. |
-| `dispatch` | Atomically mark a ready task in progress and return the attempt number and `assignment` command. |
-| `submit` | Record a worker's submission, or the review recommendation and controller decision with `--review`. |
-| `review` | Create a ticket-acceptance or feature review assignment and return its ID and `assignment` command. |
-| `assignment` | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path. |
-| `finding` | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings. |
-| `integrate` | Merge an accepted ticket into the feature branch and run post-merge checks. |
-| `check` | Run a declared check set on demand. |
-| `finish` | Run final checks, merge into the original branch and clean up. |
+| Command                          | Purpose                                                                                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`                         | Create a numbered feature workspace with `spec.md` and optional `design.md`.                                                                              |
+| `start`                          | Create the feature branch and worktree; commit workspace records on the feature branch.                                                                   |
+| `ticket create`, `ticket update` | Create or edit tickets, their dependencies and blockers. A new ticket has no tasks.                                                                       |
+| `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
+| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                             |
+| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                          |
+| `submit`                         | Record a worker's submission, or the review recommendation and controller decision with `--review`.                                                       |
+| `review`                         | Create a ticket-acceptance or feature review assignment and return its ID and `assignment` command.                                                       |
+| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path. |
+| `finding`                        | `create`, `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                      |
+| `integrate`                      | Merge an accepted ticket into the feature branch and run post-merge checks.                                                                               |
+| `check`                          | Run a declared check set on demand.                                                                                                                       |
+| `finish`                         | Run final checks, merge into the original branch and clean up.                                                                                            |
 
 ## Recovery and safety
 
@@ -536,22 +548,3 @@ All commands run as `pnpm spindle sdd <command> --feature <directory>`, except
   discards uncommitted work.
 - One controller runs a feature at a time. The workspace lock prevents two
   controllers from writing at once; there is no per-command actor identity.
-
-## Removed from the current implementation
-
-| Removed | Replaced by |
-| ------- | ----------- |
-| Path reservations held while a task is assigned | File conflicts checked when tasks are planned, ordered by dependencies |
-| Optional task plans, frozen plans and `correct --approved-exception` | Every ticket has tasks; tasks can be added until the ticket is accepted |
-| Task-specific assign, submit, accept and request-changes commands | `dispatch`, `submit` and `review` |
-| A controller commit of combined ticket work after all tasks | The CLI commits each task's files at `submit` |
-| `--actor`, `claim` and `resume --confirm-handoff` | One controller per feature, enforced by the workspace lock |
-| A records commit after every ledger write | Ledger commits at `start`, each `integrate` and `finish` |
-| `checks require`, `checks record` and `checks revalidate` | Declared checks that the CLI runs |
-| Global block on merges after a failed post-merge check, and `sync` | The feature branch moves only after checks pass |
-| `correct` and the correction assignment types | Fix tasks |
-| `requirements decide` and the `deferred`/`confirmed` outcomes | Two finding outcomes: fix or dismiss |
-| Review pinning, frozen changed-path inventories and report hashes | Reviews of a stated diff; reports committed with the ledger |
-| Hash-based check revalidation | Check results tied to a code revision, excluding `.spindle/` metadata |
-| Final checks after merging into the original branch | Final checks on the feature branch before `finish` |
-| `ready` and `status` | `next --verbose` |
