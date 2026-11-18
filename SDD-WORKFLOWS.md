@@ -170,7 +170,7 @@ Example SDD configuration:
 ```json
 {
   "sdd": {
-    "worktree_directory": "../spindle-worktrees",
+    "worktree_directory": "/home/user/source/spindle_worktrees",
     "setup_command": ["pnpm install"]
   }
 }
@@ -630,8 +630,37 @@ not approve it.
 
 All commands run from the original checkout as
 `spindle sdd <command> --feature <directory>`, except `create`. The CLI
-resolves feature and ticket worktree paths from the ledger. `--json` returns a
-success envelope on stdout and errors on stderr.
+resolves feature and ticket worktree paths from the ledger.
+
+Commands use named flags for inputs. Repeat a flag to provide multiple values
+for a list. A long-text flag accepts text as its value, or `-` to read the
+value from standard input. Use a quoted heredoc for multi-line text so the
+shell passes it unchanged:
+
+```bash
+spindle sdd task create --feature <directory> --ticket T-0002 \
+  --instructions - <<'EOF'
+Update the dispatch flow.
+Keep the existing retry behavior.
+EOF
+```
+
+Commands do not accept JSON input. Without `--json`, the CLI prints
+human-readable output. With `--json`, a successful command writes one JSON
+object to stdout and exits with status `0`:
+
+```json
+{"ok": true, "data": {}}
+```
+
+A failed command writes one JSON object to stderr and exits with status `1`:
+
+```json
+{"ok": false, "error": {"code": "TASK_NOT_READY", "message": "...", "details": {}}}
+```
+
+`error.code` is stable and machine-readable. `error.message` explains the
+failure. `error.details` is optional and provides additional context.
 
 | Command                          | Purpose                                                                                                                                                                    |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
