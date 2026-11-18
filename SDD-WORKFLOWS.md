@@ -109,6 +109,11 @@ Done. They use its uncommitted changes in the shared ticket worktree.
 - A task created to fix a finding or failed check has a `discovered-from` link
   to that finding or check. This records why the task exists; it does not
   replace task or ticket dependencies.
+- The feature spec is fixed when `start` creates the feature branch. Ticket
+  requirements and acceptance criteria are fixed when the first task is
+  dispatched. Before dispatch, `ticket update` can edit them; after dispatch,
+  it can edit other ticket fields, such as dependencies, but not requirements
+  or acceptance criteria.
 - Tasks can be added to a ticket before it is accepted. After acceptance and
   before merge, the controller can add only fix tasks linked to findings.
   Adding a fix task pauses integration and returns the ticket to InProgress.
@@ -160,12 +165,14 @@ flowchart LR
 ```
 
 - **Feature worktree.** `start` creates the feature branch and worktree from
-  the original branch. It holds the ledger and reports. `start` does not
-  commit to the original branch.
+  the original branch. The original branch tip used by `start` is the initial
+  feature review base. The worktree holds the ledger and reports. `start` does
+  not commit to the original branch.
 - **Ticket worktree.** When a ticket becomes ready, the CLI creates its branch
-  and worktree from the feature branch tip, then runs the project's setup
-  command (for example `pnpm install`) once. The ticket worktree is removed
-  after the ticket merges into the feature branch.
+  and worktree from the feature branch tip. That tip is the ticket review base.
+  The CLI then runs the project's setup command (for example `pnpm install`)
+  once. The ticket worktree is removed after the ticket merges into the feature
+  branch.
 - Worktrees live under a configured parent directory outside the original
   checkout.
 
@@ -426,10 +433,10 @@ flowchart TD
 
 ## Reviews and findings
 
-| Level             | Target                                       | Checks against             |
-| ----------------- | -------------------------------------------- | -------------------------- |
-| Ticket acceptance | Ticket branch diff from the feature branch   | Ticket acceptance criteria |
-| Feature review    | Feature branch diff from the original branch | Feature spec               |
+| Level             | Target                                                     | Checks against             |
+| ----------------- | ---------------------------------------------------------- | -------------------------- |
+| Ticket acceptance | Full diff and commit history from the ticket review base   | Ticket acceptance criteria |
+| Feature review    | Full feature diff from the applicable feature review base  | Feature spec               |
 
 The controller runs `review`, which creates a review ID and returns an
 assignment command for the reviewer:
@@ -438,11 +445,11 @@ assignment command for the reviewer:
 spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
 ```
 
-The review assignment includes the target diff, relevant spec or ticket
-acceptance criteria, the code revision, current check results and the response
-template below. It has no report-file path. Reviewers do not write files or run
-SDD commands other than the read-only `assignment` command; their final
-response is the review.
+The review assignment includes the target diff and commit history from the
+applicable review base, relevant spec or ticket acceptance criteria, the code
+revision, current check results and the response template below. It has no
+report-file path. Reviewers do not write files or run SDD commands other than
+the read-only `assignment` command; their final response is the review.
 
 ```text
 Recommendation: pass | changes-required
@@ -485,12 +492,20 @@ conflict needs correction, the controller creates a finding and then a fix
 task or fix ticket with a write scope. The CLI does not infer the scope from
 diagnostic output.
 
-After review findings are fixed, the same review level runs again. The reviewer
-gets the diff since the last reviewed revision and the findings to verify. The
-reviewer returns its response to the controller; no review report file is
-created or stored verbatim. The ledger keeps the recommendation, proposed
-findings and controller decisions. After check-related fix work is integrated,
-the affected check set runs again on the updated code revision.
+After review findings are fixed, the same review level runs again. Each ticket
+acceptance review includes the full cumulative ticket diff and commit history
+from the ticket review base, plus the findings to verify. Each feature review
+includes the full cumulative feature diff and commit history from its review
+base, not only changes since the prior review. Before delivery, the feature
+review base is the original branch tip used by `start`. After a delivery ticket
+merges a newer original-branch tip, that merged tip becomes the feature review
+base. The delivery ticket's acceptance review covers incoming original-branch
+changes; feature review assesses the cumulative feature changes against the
+feature spec. The reviewer returns its response to the controller; no review
+report file is created or stored verbatim. The ledger keeps the
+recommendation, proposed findings and controller decisions. After check-related
+fix work is integrated, the affected check set runs again on the updated code
+revision.
 
 ## Delivery
 
@@ -612,7 +627,7 @@ All commands run as `spindle sdd <command> --feature <directory>`, except
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `create`                         | Create a numbered feature workspace with `spec.md` and optional `design.md`.                                                                              |
 | `start`                          | Create the feature branch and worktree; commit workspace records on the feature branch.                                                                   |
-| `ticket create`, `ticket update` | Create or edit tickets, their dependencies and blockers. A new ticket has no tasks.                                                                       |
+| `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
 | `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                        |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                             |
 | `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command.                                                          |
