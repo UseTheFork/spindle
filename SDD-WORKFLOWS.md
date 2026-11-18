@@ -2,9 +2,9 @@
 
 This document defines the target design for subagent-driven development (SDD).
 It is the starting point for rebuilding
-[`src/SubagentDrivenDevelopment/`](src/SubagentDrivenDevelopment/). Where the
-current implementation differs, this document wins. The final section lists
-what the rebuild removes.
+[`src/SubagentDrivenDevelopment/`](src/SubagentDrivenDevelopment/) from
+scratch. The rebuild does not support or migrate feature workspaces, branches
+or worktrees created by the current implementation.
 
 ## Concepts
 
