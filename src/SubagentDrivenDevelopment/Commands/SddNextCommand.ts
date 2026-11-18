@@ -41,6 +41,7 @@ export class SddNextCommand extends Command {
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
     const { tickets } = (await this.app.make(WorkGraphService)).readiness(feature);
     const settings = ProjectSettingsService.current(this.app);
+    const canStart = settings.status === "valid" && settings.data.sdd !== undefined;
     const actions: string[] = [];
     const notices = tickets.length === 0 ? ["No tickets in this feature."] : [];
     const start = `spindle sdd start --feature ${feature.name}`;
@@ -53,14 +54,25 @@ export class SddNextCommand extends Command {
           ? start
           : ticketStart(feature.pendingStart.ticketId),
       );
-    } else if (settings.status === "valid" && settings.data.sdd) {
-      if (!feature.featureBranch && !feature.featureWorktree && !feature.originalBranch) {
+    } else {
+      if (
+        canStart &&
+        !feature.featureBranch &&
+        !feature.featureWorktree &&
+        !feature.originalBranch
+      ) {
         actions.push(start);
-      } else if (feature.featureBranch && feature.featureWorktree) {
+      } else if (canStart && feature.featureBranch && feature.featureWorktree) {
         const ready = new Set(tickets.filter(({ ready }) => ready).map(({ ticketId }) => ticketId));
         for (const ticket of feature.tickets) {
           if (ready.has(ticket.id) && !ticket.worktree && !ticket.branch)
             actions.push(ticketStart(ticket.id));
+        }
+      }
+      for (const ticket of tickets) {
+        for (const task of ticket.tasks) {
+          if (task.ready)
+            actions.push(`spindle sdd dispatch --feature ${feature.name} --task ${task.taskId}`);
         }
       }
     }

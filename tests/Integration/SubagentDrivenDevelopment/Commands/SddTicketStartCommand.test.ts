@@ -72,5 +72,7 @@ test("starts only ready tickets at the feature tip and returns setup without run
     branch,
     worktree,
   });
-  expect(invoke("next", ...featureFlag).actions).toEqual([]);
+  expect(invoke("next", ...featureFlag).actions).toEqual([
+    `spindle sdd dispatch --feature ${name} --task T-0001.1`,
+  ]);
 });

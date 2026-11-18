@@ -252,8 +252,9 @@ or using a ticket worktree that a merge agent holds exclusively.
 workspace-locked ledger write. It refuses a task whose ticket has no worktree.
 It returns the attempt number and exact `assignment` command, and refuses a
 second active assignment. If a worker stops without submitting, the controller
-can confirm the worker has stopped and dispatch the in-progress task again;
-the new attempt number makes an earlier assignment stale.
+can confirm the worker has stopped with `dispatch --retry-stopped-attempt <n>`.
+The confirmation must match the current attempt, and the new attempt number
+makes the previous assignment stale. Each attempt has a separate report path.
 
 ```mermaid
 sequenceDiagram
@@ -660,8 +661,9 @@ spindle sdd next --feature 0001-dispatch --json
 `create` accepts an optional `--design`. Only one of `--spec` and `--design`
 can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
-`sdd.worktree_directory` before starting worktrees. `next` offers `start`
-and `ticket start` when available; dispatch is not offered yet. If a
+`sdd.worktree_directory` before starting worktrees. `next` offers `start`,
+`ticket start`, and `dispatch` when available. Worker assignments are supported;
+review assignments and task submission are not implemented yet. If a
 start is interrupted, `next` reports the pending start and prints the
 command to resume it. Resume uses the journaled branch, path, and base
 commit rather than recomputing them.

@@ -1,12 +1,15 @@
 import type { CommandConstructor } from "@spindle/Commands/Command";
 import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import { SddAssignmentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddAssignmentCommand";
 import { SddCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddCreateCommand";
+import { SddDispatchCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDispatchCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
 import { SddStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddStartCommand";
 import { SddTaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskCreateCommand";
 import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCreateCommand";
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
+import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { WorktreeStartService } from "@spindle/SubagentDrivenDevelopment/Services/WorktreeStartService";
 
@@ -19,6 +22,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddTaskCreateCommand,
       SddStartCommand,
       SddTicketStartCommand,
+      SddDispatchCommand,
+      SddAssignmentCommand,
     ];
   }
 
@@ -26,6 +31,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(WorkGraphService);
     this.app.singleton(FeatureWorkspaceService);
     this.app.singleton(WorktreeStartService);
+    this.app.singleton(TaskDispatchService);
   }
 
   public async boot(): Promise<void> {}

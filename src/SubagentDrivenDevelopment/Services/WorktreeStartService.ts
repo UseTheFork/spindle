@@ -18,7 +18,7 @@ export class WorktreeStartService extends Service {
     const config = settings.status === "valid" ? settings.data.sdd : undefined;
     const original = await realpath(this.app.workspaceRoot);
 
-    return workspace.withStartTransaction(reference, async (feature, ledger, publish) => {
+    return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
       const branch = `sdd/${feature.name}/${ticketId ?? "feature"}`;
       const ticket =
         ticketId === undefined ? undefined : ledger.tickets.find(({ id }) => id === ticketId);

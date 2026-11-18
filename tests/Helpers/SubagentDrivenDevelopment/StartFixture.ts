@@ -6,9 +6,9 @@ import { runCliRaw } from "@test/Helpers/Cli";
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 import { expect } from "vitest";
 
-export async function startFixture() {
+export async function startFixture(checkout = "repo") {
   const root = await realpath(await makeTempDir());
-  const repo = join(root, "repo");
+  const repo = join(root, checkout);
   const worktrees = join(root, "worktrees");
   const setup = "touch setup-must-not-run";
   await mkdir(join(repo, ".spindle"), { recursive: true });

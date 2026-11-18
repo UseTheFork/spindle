@@ -186,7 +186,7 @@ export class FeatureWorkspaceService extends Service {
     });
   }
 
-  public async withStartTransaction<T>(
+  public async withLedgerTransaction<T>(
     reference: string,
     operation: (
       feature: Feature,
