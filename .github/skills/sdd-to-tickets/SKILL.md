@@ -1,63 +1,63 @@
 ---
 name: sdd-to-tickets
-description: "Break an approved feature spec into tracer-bullet tickets and bounded task plans, then publish them to the configured tracker."
-argument-hint: "[spec path or tracker reference]"
+description: "Turn an approved SDD feature spec into tickets and tasks in the feature ledger."
+argument-hint: "[spec.md path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 1.1.0
+    version: 2.0.0
 ---
 
-# To Tickets
+# Plan SDD Tickets and Tasks
 
-Break an approved feature spec into **tickets**: independently actionable vertical slices with explicit blocking dependencies. Define a bounded task plan for each ticket that requires one, then publish the tickets and task plans after approval.
+Turn an approved spec into a work graph in its existing SDD feature workspace. This skill records the plan. It does not start implementation.
 
-An optional argument is one spec path or tracker reference. Read the full spec and its comments before planning. Without an argument, use the approved spec already in context. If the source is missing or ambiguous, ask for a usable reference before proceeding.
+Accept one optional path to the feature workspace's `spec.md`. If omitted, use the approved spec identified in the conversation. If the spec is missing, unapproved, or ambiguous, ask the user before planning.
 
-## Required Skills
+## 1. Confirm the feature
 
-Before drafting tickets, read and apply:
+Read the full spec. Run all SDD commands from the original checkout, not a feature or ticket worktree. Pass the numbered feature name or workspace directory as `--feature`. Do not create another feature workspace.
 
-- **REQUIRED:** `private-ref-ears`
+Inspect the existing work graph with `pnpm spindle sdd next --feature "<feature>" --verbose --json`. If work already exists, read the relevant ticket Markdown and ledger entries. Identify which items to keep, update, or add. Do not duplicate existing items.
 
-## Process
+**Complete when:** the approved spec, original checkout, and existing work graph are known.
 
-1. **Select the feature and confirm sequence.**
-   - Use the spec's existing feature workspace. In Spindle's local tracker, this is a numbered `.spindle/features/<feature-id>-<slug>/` directory containing `spec.md`, `sdd.json`, and `tickets/`. Never create a dated folder or a second workspace for the same feature.
-   - If `design.md` exists in the feature workspace, read it and confirm it was completed and approved before the spec. If the spec is not approved or a present design is unfinished, stop and resolve that before ticket planning.
-   - A design is optional. Do not require or create one when the approved spec was intentionally written without a design.
-   - For local SDD tracker work, use the feature workspace directory with `pnpm spindle sdd` ticket commands. Otherwise follow the configured tracker's documented conventions.
+## 2. Draft the work graph
 
-   **Complete when:** one approved spec and its tracker destination are identified; any existing design precedes it and is approved.
+Use the spec and relevant repository context to plan the work. Follow the `private-ref-ears` skill when writing observable behavior requirements and acceptance criteria.
 
-2. **Gather context.** Use the conversation and spec as the requirements source. If the user supplies a tracker reference, read its full body and comments. Explore the codebase when needed, using its glossary vocabulary and relevant ADRs. Look for useful prefactoring that reduces implementation difficulty.
+- Give each ticket a title, requirements, and acceptance criteria. Prefer a small, verifiable slice of feature behavior. Add ticket dependencies only when a ticket needs another ticket's result.
+- Give each ticket at least one task. Split it only when the parts form distinct work. Give each task self-contained instructions with observable completion criteria. Add files or links as optional context.
+- List at least one planned file per task in its write scope. Use repository-relative file paths, not directories or globs. Order tasks that share a write path. Shared read-only context does not require ordering.
+- Keep task dependencies within the same ticket. Use ticket dependencies for prerequisites across tickets. Check that neither level contains cycles.
 
-   **Complete when:** requirements, relevant project context, and tracker rules are understood.
+**Complete when:** the plan covers every spec requirement and every task has instructions, completion criteria, and a write scope.
 
-3. **Draft tickets and task plans.** Break the approved work into tracer-bullet tickets:
-   - Each slice is a narrow, complete path through the relevant layers and is verifiable on its own.
-   - Each slice fits a fresh context window.
-   - Identify only genuine ticket blockers and list tickets in dependency order.
-   - A wide mechanical refactor may use expand–migrate–contract sequencing when no vertical slice can remain green.
-   - For each ticket that requires a task plan under the tracker guidance, define one or more bounded tasks before implementation. Use one task when the ticket does not need meaningful decomposition; do not force artificial splits.
-   - Give each task a title, self-contained instructions, observable acceptance criteria, and explicit repository-relative edit, create, and reference paths. Do not use globs.
-   - Keep task dependencies within their parent ticket. Add a dependency only when a task needs another task's output. Ensure the task graph is acyclic and dependencies refer to tasks in the same ticket.
-   - Tasks assigned concurrently must not have overlapping edit/create paths. Shared reference paths alone do not require a dependency.
-   - Treat task plans as implementation-time inputs: the controller must revalidate their file scopes against the ticket worktree before dispatch. Honor only task-plan exceptions documented and approved by the project; do not create exceptions during planning.
+## 3. Get approval
 
-   **Complete when:** every requirement is covered, each ticket is independently actionable, ticket blockers are explicit, and every required task plan is complete.
+Show the tickets with their requirements, acceptance criteria, and dependencies. Nest each task under its ticket. Show its instructions, write scope, context, and prerequisites. Revise the plan until the user approves both levels. Do not change the ledger before approval.
 
-4. **Get approval.** Present the proposed breakdown as a numbered list. For each ticket, show its title, blockers, and end-to-end behavior; nest its tasks with their objective, acceptance criteria, file scopes, and task dependencies. Ask whether the ticket and task granularity and dependency edges are right and whether anything should be merged or split. Iterate until the user approves both levels. Do not publish before approval.
+**Complete when:** the user approves the tickets, tasks, write scopes, and dependencies.
 
-   **Complete when:** the user approves the ticket breakdown, task plans, and dependency relationships.
+## 4. Record the approved plan
 
-5. **Publish tickets and task plans.**
-   - For a local Spindle SDD tracker, create each ticket in dependency order with `pnpm spindle sdd ticket create --feature <feature-directory>`. Supply its title, reporter, category (`bug` or `enhancement`), and `--actor` value according to the ticket-tracker guidance. Fill the generated ticket's Requirements and Acceptance Criteria. After creation, use `pnpm spindle sdd ticket update --feature <feature-directory> --ticket <id> --blocked-by <blocker-ids...> --actor <acting-agent>` to record each ticket dependency; omit `--blocked-by` when there are no blockers.
-   - Create each approved task plan under its ticket with `pnpm spindle sdd task create`. Supply the ticket, title, instructions, acceptance criteria, and actor. Supply the task's non-empty `--edit-paths`, `--create-paths`, and `--reference-paths` lists as applicable; omit a list when it has no paths. The CLI assigns task-local IDs.
-   - Create tasks in dependency order so every `--dependencies` ID already exists. Use the generated task IDs for dependent tasks. Do not edit `sdd.json` directly or duplicate task definitions in ticket Markdown.
-   - On resumption, inspect the ledger's existing tickets and tasks before creating more; do not duplicate published work. Task plans can be changed with `pnpm spindle sdd task update` only before implementation is assigned, because assignment freezes the plan.
-   - For an external ticket tracker, create one ticket per approved ticket in dependency order and use native blocking relationships when available; otherwise record blockers in each ticket. Represent task plans with the tracker's native task/subtask mechanism and retain the same scopes and dependencies. If the tracker cannot represent tasks, ask where the approved task plans should be recorded before publishing. If the source was an existing ticket, create sub-tickets as required by the tracker.
-   - Apply a status only when the project documents it or the user requests it. Do not close or modify a parent ticket.
-   - Publishing ends here. Tell the user that delivery begins through the project's documented implementation workflow; do not start worktrees, task dispatch, implementation, or commits.
+Create prerequisites before their dependents. Use the IDs returned by the CLI. Repeat `--depends-on` for each prerequisite ID. Repeat `--write-scope` and `--context` for each value. Omit optional flags when they do not apply.
 
-   **Complete when:** every approved ticket exists with its requirements, acceptance criteria, and blockers, every required task exists with its approved plan and dependencies, and no implementation work has started.
+```sh
+pnpm spindle sdd ticket create --feature "<feature>" \
+  --title "<title>" --requirements "<requirements>" --acceptance-criteria "<criteria>"
+
+pnpm spindle sdd task create --feature "<feature>" \
+  --ticket "<ticket-id>" --instructions "<work and completion criteria>" \
+  --write-scope "<repository-relative-file>"
+```
+
+Use `sdd ticket update` or `sdd task update` for approved changes to existing items. Use each command's `--help` for syntax. Do not edit `sdd.json` or duplicate task plans in ticket Markdown. If a command fails, report the error and any IDs already created. Reconcile the current graph before resuming.
+
+**Complete when:** the CLI has recorded every approved ticket, task, and dependency.
+
+## 5. Check the plan and hand off
+
+Run the same `sdd next --verbose --json` command again. Compare the recorded graph with the approved plan. Check ticket Markdown and ledger entries for approved text and context that the graph does not show. Report the feature, ticket IDs, task IDs, and any mismatch. Do not execute the actions that `sdd next` suggests. If the plan matches, tell the user to invoke `/sdd-implement-spec` when ready to start implementation.
+
+**Complete when:** the recorded plan matches the approved plan, all IDs have been reported, and implementation has not started.
