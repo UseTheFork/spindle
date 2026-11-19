@@ -57,7 +57,7 @@ export class SddNextCommand extends Command {
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
     if (feature.specification === undefined) {
       notices.push(
-        "Add spec.md with the approved specification before creating tickets or starting work.",
+        "Fill in spec.md with the approved specification before creating tickets or starting work.",
       );
     } else if (feature.completed) {
       notices.push("Feature is complete.");

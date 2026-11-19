@@ -2,8 +2,9 @@ import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 import { runCli, runCliRaw } from "@test/Helpers/Cli";
-import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
+import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
 import { expect, test } from "vitest";
 
 test("creates numbered feature workspaces and reports an empty graph", async () => {
@@ -13,30 +14,23 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
   await mkdir(join(project, ".spindle"));
   await writeFile(join(project, ".spindle", "config.json"), '{"stacks":["typescript"]}');
 
-  const first = runCli(
-    project,
-    ["--json", "sdd", "create", "--slug", "first", "--spec", "First spec"],
-    path,
-  );
+  const first = runCli(project, ["--json", "sdd", "create", "--slug", "first"], path);
   expect(first.status, first.stderr).toBe(0);
   expect(JSON.parse(first.stdout)).toEqual({
     ok: true,
     data: { name: "0001-first", workspace: join(features, "0001-first") },
   });
 
-  const specification = "# Second spec\n\nMultiple lines.\n";
   const nextDirectory = join(features, "0002-second");
-  const second = runCliRaw(
-    project,
-    ["sdd", "create", "--slug", "second", "--spec", "-", "--design", "Optional design"],
-    path,
-    {},
-    specification,
-  );
+  const second = runCliRaw(project, ["sdd", "create", "--slug", "second"], path, {});
   expect(second.status, second.stderr).toBe(0);
   expect(second.stdout).toContain(nextDirectory);
-  expect(await readFile(join(nextDirectory, "spec.md"), "utf8")).toBe(specification);
-  expect(await readFile(join(nextDirectory, "design.md"), "utf8")).toBe("Optional design");
+  for (const document of ["spec.md", "design.md"]) {
+    const template = await readFile(join(repoRoot, "assets", "Templates", "sdd", document), "utf8");
+    expect(await readFile(join(nextDirectory, document), "utf8")).toBe(
+      RenderText.render(template, { stacks: [], variables: {} }),
+    );
+  }
   expect(await readdir(features)).toHaveLength(2);
   expect(JSON.parse(await readFile(join(nextDirectory, "sdd.json"), "utf8"))).toMatchObject({
     ledgerRepositoryRoot: await realpath(project),
@@ -52,8 +46,7 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
       tickets: [],
       notices: [
         "No tickets in this feature.",
-        "No workflow actions available in this CLI yet.",
-        "Configure sdd.worktree_directory in .spindle/config.json to start worktrees.",
+        "Fill in spec.md with the approved specification before creating tickets or starting work.",
       ],
     },
   });
@@ -82,25 +75,25 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
   expect(missing.stderr).toContain("was not found in this checkout");
 });
 
-test("a design can be saved before the spec without enabling implementation", async () => {
+test("templates and a saved design do not enable implementation before the spec is filled in", async () => {
   const project = await makeTempDir();
   execFileSync("git", ["init", "-q"], { cwd: project });
   await mkdir(join(project, ".spindle"));
   await writeFile(join(project, ".spindle", "config.json"), '{"stacks":["typescript"]}');
   const path = process.env.PATH ?? "";
-  const run = (args: string[], input?: string) =>
-    runCliRaw(project, ["sdd", ...args], path, {}, input);
+  const run = (args: string[]) => runCliRaw(project, ["sdd", ...args], path);
   const feature = "0001-design-first";
   const workspace = join(project, ".spindle", "features", feature);
   const ledger = join(workspace, "sdd.json");
   const design = "# Design\n\nDesign first.\n";
-  const missing = run(["create", "--slug", "missing"]);
-  expect(missing.status).not.toBe(0);
-  expect(missing.stderr).toContain("Provide --spec, --design, or both.");
-  const created = run(["create", "--slug", "design-first", "--design", "-"], design);
+  const created = run(["create", "--slug", "design-first"]);
   expect(created.status, created.stderr).toBe(0);
+  const template = await readFile(join(workspace, "spec.md"), "utf8");
+  const initial = run(["next", "--feature", feature, "--json"]);
+  expect(initial.status, initial.stderr).toBe(0);
+  expect(JSON.parse(initial.stdout).data.actions).toEqual([]);
+  await writeFile(join(workspace, "design.md"), design);
   expect(await readFile(join(workspace, "design.md"), "utf8")).toBe(design);
-  await expect(readFile(join(workspace, "spec.md"))).rejects.toMatchObject({ code: "ENOENT" });
   const before = await readFile(ledger, "utf8");
 
   const next = run(["next", "--feature", feature, "--json"]);
@@ -132,11 +125,13 @@ test("a design can be saved before the spec without enabling implementation", as
   expect(blocked.stderr).toContain("requires a non-empty spec.md");
   expect(await readFile(ledger, "utf8")).toBe(before);
   expect(await readdir(join(workspace, "tickets"))).toEqual([]);
+  expect(await readFile(join(workspace, "spec.md"), "utf8")).toBe(template);
 
   await writeFile(join(workspace, "spec.md"), "# Approved spec\n");
   const recorded = run(ticket);
   expect(recorded.status, recorded.stderr).toBe(0);
   expect(await readdir(join(workspace, "tickets"))).toEqual(["T-0001.md"]);
+  expect(await readFile(join(workspace, "design.md"), "utf8")).toBe(design);
 });
 
 test("ticket and task creation drive readiness and reject invalid graph changes", async () => {
@@ -144,10 +139,11 @@ test("ticket and task creation drive readiness and reject invalid graph changes"
   await mkdir(join(project, ".spindle"));
   await writeFile(join(project, ".spindle", "config.json"), '{"stacks":["typescript"]}');
   const run = (args: string[]) => runCli(project, ["sdd", ...args], process.env.PATH ?? "");
-  const created = run(["create", "--slug", "blocked", "--spec", "# Spec"]);
+  const created = run(["create", "--slug", "blocked"]);
   expect(created.status, created.stderr).toBe(0);
   const name = "0001-blocked";
   const workspace = join(project, ".spindle", "features", name);
+  await writeFile(join(workspace, "spec.md"), "# Spec");
   const ledgerPath = join(workspace, "sdd.json");
   const ticketArgs = [
     "ticket",

@@ -36,7 +36,8 @@ export async function startFixture(checkout = "repo") {
     runCliRaw(repo, ["--json", "sdd", ...args], process.env.PATH ?? "");
   const name = "0001-example";
   const workspace = join(repo, ".spindle", "features", name);
-  const created = run("create", "--slug", "example", "--spec", "Feature requirements.");
+  const created = run("create", "--slug", "example");
   expect(created.status, created.stderr).toBe(0);
+  await writeFile(join(workspace, "spec.md"), "Feature requirements.");
   return { repo, workspace, worktrees, name, setup, git, run };
 }

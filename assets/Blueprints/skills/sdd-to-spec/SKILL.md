@@ -5,14 +5,14 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 2.0.1
+    version: 2.1.0
 ---
 
 # To Spec
 
 Write a spec that reflects the agreed requirements and the repository. Save it in an SDD feature workspace. Do not create tickets or start implementation.
 
-Accept one optional design file path. If omitted, use the feature workspace's `design.md` when present. Otherwise, use the requirements already agreed in the conversation.
+Accept one optional design file path. If omitted, use the feature workspace's `design.md` when it contains a filled-in design. An unfilled design template does not count as a design. Otherwise, use the requirements already agreed in the conversation.
 
 ## Workflow
 
@@ -31,7 +31,7 @@ Accept one optional design file path. If omitted, use the feature workspace's `d
    **Complete when:** the codebase context and user-confirmed test seams are recorded.
 
 3. **Draft the spec.**
-   - Give the spec a feature title. Use these sections: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
+   - Use the workspace's `spec.md` template, or the Spindle installation's `assets/Templates/sdd/spec.md` for a new workspace, as the outline. Give the spec a feature title. Use these sections: Problem Statement, Solution, User Stories, Implementation Decisions, Testing Decisions, Out of Scope, and Further Notes.
    - Follow the `private-ref-ears` skill when writing observable behavior requirements and acceptance outcomes.
    - Give each important user story a concise, observable acceptance outcome or example scenario focused on user-visible behavior. Leave implementation-slice completion criteria to tickets; no fixed scenario format is required.
    - Use domain glossary terms. Do not include file paths or code snippets unless a prototype captures a decision more clearly than prose.
@@ -40,9 +40,9 @@ Accept one optional design file path. If omitted, use the feature workspace's `d
    **Complete when:** the user approves the spec and no open question blocks ticket planning.
 
 4. **Save the spec and hand off.**
-   - If the feature workspace exists, save the spec as its `spec.md`. Create that file if the workspace was created with only a design. Do not create a second workspace or edit the ledger.
-   - Otherwise, derive a lowercase kebab-case slug. Run `{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>" --spec "<spec Markdown>"` from the original checkout. Pass the approved design Markdown with `--design` when a design applies. Either text flag accepts `-` for standard input, but only one can use it per command.
-   - Use the workspace path returned by `sdd create` to locate the new `spec.md`. If creation fails, report the error. Check for a partially created workspace before retrying.
+   - If the feature workspace exists, fill in its `spec.md` with the approved spec. Read and preserve existing content outside the approved changes. Create that file if it is missing. Do not create a second workspace or edit the ledger.
+   - Otherwise, derive a lowercase kebab-case slug. Run `{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>"` from the original checkout to create the workspace and its spec and design templates.
+   - Use the workspace path returned by `sdd create` to locate `spec.md` and fill it in with the approved spec. Preserve any approved design in `design.md`; for a new workspace, save the approved design there when one applies. Otherwise, leave the design template unfilled. If creation fails, report the error. Check for a partially created workspace before retrying.
    - Report the saved spec path. Ask the user to invoke `/sdd-to-tickets` with that path. Do not invoke it automatically.
 
    **Complete when:** the approved spec is saved in one feature workspace and the user has its path for ticket planning.

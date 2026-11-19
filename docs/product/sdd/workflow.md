@@ -141,8 +141,8 @@ Each feature has a workspace under `.spindle/features/<feature>/` in the
 original checkout:
 
 ```text
-spec.md     Feature requirements; absent until a design-only workspace receives its spec
-design.md   Optional feature design
+spec.md     Feature requirements template; filled in by the spec-authoring agent
+design.md   Design template; optionally filled in by the design-authoring agent
 sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, submission comments, reviews, findings
 tickets/    Ticket requirements, acceptance criteria and comments
 ```
@@ -687,7 +687,8 @@ for a list. A long-text flag accepts text as its value, or `-` to read the
 value from standard input.
 
 ```sh
-spindle sdd create --slug dispatch --spec 'Add task dispatch.'
+spindle sdd create --slug dispatch
+# Fill in the returned workspace's spec.md before creating tickets.
 spindle sdd ticket create --feature 0001-dispatch --title 'Dispatch tasks' \
   --requirements 'Dispatch ready tasks.' --acceptance-criteria 'Blocked tasks cannot start.'
 spindle sdd task create --feature 0001-dispatch --ticket T-0001 \
@@ -695,11 +696,12 @@ spindle sdd task create --feature 0001-dispatch --ticket T-0001 \
 spindle sdd next --feature 0001-dispatch --json
 ```
 
-`create` accepts `--spec`, `--design`, or both. To save an approved design
-before its spec, use `spindle sdd create --slug <slug> --design -` and send
-the design Markdown on standard input. Save the approved spec as `spec.md`
-in that same workspace before creating tickets or starting worktrees. Only
-one of `--spec` and `--design` can read from standard input. `next` accepts a
+`create` requires only `--slug` and scaffolds rendered `spec.md` and `design.md`
+templates. The `sdd-author-design` skill fills in `design.md` and leaves the spec
+template for the `sdd-to-spec` skill. The spec-only path fills in `spec.md` and
+leaves the design template untouched. Save the approved spec in that same
+workspace before creating tickets or starting worktrees; an untouched spec
+template does not enable implementation. `next` accepts a
 numbered workspace name or a directory under `.spindle/features/` in the
 original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
@@ -826,7 +828,7 @@ failure. `error.details` is optional and provides additional context.
 
 | Command                          | Purpose                                                                                                                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                                                                            |
+| `create`                         | Create a numbered feature workspace in the original checkout with spec and design templates and a new `sdd.json` ledger.                                                                                                  |
 | `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
 | `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
 | `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                                    |

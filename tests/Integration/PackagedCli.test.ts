@@ -95,18 +95,13 @@ test("published tarball supplies assets for initialization and SDD documents", (
     "--no-interactive",
   ]);
   expect(initialized.status, initialized.stderr).toBe(0);
-  const created = cli.run(workspace, [
-    "sdd",
-    "create",
-    "--slug",
-    "tarball-feature",
-    "--spec",
-    "Tarball feature",
-    "--design",
-    "## Intent\n\nTarball design.",
-  ]);
+  const created = cli.run(workspace, ["sdd", "create", "--slug", "tarball-feature"]);
   expect(created.status, created.stderr).toBe(0);
   const feature = join(workspace, ".spindle/features", "2027-tarball-feature");
+  expect(readFileSync(join(feature, "spec.md"), "utf8")).toContain("[PROBLEM STATEMENT]");
+  expect(readFileSync(join(feature, "design.md"), "utf8")).toContain("[INTENT]");
+  writeFileSync(join(feature, "spec.md"), "Tarball feature");
+  writeFileSync(join(feature, "design.md"), "## Intent\n\nTarball design.");
   const ticket = cli.run(workspace, [
     "sdd",
     "ticket",
@@ -151,17 +146,7 @@ test("packaged SDD create and next expose feature state outside the package chec
   expect(initialized.status, initialized.stderr).toBe(0);
   expect(initialized.stdout).not.toMatch(/^\{"ok":/);
 
-  const created = cli.run(gitWorkspace, [
-    "--json",
-    "sdd",
-    "create",
-    "--slug",
-    "packaged-feature",
-    "--spec",
-    "# Packaged Feature\n\nA packaged feature specification.",
-    "--design",
-    "## Intent\n\nA packaged feature design.",
-  ]);
+  const created = cli.run(gitWorkspace, ["--json", "sdd", "create", "--slug", "packaged-feature"]);
   expect(created.status, created.stderr).toBe(0);
   expect(created.stderr).toBe("");
   const featureDirectory = join(gitWorkspace, ".spindle/features", "2027-packaged-feature");
@@ -173,9 +158,10 @@ test("packaged SDD create and next expose feature state outside the package chec
   expect(createdEnvelope).toEqual({ ok: true, data: expected });
   const specificationPath = join(featureDirectory, "spec.md");
   const ledgerPath = join(featureDirectory, "sdd.json");
-  expect(readFileSync(specificationPath, "utf8")).toBe(
-    "# Packaged Feature\n\nA packaged feature specification.",
+  expect(readFileSync(specificationPath, "utf8")).toContain(
+    "## Problem Statement\n\n[PROBLEM STATEMENT]",
   );
+  expect(readFileSync(specificationPath, "utf8")).not.toContain("{{");
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
     "design.md",
@@ -206,9 +192,13 @@ test("packaged SDD create and next expose feature state outside the package chec
     },
   });
   expect(nextEnvelope.data.notices).toContain("No tickets in this feature.");
+  expect(nextEnvelope.data.notices).toContain(
+    "Fill in spec.md with the approved specification before creating tickets or starting work.",
+  );
   expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeNext);
   expect(git("status", "--porcelain=v1")).toBe(worktreeStatusBefore);
 
+  writeFileSync(specificationPath, "# Packaged Feature\n\nA packaged feature specification.");
   const createdTicket = cli.run(gitWorkspace, [
     "--json",
     "sdd",
@@ -346,7 +336,7 @@ test("packaged command discovery and help remain intact", () => {
   for (const [args, expectedContent] of [
     [
       ["sdd", "create", "--help"],
-      ["--slug <slug>", "--spec <text>", "--design <text>"],
+      ["--slug <slug>", "spec and design templates"],
     ],
     [["sdd", "next", "--help"], ["--feature <directory>"]],
     [
@@ -492,10 +482,11 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
     ...[
       ["sdd", "create"],
       ["sdd", "create", "--slug"],
-      ["sdd", "create", "--slug", "feature"],
-      ["sdd", "create", "--slug", "one", "--slug", "two", "--spec", "Feature"],
-      ["sdd", "create", "--slug", "feature", "--spec", "Feature", "--unknown"],
-      ["sdd", "create", "--slug", "feature", "--spec", "Feature", "nested"],
+      ["sdd", "create", "--slug", "one", "--slug", "two"],
+      ["sdd", "create", "--slug", "feature", "--spec", "Feature"],
+      ["sdd", "create", "--slug", "feature", "--design", "Design"],
+      ["sdd", "create", "--slug", "feature", "--unknown"],
+      ["sdd", "create", "--slug", "feature", "nested"],
       ["sdd", "next"],
       ["sdd", "next", "--feature"],
       ["sdd", "next", "--feature", "missing.md", "--feature", "another.md"],

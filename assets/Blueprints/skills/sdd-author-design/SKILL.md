@@ -5,7 +5,7 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 2.0.0
+    version: 2.1.0
 ---
 
 # Author an SDD Design
@@ -27,7 +27,7 @@ flowchart TD
 
 ## A. Understand the brief
 
-Identify the user goal, success outcomes, scope, and constraints. Read relevant project docs and code before asking questions. Identify the original checkout and any existing numbered feature workspace. If that workspace already has a spec, ask before adding or revising a design for it.
+Identify the user goal, success outcomes, scope, and constraints. Read relevant project docs and code before asking questions. Identify the original checkout and any existing numbered feature workspace. If that workspace already has a filled-in spec, ask before adding or revising a design for it. An unfilled spec template does not count as a spec.
 
 **Complete when:** the brief and workspace are clear, and any consequential open decision is named.
 
@@ -61,14 +61,14 @@ Show the draft and ask for approval. Return to A if the user requests changes. C
 
 For an existing workspace, save the approved text as its `design.md`. Read and preserve existing content outside the approved changes. Do not create another workspace or edit the ledger.
 
-For a new feature, use a lowercase kebab-case slug. Run this command from the original checkout and supply the approved Markdown on standard input:
+For a new feature, use a lowercase kebab-case slug. Run this command from the original checkout to create the workspace and its spec and design templates:
 
 ```sh
-{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>" --design -
+{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>"
 ```
 
-Use the returned workspace path to locate `design.md`. If creation fails, report the error and check for a partially created workspace before retrying.
+Use the returned workspace path to locate `design.md` and fill it in with the approved design. Leave `spec.md` as an unfilled template for the `sdd-to-spec` skill. If creation fails, report the error and check for a partially created workspace before retrying.
 
-Report the design path and ask the user to invoke `/sdd-to-spec` with it. Do not invoke that skill automatically or create a placeholder spec.
+Report the design path and ask the user to invoke `/sdd-to-spec` with it. Do not invoke that skill automatically or fill in the spec.
 
 **Complete when:** the approved design is saved in one feature workspace and the user has its path for spec authoring.

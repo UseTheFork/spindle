@@ -24,9 +24,10 @@ built-in commands are always included in the guide and `tool list`; their keys
 are reserved and are not stored in the registry. A missing `tooling` array is
 initialized to an empty array by `init` or `update`; existing entries are
 preserved. `sdd create --slug <slug>` creates a numbered feature workspace
-beneath `.spindle/features/` in the original checkout. Supply `--spec`,
-`--design`, or both with the corresponding Markdown. A design-only workspace
-needs a non-empty `spec.md` before tickets or worktrees can be created.
+beneath `.spindle/features/` in the original checkout, with rendered `spec.md`
+and `design.md` templates. The `sdd-author-design` and `sdd-to-spec` skills fill
+in the corresponding files directly. The spec must be filled in before tickets
+or worktrees can be created; an untouched spec template does not enable work.
 Feature and ticket creation require valid Project Settings.
 `sdd next --feature <feature>` reads the work graph without changing it.
 
@@ -111,9 +112,9 @@ add the provider class to the registry under its chosen name.
 Each reconciliation run gets a fresh application-managed computed-context
 service. Each registered provider is instantiated with the Application and
 rendered once per operation; repeated context requests reuse the resolved values
-across Blueprints and version inspection. SDD feature creation likewise shares
-one render context across its spec and optional design, and ticket creation
-renders with its existing command inputs. A later operation resolves providers
+across Blueprints and version inspection. SDD feature creation renders the default
+spec and design outlines without caller-supplied variables, and ticket creation
+renders with its existing command inputs. A later reconciliation resolves providers
 again.
 Computed values are not independently persisted in Project Settings, prompted for, or
 directly overridable by project Variables or CLI options. Their source inputs

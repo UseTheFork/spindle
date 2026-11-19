@@ -43,6 +43,45 @@ test("creates and loads a workspace without putting Markdown in the ledger", asy
   await expect(service.load(name)).resolves.toMatchObject(input);
 });
 
+test("a filled-in spec enables tickets while the optional design remains a template", async () => {
+  const root = await makeTempDir();
+  const service = await serviceFor(root);
+  const { workspace } = await service.createNumbered("example");
+  const design = await readFile(join(workspace, "design.md"), "utf8");
+  const draft = await service.load(name);
+  expect(draft.specification).toBeUndefined();
+  expect(draft.design).toBeUndefined();
+
+  await writeFile(join(workspace, "spec.md"), "# Approved spec\n");
+  const ticket = await service.createTicket(name, {
+    title: "Implement",
+    requirements: "Do the work.",
+    acceptanceCriteria: "The work is done.",
+    dependencies: [],
+  });
+  expect(ticket.ticket).toBe("T-0001");
+  expect((await service.load(name)).specification).toBe("# Approved spec\n");
+  expect((await service.load(name)).design).toBeUndefined();
+  expect(await readFile(join(workspace, "design.md"), "utf8")).toBe(design);
+});
+
+test("template rendering failures do not allocate a feature workspace", async () => {
+  const root = await makeTempDir();
+  const templatePath = join(root, "invalid.md");
+  await writeFile(templatePath, "{{ variables.missing }}");
+  const app = new Application({ basePath: root });
+  app.instance("path.workspace", root);
+  app.register(SubagentDrivenDevelopmentServiceProvider);
+  await app.boot();
+  vi.spyOn(app, "assetsPath").mockReturnValue(templatePath);
+  const service = await app.make(FeatureWorkspaceService);
+
+  await expect(service.createNumbered("example")).rejects.toThrow();
+  await expect(readdir(join(root, ".spindle", "features"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
+});
+
 test("renders ticket Markdown from the SDD template", async () => {
   const root = await makeTempDir();
   const templatePath = join(root, "ticket.md");
@@ -55,7 +94,10 @@ test("renders ticket Markdown from the SDD template", async () => {
   app.instance("path.workspace", root);
   app.register(SubagentDrivenDevelopmentServiceProvider);
   await app.boot();
-  vi.spyOn(app, "assetsPath").mockReturnValue(templatePath);
+  const assetsPath = app.assetsPath.bind(app);
+  vi.spyOn(app, "assetsPath").mockImplementation((path = "") =>
+    path === join("Templates", "sdd", "ticket.md") ? templatePath : assetsPath(path),
+  );
   const service = await app.make(FeatureWorkspaceService);
   await service.create({ name, specification: "# Spec\n" });
 

@@ -50,12 +50,13 @@ const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const numberedWorkspace = /^([0-9]{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
 export class FeatureWorkspaceService extends Service {
-  public async createNumbered(slug: string, records: Omit<NewWorkspace, "name">) {
+  public async createNumbered(slug: string) {
     this.assertApplicationBooted();
     if (slug !== slug.trim() || !slugPattern.test(slug)) {
       throw new Error("Feature slug must be lowercase kebab-case.");
     }
 
+    const records = await this.featureTemplates();
     const features = await this.featuresDirectory(true);
     return this.withLock(join(features, ".allocation-lock"), async () => {
       let highest = 0n;
@@ -626,6 +627,19 @@ export class FeatureWorkspaceService extends Service {
     });
   }
 
+  private async featureTemplates(): Promise<{ specification: string; design: string }> {
+    const [specification, design] = await Promise.all(
+      [templateCatalog.sdd.spec, templateCatalog.sdd.design].map((template) =>
+        this.readRecord(this.app.assetsPath(join("Templates", template))),
+      ),
+    );
+    const context = { stacks: [], variables: {} };
+    return {
+      specification: RenderText.render(specification, context),
+      design: RenderText.render(design, context),
+    };
+  }
+
   private git(git: GitService, cwd: string, args: string[]): string {
     const result = git.run(args, { cwd, encoding: "utf8" });
     if (result.error) throw result.error;
@@ -879,15 +893,16 @@ export class FeatureWorkspaceService extends Service {
     ledger: FeatureLedger,
     pending?: { id: string; markdown: string },
   ): Promise<Feature> {
-    const design = await this.readOptionalRecord(join(workspace, "design.md"));
-    const specification = await this.readOptionalRecord(join(workspace, "spec.md"));
+    const templates = await this.featureTemplates();
+    const designRecord = await this.readOptionalRecord(join(workspace, "design.md"));
+    const specRecord = await this.readOptionalRecord(join(workspace, "spec.md"));
+    const specIsTemplate = specRecord?.trim() === templates.specification.trim();
+    const specification = specIsTemplate ? undefined : specRecord;
+    const design = designRecord?.trim() === templates.design.trim() ? undefined : designRecord;
+    const draft = specIsTemplate || (specRecord === undefined && !!design?.trim());
     if (
       !specification?.trim() &&
-      (specification !== undefined ||
-        !design?.trim() ||
-        ledger.pendingStart ||
-        ledger.featureBranch ||
-        ledger.tickets.length > 0)
+      (!draft || ledger.pendingStart || ledger.featureBranch || ledger.tickets.length > 0)
     ) {
       throw new Error(`Feature '${name}' requires a non-empty spec.md.`);
     }
