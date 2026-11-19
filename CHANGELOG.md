@@ -1,5 +1,17 @@
 # @usethefork/spindle
 
+## 0.6.1
+
+### Patch Changes
+
+- [`a5ee4c0`](https://github.com/UseTheFork/spindle/commit/a5ee4c0d2a39852325cce57d5a899fc923cd339d) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Scaffold spec and design templates with `spindle sdd create --slug <slug>`. Update the SDD authoring skills to fill in the corresponding templates, and block implementation while the spec remains untouched.
+
+  Remove the `--spec` and `--design` options. Create the workspace first, then save the approved documents directly in that workspace.
+
+- [`e5d8bd8`](https://github.com/UseTheFork/spindle/commit/e5d8bd8470b65997ce28068fe4699249468e3cbd) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Support `~` and `~/...` in `sdd.worktree_directory` while still requiring worktrees to resolve outside the original checkout. Run `/sdd-implement-spec` with `sdd-orchestrator` selected as the active agent instead of launching a nested orchestrator. Give SDD task workers, reviewers, and merge agents access to skills, and require them to read and follow the project constitution and tooling guide before starting an assignment.
+
+- [`6110165`](https://github.com/UseTheFork/spindle/commit/61101656acf2e855719c1c222c33e4ff5ddb2c4f) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Draft SDD designs and specs directly in their feature workspace templates. Add workflow flowcharts and require the design, spec, and ticket-planning skills to commit their work before handing off to the next skill. Use the commit-format skill for message guidance, exclude unrelated changes, and stop before handoff if committing fails.
+
 ## 0.6.0
 
 ### Minor Changes
