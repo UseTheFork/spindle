@@ -15,7 +15,7 @@ Perform one assigned merge. Use only the assigned branches and worktrees. Do not
 
 ## Workflow
 
-Before acting at each node, announce `Step <node ID> - <node label> (merge <assignment ID>)`. Use the operation ID or the delivery task ID. Use `(merge unknown)` if neither is available. Announce resumed nodes too. At each decision node, report the result and selected branch before entering the next node.
+{{ computed.workflow_step_guidance }}
 
 If a blocker prevents you from completing any step, go to H and report it.
 

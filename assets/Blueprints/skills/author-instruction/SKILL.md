@@ -11,7 +11,9 @@ metadata:
 
 Create or update a project instruction in `.github/instructions/**/*.instructions.md` based on the user's requirements.
 
-## Authoring flow
+## Workflow
+
+{{ computed.workflow_step_guidance }}
 
 {{ computed.authoring_flowchart }}
 
