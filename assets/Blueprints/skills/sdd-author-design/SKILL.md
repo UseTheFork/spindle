@@ -5,7 +5,7 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 2.2.0
+    version: 2.3.0
 ---
 
 # Author an SDD Design
@@ -23,7 +23,8 @@ flowchart TD
     D --> E{Design approved?}
     E -- Revise --> A
     E -- Approved --> F[Save the design]
-    F --> G[Commit the work]
+    F --> F1[Grill and update the design]
+    F1 --> G[Commit the work]
     G --> H[Hand off]
 ```
 
@@ -72,6 +73,14 @@ Show the draft and ask for approval. Return to A if the user requests changes. C
 Ensure the approved text is saved in the same workspace's `design.md`. Read and preserve existing content outside the approved changes. Leave `spec.md` unchanged for the `sdd-to-spec` skill. Do not create another workspace or edit the ledger.
 
 **Complete when:** the approved design is saved in the feature workspace.
+
+## F1. Grill and update the design
+
+Read the saved `design.md` in the feature workspace. Use the `grill` skill to stress-test that design with the user. Summarize the resulting decisions and wait for the user to confirm them before editing the file.
+
+After confirmation, update the same `design.md` to reflect the confirmed decisions. Preserve content that the decisions do not change. If no changes are needed, leave the file unchanged. Continue to G only after confirmation and any necessary updates.
+
+**Complete when:** the user confirms the decisions and `design.md` reflects them.
 
 ## G. Commit the work
 
