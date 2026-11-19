@@ -621,10 +621,10 @@ flowchart TD
 ### Final-delivery merge agent
 
 The merge agent receives a normal task assignment with explicit merge
-permissions. The assignment identifies the ticket worktree, original branch,
-file scope and report path. The file scope must cover incoming file changes
-and conflict resolutions. No other task or Git operation may run in that
-ticket worktree while the agent works.
+permissions. The assignment identifies the ticket worktree, original branch
+commit, file scope and report path. The file scope must cover incoming file
+changes and conflict resolutions. No other task or Git operation may run in
+that ticket worktree while the agent works.
 
 The merge agent:
 
@@ -672,13 +672,14 @@ spindle sdd next --feature 0001-dispatch --json
 can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
-`ticket start`, `dispatch`, ticket `review`, and `integrate` when available.
-Worker assignments, ordinary task submission, ticket acceptance review,
-finding dismissal, linked fix tasks, and ticket integration are supported.
-Feature review and delivery are not implemented yet. If a start, ticket
-commit, or integration is interrupted, `next` reports the pending operation
-and prints the command to resume it. Resume uses the journaled commits,
-branches and worktrees rather than recomputing them.
+`ticket start`, `dispatch`, ticket and feature review, delivery-ticket
+creation, `integrate`, and `finish` when available. Worker assignments,
+ordinary task submission, ticket acceptance review, finding dismissal, linked
+fix tasks, ticket integration, feature review, delivery and finish are
+supported. If a start, ticket commit, integration or finish is interrupted,
+`next` reports the pending operation and prints the command to resume it.
+Resume uses the journaled commits, branches and worktrees rather than
+recomputing them.
 
 Start all reviewers in a ticket's round before submitting results. Do not
 add tasks while a review result is pending. A ticket
@@ -776,6 +777,7 @@ failure. `error.details` is optional and provides additional context.
 | `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                  |
 | `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings. Conflict findings require a scoped merge task.                                                  |
 | `integrate`                      | Merge an accepted ticket into its feature, record conflicts for scoped resolution, or resume an interrupted integration.                                                   |
+| `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                 |
 | `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                       |
 
 ## Recovery and safety

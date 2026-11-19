@@ -1,3 +1,4 @@
+import { deliveryDetailsSchema } from "@spindle/SubagentDrivenDevelopment/Models/DeliveryDetails";
 import { taskIdSchema, taskSchema } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import { z } from "zod";
 
@@ -12,6 +13,7 @@ export const ticketSchema = z.strictObject({
   tasks: z.array(taskSchema),
   branch: z.string().min(1).optional(),
   worktree: z.string().min(1).optional(),
+  delivery: deliveryDetailsSchema.optional(),
   workRoundCommits: z.array(z.string().min(1)),
   committedTaskIds: z.array(taskIdSchema).optional(),
   merged: z.boolean(),

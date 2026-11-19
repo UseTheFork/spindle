@@ -2,9 +2,11 @@ import type { CommandConstructor } from "@spindle/Commands/Command";
 import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 import { SddAssignmentCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddAssignmentCommand";
 import { SddCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddCreateCommand";
+import { SddDeliveryCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDeliveryCreateCommand";
 import { SddDispatchCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDispatchCommand";
 import { SddFindingDismissCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingDismissCommand";
 import { SddFindingFixCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingFixCommand";
+import { SddFinishCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFinishCommand";
 import { SddIntegrateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddIntegrateCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
 import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
@@ -15,6 +17,8 @@ import { SddTaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Command
 import { SddTicketCommitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCommitCommand";
 import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCreateCommand";
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { FeatureFinishService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinishService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
@@ -28,6 +32,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     return [
       SddCreateCommand,
       SddNextCommand,
+      SddDeliveryCreateCommand,
+      SddFinishCommand,
       SddTicketCreateCommand,
       SddTaskCreateCommand,
       SddStartCommand,
@@ -47,6 +53,8 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
   public register(): void {
     this.app.singleton(WorkGraphService);
     this.app.singleton(FeatureWorkspaceService);
+    this.app.singleton(DeliveryService);
+    this.app.singleton(FeatureFinishService);
     this.app.singleton(WorktreeStartService);
     this.app.singleton(TaskDispatchService);
     this.app.singleton(TicketCommitService);

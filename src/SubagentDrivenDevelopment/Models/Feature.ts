@@ -1,4 +1,5 @@
 import { findingSchema } from "@spindle/SubagentDrivenDevelopment/Models/Finding";
+import { finishJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/FinishJournal";
 import { reviewRoundSchema } from "@spindle/SubagentDrivenDevelopment/Models/ReviewRound";
 import { startJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/StartJournal";
 import { ticketSchema } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
@@ -13,9 +14,11 @@ export const featureSchema = z.strictObject({
   originalBranch: z.string().min(1).optional(),
   featureBranch: z.string().min(1).optional(),
   featureWorktree: z.string().min(1).optional(),
+  completed: z.literal(true).optional(),
   pendingStart: startJournalSchema.optional(),
   pendingTicketCommit: ticketCommitJournalSchema.optional(),
   pendingIntegration: ticketIntegrationJournalSchema.optional(),
+  pendingFinish: finishJournalSchema.optional(),
   tickets: z.array(ticketSchema),
   findings: z.array(findingSchema),
   reviewRounds: z.array(reviewRoundSchema),

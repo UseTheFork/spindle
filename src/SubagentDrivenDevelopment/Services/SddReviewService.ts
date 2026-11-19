@@ -37,6 +37,14 @@ const responseTemplate = [
 ].join("\n");
 
 export class SddReviewService extends Service {
+  public hasPassedFeatureReview(feature: Feature): boolean {
+    return feature.reviewRounds.some(
+      ({ target, reviews }) =>
+        target.type === "feature" &&
+        reviews.some(({ result }) => result?.recommendation === "pass"),
+    );
+  }
+
   public async start(reference: string, target: ReviewTarget, scope: string, focus?: string) {
     if (!scope.trim() || (focus !== undefined && !focus.trim())) {
       throw new Error("Review scope and optional focus must not be empty.");

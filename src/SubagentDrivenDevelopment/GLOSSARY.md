@@ -66,3 +66,11 @@ Verifiable information that supports a review recommendation or finding.
 The final incorporation of a completed feature into the branch from which it
 started.
 _Avoid_: Release
+
+**Delivery ticket**:
+A ticket that brings the original branch's latest commits into a feature before
+delivery.
+
+**Final-delivery merge agent**:
+A worker assigned to merge the original branch into a delivery ticket and
+resolve conflicts within its assigned scope.

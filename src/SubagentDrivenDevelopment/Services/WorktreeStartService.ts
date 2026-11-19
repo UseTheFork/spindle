@@ -40,6 +40,20 @@ export class WorktreeStartService extends Service {
         if (ticket) {
           if (!ledger.featureBranch || !ledger.featureWorktree)
             throw new Error("Start the feature first.");
+          if (
+            ticket.delivery &&
+            (ticket.delivery.originalBranch !== ledger.originalBranch ||
+              ticket.delivery.baseCommit !==
+                this.run(git, original, [
+                  "rev-parse",
+                  "--verify",
+                  `refs/heads/${ledger.featureBranch}`,
+                ]))
+          ) {
+            throw new Error(
+              `Delivery ticket '${ticket.id}' no longer matches the feature branch tip.`,
+            );
+          }
           if (ticket.branch || ticket.worktree)
             throw new Error(`Ticket '${ticket.id}' has already started.`);
           const readiness = graph
@@ -97,6 +111,11 @@ export class WorktreeStartService extends Service {
       } else if (ticket) {
         ticket.branch = plan.branch;
         ticket.worktree = plan.worktree;
+        if (ticket.delivery && ticket.delivery.baseCommit !== plan.commit) {
+          throw new Error(
+            `Delivery ticket '${ticket.id}' started from a different feature commit.`,
+          );
+        }
       }
       delete ledger.pendingStart;
       await publish(ledger);

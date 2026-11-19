@@ -4,6 +4,7 @@ import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
+import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
@@ -54,7 +55,9 @@ export class SddNextCommand extends Command {
     const start = `spindle sdd start --feature ${feature.name}`;
     const ticketStart = (ticketId: string) =>
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
-    if (feature.pendingIntegration) {
+    if (feature.completed) {
+      notices.push("Feature is complete.");
+    } else if (feature.pendingIntegration) {
       notices.push("A ticket integration is pending. Run the listed command to resume it.");
       actions.push(
         `spindle sdd integrate --feature ${feature.name} --ticket ${feature.pendingIntegration.ticketId}`,
@@ -76,6 +79,9 @@ export class SddNextCommand extends Command {
           ? start
           : ticketStart(feature.pendingStart.ticketId),
       );
+    } else if (feature.pendingFinish) {
+      notices.push("A feature finish is pending. Run the listed command to resume it.");
+      actions.push(`spindle sdd finish --feature ${feature.name}`);
     } else {
       if (
         canStart &&
@@ -166,6 +172,8 @@ export class SddNextCommand extends Command {
       !feature.pendingStart &&
       !feature.pendingTicketCommit &&
       !feature.pendingIntegration &&
+      !feature.pendingFinish &&
+      !feature.completed &&
       feature.tickets.length > 0 &&
       feature.tickets.every(({ merged }) => merged)
     ) {
@@ -200,9 +208,25 @@ export class SddNextCommand extends Command {
         }
       }
     }
+    if (featureReview?.state === "Accepted" && !feature.completed) {
+      const reviews = await this.app.make(SddReviewService);
+      if (!reviews.hasPassedFeatureReview(feature)) {
+        notices.push("At least one feature review round must pass before delivery.");
+      } else {
+        const delivery = await (await this.app.make(DeliveryService)).plan(reference);
+        if (delivery.needsDelivery) {
+          const scope = delivery.requiredWriteScope
+            .map((path) => ` --write-scope=${SddNextCommand.shellArgument(path)}`)
+            .join("");
+          actions.push(`spindle sdd delivery create --feature ${feature.name}${scope}`);
+        } else {
+          actions.push(`spindle sdd finish --feature ${feature.name}`);
+        }
+      }
+    }
     if (actions.length === 0) {
-      notices.push("No workflow actions available in this CLI yet.");
-      if (settings.status === "valid" && !settings.data.sdd) {
+      if (!feature.completed) notices.push("No workflow actions available in this CLI yet.");
+      if (!feature.completed && settings.status === "valid" && !settings.data.sdd) {
         notices.push(
           "Configure sdd.worktree_directory in .spindle/config.json to start worktrees.",
         );
@@ -214,11 +238,12 @@ export class SddNextCommand extends Command {
           dependencies,
           merged,
           worktree,
-          tasks: tasks.map(({ id, state, dependencies, writeScope }) => ({
+          tasks: tasks.map(({ id, state, dependencies, writeScope, deliveryMerge }) => ({
             id,
             state,
             dependencies,
             writeScope,
+            ...(deliveryMerge ? { deliveryMerge } : {}),
           })),
         }))
       : undefined;
@@ -239,5 +264,11 @@ export class SddNextCommand extends Command {
         [code.replaceAll("-", " "), ...Object.values(details)].join(" "),
       )
       .join("; ");
+  }
+
+  private static shellArgument(value: string): string {
+    return /^[a-zA-Z0-9_./-]+$/.test(value) && value === value.trim()
+      ? value
+      : `'${value.replaceAll("'", "'\\''")}'`;
   }
 }

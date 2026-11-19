@@ -43,6 +43,36 @@ export class TaskDispatchService extends Service {
       this.requireAttempt(attempt);
       const featurePath = this.featurePath(feature.name);
       const assignmentCommand = `spindle sdd assignment --feature ${this.shellArgument(featurePath)} --task ${this.shellArgument(task.id)} --attempt ${attempt} --json`;
+      if (task.deliveryMerge) {
+        const git = await this.app.make(GitService);
+        if (!ticket.delivery) {
+          throw new Error(`Delivery task '${task.id}' has no delivery ticket metadata.`);
+        }
+        if (task.deliveryMerge.originalBranch !== ticket.delivery.originalBranch) {
+          throw new Error(`Delivery task '${task.id}' targets a different original branch.`);
+        }
+        const sourceCommit = ticket.delivery.sourceCommit;
+        const object = git.run(["cat-file", "-e", `${sourceCommit}^{commit}`], {
+          cwd: this.app.workspaceRoot,
+          encoding: "utf8",
+        });
+        if (object.error) throw object.error;
+        if (object.status !== 0) {
+          throw new Error(`Delivery source commit '${sourceCommit}' is not available locally.`);
+        }
+        const mergeBase = git.run(["merge-base", ticket.delivery.baseCommit, sourceCommit], {
+          cwd: this.app.workspaceRoot,
+          encoding: "utf8",
+        });
+        if (mergeBase.error) throw mergeBase.error;
+        if (mergeBase.status === 1) {
+          throw new Error("The feature and original branches no longer share a merge base.");
+        }
+        if (mergeBase.status !== 0) {
+          throw new Error(`git merge-base failed: ${mergeBase.stderr.trim()}`);
+        }
+        task.deliveryMerge.sourceCommit = sourceCommit;
+      }
       task.state = "InProgress";
       task.attempt = attempt;
       await publish(ledger);
@@ -65,6 +95,14 @@ export class TaskDispatchService extends Service {
     this.requireActiveAssignment(task, attempt);
     if (!ticket.worktree || ticket.merged)
       throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
+    if (
+      task.deliveryMerge &&
+      (!ticket.delivery ||
+        task.deliveryMerge.originalBranch !== ticket.delivery.originalBranch ||
+        !task.deliveryMerge.sourceCommit)
+    ) {
+      throw new Error(`Delivery task '${task.id}' has no valid merge assignment.`);
+    }
     const finding =
       task.discoveredFrom === undefined
         ? feature.findings.find(
@@ -78,12 +116,16 @@ export class TaskDispatchService extends Service {
     if (task.discoveredFrom !== undefined && !finding) {
       throw new Error(`Originating finding '${task.discoveredFrom}' was not found.`);
     }
-    const merge =
+    const conflictMerge =
       finding?.type === "conflict" &&
       finding.ticketId === ticket.id &&
       finding.decision === "open" &&
       finding.fixWork?.type === "task" &&
       finding.fixWork.taskId === task.id;
+    const merge = conflictMerge || task.deliveryMerge !== undefined;
+    if (task.deliveryMerge && !ticket.delivery) {
+      throw new Error(`Delivery task '${task.id}' has no delivery ticket metadata.`);
+    }
 
     return {
       role: merge ? "merge-agent" : "worker",
@@ -97,6 +139,15 @@ export class TaskDispatchService extends Service {
       context: task.context ?? [],
       requirements: ticket.requirements,
       acceptanceCriteria: ticket.acceptanceCriteria,
+      ...(task.deliveryMerge
+        ? {
+            delivery: {
+              originalBranch: task.deliveryMerge.originalBranch,
+              sourceCommit: task.deliveryMerge.sourceCommit,
+              targetCommit: ticket.delivery?.baseCommit,
+            },
+          }
+        : {}),
       ...(finding === undefined ? {} : { finding }),
       reportPath: join(
         this.featurePath(feature.name),
@@ -108,11 +159,14 @@ export class TaskDispatchService extends Service {
         "You may read other files and run focused tests. Other workers may be editing outside your scope.",
         "Do not change workflow records or run other SDD commands.",
         merge
-          ? "Resolve only the assigned merge; stage those resolutions and create its merge commit."
+          ? task.deliveryMerge
+            ? "Merge the assigned original-branch commit with the feature base as the first parent. Resolve only files in the write scope, create the merge commit, and do not move either branch."
+            : "Resolve only the assigned merge; stage those resolutions and create its merge commit."
           : "Do not stage or commit changes.",
       ],
-      reportInstructions:
-        "Write only to the assigned report path. Summarize changes, test results, and blockers, then notify the controller.",
+      reportInstructions: merge
+        ? "Write only to the assigned report path. Summarize the merge commit, conflict resolutions, test results, and blockers, then notify the controller."
+        : "Write only to the assigned report path. Summarize changes, test results, and blockers, then notify the controller.",
     };
   }
 
@@ -152,6 +206,75 @@ export class TaskDispatchService extends Service {
       const worktree = ticket.worktree;
       if (!ticket.branch) throw new Error(`Ticket '${ticket.id}' has no recorded branch.`);
       await git.requireWorktreeBranch(worktree, ticket.branch);
+      if (task.deliveryMerge) {
+        if (!ticket.delivery || !task.deliveryMerge.sourceCommit) {
+          throw new Error(`Delivery task '${task.id}' has no recorded merge source.`);
+        }
+        const unmerged = this.git(git, worktree, ["diff", "--name-only", "--diff-filter=U", "-z"])
+          .split("\0")
+          .filter(Boolean);
+        if (unmerged.length > 0) {
+          throw new Error(`Resolve merge conflicts before submitting: ${JSON.stringify(unmerged)}`);
+        }
+        const operationPaths = git.gitPaths(worktree, [
+          "MERGE_HEAD",
+          "CHERRY_PICK_HEAD",
+          "REVERT_HEAD",
+          "rebase-apply",
+          "rebase-merge",
+          "sequencer",
+        ]);
+        if (operationPaths.some((path) => existsSync(resolve(worktree, path)))) {
+          throw new Error("Finish the Git operation before submitting the delivery merge task.");
+        }
+        const head = this.git(git, worktree, ["rev-parse", "--verify", "HEAD"]);
+        const parents = this.git(git, worktree, ["rev-list", "--parents", "-n", "1", head])
+          .trim()
+          .split(/\s+/);
+        if (
+          parents.length !== 3 ||
+          parents[1] !== ticket.delivery.baseCommit ||
+          parents[2] !== task.deliveryMerge.sourceCommit
+        ) {
+          throw new Error(
+            "Delivery task must merge its recorded feature base and original-branch commit.",
+          );
+        }
+        const changed = this.git(git, worktree, [
+          "diff",
+          "--no-renames",
+          "--name-only",
+          "-z",
+          ticket.delivery.baseCommit,
+          head,
+        ])
+          .split("\0")
+          .filter(Boolean);
+        const uncovered = changed.filter((path) => !task.writeScope.includes(path));
+        if (uncovered.length > 0) {
+          throw new Error(
+            `Delivery merge changed paths outside its write scope: ${JSON.stringify(uncovered)}`,
+          );
+        }
+        const outstanding = git.changedPaths(worktree);
+        if (outstanding.length > 0) {
+          throw new Error(
+            `Delivery worktree has uncommitted paths: ${JSON.stringify(outstanding)}`,
+          );
+        }
+        task.state = "Done";
+        ticket.workRoundCommits.push(head);
+        ticket.committedTaskIds = [...new Set([...(ticket.committedTaskIds ?? []), task.id])];
+        await publish(ledger);
+        return {
+          feature: feature.name,
+          ticket: ticket.id,
+          task: task.id,
+          attempt,
+          state: task.state,
+          commit: head,
+        };
+      }
       if (mergeFinding) {
         if (mergeFinding.type !== "conflict") {
           throw new Error("Merge task must be linked to an integration conflict.");

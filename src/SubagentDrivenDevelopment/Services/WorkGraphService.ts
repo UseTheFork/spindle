@@ -6,6 +6,7 @@ type GraphNode = { id: string; dependencies: string[] };
 type WorkGraphIssue =
   | { code: "duplicate-ticket"; ticketId: string }
   | { code: "duplicate-task"; ticketId: string; taskId: string }
+  | { code: "delivery-task-mismatch"; ticketId: string }
   | { code: "task-ticket-mismatch"; ticketId: string; taskId: string }
   | { code: "unknown-ticket-dependency"; ticketId: string; dependencyId: string }
   | { code: "unknown-task-dependency"; taskId: string; dependencyId: string }
@@ -66,6 +67,18 @@ export class WorkGraphService extends Service {
       }
 
       const tasks = new Map<string, GraphNode>();
+      const deliveryTasks = ticket.tasks.filter(({ deliveryMerge }) => deliveryMerge !== undefined);
+      if (
+        (ticket.delivery === undefined && deliveryTasks.length > 0) ||
+        (ticket.delivery !== undefined && deliveryTasks.length !== 1) ||
+        (ticket.delivery !== undefined &&
+          deliveryTasks[0]?.deliveryMerge?.originalBranch !== ticket.delivery.originalBranch) ||
+        deliveryTasks.some(
+          ({ deliveryMerge, state }) => state !== "Pending" && !deliveryMerge?.sourceCommit,
+        )
+      ) {
+        issues.push({ code: "delivery-task-mismatch", ticketId: ticket.id });
+      }
       for (const task of ticket.tasks) {
         if (tasks.has(task.id)) {
           issues.push({ code: "duplicate-task", ticketId: ticket.id, taskId: task.id });
@@ -125,7 +138,6 @@ export class WorkGraphService extends Service {
     return issues;
   }
 
-  // Merge-agent exclusivity and stopped-worker retries require facts not yet modeled.
   public readiness(feature: Feature): WorkGraphReadiness {
     const issues = this.validate(feature);
     if (issues.length > 0) {
@@ -192,7 +204,21 @@ export class WorkGraphService extends Service {
             const taskBlockers: TaskBlocker[] = [];
             if (ticket.merged) taskBlockers.push({ code: "ticket-merged" });
             if (!ticket.worktree) taskBlockers.push({ code: "no-worktree" });
-            if (task.writeScope.length === 0) taskBlockers.push({ code: "no-write-scope" });
+            if (task.writeScope.length === 0 && !task.deliveryMerge)
+              taskBlockers.push({ code: "no-write-scope" });
+            if (task.deliveryMerge !== undefined) {
+              const activeTask = ticket.tasks.find(
+                ({ id, state }) => id !== task.id && state === "InProgress",
+              );
+              if (activeTask) {
+                taskBlockers.push({ code: "worktree-in-use", taskId: activeTask.id });
+              }
+            } else {
+              const mergeTask = ticket.tasks.find(
+                ({ deliveryMerge, state }) => deliveryMerge !== undefined && state === "InProgress",
+              );
+              if (mergeTask) taskBlockers.push({ code: "worktree-in-use", taskId: mergeTask.id });
+            }
             for (const dependencyId of ticket.dependencies) {
               if (!tickets.get(dependencyId)?.merged) {
                 taskBlockers.push({ code: "ticket-dependency-not-merged", dependencyId });

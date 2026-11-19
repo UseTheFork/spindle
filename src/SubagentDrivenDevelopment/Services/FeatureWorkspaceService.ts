@@ -14,6 +14,7 @@ import { basename, join, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
+import type { DeliveryDetails } from "@spindle/SubagentDrivenDevelopment/Models/DeliveryDetails";
 import { featureSchema, type Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature";
 import {
   featureLedgerSchema,
@@ -28,7 +29,16 @@ import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/Wo
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
 type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">;
 type NewTask = Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">;
+type NewDeliveryTask = NewTask &
+  Pick<Task, "deliveryMerge"> & { deliveryMerge: NonNullable<Task["deliveryMerge"]> };
 type ReviewFinding = Extract<Finding, { type: "review" }>;
+type DeliverySnapshot = {
+  originalBranch: string;
+  featureBranch: string;
+  featureCommit: string;
+  originalCommit: string;
+  requiredWriteScope: string[];
+};
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const numberedWorkspace = /^([0-9]{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
@@ -94,6 +104,118 @@ export class FeatureWorkspaceService extends Service {
 
   public async createTicket(reference: string, input: NewTicket) {
     this.assertApplicationBooted();
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      return this.createTicketRecord(ledger, name, workspace, input);
+    });
+  }
+
+  public async createDeliveryTicket(
+    reference: string,
+    snapshot: DeliverySnapshot,
+    input: { writeScope: string[] },
+  ) {
+    this.assertApplicationBooted();
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      if (ledger.pendingStart) throw new Error("Resume the pending start before delivery.");
+      const feature = await this.assemble(name, workspace, ledger);
+      if (
+        feature.completed ||
+        !feature.originalBranch ||
+        !feature.featureBranch ||
+        !feature.featureWorktree
+      ) {
+        throw new Error(`Feature '${feature.name}' is not active.`);
+      }
+      if (
+        feature.originalBranch !== snapshot.originalBranch ||
+        feature.featureBranch !== snapshot.featureBranch
+      ) {
+        throw new Error("The feature branches changed while preparing the delivery ticket.");
+      }
+      if (!feature.tickets.length || feature.tickets.some(({ merged }) => !merged)) {
+        throw new Error("Integrate all feature tickets before creating a delivery ticket.");
+      }
+      if (
+        feature.findings.some((finding) =>
+          finding.type === "review"
+            ? finding.decision.status === "open"
+            : finding.decision === "open",
+        )
+      ) {
+        throw new Error("Resolve all findings before creating a delivery ticket.");
+      }
+      const reviews = await this.app.make(SddReviewService);
+      if (!reviews.hasPassedFeatureReview(feature)) {
+        throw new Error("A feature review round must pass before creating a delivery ticket.");
+      }
+      const reviewStatus = await reviews.featureStatus(feature);
+      if ("blocker" in reviewStatus) throw new Error(reviewStatus.blocker);
+      if (reviewStatus.state !== "Accepted") {
+        throw new Error("The current feature revision must pass feature review before delivery.");
+      }
+      const git = await this.app.make(GitService);
+      await git.requireWorktreeBranch(feature.featureWorktree, feature.featureBranch);
+      const featureHead = this.git(git, feature.featureWorktree, ["rev-parse", "--verify", "HEAD"]);
+      const featureBranchHead = this.git(git, this.app.workspaceRoot, [
+        "rev-parse",
+        "--verify",
+        `refs/heads/${feature.featureBranch}`,
+      ]);
+      const originalHead = this.git(git, this.app.workspaceRoot, [
+        "rev-parse",
+        "--verify",
+        `refs/heads/${feature.originalBranch}`,
+      ]);
+      if (
+        featureHead !== snapshot.featureCommit ||
+        featureBranchHead !== snapshot.featureCommit ||
+        originalHead !== snapshot.originalCommit
+      ) {
+        throw new Error("A branch moved while preparing the delivery ticket. Run sdd next again.");
+      }
+      const missing = snapshot.requiredWriteScope.filter(
+        (path) => !input.writeScope.includes(path),
+      );
+      if (missing.length > 0) {
+        throw new Error(
+          `Delivery task scope must cover all incoming paths: ${JSON.stringify(missing)}`,
+        );
+      }
+      const task: NewDeliveryTask = {
+        instructions: `Merge the assigned ${feature.originalBranch} commit into this ticket branch with a no-fast-forward merge. Resolve conflicts only within the assigned write scope, create the merge commit, run focused checks, and write the outcome to the assigned report path.`,
+        writeScope: input.writeScope,
+        dependencies: [],
+        deliveryMerge: { originalBranch: feature.originalBranch },
+      };
+      return this.createTicketRecord(
+        ledger,
+        name,
+        workspace,
+        {
+          title: "Integrate the original branch",
+          requirements: `Include the latest ${feature.originalBranch} branch tip in the feature before final delivery.`,
+          acceptanceCriteria: `The delivery task creates a verified merge of ${feature.originalBranch} within its assigned write scope.`,
+          dependencies: [],
+        },
+        {
+          delivery: {
+            originalBranch: feature.originalBranch,
+            baseCommit: snapshot.featureCommit,
+            sourceCommit: snapshot.originalCommit,
+          },
+          task,
+        },
+      );
+    });
+  }
+
+  private async createTicketRecord(
+    ledger: FeatureLedger,
+    name: string,
+    workspace: string,
+    input: NewTicket,
+    options: { delivery?: DeliveryDetails; task?: NewDeliveryTask } = {},
+  ) {
     const title = input.title.trim();
     const requirements = input.requirements.trim().replaceAll("\r\n", "\n");
     const acceptanceCriteria = input.acceptanceCriteria.trim().replaceAll("\r\n", "\n");
@@ -102,49 +224,43 @@ export class FeatureWorkspaceService extends Service {
     if (!requirements || !acceptanceCriteria) {
       throw new Error("Ticket requirements and acceptance criteria must not be empty.");
     }
+    if ((options.delivery === undefined) !== (options.task === undefined)) {
+      throw new Error("A delivery ticket requires delivery details and one merge task.");
+    }
 
-    return this.withLedger(reference, async (ledger, name, workspace) => {
-      const directory = join(workspace, "tickets");
-      await this.requireDirectory(directory);
-      const ids = [
-        ...ledger.tickets.map(({ id }) => id),
-        ...(await readdir(directory))
-          .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
-          .map((entry) => basename(entry, ".md")),
-      ];
-      const number = FeatureWorkspaceService.nextNumber(ids.map((id) => id.slice(2)));
-      const id = `T-${number.padStart(4, "0")}`;
-      const path = join(directory, `${id}.md`);
-      const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
-      const parsed = this.ticketRequirements(markdown, path);
-      if (
-        parsed.requirements !== requirements ||
-        parsed.acceptanceCriteria !== acceptanceCriteria
-      ) {
-        throw new Error(
-          "Ticket requirements and acceptance criteria must not contain level 1 or 2 headings outside code fences.",
-        );
-      }
-
-      const next = featureLedgerSchema.parse({
-        ...ledger,
-        tickets: [
-          ...ledger.tickets,
-          {
-            id,
-            title,
-            dependencies: input.dependencies,
-            tasks: [],
-            workRoundCommits: [],
-            merged: false,
-          },
-        ],
-      });
-      await this.assemble(name, workspace, next, { id, markdown });
-      await writeFile(path, markdown, { flag: "wx", flush: true });
-      await this.replaceLedger(workspace, next);
-      return { ticket: id, path };
-    });
+    const directory = join(workspace, "tickets");
+    await this.requireDirectory(directory);
+    const ids = [
+      ...ledger.tickets.map(({ id }) => id),
+      ...(await readdir(directory))
+        .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
+        .map((entry) => basename(entry, ".md")),
+    ];
+    const number = FeatureWorkspaceService.nextNumber(ids.map((id) => id.slice(2)));
+    const id = `T-${number.padStart(4, "0")}`;
+    const path = join(directory, `${id}.md`);
+    const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
+    const parsed = this.ticketRequirements(markdown, path);
+    if (parsed.requirements !== requirements || parsed.acceptanceCriteria !== acceptanceCriteria) {
+      throw new Error(
+        "Ticket requirements and acceptance criteria must not contain level 1 or 2 headings outside code fences.",
+      );
+    }
+    const ticket: FeatureLedger["tickets"][number] = {
+      id,
+      title,
+      dependencies: input.dependencies,
+      tasks: [],
+      workRoundCommits: [],
+      merged: false,
+      ...(options.delivery === undefined ? {} : { delivery: options.delivery }),
+    };
+    const task = options.task === undefined ? undefined : this.appendTask(ticket, options.task);
+    const next = featureLedgerSchema.parse({ ...ledger, tickets: [...ledger.tickets, ticket] });
+    await this.assemble(name, workspace, next, { id, markdown });
+    await writeFile(path, markdown, { flag: "wx", flush: true });
+    await this.replaceLedger(workspace, next);
+    return { ticket: id, path, ...(task === undefined ? {} : { task }) };
   }
 
   public async createTask(reference: string, ticketId: string, input: NewTask) {
@@ -154,6 +270,14 @@ export class FeatureWorkspaceService extends Service {
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
       if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
+      if (
+        ticket.delivery &&
+        ticket.tasks.some(({ deliveryMerge, state }) => deliveryMerge && state !== "Done")
+      ) {
+        throw new Error(
+          "Wait for the delivery merge task to finish before adding ticket fix work.",
+        );
+      }
       await (await this.app.make(SddReviewService)).assertOrdinaryTaskAllowed(ledger, ticket);
       taskId = this.appendTask(ticket, input);
       return ledger;
@@ -326,7 +450,7 @@ export class FeatureWorkspaceService extends Service {
 
   private appendTask(
     ticket: Pick<Ticket, "id" | "tasks">,
-    input: NewTask & Pick<Task, "discoveredFrom">,
+    input: NewTask & Pick<Task, "deliveryMerge" | "discoveredFrom">,
   ): string {
     const number = FeatureWorkspaceService.nextNumber(
       ticket.tasks.map(({ id }) => id.slice(ticket.id.length + 1)),
@@ -376,7 +500,11 @@ export class FeatureWorkspaceService extends Service {
       ledger: FeatureLedger,
       publish: (ledger: FeatureLedger) => Promise<void>,
     ) => Promise<T>,
-    options: { resumeTicketCommit?: boolean; resumeIntegration?: boolean } = {},
+    options: {
+      resumeTicketCommit?: boolean;
+      resumeIntegration?: boolean;
+      resumeFinish?: boolean;
+    } = {},
   ): Promise<T> {
     return this.withLedger(
       reference,
@@ -393,13 +521,23 @@ export class FeatureWorkspaceService extends Service {
   private async withLedger<T>(
     reference: string,
     operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,
-    options: { resumeTicketCommit?: boolean; resumeIntegration?: boolean } = {},
+    options: {
+      resumeTicketCommit?: boolean;
+      resumeIntegration?: boolean;
+      resumeFinish?: boolean;
+    } = {},
   ): Promise<T> {
     this.assertApplicationBooted();
     const name = this.workspaceName(reference);
     const workspace = await this.workspacePath(name);
     return this.withLock(join(workspace, ".ledger-lock"), async () => {
       const ledger = await this.readLedger(workspace);
+      if (ledger.completed) throw new Error(`Feature '${name}' is already complete.`);
+      if (ledger.pendingFinish && !options.resumeFinish) {
+        throw new Error(
+          "Resume the pending feature finish first. Run sdd next for the resume command.",
+        );
+      }
       if (ledger.pendingTicketCommit && !options.resumeTicketCommit) {
         throw new Error(
           "Resume the pending ticket commit first. Run sdd next for the resume command.",
