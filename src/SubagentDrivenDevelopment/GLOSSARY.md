@@ -38,21 +38,29 @@ may change.
 **Integration**:
 The incorporation of an accepted ticket into its feature.
 
+**Merge operation**:
+A branch integration assigned to a merge agent, separate from ticket
+implementation work.
+
 ## Roles and Handoffs
 
 **Controller**:
 The operator responsible for coordinating a feature and its SDD workflow.
 
 **Worker**:
-An agent assigned to implement one task.
+An agent assigned to implement a task or carry out a merge operation.
 
 **Reviewer**:
 An agent that assesses a ticket or feature against its acceptance criteria or
 specification.
 
 **Assignment**:
-A scoped handoff of task or review work to an agent, including the target and
-the instructions or criteria relevant to that work.
+A scoped handoff of task, review, or merge work to an agent, including the
+target and the instructions or criteria relevant to that work.
+
+**Merge agent**:
+A worker assigned to merge branches as part of ticket integration or feature
+delivery.
 
 ## Reviews and Delivery
 
@@ -66,8 +74,8 @@ A review of a ticket's completed work against its acceptance criteria.
 A review of a completed feature against its specification.
 
 **Finding**:
-An issue recorded from a review or an integration conflict, with supporting
-evidence for the decision about it.
+An issue recorded from a review, with supporting evidence for the decision
+about it.
 
 **Evidence**:
 Verifiable information that supports a review recommendation or finding.
@@ -81,6 +89,6 @@ _Avoid_: Release
 A ticket that brings the original branch's latest commits into a feature before
 delivery.
 
-**Final-delivery merge agent**:
-A worker assigned to merge the original branch into a delivery ticket and
-resolve conflicts within its assigned scope.
+**Delivery merge agent**:
+A merge agent assigned to bring the original branch's latest changes into a
+delivery ticket before feature completion.

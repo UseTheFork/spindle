@@ -13,17 +13,18 @@ or worktrees created by the current implementation.
 | Feature      | The complete unit of work, with a spec, a feature branch and one or more tickets.                                               |
 | Ticket       | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, acceptance review and integration. |
 | Task         | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.          |
-| Finding      | A recorded issue from a review or an integration conflict. Review findings may be dismissed; conflicts require resolution.      |
+| Finding      | A recorded issue from a review. Review findings may be dismissed with a reason.                                                  |
 | Controller   | The single operator coordinating the feature through the SDD CLI.                                                               |
-| Worker       | An agent implementing one dispatched task.                                                                                      |
+| Worker       | An agent assigned to implement a task or carry out a merge operation.                                                            |
 | Reviewer     | An agent reviewing a ticket against its acceptance criteria, or the completed feature against the feature spec.                 |
 | Review round | One or more reviews of the same target at the same code revision.                                                               |
 
 ## Design principles
 
-1. **Tasks are the only dispatched work.** Every ticket needs at least one task.
-   Agents implement tasks; tickets hold requirements, acceptance criteria and
-   the acceptance review.
+1. **Tasks are ticket implementation work.** Every ticket needs at least one
+   task. Agents implement tasks; tickets hold requirements, acceptance criteria
+   and the acceptance review. Branch integration and feature completion use
+   separate merge assignments.
 2. **One worktree per ticket.** All tasks of a ticket run in its ticket
    worktree. Several agents can work in the same ticket worktree at once.
 3. **Tasks declare a planned write scope.** Each task lists the repository
@@ -42,8 +43,10 @@ or worktrees created by the current implementation.
    Each completed round has one work-round commit; fixes create follow-up
    commits. Reviewers assess the ticket's combined diff against its acceptance
    criteria.
-6. **Only feature merges are serial.** Accepted tickets merge into the feature
-   branch one at a time.
+6. **Feature integrations are serial.** A specialized merge agent integrates
+   one accepted ticket branch into the feature branch at a time. The agent
+   performs the merge and cleanup; the CLI records completion after checking
+   branch relationships.
 7. **Corrections are normal work.** Findings become fix tasks or fix tickets.
    There is no separate correction workflow.
 8. **Reviews are the quality gate.** One or more review agents review each
@@ -57,7 +60,9 @@ or worktrees created by the current implementation.
 Tickets and tasks form one hierarchical work graph. A ticket is the parent of
 its tasks; task IDs use the ticket ID as a prefix (for example,
 `T-0002.1`). A ticket groups the work that shares a branch, worktree and
-acceptance review. Tasks are the only nodes dispatched to workers.
+acceptance review. Tasks are the nodes for ticket implementation work. Merge
+assignments handle branch integration and feature completion outside the work
+graph.
 
 `ticket create` creates a ticket with no tasks. Add at least one task with
 `task create` before the ticket can become ready. Add more tasks when parts of
@@ -220,8 +225,8 @@ flowchart LR
   path and `sdd.setup_command` from the original checkout's configuration.
   The controller runs each command once, in array order, in the new ticket
   worktree before it dispatches the ticket's tasks. An empty array means no
-  setup. The ticket worktree is removed after the ticket merges into the
-  feature branch.
+  setup. The merge agent removes the ticket worktree and branch after the
+  ticket branch has been merged into the feature branch and recorded.
 - Worktrees live under `sdd.worktree_directory`, outside the original
   checkout. The setting applies to all features. The CLI resolves existing
   feature and ticket worktree paths from the ledger, so SDD commands work from
@@ -300,17 +305,25 @@ includes the absolute feature-workspace path, task ID and attempt number:
 spindle sdd assignment --feature <absolute-feature-directory> --task T-0002.2 --attempt 1 --json
 ```
 
+A merge agent uses the operation ID returned by `integrate` or `finish`:
+
+```text
+spindle sdd assignment --feature <absolute-feature-directory> --merge <operation-id> --json
+```
+
 `assignment` is read-only. Use exactly one mode: `--task <id> --attempt <n>`
-for a worker, or `--review <id>` for a reviewer. Both modes require the
-absolute `--feature` path. Task mode returns the assignment only when the task
-is in progress and the attempt matches the current dispatch. Its structured
-output includes the role, feature/ticket/task IDs, attempt, ticket worktree
-path, task instructions and completion criteria, write scope, optional
-context, ticket requirements, acceptance criteria, originating finding and
-evidence and worker rules. Review mode returns
-the role, review ID, target worktree, review scope, code revision, review
-criteria, optional focus, findings to verify and response template. It reads a
-complete ledger snapshot and does
+for a worker, `--review <id>` for a reviewer, or `--merge <operation-id>` for
+a merge agent. All modes require the absolute `--feature` path. Task mode
+returns the assignment only when the task is in progress and the attempt
+matches the current dispatch. Its structured output includes the role,
+feature/ticket/task IDs, attempt, ticket worktree path, task instructions and
+completion criteria, write scope, optional context, ticket requirements,
+acceptance criteria, originating finding and evidence, and worker rules.
+Review mode returns the role, review ID, target worktree, review scope, code
+revision, review criteria, optional focus, findings to verify and response
+template. Merge mode returns the operation type, source and target branch
+names, worktree locations, and assigned merge and cleanup actions. It does not
+include commit hashes. Assignment reads a complete ledger snapshot and does
 not acquire the workspace write lock or change workflow state. Without
 `--json`, it renders the same content for a person to read.
 
@@ -319,10 +332,15 @@ Workers:
 - run the `assignment` command from the original checkout and do their task
   work in the ticket worktree that the assignment names;
 - use the write scope as a plan for ordinary task work; ordinary tasks may
-  change other files when needed. Merge agents must stay within their scope.
+  change other files when needed. Merge-task agents must stay within their
+  assigned scope;
 - do not commit, stage or run SDD commands other than the read-only
   `assignment` command, except that an assigned merge agent may run Git merge,
   stage conflict resolutions and create the assigned merge commit;
+- a merge-operation agent runs the `assignment --merge` command from the
+  original checkout, performs only the branch operations and cleanup in that
+  assignment, and may run `merge record` as instructed. It does not edit
+  workflow records directly;
 - may read other repository files and run focused tests, knowing that other
   agents may be editing files in the same worktree.
 
@@ -350,7 +368,7 @@ stateDiagram-v2
 - The CLI does not keep per-task file hashes, snapshots or change baselines.
   Task submissions do not attribute files to workers. Ticket review assesses
   the combined result against the acceptance criteria.
-- For an assigned merge task, such as a delivery merge or conflict resolution,
+- For an assigned delivery merge task,
   the agent creates the merge commit instead. `task submit` verifies the merge,
   records task completion and counts the merge commit as the work-round
   commit. The controller does not run `ticket commit` unless later task work
@@ -370,10 +388,9 @@ stateDiagram-v2
     InProgress --> InAcceptance: work-round commit recorded
     InAcceptance --> Accepted: review round passed
     InAcceptance --> Blocked: review finding needs a decision
-    Accepted --> Integrating: integrate
+    Accepted --> Integrating: integrate starts a merge assignment
     Accepted --> InProgress: linked fix task added before merge
-    Integrating --> Merged: clean merge, feature branch fast-forwarded
-    Integrating --> Blocked: merge conflict
+    Integrating --> Merged: merge recorded and ticket worktree and branch cleaned up
     Blocked --> InProgress: fix task added
     Blocked --> InAcceptance: review finding dismissed
     Merged --> [*]
@@ -384,12 +401,11 @@ stateDiagram-v2
   the work-round commit, review rounds for the current code revision and
   operation journals.
 - Derive the state in this order:
-  1. **Merged** when the ticket has been integrated and its worktree has been
-     cleaned up.
-  2. **Blocked** when an open finding has no linked fix work, or an integration
-     conflict has no resolution task yet.
-  3. **Integrating** while an `integrate` command is running or its operation
-     journal is still open after an interruption.
+  1. **Merged** when the ticket branch has been integrated into the feature
+     branch and the ticket worktree and branch have been cleaned up.
+  2. **Blocked** when an open finding has no linked fix work.
+  3. **Integrating** while a merge assignment or its record-and-cleanup
+     operation is still pending.
   4. **Planned** when the ticket has no tasks or its ticket dependencies have
      not merged.
   5. **Ready** when the ticket's prerequisites are met and none of its tasks
@@ -404,8 +420,9 @@ stateDiagram-v2
      revision.
 - A finding blocks the ticket only while it has no linked fix work and has not
   been dismissed or resolved. A review finding is resolved by dismissal, or
-  when a review round passes for the fixed code. A conflict finding is
-  resolved when `task submit` verifies the merge commit.
+  when a review round passes for the fixed code. The merge agent resolves
+  integration conflicts within its merge assignment; the feature review
+  assesses the resulting feature branch.
 - `next` reports the derived state and its blockers. For a blocked ticket, it
   offers the permitted action, such as creating fix work or dismissing a
   review finding. Adding the task changes the derived
@@ -414,14 +431,12 @@ stateDiagram-v2
   For ordinary tasks, after all tasks are Done and no workers are running, the
   controller runs `ticket commit --ticket <id> --message <message>`. The CLI
   commits the combined ticket work without checking it against task scopes.
-  Every `ticket commit` requires a message. For an assigned merge task, such as a
-  delivery merge or conflict resolution, the agent creates the merge commit,
-  and `task submit` verifies it and records it as the work-round commit.
-  Ordinary task submissions do not create commits.
+  Every `ticket commit` requires a message. For an assigned delivery merge
+  task, the agent creates the merge commit, and `task submit` verifies it and
+  records it as the work-round commit. Ordinary task submissions do not create
+  commits.
 - Additional work or fixes create a new ticket commit after the new tasks are
-  Done. They do not amend an earlier commit. If integration has created a
-  pending merge commit, later fixes create a follow-up commit after it. No
-  existing commit is amended.
+  Done. They do not amend an earlier commit. No existing commit is amended.
 - If later tasks change files after a merge commit, the controller uses
   `ticket commit` to commit those changes with a required message.
 - **Acceptance review** starts after the work-round commit is recorded and no
@@ -438,8 +453,7 @@ stateDiagram-v2
 - Ticket acceptance is the required review gate whether the ticket has one
   task or many.
 - Review findings block the ticket until the controller creates linked fix
-  work or dismisses the finding with a reason. Integration conflict findings
-  cannot be dismissed; the merge must be resolved.
+  work or dismisses the finding with a reason.
 - After acceptance and before merge, the controller can create only fix tasks
   linked to findings. Creating one returns the ticket to InProgress. After the
   fix is submitted, the ticket must pass a new acceptance review round before
@@ -452,32 +466,33 @@ stateDiagram-v2
 flowchart TD
     A["integrate --ticket T"] --> B{"Ticket accepted?"}
     B -->|"No"| Z["Refuse"]
-    B -->|"Yes"| C["In the ticket worktree: merge feature branch tip"]
-    C --> D{"Conflict?"}
-    D -->|"Yes"| E["Keep merge in progress; record conflict finding"]
-    E --> F["Create scoped fix task for conflicted files"]
-    F --> G["Merge agent creates merge commit; task submit verifies it"]
-    G --> H["Acceptance review round"]
-    H --> C
-    D -->|"No"| M["Feature branch fast-forwards to ticket branch"]
-    M --> N["Record merge in ledger; remove ticket worktree and branch"]
+    B -->|"Yes"| C["Journal merge operation and return assignment"]
+    C --> D["Agent gets assignment and works in feature worktree"]
+    D --> E["Merge ticket branch into feature with --no-ff"]
+    E --> F{"Conflict?"}
+    F -->|"Yes"| G["Agent resolves conflicts in the same assignment"]
+    F -->|"No"| H["Agent or controller runs merge record"]
+    G --> H
+    H --> I["Verify branch relationship; record merge phase"]
+    I --> J["Agent removes ticket worktree and branch"]
+    J --> K["Agent or controller runs merge record again"]
+    K --> L["Verify cleanup and record ticket as Merged"]
 ```
 
-- The feature branch moves only by a fast-forward to the ticket branch. A
-  clean merge fast-forwards the feature branch without another review. The
-  CLI does not verify the combined code; feature review covers the integrated
-  result.
-- If the merge has conflicts, `integrate` leaves the Git merge unresolved on
-  the ticket branch and records a finding with the conflicted paths. The
-  controller creates a fix task whose write scope covers those paths. No other
-  task in that ticket is dispatched while the merge is unresolved. The merge
-  agent's conflict resolutions are part of the merge commit; `task submit`
-  verifies that commit. Later fixes create follow-up ticket commits.
-- A conflict ends the current `integrate` command. After conflict resolution,
-  the ticket follows its normal work and review lifecycle. The controller runs
-  `integrate` again only after the ticket is Accepted. Integrations are serial,
-  but an incomplete integration does not move the feature branch or prevent
-  other tickets from integrating.
+- `integrate` starts and journals the operation; it does not merge branches,
+  update branch refs, or remove worktrees or branches. It returns an
+  `assignment --merge <operation-id>` command.
+- The merge assignment identifies the source and target branch names, their
+  worktree locations, and the allowed merge and cleanup actions. It does not
+  include commit hashes. The agent runs `git merge --no-ff <ticket-branch>` in
+  the feature worktree and resolves any conflicts within the same assignment.
+- Before cleanup, `merge record` checks by branch name that the ticket branch
+  is included in the feature branch and records that phase. The agent then
+  removes the ticket worktree and branch. A second `merge record` checks that
+  cleanup is complete and records the ticket as Merged. Either the controller
+  or merge agent can run each `merge record` command.
+- The CLI does not perform the merge or cleanup. Feature review assesses the
+  combined result after integration.
 - Workflow records stay uncommitted in the original checkout. They are not in
   the feature or ticket branches, so they do not affect merges or
   fast-forwards.
@@ -569,9 +584,7 @@ A reviewer's recommendation does not accept or reject a ticket by itself. The
 CLI derives the result from the round: a ticket or feature cannot pass while
 any finding is open, and passes once every review in its round is recorded and
 no finding is open. Review findings may be dismissed with a reason.
-Integration conflict findings cannot be dismissed; the merge must be resolved.
-The CLI does not infer a fix task's write scope from review output or conflict
-details.
+The CLI does not infer a fix task's write scope from review output.
 
 A ticket needs a new review round whenever its code revision changes. For the
 feature, the controller decides when another feature review round is needed;
@@ -595,17 +608,20 @@ flowchart TD
     C -->|"No"| E{"Original branch tip already included?"}
     E -->|"No"| M["Create delivery ticket and dispatch merge task"]
     M --> N["Merge agent runs merge, resolves conflicts, commits and submits a comment"]
-    N --> O["CLI verifies merge; acceptance review, integrate"]
+    N --> O["CLI verifies delivery merge; acceptance review, integrate"]
     O --> P{"Controller requests another feature review?"}
     P -->|"Yes"| B
     P -->|"No"| I
-    E -->|"Yes"| I["finish: fast-forward original branch to feature branch"]
-    I --> J["Mark complete; remove feature worktree and branches"]
+    E -->|"Yes"| I["finish starts a merge assignment"]
+    I --> J["Agent fast-forwards original branch to feature branch"]
+    J --> K["merge record verifies; agent removes feature worktree and branch"]
+    K --> L["merge record verifies cleanup and marks feature complete"]
 ```
 
-- `finish` requires that all tickets are merged, no finding is open, the
-  feature branch includes the original branch tip, and at least one feature
-  review round has passed.
+- `finish` starts a journaled merge operation when all tickets are merged, no
+  finding is open, the feature branch includes the original branch tip, and at
+  least one feature review round has passed. It returns an
+  `assignment --merge <operation-id>` command.
 - If the feature branch does not include the original branch tip, the
   controller creates a delivery ticket from the feature branch tip. Its merge
   task goes to a specialized merge agent, which performs the merge itself.
@@ -613,18 +629,24 @@ flowchart TD
 - The delivery ticket follows the normal acceptance review and integration
   process. After integration, the controller decides whether to start another
   feature review round before `finish`.
-- If the original branch tip changes before `finish`, `finish` refuses. Repeat
-  the delivery merge with the original branch's latest state.
-- `finish` never pushes, publishes or force-deletes. It removes a worktree or
-  branch only after confirming that its work is merged.
+- The final merge agent runs `git merge --ff-only <feature-branch>` in the
+  original checkout. Before cleanup, `merge record` checks by branch name that
+  the feature branch is included in the original branch and records that phase.
+  The agent then removes the feature worktree and branch. A second
+  `merge record` checks cleanup and marks the feature complete. Either the
+  controller or merge agent can run each record command.
+- If the original branch advances and no longer permits the fast-forward,
+  `finish` refuses. Repeat the delivery merge with the original branch's latest
+  state.
+- The merge agent never pushes, publishes or force-deletes.
 
-### Final-delivery merge agent
+### Delivery merge task
 
 The merge agent receives a normal task assignment with explicit merge
 permissions. The assignment identifies the ticket worktree, original branch
-commit and file scope. The file scope must cover incoming file changes and
-conflict resolutions. No other task or Git operation may run in that ticket
-worktree while the agent works.
+name and location, and file scope. The file scope must cover incoming file
+changes and conflict resolutions. No other task or Git operation may run in
+that ticket worktree while the agent works.
 
 The merge agent:
 
@@ -643,12 +665,11 @@ worktree.
 
 At submission, the CLI verifies the actual Git state. The submission comment
 is a summary, not evidence that the merge succeeded.
-The result must be the ticket branch tip and include a merge of the original
-branch. The worktree must have no unresolved conflicts or uncommitted changes.
-Changes made by the merge must stay within the assigned scope. Verification
-failures leave the task InProgress and report the reason. A verified merge
-still needs an independent acceptance review round; the agent's submission
-comment does not approve it.
+The ticket branch must include the original branch. The worktree must have no
+unresolved conflicts or uncommitted changes. Changes made by the merge must
+stay within the assigned scope. Verification failures leave the task
+InProgress and report the reason. A verified merge still needs an independent
+acceptance review round; the agent's submission comment does not approve it.
 
 ## Commands
 
@@ -674,13 +695,12 @@ can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
 `ticket start`, `dispatch`, ticket and feature review, delivery-ticket
-creation, `integrate`, and `finish` when available. Worker assignments,
-ordinary task submission, ticket acceptance review, finding dismissal, linked
-fix tasks, ticket integration, feature review, delivery and finish are
-supported. If a start, ticket commit, integration or finish is interrupted,
-`next` reports the pending operation and prints the command to resume it.
-Resume uses the journaled commits, branches and worktrees rather than
-recomputing them.
+creation, `integrate`, and `finish` when available. `integrate` and `finish`
+journal a merge operation and return a merge assignment. The merge agent
+performs the Git merge or fast-forward and cleanup; `merge record` verifies
+the branch relationship before cleanup and finalizes the ledger after cleanup.
+If an operation is interrupted, `next` reports its current phase and prints
+the assignment or record command to resume it.
 
 Start all reviewers in a ticket's round before submitting results. Do not
 add tasks while a review result is pending. A ticket
@@ -715,18 +735,34 @@ submit, and commit the fix through the normal ticket workflow. The next review
 round on changed code includes the linked findings to verify. They remain open
 until all reviewers finish and no finding raised in that round remains open.
 
-Integrate only after the ticket is accepted:
+Start integration only after the ticket is accepted:
 
 ```sh
 spindle sdd integrate --feature 0001-dispatch --ticket T-0001
 ```
 
-For a conflict, `integrate` records the conflicted paths and leaves the merge
-in progress in the ticket worktree. Create one scoped fix task that covers all
-incoming and conflicted paths. The assigned merge agent resolves, stages and
-commits the merge; `task submit` verifies the commit and resolves the conflict
-finding. The ticket then needs another acceptance review before integration
-can continue.
+The command returns an `assignment --merge <operation-id>` command. The merge
+agent runs the assignment from the original checkout, merges the ticket branch
+into the feature branch with `--no-ff` in the feature worktree, and resolves
+conflicts as part of the same assignment. No commit hashes are included in the
+assignment.
+
+After the merge, run `merge record` before cleanup to verify by branch name
+that the ticket branch is included in the feature branch. The merge agent then
+removes the ticket worktree and branch. Run `merge record` again to verify
+cleanup and mark the ticket Merged:
+
+```sh
+spindle sdd merge record --feature 0001-dispatch --merge <operation-id>
+```
+
+The controller or merge agent may run either `merge record` command. The
+command records workflow state; it does not merge branches or perform cleanup.
+
+For final feature completion, `finish` returns a merge assignment to fast-forward
+the original branch to the feature branch with `--ff-only`. The agent performs
+that update and removes the feature worktree and branch, with `merge record`
+called before and after cleanup as above.
 
 For ticket and task creation, repeat `--depends-on` for each prerequisite.
 For task creation, repeat `--write-scope` and optionally `--context` for
@@ -789,11 +825,12 @@ failure. `error.details` is optional and provides additional context.
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                         |
 | `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                    |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                  |
-| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                                                                 |
-| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings. Conflict findings require a scoped merge task.                                                                                                 |
-| `integrate`                      | Merge an accepted ticket into its feature, record conflicts for scoped resolution, or resume an interrupted integration.                                                                                                  |
+| `assignment`                     | Read-only: print a task assignment, review assignment, or merge operation assignment. Requires an absolute `--feature` path.                                                                                               |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                                                                 |
+| `integrate`                      | Journal a merge operation for an accepted ticket and return its merge assignment.                                                                                                                                         |
+| `merge record`                   | Verify the branch relationship before agent cleanup, then verify cleanup and record merge completion.                                                                                                                      |
 | `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                                                              |
-| `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                                                                      |
+| `finish`                         | Journal a final merge operation and return its assignment to fast-forward the original branch to the feature branch.                                                                                                      |
 
 ## Recovery and safety
 
@@ -802,12 +839,15 @@ failure. `error.details` is optional and provides additional context.
   to read the last published ledger without acquiring that lock. If an
   interruption leaves the lock behind, confirm no writer is active before
   removing it.
-- The feature branch moves only by fast-forward, so an
-  interrupted `integrate` leaves it either unchanged or fully updated.
-- `start`, `integrate`, `finish` and `ticket commit` operations
-  write a small journal before they change branches. If a command is
-  interrupted, the next SDD command completes or rolls back the operation,
-  or stops and prints what it found. It never discards uncommitted work.
+- Merge agents perform ticket integrations and final feature fast-forwards.
+  For these operations, the CLI journals and verifies using branch names; it
+  does not perform the merge or fast-forward, or remove the source worktree
+  and branch.
+- `start`, `integrate`, `finish` and `ticket commit` operations write a
+  journal before their Git operations. `integrate` and `finish` remain pending
+  through branch verification and agent cleanup; `merge record` verifies each
+  phase and updates the ledger. `next` reports the pending phase and command.
+  The CLI does not discard uncommitted work.
 - Ticket commit creation uses the journal to recover an interrupted command.
   The journal records the exact commit object before the branch moves. If Git
   succeeds before the ledger update, retry with the same ticket and message
