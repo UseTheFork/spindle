@@ -225,8 +225,10 @@ flowchart LR
   feature workspace and its uncommitted records. The controller and all agents
   run SDD commands from this checkout.
 - **Feature worktree.** `start` records the original branch, creates the
-  feature branch and worktree from it and records both in the ledger. `start`
-  does not commit.
+  feature branch and worktree from it and records both in the ledger. A fresh
+  start requires at least one ticket. If none exist, `next` points the user to
+  `/sdd-to-tickets` instead of offering `start`. A journaled start can still
+  resume without tickets. `start` does not commit.
 - **Ticket worktree.** `ticket start` creates a Ready ticket's branch and
   worktree from the current feature branch tip and records both in the
   ledger. The CLI does not run setup. `ticket start` returns the new worktree

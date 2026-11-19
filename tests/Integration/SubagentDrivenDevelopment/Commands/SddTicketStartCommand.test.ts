@@ -5,7 +5,7 @@ import { startFixture } from "@test/Helpers/SubagentDrivenDevelopment/StartFixtu
 import { expect, test } from "vitest";
 
 test("starts only ready tickets at the feature tip and returns setup without running it", async () => {
-  const { repo, name, workspace, worktrees, setup, git, run } = await startFixture();
+  const { repo, name, workspace, worktrees, setup, git, run, createTicket } = await startFixture();
   const instruction = "Instruction: Copy .env from the original checkout to the ticket worktree.";
   await writeFile(
     join(repo, ".spindle", "config.json"),
@@ -21,18 +21,8 @@ test("starts only ready tickets at the feature tip and returns setup without run
     expect(result.status, result.stderr).toBe(0);
     return JSON.parse(result.stdout).data;
   };
+  createTicket();
   invoke("start", ...featureFlag);
-  invoke(
-    "ticket",
-    "create",
-    ...featureFlag,
-    "--title",
-    "Implement",
-    "--requirements",
-    "Scope",
-    "--acceptance-criteria",
-    "Done",
-  );
   expect(run("ticket", "start", ...featureFlag, ...ticketFlag).stderr).toContain("not ready");
   invoke(
     "task",

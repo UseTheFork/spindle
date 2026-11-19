@@ -69,6 +69,10 @@ export class WorktreeStartService extends Service {
             );
         } else if (ledger.originalBranch || ledger.featureBranch || ledger.featureWorktree) {
           throw new Error(`Feature '${feature.name}' has already started.`);
+        } else if (ledger.tickets.length === 0) {
+          throw new Error(
+            `Feature '${feature.name}' has no tickets. Run /sdd-to-tickets with the approved spec before starting.`,
+          );
         }
         if (!config)
           throw new Error(

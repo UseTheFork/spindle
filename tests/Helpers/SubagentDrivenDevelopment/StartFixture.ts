@@ -39,5 +39,20 @@ export async function startFixture(checkout = "repo") {
   const created = run("create", "--slug", "example");
   expect(created.status, created.stderr).toBe(0);
   await writeFile(join(workspace, "spec.md"), "Feature requirements.");
-  return { repo, workspace, worktrees, name, setup, git, run };
+  const createTicket = () => {
+    const result = run(
+      "ticket",
+      "create",
+      "--feature",
+      name,
+      "--title",
+      "Implement",
+      "--requirements",
+      "Scope",
+      "--acceptance-criteria",
+      "Done",
+    );
+    expect(result.status, result.stderr).toBe(0);
+  };
+  return { repo, workspace, worktrees, name, setup, git, run, createTicket };
 }

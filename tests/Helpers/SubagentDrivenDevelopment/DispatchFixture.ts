@@ -10,18 +10,8 @@ export async function dispatchFixture() {
   };
   const ticket = "T-0001";
   const featureFlag = ["--feature", fixture.name];
+  fixture.createTicket();
   invoke("start", ...featureFlag);
-  invoke(
-    "ticket",
-    "create",
-    ...featureFlag,
-    "--title",
-    "Implement",
-    "--requirements",
-    "Scope",
-    "--acceptance-criteria",
-    "Done",
-  );
   const task = (path: string, ...args: string[]) =>
     invoke(
       "task",

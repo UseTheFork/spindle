@@ -83,6 +83,10 @@ export class SddNextCommand extends Command {
           ? start
           : ticketStart(feature.pendingStart.ticketId),
       );
+    } else if (tickets.length === 0) {
+      notices.push(
+        "Run /sdd-to-tickets with the approved spec to plan tickets and tasks before starting.",
+      );
     } else {
       if (
         canStart &&
@@ -213,7 +217,7 @@ export class SddNextCommand extends Command {
         }
       }
     }
-    if (actions.length === 0 && feature.specification !== undefined) {
+    if (actions.length === 0 && feature.specification !== undefined && tickets.length > 0) {
       if (!feature.completed) notices.push("No workflow actions available in this CLI yet.");
       if (!feature.completed && settings.status === "valid" && !settings.data.sdd) {
         notices.push(

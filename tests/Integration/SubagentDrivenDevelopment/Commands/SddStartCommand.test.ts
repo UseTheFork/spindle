@@ -1,4 +1,4 @@
-import { readFile, realpath, writeFile } from "node:fs/promises";
+import { readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCliRaw } from "@test/Helpers/Cli";
@@ -6,8 +6,35 @@ import { startFixture } from "@test/Helpers/SubagentDrivenDevelopment/StartFixtu
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 import { expect, test } from "vitest";
 
+test("points ticketless features to planning and rejects a fresh start", async () => {
+  const { name, workspace, worktrees, git, run } = await startFixture();
+  const ledgerPath = join(workspace, "sdd.json");
+  const ledgerBefore = await readFile(ledgerPath, "utf8");
+
+  const next = run("next", "--feature", name, "--verbose");
+  expect(next.status, next.stderr).toBe(0);
+  expect(JSON.parse(next.stdout).data).toEqual({
+    feature: name,
+    actions: [],
+    notices: [
+      "No tickets in this feature.",
+      "Run /sdd-to-tickets with the approved spec to plan tickets and tasks before starting.",
+    ],
+    tickets: [],
+    graph: [],
+  });
+
+  const start = run("start", "--feature", name);
+  expect(start.status).toBe(1);
+  expect(start.stderr).toContain("has no tickets. Run /sdd-to-tickets");
+  expect(await readFile(ledgerPath, "utf8")).toBe(ledgerBefore);
+  expect(git("branch", "--list", `sdd/${name}/feature`)).toBe("");
+  await expect(stat(join(worktrees, name, "feature"))).rejects.toMatchObject({ code: "ENOENT" });
+});
+
 test("starts the feature without changing the original checkout or committing records", async () => {
-  const { repo, name, workspace, worktrees, git, run } = await startFixture();
+  const { repo, name, workspace, worktrees, git, run, createTicket } = await startFixture();
+  createTicket();
   const branch = `sdd/${name}/feature`;
   const path = join(worktrees, name, "feature");
   const commit = git("rev-parse", "HEAD");
@@ -32,7 +59,7 @@ test("starts the feature without changing the original checkout or committing re
   expect(git("rev-parse", "--show-toplevel")).toBe(repo);
 });
 
-test("resumes a journaled start after Git created the worktree without discarding changes", async () => {
+test("resumes a journaled start with no tickets without discarding worktree changes", async () => {
   const { name, workspace, worktrees, git, run } = await startFixture();
   const branch = `sdd/${name}/feature`;
   const path = join(worktrees, name, "feature");
@@ -58,7 +85,8 @@ test("resumes a journaled start after Git created the worktree without discardin
 });
 
 test("refuses a worktree directory that resolves inside the original checkout", async () => {
-  const { repo, workspace, name, git, run } = await startFixture();
+  const { repo, workspace, name, git, run, createTicket } = await startFixture();
+  createTicket();
   await writeFile(
     join(repo, ".spindle", "config.json"),
     JSON.stringify({ stacks: ["typescript"], sdd: { worktree_directory: ".spindle/worktrees" } }),
@@ -75,7 +103,8 @@ test("refuses a worktree directory that resolves inside the original checkout", 
 test.each(["~", "~/source/worktrees"])(
   "expands the home directory in worktree_directory %s",
   async (directory) => {
-    const { repo, workspace, name, git } = await startFixture();
+    const { repo, workspace, name, git, createTicket } = await startFixture();
+    createTicket();
     const home = await realpath(await makeTempDir());
     await writeFile(
       join(repo, ".spindle", "config.json"),
@@ -98,7 +127,8 @@ test.each(["~", "~/source/worktrees"])(
 );
 
 test("refuses a home-relative worktree directory inside the original checkout", async () => {
-  const { repo, workspace, name, git } = await startFixture();
+  const { repo, workspace, name, git, createTicket } = await startFixture();
+  createTicket();
   await writeFile(
     join(repo, ".spindle", "config.json"),
     JSON.stringify({ stacks: ["typescript"], sdd: { worktree_directory: "~/worktrees" } }),
