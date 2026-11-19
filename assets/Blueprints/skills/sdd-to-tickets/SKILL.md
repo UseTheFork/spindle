@@ -5,7 +5,7 @@ argument-hint: "[spec.md path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 2.1.0
+    version: 2.1.1
 ---
 
 # Plan SDD Tickets and Tasks
@@ -84,6 +84,6 @@ Commit the work and verify that all approved tickets, tasks, and dependencies ar
 
 ## 7. Hand off
 
-Tell the user to invoke `/sdd-implement-spec` with the feature when ready to start implementation. Do not invoke that skill automatically or start implementation.
+Tell the user to select `sdd-orchestrator` as the active agent, then invoke `/sdd-implement-spec` with the feature when ready to start implementation. Do not invoke that skill automatically or start implementation.
 
 **Complete when:** the user has the committed feature's reference for implementation.

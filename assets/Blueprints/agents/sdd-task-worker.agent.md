@@ -1,12 +1,12 @@
 ---
 name: sdd-task-worker
 description: "Use when the SDD controller dispatches one ordinary implementation or fix task."
-tools: [read, search, edit, execute]
+tools: [read, search, edit, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 ---
 
 # SDD Task Worker

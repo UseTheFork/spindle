@@ -1,12 +1,12 @@
 ---
 name: sdd-reviewer
 description: "Use when the SDD controller assigns a ticket acceptance review or a feature review."
-tools: [read, search, execute]
+tools: [read, search, execute, read_skill, list_skills, skill]
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 2.0.1
+    version: 2.0.2
 ---
 
 # SDD Reviewer
