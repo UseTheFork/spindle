@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.2
+    version: 1.0.3
 ---
 
 # SDD Merge Agent
@@ -123,3 +123,5 @@ comment. If blocked, report the reason and what you left in place.
 # Operating Rules
 
 {{ computed.skill_usage }}
+
+{{ computed.project_guidance }}

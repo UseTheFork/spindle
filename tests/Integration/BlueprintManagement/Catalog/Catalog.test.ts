@@ -1,19 +1,17 @@
 import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
-import matter from "gray-matter";
-import { expect, test } from "vitest";
-
 import { blueprintCatalog as assetCatalog } from "@spindle/Assets/Blueprints/Catalog";
 import {
   BlueprintCatalogOperations,
   blueprintCatalog,
   type BlueprintCatalogDefinition,
 } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
-
 import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
 import { runCli as runBundledCli, runCliWithCatalog as runCli } from "@test/Helpers/Cli";
 import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import matter from "gray-matter";
+import { expect, test } from "vitest";
 
 test("the management catalog validates shipped asset metadata with one SDD reviewer", () => {
   expect(blueprintCatalog).toBe(assetCatalog);
@@ -36,7 +34,7 @@ test("the management catalog validates shipped asset metadata with one SDD revie
   });
 });
 
-test("init renders shared skill rules in every shipped agent", async () => {
+test("init renders shared operating rules for the agents that use them", async () => {
   const project = await makeTempDir("spindle-general-agent-project-");
   const init = runBundledCli(
     project,
@@ -46,14 +44,27 @@ test("init renders shared skill rules in every shipped agent", async () => {
   expect(init.status, init.stderr).toBe(0);
 
   const agents = join(project, ".github", "agents");
-  for (const { path } of Object.values(assetCatalog.agents)) {
+  const projectGuidanceAgents = new Set(["sdd-task-worker", "sdd-reviewer", "sdd-merge-agent"]);
+  const guidanceHeading = "## Project Guidance";
+  for (const [key, { path }] of Object.entries(assetCatalog.agents)) {
     const { content } = matter(await readFile(join(agents, path), "utf8"));
     expect(content.match(/^# Operating Rules$/gm), path).toHaveLength(1);
     expect(content, path).toMatch(/# Operating Rules\n\n## Skill Usage\n\n- /);
     expect(content, path).toContain(
       "unless explicitly instructed to do so by the user or another skill.",
     );
-    expect(content, path).not.toMatch(/{{\s*computed\.skill_usage\s*}}|<\/?critical>/);
+    expect(content, path).not.toMatch(
+      /{{\s*computed\.(skill_usage|project_guidance)\s*}}|<\/?critical>/,
+    );
+    const operatingRules = content.split("\n# Operating Rules\n")[1];
+    if (projectGuidanceAgents.has(key)) {
+      expect(operatingRules, path).toContain(
+        `${guidanceHeading}\n\n- Before starting your assignment, read and follow ` +
+          "`docs/agents/constitution.md` and `docs/agents/tooling.md`.",
+      );
+    } else {
+      expect(operatingRules, path).not.toContain(guidanceHeading);
+    }
   }
   const general = await readFile(join(agents, "general.agent.md"), "utf8");
   expect(general).toContain("## Delegation");
@@ -69,7 +80,10 @@ test("init renders the shipped SDD reviewer", async () => {
   );
   expect(init.status, init.stderr).toBe(0);
 
-  const installed = await readFile(join(project, ".github", "agents", "sdd-reviewer.agent.md"), "utf8");
+  const installed = await readFile(
+    join(project, ".github", "agents", "sdd-reviewer.agent.md"),
+    "utf8",
+  );
   const shipped = await readFile(
     join(repoRoot, "assets", "Blueprints", "agents", "sdd-reviewer.agent.md"),
     "utf8",
@@ -153,7 +167,12 @@ test.each([
   );
   expect(result.status, result.stderr).toBe(0);
 
-  const destination = join(project, ".github", "skills", "public-ref-php-laravel-saloon-api-integrations");
+  const destination = join(
+    project,
+    ".github",
+    "skills",
+    "public-ref-php-laravel-saloon-api-integrations",
+  );
   if (!installed) {
     await expect(readdir(destination)).rejects.toMatchObject({ code: "ENOENT" });
     return;
@@ -418,7 +437,11 @@ test("init rejects a nested destination symlink before writing outside the GitHu
 test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
   const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
   const project = await makeTempDir("spindle-writing-guidance-project-");
-  const names = ["private-writing-for-agents", "private-writing-skills", "private-testing-agent-guidance"];
+  const names = [
+    "private-writing-for-agents",
+    "private-writing-skills",
+    "private-testing-agent-guidance",
+  ];
   const installedSkills = join(project, ".github", "skills");
   const oldMechanics = join(installedSkills, "private-writing-for-agents", "SKILL-MECHANICS.md");
   const disclosedMechanics = join(
@@ -464,7 +487,10 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     await expect(readFile(oldMechanics)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(disclosedMechanics)).rejects.toMatchObject({ code: "ENOENT" });
 
-    for (const relative of ["private-writing-for-agents/SKILL.md", "private-writing-skills/SKILL.md"]) {
+    for (const relative of [
+      "private-writing-for-agents/SKILL.md",
+      "private-writing-skills/SKILL.md",
+    ]) {
       const file = join(installedSkills, relative);
       const content = await readFile(file, "utf8");
       expect(content).not.toMatch(/skill-mechanics\.md|SKILL-MECHANICS\.md|{{|{%/);

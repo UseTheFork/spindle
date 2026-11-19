@@ -86,6 +86,10 @@ rendered. Undefined template values stop preparation before files are changed.
 
 ## Computed Variables
 
+The SDD task worker, reviewer, and merge agent use `{{ computed.project_guidance }}`
+in their Operating Rules. It tells them to read and follow the project's
+constitution and tooling guide before starting an assignment.
+
 Variables and Computed Variables serve different purposes. A Variable is
 caller-supplied text available through `variables`, such as an SDD command's
 title. A Computed Variable is a named value derived by Spindle from workflow

@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.2
+    version: 1.0.3
 ---
 
 # SDD Task Worker
@@ -120,3 +120,5 @@ Leave changes uncommitted. Do not submit the task or claim ticket acceptance.
 # Operating Rules
 
 {{ computed.skill_usage }}
+
+{{ computed.project_guidance }}

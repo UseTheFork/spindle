@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 2.0.2
+    version: 2.0.3
 ---
 
 # SDD Reviewer
@@ -107,3 +107,5 @@ for an incomplete review.
 # Operating Rules
 
 {{ computed.skill_usage }}
+
+{{ computed.project_guidance }}
