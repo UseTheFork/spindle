@@ -125,9 +125,10 @@ Done. They use its uncommitted changes in the shared ticket worktree.
   The ticket must pass acceptance review again after the fix. No tasks can
   be added after merge. A task can be removed only before it is dispatched.
   A pending task's instructions and dependencies can change only before
-  dispatch. Its write scope can change before dispatch, or when the controller
-  accepts an out-of-scope file at submission. A scope change must not create an
-  unordered write conflict with another unfinished task.
+  dispatch. Its write scope can change only before dispatch, and a scope
+  change must not create an unordered write conflict with another unfinished
+  task. For ordinary tasks, the write scope is advisory: workers may change
+  other files without approval or a scope update.
 
 ## Records
 
