@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 2.0.0
+    version: 2.0.1
 ---
 
 # SDD Reviewer
@@ -103,3 +103,7 @@ submit the review or declare that the ticket or feature is accepted.
 Return the review ID and code revision, when known. State the blocker and
 what the controller must supply or resolve. Do not return a recommendation
 for an incomplete review.
+
+# Operating Rules
+
+{{ computed.skill_usage }}

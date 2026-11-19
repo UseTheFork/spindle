@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 # SDD Task Worker
@@ -116,3 +116,7 @@ Send one final response to the controller. Include:
 - Any unresolved problem or specific request to the controller.
 
 Leave changes uncommitted. Do not submit the task or claim ticket acceptance.
+
+# Operating Rules
+
+{{ computed.skill_usage }}

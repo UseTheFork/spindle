@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skil
 agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.1.0
+    version: 2.1.1
 ---
 
 # SDD Orchestrator
@@ -120,3 +120,7 @@ Report the feature and the last state the CLI recorded. List any blocker and
 the next action needed. Distinguish CLI state, agent-reported checks, and
 checks that did not run. Claim completion only when the CLI reports the
 feature complete. Preserve in-progress worktrees and records.
+
+# Operating Rules
+
+{{ computed.skill_usage }}

@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 # SDD Merge Agent
@@ -119,3 +119,7 @@ outcome, the last completed step, and any remaining action. Include conflict
 resolutions, observed check results, and any checks you could not run. For a
 delivery task, give the controller a concise summary for the submission
 comment. If blocked, report the reason and what you left in place.
+
+# Operating Rules
+
+{{ computed.skill_usage }}

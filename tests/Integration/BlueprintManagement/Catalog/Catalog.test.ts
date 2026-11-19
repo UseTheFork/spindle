@@ -36,6 +36,30 @@ test("the management catalog validates shipped asset metadata with one SDD revie
   });
 });
 
+test("init renders shared skill rules in every shipped agent", async () => {
+  const project = await makeTempDir("spindle-general-agent-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+
+  const agents = join(project, ".github", "agents");
+  for (const { path } of Object.values(assetCatalog.agents)) {
+    const { content } = matter(await readFile(join(agents, path), "utf8"));
+    expect(content.match(/^# Operating Rules$/gm), path).toHaveLength(1);
+    expect(content, path).toMatch(/# Operating Rules\n\n## Skill Usage\n\n- /);
+    expect(content, path).toContain(
+      "unless explicitly instructed to do so by the user or another skill.",
+    );
+    expect(content, path).not.toMatch(/{{\s*computed\.skill_usage\s*}}|<\/?critical>/);
+  }
+  const general = await readFile(join(agents, "general.agent.md"), "utf8");
+  expect(general).toContain("## Delegation");
+  expect(general).not.toMatch(/<\/?communication-style\b/);
+});
+
 test("init renders the shipped SDD reviewer", async () => {
   const project = await makeTempDir("spindle-reviewer-project-");
   const init = runBundledCli(
@@ -50,7 +74,10 @@ test("init renders the shipped SDD reviewer", async () => {
     join(repoRoot, "assets", "Blueprints", "agents", "sdd-reviewer.agent.md"),
     "utf8",
   );
-  expect(installed).toBe(shipped.replaceAll("{{ computed.spindle_package_manager }}", "pnpm"));
+  const rulesHeading = "\n# Operating Rules\n";
+  expect(installed.split(rulesHeading)[0]).toBe(
+    shipped.split(rulesHeading)[0]?.replaceAll("{{ computed.spindle_package_manager }}", "pnpm"),
+  );
   expect(matter(installed).data).toMatchObject({
     name: "sdd-reviewer",
     description: expect.any(String),
