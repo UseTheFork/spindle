@@ -843,11 +843,12 @@ failure. `error.details` is optional and provides additional context.
   For these operations, the CLI journals and verifies using branch names; it
   does not perform the merge or fast-forward, or remove the source worktree
   and branch.
-- `start`, `integrate`, `finish` and `ticket commit` operations write a
-  journal before their Git operations. `integrate` and `finish` remain pending
-  through branch verification and agent cleanup; `merge record` verifies each
-  phase and updates the ledger. `next` reports the pending phase and command.
-  The CLI does not discard uncommitted work.
+- `start` and `ticket commit` write a journal before their Git operations.
+  `integrate` and `finish` record a pending merge operation before returning an
+  agent assignment. They remain pending through branch verification and agent
+  cleanup; `merge record` verifies each phase and updates the ledger. `next`
+  reports the pending phase and command. The CLI does not discard uncommitted
+  work.
 - Ticket commit creation uses the journal to recover an interrupted command.
   The journal records the exact commit object before the branch moves. If Git
   succeeds before the ledger update, retry with the same ticket and message

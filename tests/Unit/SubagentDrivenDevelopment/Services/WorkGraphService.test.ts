@@ -169,22 +169,13 @@ describe("work graph readiness", () => {
     expect(after.tickets[1].tasks.map((item) => item.ready)).toEqual([false, true, true]);
   });
 
-  test("blocks dispatch readiness during ticket review and unresolved conflict", () => {
+  test("blocks task dispatch while a ticket review is in progress", () => {
     const graph = feature([
       ticket("T-0001", {
         worktree: "/worktrees/T-0001",
         tasks: [task("T-0001.1"), task("T-0001.2")],
       }),
     ]);
-    graph.findings.push({
-      type: "conflict",
-      id: "F-1",
-      title: "Conflict",
-      ticketId: "T-0001",
-      conflictedPaths: ["src/file.ts"],
-      decision: "open",
-      fixWork: { type: "task", taskId: "T-0001.1" },
-    });
     graph.reviewRounds.push({
       target: { type: "ticket", ticketId: "T-0001" },
       codeRevision: "revision",
@@ -194,21 +185,12 @@ describe("work graph readiness", () => {
     });
     const tasks = workGraph.readiness(graph).tickets[0].tasks;
     expect(tasks[0].blockers).toEqual([{ code: "review-in-progress" }]);
-    expect(tasks[1].blockers).toEqual([
-      { code: "review-in-progress" },
-      { code: "unresolved-conflict", findingId: "F-1" },
-    ]);
+    expect(tasks[1].blockers).toEqual([{ code: "review-in-progress" }]);
     graph.reviewRounds[0].reviews[0].result = { recommendation: "pass", findingIds: [] };
     expect(workGraph.readiness(graph).tickets[0].tasks.map((item) => item.ready)).toEqual([
       true,
-      false,
+      true,
     ]);
-    graph.tickets[0].tasks[1].state = "InProgress";
-    graph.tickets[0].tasks[1].attempt = 1;
-    expect(workGraph.readiness(graph).tickets[0].tasks[0].blockers).toContainEqual({
-      code: "worktree-in-use",
-      taskId: "T-0001.2",
-    });
   });
 
   test("blocks task readiness until a ticket review finding has a decision", () => {

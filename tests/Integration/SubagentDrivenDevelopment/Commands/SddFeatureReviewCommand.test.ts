@@ -8,7 +8,7 @@ async function integratedFeature() {
   const fixture = await reviewFixture();
   await fixture.complete(fixture.initialTask, "first.ts");
   fixture.submitReview(fixture.startReview(), "pass");
-  fixture.invoke("integrate", ...fixture.featureFlag, "--ticket", "T-0001");
+  fixture.integrateTicket("T-0001");
   return {
     ...fixture,
     featureWorktree: join(fixture.worktrees, fixture.name, "feature"),
@@ -73,7 +73,7 @@ test(
   "creates feature finding tickets and verifies findings in a later feature round",
   { timeout: 60_000 },
   async () => {
-    const { featureFlag, invoke, workspace, run } = await integratedFeature();
+    const { featureFlag, integrateTicket, invoke, workspace, run } = await integratedFeature();
     const review = invoke("review", ...featureFlag, "--target", "feature");
     const result = invoke(
       "review",
@@ -139,7 +139,7 @@ test(
       "--recommendation",
       "pass",
     );
-    invoke("integrate", ...featureFlag, "--ticket", "T-0002");
+    integrateTicket("T-0002");
     expect(invoke("next", ...featureFlag).featureReview.state).toBe("InReview");
 
     const followup = invoke("review", ...featureFlag, "--target", "feature");

@@ -3,7 +3,7 @@ import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
-import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
+import { MergeOperationService } from "@spindle/SubagentDrivenDevelopment/Services/MergeOperationService";
 import type { Command as CommanderCommand } from "commander";
 
 type Options = { feature: string; ticket: string };
@@ -23,18 +23,12 @@ export class SddIntegrateCommand extends Command {
       .action(async ({ feature, ticket }: Options) => {
         const app = await createApp();
         const data = await (await app.make(SddIntegrateCommand)).run(feature, ticket);
-        const human =
-          data.kind === "conflict"
-            ? [
-                `Integration paused for ${ticket}. Finding ${data.conflict.id} covers:`,
-                ...data.conflict.conflictedPaths,
-              ]
-            : `Integrated ${ticket} at ${data.commit}.`;
+        const human = `Merge assignment created for ${ticket}. Run ${data.assignmentCommand}.`;
         (await app.make(ConsoleOutputService)).result({ level: "success", human, data });
       });
   }
 
   public async run(feature: string, ticket: string) {
-    return (await this.app.make(TicketIntegrationService)).integrate(feature, ticket);
+    return (await this.app.make(MergeOperationService)).integrate(feature, ticket);
   }
 }

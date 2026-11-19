@@ -40,6 +40,28 @@ export async function reviewFixture() {
       "No assertion ran",
       "Add an assertion",
     ).findings[0] as string;
+  const integrateTicket = (ticketId: string) => {
+    const started = invoke("integrate", ...featureFlag, "--ticket", ticketId);
+    const assignment = invoke(
+      "assignment",
+      "--feature",
+      fixture.workspace,
+      "--merge",
+      started.operationId,
+    );
+    git(
+      "-C",
+      assignment.target.worktree,
+      "merge",
+      "--no-ff",
+      "--no-edit",
+      assignment.source.branch,
+    );
+    invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
+    git("worktree", "remove", "--", assignment.source.worktree);
+    git("-C", assignment.target.worktree, "branch", "-d", "--", assignment.source.branch);
+    invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
+  };
   return {
     ...fixture,
     worktree,
@@ -48,5 +70,6 @@ export async function reviewFixture() {
     startReview,
     submitReview,
     reportFinding,
+    integrateTicket,
   };
 }

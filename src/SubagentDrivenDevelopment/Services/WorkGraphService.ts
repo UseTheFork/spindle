@@ -37,7 +37,6 @@ type TaskBlocker =
   | { code: "ticket-merged" }
   | { code: "review-in-progress" }
   | { code: "undecided-finding"; findingId: string }
-  | { code: "unresolved-conflict"; findingId: string }
   | { code: "worktree-in-use"; taskId: string };
 
 type WorkGraphReadiness = {
@@ -177,24 +176,12 @@ export class WorkGraphService extends Service {
         );
         const undecidedFindings = feature.findings.filter(
           (finding) =>
-            finding.type === "review" &&
             ticketReviewIds.has(finding.reviewId) &&
             finding.decision.status === "open" &&
             !finding.fixWork,
         );
-        const conflicts = feature.findings.filter(
-          (finding) =>
-            finding.type === "conflict" &&
-            finding.ticketId === ticket.id &&
-            finding.decision === "open",
-        );
         for (const finding of undecidedFindings) {
           blockers.push({ code: "undecided-finding", findingId: finding.id });
-        }
-        for (const conflict of conflicts) {
-          if (!conflict.fixWork) {
-            blockers.push({ code: "undecided-finding", findingId: conflict.id });
-          }
         }
         return {
           ticketId: ticket.id,
@@ -229,17 +216,6 @@ export class WorkGraphService extends Service {
             if (reviewInProgress) taskBlockers.push({ code: "review-in-progress" });
             for (const finding of undecidedFindings) {
               taskBlockers.push({ code: "undecided-finding", findingId: finding.id });
-            }
-            for (const conflict of conflicts) {
-              if (conflict.fixWork?.type !== "task" || conflict.fixWork.taskId !== task.id) {
-                taskBlockers.push({ code: "unresolved-conflict", findingId: conflict.id });
-              } else {
-                for (const other of ticket.tasks) {
-                  if (other.id !== task.id && other.state === "InProgress") {
-                    taskBlockers.push({ code: "worktree-in-use", taskId: other.id });
-                  }
-                }
-              }
             }
             for (const dependencyId of task.dependencies) {
               if (tasks.get(dependencyId)?.state !== "Done") {

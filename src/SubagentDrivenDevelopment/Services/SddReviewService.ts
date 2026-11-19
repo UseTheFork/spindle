@@ -183,8 +183,6 @@ export class SddReviewService extends Service {
         throw new Error("Resume the pending start before dismissing findings.");
       const finding = feature.findings.find(({ id }) => id === findingId);
       if (!finding) throw new Error(`Unknown finding '${findingId}'.`);
-      if (finding.type === "conflict")
-        throw new Error("Integration conflict findings cannot be dismissed.");
       if (finding.decision.status !== "open")
         throw new Error(`Finding '${findingId}' is not open.`);
       const round = feature.reviewRounds.find(({ reviews }) =>
@@ -267,10 +265,8 @@ export class SddReviewService extends Service {
       throw new Error(`Cannot add a task while ticket '${ticket.id}' is under review.`);
     }
     if (
-      facts.findings.some((finding) =>
-        finding.type === "conflict"
-          ? finding.ticketId === ticket.id && finding.decision === "open"
-          : reviewIds.has(finding.reviewId) && finding.decision.status === "open",
+      facts.findings.some(
+        (finding) => reviewIds.has(finding.reviewId) && finding.decision.status === "open",
       )
     ) {
       throw new Error(`Cannot add an ordinary task while ticket '${ticket.id}' has open findings.`);
@@ -383,17 +379,13 @@ export class SddReviewService extends Service {
     const rounds = this.roundsForTarget(feature, target);
     const round = this.round(feature, target, revision);
     const reviewIds = new Set(rounds.flatMap(({ reviews }) => reviews.map(({ id }) => id)));
-    const open = feature.findings.filter((finding) =>
-      finding.type === "review"
-        ? reviewIds.has(finding.reviewId) && finding.decision.status === "open"
-        : target.type === "ticket" &&
-          finding.ticketId === target.ticketId &&
-          finding.decision === "open",
+    const open = feature.findings.filter(
+      (finding) => reviewIds.has(finding.reviewId) && finding.decision.status === "open",
     );
     if (
       open.some((finding) => {
         const fixWork = finding.fixWork;
-        if (finding.type === "conflict" || !fixWork) return true;
+        if (!fixWork) return true;
         return (
           target.type === "feature" &&
           fixWork.type === "ticket" &&
@@ -466,7 +458,7 @@ export class SddReviewService extends Service {
   }
 
   private async currentFeatureRevision(feature: Feature): Promise<RevisionResult> {
-    if (feature.pendingStart || feature.pendingTicketCommit || feature.pendingIntegration) {
+    if (feature.pendingStart || feature.pendingTicketCommit || feature.pendingMergeOperation) {
       return { blocker: `Feature '${feature.name}' has a pending workflow operation.` } as const;
     }
     if (!feature.tickets.length || feature.tickets.some(({ merged }) => !merged)) {

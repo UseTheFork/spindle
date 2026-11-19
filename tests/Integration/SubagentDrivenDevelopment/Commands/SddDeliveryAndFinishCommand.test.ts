@@ -1,23 +1,49 @@
 import { existsSync } from "node:fs";
 import { appendFile, readFile, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 import { reviewFixture } from "@test/Helpers/SubagentDrivenDevelopment/ReviewFixture";
 import { expect, test } from "vitest";
 
 test(
-  "verifies a scoped delivery merge, integrates it, and safely finishes the feature",
+  "verifies a scoped delivery merge and finishes through an agent-owned operation",
   { timeout: 60_000 },
   async () => {
     const fixture = await reviewFixture();
-    const { featureFlag, git, invoke, name, repo, run, workspace } = fixture;
+    const { featureFlag, git, invoke, name, repo, workspace } = fixture;
     const featureWorktree = join(fixture.worktrees, fixture.name, "feature");
     await appendFile(join(repo, ".git", "info", "exclude"), "\n.spindle/config.json\n");
     git("config", "user.name", "Test");
     git("config", "user.email", "test@example.com");
     await fixture.complete(fixture.initialTask, "first.ts");
     fixture.submitReview(fixture.startReview(), "pass");
-    invoke("integrate", ...featureFlag, "--ticket", "T-0001");
+
+    const integrateTicket = (ticket: string) => {
+      const started = invoke("integrate", ...featureFlag, "--ticket", ticket);
+      const assignment = invoke(
+        "assignment",
+        "--feature",
+        workspace,
+        "--merge",
+        started.operationId,
+      );
+      git(
+        "-C",
+        assignment.target.worktree,
+        "merge",
+        "--no-ff",
+        "--no-edit",
+        assignment.source.branch,
+      );
+      expect(
+        invoke("merge", "record", ...featureFlag, "--merge", started.operationId),
+      ).toMatchObject({ phase: "cleanup" });
+      git("worktree", "remove", "--", assignment.source.worktree);
+      git("-C", assignment.target.worktree, "branch", "-d", "--", assignment.source.branch);
+      invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
+    };
+
+    integrateTicket("T-0001");
     await writeFile(join(repo, "upstream.txt"), "latest original branch change\n");
     git("add", "upstream.txt");
     git("commit", "-m", "Update original branch");
@@ -38,7 +64,13 @@ test(
 
     const ledgerPath = join(workspace, "sdd.json");
     const before = await readFile(ledgerPath, "utf8");
-    const uncovered = run("delivery", "create", ...featureFlag, "--write-scope", "other.txt");
+    const uncovered = fixture.run(
+      "delivery",
+      "create",
+      ...featureFlag,
+      "--write-scope",
+      "other.txt",
+    );
     expect(uncovered.status).toBe(1);
     expect(uncovered.stderr).toContain("upstream.txt");
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
@@ -60,19 +92,13 @@ test(
       role: "merge-agent",
       writeScope: ["upstream.txt"],
       delivery: {
-        originalBranch: "main",
-        sourceCommit: git("rev-parse", "HEAD"),
+        source: { branch: "main", worktree: repo },
+        target: { branch: "sdd/0001-example/T-0002", worktree },
       },
     });
-    git(
-      "-C",
-      worktree,
-      "merge",
-      "--no-ff",
-      "-m",
-      "Merge original branch",
-      assignment.delivery.sourceCommit,
-    );
+    expect(assignment.delivery).not.toHaveProperty("sourceCommit");
+    expect(assignment.delivery).not.toHaveProperty("targetCommit");
+    git("-C", worktree, "merge", "--no-ff", "--no-edit", assignment.delivery.source.branch);
     const mergeCommit = git("-C", worktree, "rev-parse", "HEAD");
     expect(
       invoke("task", "submit", ...featureFlag, "--task", delivery.task, "--attempt", "1"),
@@ -88,7 +114,8 @@ test(
       "--recommendation",
       "pass",
     );
-    invoke("integrate", ...featureFlag, "--ticket", delivery.ticket);
+    integrateTicket(delivery.ticket);
+
     const finalReview = invoke("review", ...featureFlag, "--target", "feature");
     invoke(
       "review",
@@ -103,123 +130,35 @@ test(
       `spindle sdd finish --feature ${name}`,
     );
 
-    const featureCommit = git("-C", featureWorktree, "rev-parse", "HEAD");
-    expect(invoke("finish", ...featureFlag)).toMatchObject({
-      feature: name,
-      originalBranch: "main",
-      featureCommit,
-      completed: true,
+    const started = invoke("finish", ...featureFlag);
+    expect(started).toMatchObject({ type: "feature-finish", phase: "merge" });
+    const finishAssignment = invoke(
+      "assignment",
+      "--feature",
+      workspace,
+      "--merge",
+      started.operationId,
+    );
+    expect(finishAssignment).toMatchObject({
+      role: "merge-agent",
+      source: { branch: `sdd/${name}/feature`, worktree: featureWorktree },
+      target: { branch: "main", worktree: repo },
     });
-    expect(git("rev-parse", "HEAD")).toBe(featureCommit);
+    expect(finishAssignment).not.toHaveProperty("featureCommit");
+    expect(finishAssignment).not.toHaveProperty("targetCommit");
+
+    git("merge", "--ff-only", finishAssignment.source.branch);
+    expect(invoke("merge", "record", ...featureFlag, "--merge", started.operationId)).toMatchObject(
+      { phase: "cleanup" },
+    );
+    git("worktree", "remove", "--", featureWorktree);
+    git("branch", "-d", "--", finishAssignment.source.branch);
+    expect(invoke("merge", "record", ...featureFlag, "--merge", started.operationId)).toMatchObject(
+      { completed: true, phase: "completed" },
+    );
+
     expect(git("branch", "--list", `sdd/${name}/feature`)).toBe("");
     expect(existsSync(featureWorktree)).toBe(false);
     expect(JSON.parse(await readFile(ledgerPath, "utf8"))).toMatchObject({ completed: true });
-  },
-);
-
-test(
-  "resumes a prepared finish after the original branch has already fast-forwarded",
-  { timeout: 40_000 },
-  async () => {
-    const fixture = await reviewFixture();
-    const { featureFlag, featureWorktree, git, invoke, name, repo, workspace } = {
-      ...fixture,
-      featureWorktree: join(fixture.worktrees, fixture.name, "feature"),
-    };
-    await appendFile(join(repo, ".git", "info", "exclude"), "\n.spindle/config.json\n");
-    git("config", "user.name", "Test");
-    git("config", "user.email", "test@example.com");
-    await fixture.complete(fixture.initialTask, "first.ts");
-    fixture.submitReview(fixture.startReview(), "pass");
-    invoke("integrate", ...featureFlag, "--ticket", "T-0001");
-    const review = invoke("review", ...featureFlag, "--target", "feature");
-    invoke(
-      "review",
-      "submit",
-      ...featureFlag,
-      "--review",
-      review.review,
-      "--recommendation",
-      "pass",
-    );
-
-    const ledgerPath = join(workspace, "sdd.json");
-    const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
-    const originalCommit = git("rev-parse", "HEAD");
-    const featureCommit = git("-C", featureWorktree, "rev-parse", "HEAD");
-    ledger.pendingFinish = {
-      originalBranch: "main",
-      featureBranch: `sdd/${name}/feature`,
-      featureWorktree,
-      featureWorkspace: relative(repo, workspace),
-      originalCommit,
-      featureCommit,
-      phase: "prepared",
-    };
-    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-    git("merge", "--ff-only", featureCommit);
-    expect(invoke("next", ...featureFlag).actions).toEqual([
-      `spindle sdd finish --feature ${name}`,
-    ]);
-
-    expect(invoke("finish", ...featureFlag)).toMatchObject({ completed: true, feature: name });
-    expect(JSON.parse(await readFile(ledgerPath, "utf8"))).toMatchObject({ completed: true });
-    expect(existsSync(featureWorktree)).toBe(false);
-  },
-);
-
-test(
-  "clears a prepared finish when the original branch moves and offers a fresh delivery",
-  { timeout: 40_000 },
-  async () => {
-    const fixture = await reviewFixture();
-    const { featureFlag, git, invoke, name, repo, run, workspace } = fixture;
-    const featureWorktree = join(fixture.worktrees, fixture.name, "feature");
-    await appendFile(join(repo, ".git", "info", "exclude"), "\n.spindle/config.json\n");
-    git("config", "user.name", "Test");
-    git("config", "user.email", "test@example.com");
-    await fixture.complete(fixture.initialTask, "first.ts");
-    fixture.submitReview(fixture.startReview(), "pass");
-    invoke("integrate", ...featureFlag, "--ticket", "T-0001");
-    const review = invoke("review", ...featureFlag, "--target", "feature");
-    invoke(
-      "review",
-      "submit",
-      ...featureFlag,
-      "--review",
-      review.review,
-      "--recommendation",
-      "pass",
-    );
-
-    const ledgerPath = join(workspace, "sdd.json");
-    const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
-    const originalCommit = git("rev-parse", "HEAD");
-    const featureCommit = git("-C", featureWorktree, "rev-parse", "HEAD");
-    ledger.pendingFinish = {
-      originalBranch: "main",
-      featureBranch: `sdd/${name}/feature`,
-      featureWorktree,
-      featureWorkspace: relative(repo, workspace),
-      originalCommit,
-      featureCommit,
-      phase: "prepared",
-    };
-    await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-    await writeFile(join(repo, "late.txt"), "new original branch work\n");
-    git("add", "late.txt");
-    git("commit", "-m", "Advance original branch");
-    const movedOriginal = git("rev-parse", "HEAD");
-
-    const staleFinish = run("finish", ...featureFlag);
-    expect(staleFinish.status).toBe(1);
-    expect(staleFinish.stderr).toContain("Repeat delivery against its latest tip");
-    expect(git("rev-parse", "HEAD")).toBe(movedOriginal);
-    const resumedLedger = JSON.parse(await readFile(ledgerPath, "utf8"));
-    expect(resumedLedger).not.toHaveProperty("pendingFinish");
-    expect(existsSync(featureWorktree)).toBe(true);
-    expect(invoke("next", ...featureFlag).actions).toContain(
-      `spindle sdd delivery create --feature ${name} --write-scope=late.txt`,
-    );
   },
 );

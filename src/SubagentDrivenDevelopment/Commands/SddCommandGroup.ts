@@ -10,7 +10,7 @@ export class SddCommandGroup {
 
   public static subgroup(
     root: Command,
-    name: "ticket" | "task" | "review" | "finding" | "delivery",
+    name: "ticket" | "task" | "review" | "finding" | "delivery" | "merge",
     description: string,
   ): Command {
     const sdd = this.register(root);

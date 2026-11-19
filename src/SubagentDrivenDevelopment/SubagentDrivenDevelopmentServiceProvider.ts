@@ -8,6 +8,7 @@ import { SddFindingDismissCommand } from "@spindle/SubagentDrivenDevelopment/Com
 import { SddFindingFixCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingFixCommand";
 import { SddFinishCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFinishCommand";
 import { SddIntegrateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddIntegrateCommand";
+import { SddMergeRecordCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddMergeRecordCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
 import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
 import { SddReviewSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewSubmitCommand";
@@ -22,12 +23,11 @@ import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Comma
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
 import { SddTicketUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketUpdateCommand";
 import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
-import { FeatureFinishService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureFinishService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
+import { MergeOperationService } from "@spindle/SubagentDrivenDevelopment/Services/MergeOperationService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
 import { TicketCommitService } from "@spindle/SubagentDrivenDevelopment/Services/TicketCommitService";
-import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { WorktreeStartService } from "@spindle/SubagentDrivenDevelopment/Services/WorktreeStartService";
 
@@ -55,6 +55,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddFindingDismissCommand,
       SddFindingFixCommand,
       SddIntegrateCommand,
+      SddMergeRecordCommand,
     ];
   }
 
@@ -62,11 +63,10 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(WorkGraphService);
     this.app.singleton(FeatureWorkspaceService);
     this.app.singleton(DeliveryService);
-    this.app.singleton(FeatureFinishService);
+    this.app.singleton(MergeOperationService);
     this.app.singleton(WorktreeStartService);
     this.app.singleton(TaskDispatchService);
     this.app.singleton(TicketCommitService);
-    this.app.singleton(TicketIntegrationService);
     this.app.singleton(SddReviewService);
   }
 

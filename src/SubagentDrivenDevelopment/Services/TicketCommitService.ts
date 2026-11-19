@@ -48,18 +48,6 @@ export class TicketCommitService extends Service {
         ) {
           throw new Error("The completed tasks no longer match the pending ticket commit.");
         }
-        if (
-          feature.findings.some(
-            (finding) =>
-              finding.type === "conflict" &&
-              finding.ticketId === ticketId &&
-              finding.decision === "open",
-          )
-        )
-          throw new Error(
-            "Resolve the pending merge conflict before committing ordinary ticket work.",
-          );
-
         await git.requireWorktreeBranch(worktree, branch);
         const operationPaths = git.gitPaths(worktree, [
           "MERGE_HEAD",

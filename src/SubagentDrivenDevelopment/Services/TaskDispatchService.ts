@@ -105,26 +105,17 @@ export class TaskDispatchService extends Service {
     }
     const finding =
       task.discoveredFrom === undefined
-        ? feature.findings.find(
-            (item) =>
-              item.type === "conflict" &&
-              item.ticketId === ticket.id &&
-              item.fixWork?.type === "task" &&
-              item.fixWork.taskId === task.id,
-          )
+        ? undefined
         : feature.findings.find(({ id }) => id === task.discoveredFrom);
     if (task.discoveredFrom !== undefined && !finding) {
       throw new Error(`Originating finding '${task.discoveredFrom}' was not found.`);
     }
-    const conflictMerge =
-      finding?.type === "conflict" &&
-      finding.ticketId === ticket.id &&
-      finding.decision === "open" &&
-      finding.fixWork?.type === "task" &&
-      finding.fixWork.taskId === task.id;
-    const merge = conflictMerge || task.deliveryMerge !== undefined;
+    const merge = task.deliveryMerge !== undefined;
     if (task.deliveryMerge && !ticket.delivery) {
       throw new Error(`Delivery task '${task.id}' has no delivery ticket metadata.`);
+    }
+    if (task.deliveryMerge && !ticket.branch) {
+      throw new Error(`Delivery task '${task.id}' has no target branch.`);
     }
 
     return {
@@ -142,9 +133,11 @@ export class TaskDispatchService extends Service {
       ...(task.deliveryMerge
         ? {
             delivery: {
-              originalBranch: task.deliveryMerge.originalBranch,
-              sourceCommit: task.deliveryMerge.sourceCommit,
-              targetCommit: ticket.delivery?.baseCommit,
+              source: {
+                branch: task.deliveryMerge.originalBranch,
+                worktree: this.app.workspaceRoot,
+              },
+              target: { branch: ticket.branch, worktree: ticket.worktree },
             },
           }
         : {}),
@@ -158,8 +151,8 @@ export class TaskDispatchService extends Service {
         "Do not change workflow records or run other SDD commands.",
         merge
           ? task.deliveryMerge
-            ? "Merge the assigned original-branch commit with the feature base as the first parent. Resolve only files in the write scope, create the merge commit, and do not move either branch."
-            : "Resolve only the assigned merge; stage those resolutions and create its merge commit."
+            ? `Merge the assigned original branch '${task.deliveryMerge.originalBranch}' with \`git merge --no-ff\`. Resolve only files in the write scope, create the merge commit, and do not move either branch.`
+            : "Do not stage or commit changes."
           : "Do not stage or commit changes.",
       ],
     };
@@ -182,26 +175,6 @@ export class TaskDispatchService extends Service {
       if (!ticket.worktree || ticket.merged) {
         throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
       }
-      const mergeFinding = ledger.findings.find(
-        (finding) =>
-          finding.type === "conflict" &&
-          finding.ticketId === ticket.id &&
-          finding.decision === "open" &&
-          finding.fixWork?.type === "task" &&
-          finding.fixWork.taskId === task.id,
-      );
-      if (
-        ledger.findings.some(
-          (finding) =>
-            finding.type === "conflict" &&
-            finding.ticketId === ticket.id &&
-            finding.decision === "open" &&
-            finding.id !== mergeFinding?.id,
-        )
-      ) {
-        throw new Error("Task submission cannot complete while another merge conflict is pending.");
-      }
-
       const worktree = ticket.worktree;
       if (!ticket.branch) throw new Error(`Ticket '${ticket.id}' has no recorded branch.`);
       await git.requireWorktreeBranch(worktree, ticket.branch);
@@ -273,84 +246,6 @@ export class TaskDispatchService extends Service {
           attempt,
           state: task.state,
           commit: head,
-          ...(submissionComment === undefined ? {} : { submissionComment }),
-        };
-      }
-      if (mergeFinding) {
-        if (mergeFinding.type !== "conflict") {
-          throw new Error("Merge task must be linked to an integration conflict.");
-        }
-        if (!mergeFinding.sourceCommit || !mergeFinding.targetCommit) {
-          throw new Error(
-            `Conflict finding '${mergeFinding.id}' has no integration commit details.`,
-          );
-        }
-        const unmerged = this.git(git, worktree, ["diff", "--name-only", "--diff-filter=U", "-z"])
-          .split("\0")
-          .filter(Boolean);
-        if (unmerged.length > 0) {
-          throw new Error(`Resolve merge conflicts before submitting: ${JSON.stringify(unmerged)}`);
-        }
-        const operationPaths = git.gitPaths(worktree, [
-          "MERGE_HEAD",
-          "CHERRY_PICK_HEAD",
-          "REVERT_HEAD",
-          "rebase-apply",
-          "rebase-merge",
-          "sequencer",
-        ]);
-        if (operationPaths.some((path) => existsSync(resolve(worktree, path)))) {
-          throw new Error("Finish the Git operation before submitting the merge task.");
-        }
-        const head = this.git(git, worktree, ["rev-parse", "--verify", "HEAD"]);
-        const parents = this.git(git, worktree, ["rev-list", "--parents", "-n", "1", head])
-          .trim()
-          .split(/\s+/);
-        if (
-          parents.length !== 3 ||
-          parents[1] !== mergeFinding.targetCommit ||
-          parents[2] !== mergeFinding.sourceCommit
-        ) {
-          throw new Error(
-            "Merge task must commit the resolved integration merge with its recorded parents.",
-          );
-        }
-        const changed = this.git(git, worktree, [
-          "diff",
-          "--no-renames",
-          "--name-only",
-          "-z",
-          mergeFinding.targetCommit,
-          head,
-        ])
-          .split("\0")
-          .filter(Boolean);
-        const uncovered = changed.filter((path) => !task.writeScope.includes(path));
-        if (uncovered.length > 0) {
-          throw new Error(
-            `Merge task changed paths outside its write scope: ${JSON.stringify(uncovered)}`,
-          );
-        }
-        const outstanding = git.changedPaths(worktree);
-        if (outstanding.length > 0) {
-          throw new Error(
-            `Merge task worktree has uncommitted paths: ${JSON.stringify(outstanding)}`,
-          );
-        }
-        if (submissionComment !== undefined) task.submissionComment = submissionComment;
-        task.state = "Done";
-        mergeFinding.decision = "resolved";
-        ticket.workRoundCommits.push(head);
-        ticket.committedTaskIds = [...new Set([...(ticket.committedTaskIds ?? []), task.id])];
-        await publish(ledger);
-        return {
-          feature: feature.name,
-          ticket: ticket.id,
-          task: task.id,
-          attempt,
-          state: task.state,
-          commit: head,
-          finding: mergeFinding.id,
           ...(submissionComment === undefined ? {} : { submissionComment }),
         };
       }

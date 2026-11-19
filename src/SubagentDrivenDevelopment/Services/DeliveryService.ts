@@ -37,13 +37,7 @@ export class DeliveryService extends Service {
     if (!feature.tickets.length || feature.tickets.some(({ merged }) => !merged)) {
       throw new Error("Integrate all feature tickets before creating a delivery ticket.");
     }
-    if (
-      feature.findings.some((finding) =>
-        finding.type === "review"
-          ? finding.decision.status === "open"
-          : finding.decision === "open",
-      )
-    ) {
+    if (feature.findings.some((finding) => finding.decision.status === "open")) {
       throw new Error("Resolve all findings before creating a delivery ticket.");
     }
     const reviews = await this.app.make(SddReviewService);

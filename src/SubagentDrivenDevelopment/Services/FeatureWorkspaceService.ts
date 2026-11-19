@@ -220,13 +220,7 @@ export class FeatureWorkspaceService extends Service {
       if (!feature.tickets.length || feature.tickets.some(({ merged }) => !merged)) {
         throw new Error("Integrate all feature tickets before creating a delivery ticket.");
       }
-      if (
-        feature.findings.some((finding) =>
-          finding.type === "review"
-            ? finding.decision.status === "open"
-            : finding.decision === "open",
-        )
-      ) {
+      if (feature.findings.some((finding) => finding.decision.status === "open")) {
         throw new Error("Resolve all findings before creating a delivery ticket.");
       }
       const reviews = await this.app.make(SddReviewService);
@@ -420,27 +414,6 @@ export class FeatureWorkspaceService extends Service {
           const finding = ledger.findings.find(({ id }) => id === task.discoveredFrom);
           if (!finding)
             throw new Error(`Originating finding '${task.discoveredFrom}' was not found.`);
-          if (finding.type === "conflict") {
-            if (!finding.sourceCommit || !finding.targetCommit) {
-              throw new Error(
-                `Conflict finding '${finding.id}' has no integration commit details.`,
-              );
-            }
-            const git = await this.app.make(GitService);
-            requiredPaths.push(...finding.conflictedPaths);
-            requiredPaths.push(
-              ...this.git(git, this.app.workspaceRoot, [
-                "diff",
-                "--no-renames",
-                "--name-only",
-                "-z",
-                finding.targetCommit,
-                finding.sourceCommit,
-              ])
-                .split("\0")
-                .filter(Boolean),
-            );
-          }
         }
         const uncovered = this.uncoveredPaths(requiredPaths, input.writeScope);
         if (uncovered.length > 0) {
@@ -504,60 +477,43 @@ export class FeatureWorkspaceService extends Service {
         throw new Error("Resume the pending start before creating fix work.");
       const finding = ledger.findings.find(({ id }) => id === findingId);
       if (!finding) throw new Error(`Unknown finding '${findingId}'.`);
-      if (
-        (finding.type === "review"
-          ? finding.decision.status !== "open"
-          : finding.decision !== "open") ||
-        finding.fixWork
-      ) {
+      if (finding.decision.status !== "open" || finding.fixWork) {
         throw new Error(`Finding '${findingId}' must be open and have no existing fix work.`);
       }
-      let ticketId: string;
-      if (finding.type === "review") {
-        const round = ledger.reviewRounds.find(({ reviews }) =>
-          reviews.some(({ id }) => id === finding.reviewId),
-        );
-        if (!round) throw new Error(`Finding '${findingId}' has no review round.`);
-        if (round.target.type === "feature") {
-          if (!ledger.featureBranch || !ledger.featureWorktree) {
-            throw new Error("Start the feature before creating feature finding fix work.");
-          }
-          if (ledger.tickets.some(({ merged }) => !merged)) {
-            throw new Error(
-              "Integrate all feature tickets before creating feature finding fix work.",
-            );
-          }
-          if (
-            ledger.reviewRounds.some(
-              ({ target, reviews }) =>
-                target.type === "feature" && reviews.some(({ result }) => result === undefined),
-            )
-          ) {
-            throw new Error("Wait for all feature reviews before creating fix work.");
-          }
-          if (input.dependencies.length > 0) {
-            throw new Error(
-              "Feature finding fix work starts in a new ticket and has no task dependencies.",
-            );
-          }
-          result = await this.createFeatureFindingFixTicket(
-            ledger,
-            workspace,
-            name,
-            finding,
-            input,
-          );
-          return;
+      const round = ledger.reviewRounds.find(({ reviews }) =>
+        reviews.some(({ id }) => id === finding.reviewId),
+      );
+      if (!round) throw new Error(`Finding '${findingId}' has no review round.`);
+      if (round.target.type === "feature") {
+        if (!ledger.featureBranch || !ledger.featureWorktree) {
+          throw new Error("Start the feature before creating feature finding fix work.");
         }
-        ticketId = round.target.ticketId;
-      } else {
-        ticketId = finding.ticketId;
+        if (ledger.tickets.some(({ merged }) => !merged)) {
+          throw new Error(
+            "Integrate all feature tickets before creating feature finding fix work.",
+          );
+        }
+        if (
+          ledger.reviewRounds.some(
+            ({ target, reviews }) =>
+              target.type === "feature" && reviews.some(({ result }) => result === undefined),
+          )
+        ) {
+          throw new Error("Wait for all feature reviews before creating fix work.");
+        }
+        if (input.dependencies.length > 0) {
+          throw new Error(
+            "Feature finding fix work starts in a new ticket and has no task dependencies.",
+          );
+        }
+        result = await this.createFeatureFindingFixTicket(ledger, workspace, name, finding, input);
+        return;
       }
+      const ticketId = round.target.ticketId;
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket?.worktree || ticket.merged)
         throw new Error(`Ticket '${ticketId}' has no active worktree.`);
       if (
-        finding.type === "review" &&
         ledger.reviewRounds.some(
           ({ target, reviews }) =>
             target.type === "ticket" &&
@@ -566,32 +522,6 @@ export class FeatureWorkspaceService extends Service {
         )
       )
         throw new Error(`Wait for all reviews on '${ticketId}' before creating fix work.`);
-      if (finding.type === "conflict") {
-        if (!finding.sourceCommit || !finding.targetCommit) {
-          throw new Error(`Conflict finding '${findingId}' has no integration commit details.`);
-        }
-        const git = await this.app.make(GitService);
-        const incoming = this.git(git, ticket.worktree, [
-          "diff",
-          "--no-renames",
-          "--name-only",
-          "-z",
-          finding.targetCommit,
-          finding.sourceCommit,
-        ])
-          .split("\0")
-          .filter(Boolean);
-        const scope = new Set(input.writeScope);
-        const uncovered = this.uncoveredPaths(
-          [...finding.conflictedPaths, ...incoming],
-          [...scope],
-        );
-        if (uncovered.length > 0) {
-          throw new Error(
-            `Merge task scope must cover all incoming and conflicted paths: ${JSON.stringify(uncovered)}`,
-          );
-        }
-      }
       const task = this.appendTask(ticket, { ...input, discoveredFrom: findingId });
       finding.fixWork = { type: "task", taskId: task };
       const next = featureLedgerSchema.parse(ledger);
@@ -717,8 +647,7 @@ export class FeatureWorkspaceService extends Service {
     ) => Promise<T>,
     options: {
       resumeTicketCommit?: boolean;
-      resumeIntegration?: boolean;
-      resumeFinish?: boolean;
+      resumeMergeOperation?: boolean;
     } = {},
   ): Promise<T> {
     return this.withLedger(
@@ -738,8 +667,7 @@ export class FeatureWorkspaceService extends Service {
     operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,
     options: {
       resumeTicketCommit?: boolean;
-      resumeIntegration?: boolean;
-      resumeFinish?: boolean;
+      resumeMergeOperation?: boolean;
     } = {},
   ): Promise<T> {
     this.assertApplicationBooted();
@@ -748,19 +676,14 @@ export class FeatureWorkspaceService extends Service {
     return this.withLock(join(workspace, ".ledger-lock"), async () => {
       const ledger = await this.readLedger(workspace);
       if (ledger.completed) throw new Error(`Feature '${name}' is already complete.`);
-      if (ledger.pendingFinish && !options.resumeFinish) {
-        throw new Error(
-          "Resume the pending feature finish first. Run sdd next for the resume command.",
-        );
-      }
       if (ledger.pendingTicketCommit && !options.resumeTicketCommit) {
         throw new Error(
           "Resume the pending ticket commit first. Run sdd next for the resume command.",
         );
       }
-      if (ledger.pendingIntegration && !options.resumeIntegration) {
+      if (ledger.pendingMergeOperation && !options.resumeMergeOperation) {
         throw new Error(
-          "Resume the pending ticket integration first. Run sdd next for the resume command.",
+          "Resume the pending merge operation first. Run sdd next for the resume command.",
         );
       }
       return operation(ledger, name, workspace);

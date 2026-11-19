@@ -44,7 +44,7 @@ test(
     expect(assigned).not.toHaveProperty("reportPath");
     expect(
       run("assignment", "--feature", workspace, "--review", first.review, "--attempt", "1").stderr,
-    ).toContain("Use either --task with --attempt or --review.");
+    ).toContain("Use either --task with --attempt, --review, or --merge.");
     expect(run("assignment", ...featureFlag, "--review", first.review).stderr).toContain(
       "requires an absolute --feature path",
     );

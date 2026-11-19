@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { Command } from "@spindle/Commands/Command";
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
@@ -57,10 +59,10 @@ export class SddNextCommand extends Command {
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
     if (feature.completed) {
       notices.push("Feature is complete.");
-    } else if (feature.pendingIntegration) {
-      notices.push("A ticket integration is pending. Run the listed command to resume it.");
+    } else if (feature.pendingMergeOperation) {
+      notices.push("A merge operation is pending. Run the listed command to resume it.");
       actions.push(
-        `spindle sdd integrate --feature ${feature.name} --ticket ${feature.pendingIntegration.ticketId}`,
+        `spindle sdd assignment --feature ${SddNextCommand.shellArgument(this.app.workspacePath(join(".spindle", "features", feature.name)))} --merge ${feature.pendingMergeOperation.id} --json`,
       );
     } else if (feature.pendingTicketCommit) {
       const { ticketId, message } = feature.pendingTicketCommit;
@@ -79,9 +81,6 @@ export class SddNextCommand extends Command {
           ? start
           : ticketStart(feature.pendingStart.ticketId),
       );
-    } else if (feature.pendingFinish) {
-      notices.push("A feature finish is pending. Run the listed command to resume it.");
-      actions.push(`spindle sdd finish --feature ${feature.name}`);
     } else {
       if (
         canStart &&
@@ -109,11 +108,6 @@ export class SddNextCommand extends Command {
               `${ticket.ticketId}: finding ${finding.id} needs a decision. Use finding fix or finding dismiss.`,
             );
           }
-          if (finding?.type === "conflict") {
-            notices.push(
-              `${ticket.ticketId}: conflict finding ${finding.id} needs a scoped merge task.`,
-            );
-          }
         }
         for (const task of ticket.tasks) {
           if (task.ready)
@@ -127,13 +121,7 @@ export class SddNextCommand extends Command {
           !ticket.merged &&
           ticket.tasks.length > 0 &&
           ticket.tasks.every(({ state }) => state === "Done") &&
-          ticket.tasks.some(({ id }) => !ticket.committedTaskIds?.includes(id)) &&
-          !feature.findings.some(
-            (finding) =>
-              finding.type === "conflict" &&
-              finding.ticketId === ticket.id &&
-              finding.decision === "open",
-          )
+          ticket.tasks.some(({ id }) => !ticket.committedTaskIds?.includes(id))
         ) {
           notices.push(
             `All tasks on ${ticket.id} are Done. Run ticket commit with a commit message.`,
@@ -171,8 +159,7 @@ export class SddNextCommand extends Command {
     if (
       !feature.pendingStart &&
       !feature.pendingTicketCommit &&
-      !feature.pendingIntegration &&
-      !feature.pendingFinish &&
+      !feature.pendingMergeOperation &&
       !feature.completed &&
       feature.tickets.length > 0 &&
       feature.tickets.every(({ merged }) => merged)

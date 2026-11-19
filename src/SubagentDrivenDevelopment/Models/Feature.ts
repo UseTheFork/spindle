@@ -1,10 +1,9 @@
 import { findingSchema } from "@spindle/SubagentDrivenDevelopment/Models/Finding";
-import { finishJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/FinishJournal";
+import { mergeOperationSchema } from "@spindle/SubagentDrivenDevelopment/Models/MergeOperation";
 import { reviewRoundSchema } from "@spindle/SubagentDrivenDevelopment/Models/ReviewRound";
 import { startJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/StartJournal";
 import { ticketSchema } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { ticketCommitJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/TicketCommitJournal";
-import { ticketIntegrationJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/TicketIntegrationJournal";
 import { z } from "zod";
 
 export const featureSchema = z.strictObject({
@@ -17,8 +16,7 @@ export const featureSchema = z.strictObject({
   completed: z.literal(true).optional(),
   pendingStart: startJournalSchema.optional(),
   pendingTicketCommit: ticketCommitJournalSchema.optional(),
-  pendingIntegration: ticketIntegrationJournalSchema.optional(),
-  pendingFinish: finishJournalSchema.optional(),
+  pendingMergeOperation: mergeOperationSchema.optional(),
   tickets: z.array(ticketSchema),
   findings: z.array(findingSchema),
   reviewRounds: z.array(reviewRoundSchema),
