@@ -1,4 +1,4 @@
-import { open, readFile, readdir, writeFile } from "node:fs/promises";
+import { open, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { Application } from "@spindle/Foundation/Application";
@@ -35,6 +35,7 @@ test("creates and loads a workspace without putting Markdown in the ledger", asy
   ]);
   expect(JSON.parse(await readFile(join(workspace, "sdd.json"), "utf8"))).toEqual({
     version: 1,
+    ledgerRepositoryRoot: await realpath(root),
     tickets: [],
     findings: [],
     reviewRounds: [],

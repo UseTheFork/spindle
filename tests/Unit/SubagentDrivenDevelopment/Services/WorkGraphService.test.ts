@@ -39,6 +39,7 @@ const ticket = (id: string, overrides: Partial<Ticket> = {}): Ticket => ({
 
 const feature = (tickets: Ticket[]): Feature => ({
   name: "0001-example",
+  ledgerRepositoryRoot: "/workspace",
   specification: "Specification",
   tickets,
   findings: [],

@@ -5,12 +5,13 @@ import {
   mkdtemp,
   open,
   readdir,
+  realpath,
   rename,
   rm,
   rmdir,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -71,9 +72,17 @@ export class FeatureWorkspaceService extends Service {
 
   public async create(input: NewWorkspace): Promise<Feature> {
     this.assertApplicationBooted();
-    const ledger: FeatureLedger = { version: 1, tickets: [], findings: [], reviewRounds: [] };
+    const ledgerRepositoryRoot = await realpath(this.app.workspaceRoot);
+    const ledger: FeatureLedger = {
+      version: 1,
+      ledgerRepositoryRoot,
+      tickets: [],
+      findings: [],
+      reviewRounds: [],
+    };
     const feature = featureSchema.parse({
       name: input.name,
+      ledgerRepositoryRoot,
       specification: input.specification,
       design: input.design,
       tickets: [],
@@ -100,8 +109,7 @@ export class FeatureWorkspaceService extends Service {
 
   public async load(reference: string): Promise<Feature> {
     this.assertApplicationBooted();
-    const name = this.workspaceName(reference);
-    const workspace = await this.workspacePath(name);
+    const { name, workspace } = await this.workspaceLocation(reference);
     return this.assemble(name, workspace, await this.readLedger(workspace));
   }
 
@@ -612,18 +620,81 @@ export class FeatureWorkspaceService extends Service {
     return [...new Set(paths)].filter((path) => !scope.has(path));
   }
 
-  private workspaceName(reference: string): string {
+  private async workspaceLocation(reference: string): Promise<{ name: string; workspace: string }> {
     const name = basename(reference);
-    if (
-      reference !== name &&
-      resolve(this.app.workspaceRoot, reference) !==
-        this.app.workspacePath(join(".spindle", "features", name))
-    ) {
+    const expectedWorkspace = this.app.workspacePath(join(".spindle", "features", name));
+    if (reference !== name && resolve(this.app.workspaceRoot, reference) !== expectedWorkspace) {
+      if (!isAbsolute(reference)) {
+        throw new Error(
+          "Feature directory must be under .spindle/features in the original checkout.",
+        );
+      }
+
+      if (name !== name.trim() || !numberedWorkspace.test(name)) {
+        throw new Error(`Invalid numbered feature workspace name: '${name}'.`);
+      }
+      const workspace = resolve(reference);
+      const repositoryRoot = resolve(workspace, "..", "..", "..");
+      if (resolve(repositoryRoot, ".spindle", "features", name) !== workspace) {
+        throw new Error(
+          "Feature directory must be under .spindle/features in the original checkout.",
+        );
+      }
+      const ledger = await this.readLedger(
+        workspace,
+        `Feature ledger was not found at '${join(workspace, "sdd.json")}'.`,
+      );
+      const currentRoot = await realpath(this.app.workspaceRoot);
+      const canonicalWorkspace = resolve(currentRoot, ".spindle", "features", name);
+      if (
+        (await realpath(repositoryRoot)) !== ledger.ledgerRepositoryRoot ||
+        (await realpath(workspace)) !== canonicalWorkspace
+      ) {
+        throw new Error(
+          "Feature directory must be under .spindle/features in the original checkout.",
+        );
+      }
+      return { name, workspace };
+    }
+
+    try {
+      return { name, workspace: await this.workspacePath(name) };
+    } catch (error) {
+      if (FeatureWorkspaceService.hasCode(error, "ENOENT")) {
+        throw new Error(`Feature '${name}' was not found in this checkout.`, { cause: error });
+      }
+      throw error;
+    }
+  }
+
+  private async readLedger(
+    workspace: string,
+    missingMessage = `Feature '${basename(workspace)}' was not found in this checkout.`,
+  ): Promise<FeatureLedger> {
+    const path = join(workspace, "sdd.json");
+    let content: string;
+    try {
+      content = await this.readRecord(path);
+    } catch (error) {
+      if (FeatureWorkspaceService.hasCode(error, "ENOENT")) {
+        throw new Error(missingMessage, { cause: error });
+      }
+      throw error;
+    }
+    let ledger: FeatureLedger;
+    try {
+      ledger = featureLedgerSchema.parse(JSON.parse(content));
+    } catch (error) {
+      throw new Error(`Invalid feature ledger at ${path}: ${String(error)}`, { cause: error });
+    }
+    const currentRoot = await realpath(this.app.workspaceRoot);
+    if (ledger.ledgerRepositoryRoot !== currentRoot) {
       throw new Error(
-        "Feature directory must be under .spindle/features in the original checkout.",
+        `Feature ledger belongs to repository '${ledger.ledgerRepositoryRoot}'. ` +
+          `Run this command from '${ledger.ledgerRepositoryRoot}'.`,
       );
     }
-    return name;
+    return ledger;
   }
 
   public async updateLedger(
@@ -671,8 +742,7 @@ export class FeatureWorkspaceService extends Service {
     } = {},
   ): Promise<T> {
     this.assertApplicationBooted();
-    const name = this.workspaceName(reference);
-    const workspace = await this.workspacePath(name);
+    const { name, workspace } = await this.workspaceLocation(reference);
     return this.withLock(join(workspace, ".ledger-lock"), async () => {
       const ledger = await this.readLedger(workspace);
       if (ledger.completed) throw new Error(`Feature '${name}' is already complete.`);
@@ -751,16 +821,6 @@ export class FeatureWorkspaceService extends Service {
       return await file.readFile("utf8");
     } finally {
       await file.close();
-    }
-  }
-
-  private async readLedger(workspace: string): Promise<FeatureLedger> {
-    const path = join(workspace, "sdd.json");
-    const content = await this.readRecord(path);
-    try {
-      return featureLedgerSchema.parse(JSON.parse(content));
-    } catch (error) {
-      throw new Error(`Invalid feature ledger at ${path}: ${String(error)}`, { cause: error });
     }
   }
 

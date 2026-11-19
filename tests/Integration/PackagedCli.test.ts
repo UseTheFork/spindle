@@ -3,6 +3,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -186,6 +187,7 @@ test("packaged SDD create and next expose feature state outside the package chec
   const ledgerBeforeNext = readFileSync(ledgerPath, "utf8");
   expect(JSON.parse(ledgerBeforeNext)).toEqual({
     version: 1,
+    ledgerRepositoryRoot: realpathSync(gitWorkspace),
     tickets: [],
     findings: [],
     reviewRounds: [],

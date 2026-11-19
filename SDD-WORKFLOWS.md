@@ -676,6 +676,11 @@ acceptance review round; the agent's submission comment does not approve it.
 All commands run from the original checkout as
 `spindle sdd <command> --feature <directory>`, except `create`. The CLI
 resolves feature and ticket worktree paths from the ledger.
+`create` records the canonical Git repository root in the feature ledger.
+Feature commands can run from any subdirectory in that checkout, but reject a
+ledger created in another checkout and report the directory to use. A
+name-only feature reference with no local ledger is reported as not found in
+the current checkout.
 
 Commands use named flags for inputs. Repeat a flag to provide multiple values
 for a list. A long-text flag accepts text as its value, or `-` to read the

@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCli, runCliRaw } from "@test/Helpers/Cli";
@@ -37,6 +37,9 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
   expect(await readFile(join(nextDirectory, "spec.md"), "utf8")).toBe(specification);
   expect(await readFile(join(nextDirectory, "design.md"), "utf8")).toBe("Optional design");
   expect(await readdir(features)).toHaveLength(2);
+  expect(JSON.parse(await readFile(join(nextDirectory, "sdd.json"), "utf8"))).toMatchObject({
+    ledgerRepositoryRoot: await realpath(project),
+  });
 
   const next = runCliRaw(project, ["--json", "sdd", "next", "--feature", nextDirectory], path);
   expect(next.status, next.stderr).toBe(0);
@@ -53,6 +56,29 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
       ],
     },
   });
+
+  const nested = join(project, "nested");
+  await mkdir(nested);
+  const nestedNext = runCliRaw(nested, ["--json", "sdd", "next", "--feature", "0002-second"], path);
+  expect(nestedNext.status, nestedNext.stderr).toBe(0);
+
+  const other = await makeTempDir();
+  await mkdir(join(other, ".spindle"));
+  await writeFile(join(other, ".spindle", "config.json"), '{"stacks":["typescript"]}');
+  const wrongCheckout = runCli(other, ["--json", "sdd", "next", "--feature", nextDirectory], path);
+  expect(wrongCheckout.status).toBe(1);
+  expect(wrongCheckout.stderr).toContain(`Run this command from '${await realpath(project)}'.`);
+
+  const copiedFeatures = join(other, ".spindle", "features");
+  await mkdir(copiedFeatures);
+  await cp(nextDirectory, join(copiedFeatures, "0002-second"), { recursive: true });
+  const copiedLedger = runCli(other, ["--json", "sdd", "next", "--feature", "0002-second"], path);
+  expect(copiedLedger.status).toBe(1);
+  expect(copiedLedger.stderr).toContain(`Run this command from '${await realpath(project)}'.`);
+
+  const missing = runCli(other, ["--json", "sdd", "next", "--feature", "0003-missing"], path);
+  expect(missing.status).toBe(1);
+  expect(missing.stderr).toContain("was not found in this checkout");
 });
 
 test("ticket and task creation drive readiness and reject invalid graph changes", async () => {

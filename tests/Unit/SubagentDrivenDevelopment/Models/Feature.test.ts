@@ -5,6 +5,7 @@ test("accepts a feature before start with a ticket and pending task", () => {
   expect(
     featureSchema.safeParse({
       name: "0001-example",
+      ledgerRepositoryRoot: "/workspace",
       specification: "Feature requirements",
       tickets: [
         {
