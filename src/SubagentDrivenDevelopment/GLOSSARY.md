@@ -1,79 +1,94 @@
 # Subagent-Driven Development
 
-Subagent-driven development coordinates feature-scoped work, records ticket progress, and verifies feature-level completion evidence.
+The language for organizing feature work into tickets and tasks, coordinating
+agents, reviewing results, and delivering completed work.
 
-## Work tracking
+## Work Model
 
 **Feature**:
-A scoped body of work that groups related tickets and their shared requirements.
-
-**Feature design**:
-An optional document that records a feature's intent, success criteria, scope, and chosen direction. When present, it is completed and approved before the feature spec.
-
-**Feature spec**:
-The approved requirements document for a feature, grounded in its approved design when one exists. Tickets are derived from the feature spec.
+A complete unit of work defined by a feature specification and delivered as
+one whole. It contains one or more tickets.
 
 **Ticket**:
-An independently actionable unit of work with its own acceptance criteria.
+A coherent deliverable within a feature, defined by its requirements and
+acceptance criteria. It groups the tasks that produce that deliverable.
 _Avoid_: Issue
 
+**Ticket comment**:
+A note attached to a ticket that adds context without changing its requirements
+or acceptance criteria.
+
 **Task**:
-A bounded unit of work within a ticket, assigned to one subagent in the shared ticket worktree and considered complete when the controller accepts its submitted work.
+A unit of implementation within a ticket, defined by its instructions, planned
+write scope, and dependencies.
+_Avoid_: Subtask
 
-**Approved task-plan exception**:
-A one-use, auditable authorization for the approved T-0004 correction in feature `0001-ticket-task-dispatch`. It does not create tasks or remove the correction's fresh completion gates.
+**Work graph**:
+A feature's hierarchy of tickets and their tasks, connected by dependencies.
 
-**Task report**:
-A worker's report of the result for one assigned Task. The controller uses it to accept the Task or request changes.
+**Submission comment**:
+An optional note attached to a task when its worker submits it as Done.
+_Avoid_: Task comment
 
-**Ticket implementation report**:
-The controller's report for the combined ticket changes after every Task is accepted and the controller commits those changes.
+**Write scope**:
+The planned repository paths a task is expected to change. A write scope helps
+identify planned overlap between tasks but does not limit all files a worker
+may change.
 
-**Feature worktree**:
-The working tree in which a feature's ticket changes are integrated and its workflow records are maintained.
+**Integration**:
+The incorporation of an accepted ticket into its feature.
 
-**Ticket worktree**:
-The working tree in which a single ticket's changes are developed and reviewed.
+**Merge operation**:
+A branch integration assigned to a merge agent, separate from ticket
+implementation work.
 
-**Ticket status**:
-A ticket's tracker lifecycle: open or closed.
+## Roles and Handoffs
 
-**Dependency**:
-A relationship in which a ticket waits for another ticket to close, or a task waits for another task to be accepted.
+**Controller**:
+The operator responsible for coordinating a feature and its SDD workflow.
 
-**Blocker**:
-A dependency or explicit reason that prevents a ticket or feature from progressing, or a task from being ready.
+**Worker**:
+An agent assigned to implement a task or carry out a merge operation.
 
-**Ready ticket**:
-An open ticket with no unresolved dependencies or explicit blockers.
-
-## Review and completion
-
-**Delivery**:
-The feature-wide phase after all tickets are integrated, covering the feature's checks, its Feature review, and its merge into the originating branch.
-
-**Feature review**:
-A review of the completed feature changes before the feature is declared complete. It is the review gate within Delivery.
-_Avoid_: aggregate review, delivery review
-
-**Review requirement**:
-A required review role for a feature, including the default comprehensive reviewer and any optional specialist reviewers.
-
-**Committed inputs**:
-The Git commit containing the code and authoritative requirements assessed by a check or review.
-
-**Finding**:
-A review observation that may require work on a ticket before the feature can complete.
-
-**Blocking finding**:
-A Finding that prevents acceptance until verified fixed, dismissed as invalid,
-or addressed by an approved and reviewed requirements change.
-
-**Verification evidence**:
-Recorded check commands and results that establish whether the relevant tests pass for committed code and requirements.
-
-**Feature completion**:
-The state reached when all feature tickets are integrated, required checks and reviews pass, and the feature is merged and validated on its originating branch.
+**Reviewer**:
+An agent that assesses a ticket or feature against its acceptance criteria or
+specification.
 
 **Assignment**:
-A recorded implementation or review dispatch with its owner, report destination, and submission state.
+A scoped handoff of task, review, or merge work to an agent, including the
+target and the instructions or criteria relevant to that work.
+
+**Merge agent**:
+A worker assigned to merge branches as part of ticket integration or feature
+delivery.
+
+## Reviews and Delivery
+
+**Review round**:
+One or more reviews of the same target at the same code revision.
+
+**Acceptance review**:
+A review of a ticket's completed work against its acceptance criteria.
+
+**Feature review**:
+A review of a completed feature against its specification.
+
+**Finding**:
+An issue recorded from a review, with supporting evidence for the decision
+about it.
+
+**Evidence**:
+Verifiable information that supports a review recommendation or finding.
+
+**Delivery**:
+The final incorporation of a completed feature into the branch from which it
+started.
+_Avoid_: Release
+
+**Delivery ticket**:
+A ticket that brings the original branch's latest commits into a feature before
+delivery.
+
+**Delivery merge agent**:
+A merge agent assigned to bring the original branch's latest changes into a
+delivery ticket before feature completion.

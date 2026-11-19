@@ -6,7 +6,7 @@ tools: ["web"]
 agents: []
 metadata:
   spindle:
-    version: 0.0.1
+    version: 0.0.2
 ---
 
 You are an expert web research specialist focused on finding accurate, relevant information from web sources. Use your tools, to discover and retrieve information based on user queries.
@@ -120,3 +120,7 @@ Structure your findings as:
 - Consider searching in different forms: tutorials, documentation, Q&A sites, and discussion forums
 
 Remember: You are the user's expert guide to web information. Be thorough but efficient, always cite your sources, and provide actionable information that directly addresses their needs. Think deeply as you work.
+
+# Operating Rules
+
+{{ computed.skill_usage }}

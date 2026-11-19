@@ -64,7 +64,7 @@ local to a method remain appropriate.
 human or JSON mode after bootstrap. CLI adapters submit human messages and typed
 data; command operations and domain services do not print results.
 The executable uses the same service policy for pre-application failures.
-See [CLI output](../cli-output.md) for the stream and envelope contracts.
+See [CLI output](../product/cli/output.md) for the stream and envelope contracts.
 
 `Application` requires only `{ basePath }`. This explicit invocation starting path
 is normalized to an absolute path and never changes. The workspace root is bound
@@ -80,11 +80,11 @@ when compiled), not the Git root. `assetsPath(path = "")` joins the package's
 `joinPaths(basePath, path = "")`,
 which preserves the base for an empty suffix, replaces it for an absolute suffix,
 and joins relative suffixes without resolving relative bases against cwd.
+`featuresPath(path = "")` joins the workspace's `.spindle/features` directory.
 Application does not read `process.cwd()`; the executable supplies it.
-its initially empty mutable `config` is isolated between applications and available
-before provider construction. Application Configuration is distinct from the
-project's `.spindle/config.json` Project Settings. [ADR-0005](./0005-subagent-development-boundaries.md)
-adds a distinct Project Settings snapshot bootstrap adapter without populating `app.config`.
+Its initially empty mutable `config` is isolated between applications and
+available before provider construction. Application Configuration is distinct
+from Project Settings in `.spindle/config.json`.
 
 `register(ProviderClass)` constructs and synchronously registers each provider once,
 then queues its instance for boot. Providers receive getter-only application

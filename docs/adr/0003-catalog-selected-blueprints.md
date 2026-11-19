@@ -15,8 +15,8 @@ The inventory is a static, typed TypeScript object in
 `src/Assets/Blueprints/Catalog.ts`, compiled with the CLI
 rather than loaded from YAML.
 Blueprint Management owns types, runtime validation, and the validated export
-in `src/BlueprintManagement/Catalog/BlueprintCatalogOperations.ts`; SDD consumes that
-export, not raw asset metadata. Module-relative assets do not expose an
+in `src/BlueprintManagement/Catalog/BlueprintCatalogOperations.ts`; consumers use
+that export, not raw asset metadata. Module-relative assets do not expose an
 environment override. Runtime validation retains
 path safety and filesystem checks.
 

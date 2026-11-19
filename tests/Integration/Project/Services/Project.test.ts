@@ -91,7 +91,6 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       "docs/agents",
       ".github/copilot-instructions.md",
       "docs/agents/domain.md",
-      "docs/agents/ticket-tracker.md",
       "docs/agents/constitution.md",
       "docs/agents/tooling.md",
     ],
@@ -103,14 +102,6 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
     status: "valid",
     data: { stacks: ["typescript"], tooling: expect.any(Array) },
   });
-  const ticketGuide = readFileSync(join(workspace, "docs/agents/ticket-tracker.md"), "utf8");
-  expect(ticketGuide).toContain("pnpm spindle sdd");
-  expect(ticketGuide).toContain("Ticket status is `open` or `closed`");
-  expect(ticketGuide).toContain("Declare the complete final-check list before finishing");
-  expect(ticketGuide).toContain("check and review results require `--details`");
-  expect(ticketGuide).not.toContain("`in-progress`");
-  expect(ticketGuide).not.toContain("--confirm-records");
-  expect(ticketGuide).not.toContain("{{");
   expect(readFileSync(join(workspace, ".github/copilot-instructions.md"), "utf8")).toBe(
     `<!-- spindle:start -->\n${copilotInstructionsTemplate.trimEnd()}\n<!-- spindle:end -->\n`,
   );
@@ -206,10 +197,9 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
   const repeated = await service.initialize();
   expect(repeated.created).toEqual([]);
   expect(repeated.updated).toContain("docs/agents/domain.md");
-  expect(repeated.updated).toContain("docs/agents/ticket-tracker.md");
   expect(repeated.updated).toContain("docs/agents/tooling.md");
   expect(readFileSync(join(workspace, "docs/agents/domain.md"))).not.toEqual(customDomain);
-  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).not.toEqual(
+  expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).toEqual(
     customTicketTracker,
   );
   expect(

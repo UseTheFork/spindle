@@ -4,6 +4,7 @@ import type {
   SpawnSyncOptionsWithStringEncoding,
   SpawnSyncReturns,
 } from "node:child_process";
+import { realpath } from "node:fs/promises";
 
 import { Service } from "@spindle/Foundation/Service";
 
@@ -54,6 +55,42 @@ export class GitService extends Service {
       );
     }
     return paths;
+  }
+
+  public changedPaths(worktree: string, includeUntracked = true): string[] {
+    const result = this.run(
+      [
+        "--no-optional-locks",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--no-renames",
+        includeUntracked ? "--untracked-files=all" : "--untracked-files=no",
+        "--ignore-submodules=none",
+      ],
+      { cwd: worktree, encoding: "buffer" },
+    );
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`git status failed: ${result.stderr.toString("utf8").trim()}`);
+    }
+
+    const output = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.stdout);
+    const entries = output.split("\0");
+    entries.pop();
+    return [...new Set(entries.map((entry) => entry.slice(3)))].sort();
+  }
+
+  public async requireWorktreeBranch(path: string, branch: string): Promise<void> {
+    const worktree = await realpath(path);
+    if (worktree !== path || this.discoverRoot(worktree) !== worktree) {
+      throw new Error(`The recorded ticket worktree is not a Git worktree root: '${path}'.`);
+    }
+    const head = this.run(["symbolic-ref", "HEAD"], { cwd: worktree, encoding: "utf8" });
+    if (head.error) throw head.error;
+    if (head.status !== 0 || head.stdout.trim() !== `refs/heads/${branch}`) {
+      throw new Error(`The recorded ticket branch is not checked out at '${worktree}'.`);
+    }
   }
 
   private discoveryError(): Error {

@@ -103,8 +103,6 @@ test("catalog review eligibility is agent-only and must be boolean", () => {
     canReview: true,
   });
   expect(blueprintCatalog.agents["sdd-reviewer"]?.canReview).toBe(true);
-  expect(blueprintCatalog.agents["sdd-code-reviewer"]?.canReview).toBe(true);
-  expect(blueprintCatalog.agents["sdd-task-reviewer"]?.canReview).toBe(true);
   expect(
     BlueprintCatalogOperations.validateBlueprintCatalog(
       catalog({ reviewer: { ...entry, canReview: false } }, {}, {}),

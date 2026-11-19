@@ -1,7 +1,7 @@
 <!-- spindle:start -->
 ## Issue tracker
 
-SDD specs and tickets live in numbered `.spindle/features/<feature-id>-<feature-slug>/` workspaces. See `docs/agents/ticket-tracker.md` for conventions.
+SDD specs and tickets live in numbered `.spindle/features/<feature-id>-<feature-slug>/` workspaces.
 
 ## Domain docs
 

@@ -1,15 +1,11 @@
-# {{ variables.title | default("[TICKET TITLE]") }}
-
-- **Reporter:** {{ variables.reporter | default("[REPORTER]") }}
-- **Category:** {{ variables.category | default("[CATEGORY]") }}
-- **Author:** {{ variables.author | default("[AUTHOR]") }}
+# {{ variables.title }}
 
 ## Requirements
 
-{{ variables.requirements | default("[REQUIREMENTS]") }}
+{{ variables.requirements }}
 
 ## Acceptance Criteria
 
-{{ variables.acceptance_criteria | default("[ACCEPTANCE CRITERIA]") }}
+{{ variables.acceptance_criteria }}
 
 ## Comments

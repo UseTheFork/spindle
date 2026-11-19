@@ -63,6 +63,10 @@ export class Application extends Container {
     return this.joinPaths(this.workspaceRoot, path);
   }
 
+  public featuresPath(path = ""): string {
+    return this.joinPaths(this.workspacePath(join(".spindle", "features")), path);
+  }
+
   public appPath(path = ""): string {
     return this.joinPaths(fileURLToPath(new URL("../", import.meta.url)), path);
   }

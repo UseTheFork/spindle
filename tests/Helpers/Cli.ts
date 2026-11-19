@@ -50,10 +50,12 @@ export function runCliRaw(
   args: string[],
   searchPath: string,
   env: Record<string, string> = {},
+  input?: string,
 ) {
   return spawnSync(process.execPath, [...nodeArguments(env), ...args], {
     cwd: project,
     encoding: "utf8",
+    input,
     env: {
       ...process.env,
       TSX_TSCONFIG_PATH: tsconfig,

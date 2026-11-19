@@ -11,13 +11,12 @@
 - [Settings](src/Settings/GLOSSARY.md): Project Settings and their lifecycle.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
   features, tickets, assignments, findings, evidence, and delivery.
+- [SDD target workflow](docs/product/sdd/workflow.md): target design for the SDD rebuild:
+  work graph, parallel dispatch, integration, reviews and delivery.
 - [Git](src/Git/GLOSSARY.md): repositories, working trees, index, and commits.
 
-Cross-context ownership and bootstrap order are documented in
-[ADR-0005](docs/adr/0005-subagent-development-boundaries.md). Shared rendering
-ownership is documented in [ADR-0009](docs/adr/0009-shared-template-rendering.md).
-SDD worktree integration is documented in
-[ADR-0011](docs/adr/0011-isolated-sdd-worktrees.md).
+Shared template rendering ownership is documented in
+[ADR-0009](docs/adr/0009-shared-template-rendering.md).
 
 Project initialization depends on Blueprint Management and Tooling. The unified
 `spindle init` command installs Blueprints before initializing project guidance

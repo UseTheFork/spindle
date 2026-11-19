@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# Share Template Rendering across Blueprint and SDD workflows
+# Share Template Rendering across contexts
 
 Rendering and Computed Variables currently belong to Blueprint Management.
 Extract them into a Template Rendering context backed by the existing Nunjucks
@@ -10,12 +10,6 @@ engine, rather than coupling other workflows to Blueprint Management. Callers
 retain ownership of CLI input collection, configuration loading, and persistence.
 This revises the Computed ownership described in
 [ADR-0004](./0004-application-owned-services.md).
-
-SDD remains independent of Project Settings, preserving
-[ADR-0005](./0005-subagent-development-boundaries.md). Its spec, optional design,
-and ticket creation paths render their templates using only inputs already
-requested by their commands, such as a title. No generic `--var` option is added.
-SDD does not inherit Blueprint-specific variable defaults.
 
 Templates use the existing `variables` and `computed` namespaces. Editorial
 placeholders become Nunjucks expressions with explicit defaults preserving the

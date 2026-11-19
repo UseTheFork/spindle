@@ -3,27 +3,14 @@ import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Ca
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {
     general: { path: "general.agent.md", stacks: [] },
-    "sdd-code-reviewer": {
-      path: "sdd-code-reviewer.agent.md",
-      stacks: [],
-      canReview: true,
-    },
-    "sdd-code-slop-reviewer": {
-      path: "sdd-code-slop-reviewer.agent.md",
-      stacks: [],
-    },
-    "sdd-implementer": { path: "sdd-implementer.agent.md", stacks: [] },
+    "sdd-merge-agent": { path: "sdd-merge-agent.agent.md", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", stacks: [] },
     "sdd-reviewer": {
       path: "sdd-reviewer.agent.md",
       stacks: [],
       canReview: true,
     },
-    "sdd-task-reviewer": {
-      path: "sdd-task-reviewer.agent.md",
-      stacks: [],
-      canReview: true,
-    },
+    "sdd-task-worker": { path: "sdd-task-worker.agent.md", stacks: [] },
     "shared-explore": { path: "shared-explore.agent.md", stacks: [] },
     "shared-r": { path: "shared-r.agent.md", stacks: [] },
     "shared-rw": { path: "shared-rw.agent.md", stacks: [] },
@@ -69,24 +56,18 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     grill: { path: "grill/", stacks: [] },
     "sdd-grill-design": { path: "sdd-grill-design/", stacks: [] },
     "grill-with-docs": { path: "grill-with-docs/", stacks: [] },
-    implement: { path: "implement/", stacks: [] },
     "sdd-implement-spec": { path: "sdd-implement-spec/", stacks: [] },
     "improve-codebase-architecture": {
       path: "improve-codebase-architecture/",
       stacks: [],
     },
     "private-codebase-design": { path: "private-codebase-design/", stacks: [] },
-    "private-code-review": { path: "private-code-review/", stacks: [] },
     "private-code-slop-review": { path: "private-code-slop-review/", stacks: [] },
     "private-ref-ears": { path: "private-ref-ears/", stacks: [] },
+    "private-ref-sdd-workflow": { path: "private-ref-sdd-workflow/", stacks: [] },
     "public-ref-domain-modeling": { path: "public-ref-domain-modeling/", stacks: [] },
     "private-prototype": { path: "private-prototype/", stacks: [] },
     "private-retrospective": { path: "private-retrospective/", stacks: [] },
-    "private-subagent-driven-dev": { path: "private-subagent-driven-dev/", stacks: [] },
-    "private-test-driven-development": {
-      path: "private-test-driven-development/",
-      stacks: [],
-    },
     "private-testing-agent-guidance": {
       path: "private-testing-agent-guidance/",
       stacks: [],

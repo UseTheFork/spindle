@@ -62,9 +62,7 @@ test("update renders and replaces project guidance and initializes missing tooli
     "before\n<!-- spindle:start -->\nUse pnpm.\n<!-- spindle:end -->\nafter\n",
   );
   expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).toBe("Domain pnpm.\n");
-  expect(await readFile(join(project, "docs/agents/ticket-tracker.md"), "utf8")).toContain(
-    "pnpm spindle sdd",
-  );
+  expect(await readFile(join(project, "docs/agents/ticket-tracker.md"), "utf8")).toBe("old tickets");
   expect(await readFile(join(project, "docs/agents/constitution.md"), "utf8")).toBe(
     ratifiedConstitution,
   );
@@ -114,9 +112,9 @@ test("init renders project Markdown using its selected package manager", async (
   expect(await readFile(join(project, ".github/copilot-instructions.md"), "utf8")).toContain(
     "Run npm run.",
   );
-  expect(await readFile(join(project, "docs/agents/ticket-tracker.md"), "utf8")).toContain(
-    "npm run spindle sdd",
-  );
+  await expect(readFile(join(project, "docs/agents/ticket-tracker.md"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
 });
 
 test("update preserves a valid registry and rejects reserved registry keys before changes", async () => {

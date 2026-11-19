@@ -351,7 +351,7 @@ test("repeated updates through one App render updated Project Settings with comp
   const blueprints = await makeTempDir("spindle-computed-app-blueprints-");
   const project = await makeTempDir("spindle-computed-app-project-");
   const github = join(project, ".github");
-  const skillName = "private-test-driven-development";
+  const skillName = "private-codebase-design";
   const sourcePath = join(blueprints, "skills", skillName, "SKILL.md");
   const installedPath = join(github, "skills", skillName, "SKILL.md");
   const descriptionSkill = await readFile(

@@ -101,11 +101,11 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
   const skillSource = join(
     firstSourceRoot,
     "skills",
-    "private-test-driven-development",
+    "private-codebase-design",
     "SKILL.md",
   );
   const skillTarget = (workspace: string) =>
-    join(workspace, ".github", "skills", "private-test-driven-development", "SKILL.md");
+    join(workspace, ".github", "skills", "private-codebase-design", "SKILL.md");
   const firstConfig = projectSettingsSchema.parse({
     stacks: ["python"],
     spindle_package_manager: "pnpm",
@@ -160,10 +160,10 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     ).toEqual(secondConfig);
 
     const sourceText = await readFile(skillSource, "utf8");
-    expect(sourceText.includes("version: 1.2.0")).toBeTruthy();
+    expect(sourceText.includes("version: 1.1.1")).toBeTruthy();
     await writeFile(
       skillSource,
-      `${sourceText.replace("version: 1.2.0", "version: 2.0.0")}\nApplication one update marker.\n`,
+      `${sourceText.replace("version: 1.1.1", "version: 2.0.0")}\nApplication one update marker.\n`,
     );
     await firstService.reconcile(blueprintHandlers, {
       mode: "update",
@@ -175,7 +175,7 @@ test("reconciliation services isolate App roots and reuse no prior operation dat
     const secondInstalledSkill = await readFile(skillTarget(secondWorkspace), "utf8");
     expect(firstInstalledSkill).toMatch(/version: 2\.0\.0/);
     expect(firstInstalledSkill).toMatch(/Application one update marker\./);
-    expect(secondInstalledSkill).toMatch(/version: 1\.2\.0/);
+    expect(secondInstalledSkill).toMatch(/version: 1\.1\.1/);
     expect(secondInstalledSkill).not.toMatch(/Application one update marker\./);
   }
 });

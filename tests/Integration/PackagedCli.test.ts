@@ -3,6 +3,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -15,9 +16,8 @@ import { test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
-import matter from "gray-matter";
-
 import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import matter from "gray-matter";
 
 const checkout = repoRoot;
 function packagedCli(existingRoot?: string) {
@@ -98,14 +98,15 @@ test("published tarball supplies assets for initialization and SDD documents", (
   const created = cli.run(workspace, [
     "sdd",
     "create",
-    "--title",
+    "--slug",
+    "tarball-feature",
+    "--spec",
     "Tarball feature",
-    "--actor",
-    "maintainer",
-    "--with-design",
+    "--design",
+    "## Intent\n\nTarball design.",
   ]);
   expect(created.status, created.stderr).toBe(0);
-  const feature = join(workspace, ".spindle/features", "0001-tarball-feature");
+  const feature = join(workspace, ".spindle/features", "2027-tarball-feature");
   const ticket = cli.run(workspace, [
     "sdd",
     "ticket",
@@ -114,16 +115,17 @@ test("published tarball supplies assets for initialization and SDD documents", (
     feature,
     "--title",
     "Tarball ticket",
-    "--reporter",
-    "maintainer",
-    "--category",
-    "enhancement",
-    "--actor",
-    "maintainer",
+    "--requirements",
+    "Tarball ticket requirements.",
+    "--acceptance-criteria",
+    "The packaged ticket is created.",
   ]);
   expect(ticket.status, ticket.stderr).toBe(0);
-  expect(readFileSync(join(feature, "design.md"), "utf8")).toContain("## Intent");
-  expect(readFileSync(join(feature, "tickets", "T-0001.md"), "utf8")).toContain("# Tarball ticket");
+  expect(readFileSync(join(feature, "design.md"), "utf8")).toContain("Tarball design.");
+  const ticketDocument = readFileSync(join(feature, "tickets", "T-0001.md"), "utf8");
+  expect(ticketDocument).toContain("# Tarball ticket");
+  expect(ticketDocument).toContain("Tarball ticket requirements.");
+  expect(ticketDocument).toContain("The packaged ticket is created.");
 });
 
 test("packaged schema describes project settings and supported stacks", () => {
@@ -134,7 +136,7 @@ test("packaged schema describes project settings and supported stacks", () => {
   expect(schema.required).toContain("stacks");
 });
 
-test("packaged sdd create and status expose feature state outside the checkout", () => {
+test("packaged SDD create and next expose feature state outside the package checkout", () => {
   const cli = packagedCli();
   const gitWorkspace = tempDirectory("spindle-packaged-git-");
   const { git } = makeGitWorkspace(gitWorkspace);
@@ -153,95 +155,59 @@ test("packaged sdd create and status expose feature state outside the checkout",
     "--json",
     "sdd",
     "create",
-    "--title",
-    "Packaged Feature",
-    "--actor",
-    "maintainer",
-    "--with-design",
+    "--slug",
+    "packaged-feature",
+    "--spec",
+    "# Packaged Feature\n\nA packaged feature specification.",
+    "--design",
+    "## Intent\n\nA packaged feature design.",
   ]);
   expect(created.status, created.stderr).toBe(0);
   expect(created.stderr).toBe("");
-  const featureDirectory = join(gitWorkspace, ".spindle/features", "0001-packaged-feature");
+  const featureDirectory = join(gitWorkspace, ".spindle/features", "2027-packaged-feature");
   const expected = {
-    feature: "0001-packaged-feature",
+    name: "2027-packaged-feature",
     workspace: featureDirectory,
-    spec: join(featureDirectory, "spec.md"),
-    ledger: join(featureDirectory, "sdd.json"),
   };
-  expect(created.stdout).toBe(`${JSON.stringify({ ok: true, data: expected })}\n`);
   const createdEnvelope = JSON.parse(created.stdout);
-  expect(createdEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
-  expect(createdEnvelope.data).toEqual(expected);
-  expect(readFileSync(expected.spec, "utf8")).toContain("# Packaged Feature");
+  expect(createdEnvelope).toEqual({ ok: true, data: expected });
+  const specificationPath = join(featureDirectory, "spec.md");
+  const ledgerPath = join(featureDirectory, "sdd.json");
+  expect(readFileSync(specificationPath, "utf8")).toBe(
+    "# Packaged Feature\n\nA packaged feature specification.",
+  );
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
     "design.md",
-    "reports",
     "sdd.json",
     "spec.md",
     "tickets",
   ]);
 
-  const ledgerBeforeStatus = readFileSync(expected.ledger, "utf8");
-  const ledger = JSON.parse(ledgerBeforeStatus);
-  expect(ledger.reviewPolicy).toEqual({
+  const ledgerBeforeNext = readFileSync(ledgerPath, "utf8");
+  expect(JSON.parse(ledgerBeforeNext)).toEqual({
     version: 1,
-    ticket: ["sdd-task-reviewer"],
-    delivery: ["sdd-reviewer"],
-  });
-  expect(ledger.delivery).toMatchObject({
-    status: "active",
-    execution: "unstarted",
-    baseSha: expect.stringMatching(/^[0-9a-f]{40}$/),
-    history: [],
-  });
-  expect(ledger.tickets).toEqual([]);
-  const statusBefore = git("status", "--porcelain=v1");
-  const inspected = cli.run(gitWorkspace, [
-    "--json",
-    "sdd",
-    "status",
-    "--feature",
-    featureDirectory,
-  ]);
-  expect(inspected.status, inspected.stderr).toBe(0);
-  expect(inspected.stderr).toBe("");
-  const expectedStatus = {
-    feature: expected.feature,
-    workspace: featureDirectory,
-    spec: expected.spec,
-    ledger: expected.ledger,
-    state: ledger,
-    commits: [],
+    ledgerRepositoryRoot: realpathSync(gitWorkspace),
+    tickets: [],
     findings: [],
-    requirementsDecisions: [],
-    actions: [],
-    pendingAssignments: [],
-    blockers: [],
-    delivery: {
-      scope: "delivery",
-      status: "active",
-      execution: "unstarted",
-      action: "close-tickets",
-      baseSha: ledger.delivery.baseSha,
-      retrospectiveRequired: false,
-      finished: false,
-      findings: [],
-      correctionAttempts: [],
-      reviewRequirements: [],
-      reviewAssignments: [],
-      requiredChecks: [],
-      finalChecks: [],
-      checkRecords: [],
-      blockers: ["Tickets are not closed: feature has no tickets."],
+    reviewRounds: [],
+  });
+  const worktreeStatusBefore = git("status", "--porcelain=v1");
+  const next = cli.run(gitWorkspace, ["--json", "sdd", "next", "--feature", featureDirectory]);
+  expect(next.status, next.stderr).toBe(0);
+  expect(next.stderr).toBe("");
+  const nextEnvelope = JSON.parse(next.stdout);
+  expect(nextEnvelope).toMatchObject({
+    ok: true,
+    data: {
+      feature: "2027-packaged-feature",
+      actions: [],
+      tickets: [],
     },
-  };
-  expect(inspected.stdout).toBe(`${JSON.stringify({ ok: true, data: expectedStatus })}\n`);
-  const statusEnvelope = JSON.parse(inspected.stdout);
-  expect(statusEnvelope).toMatchObject({ ok: true, data: expect.any(Object) });
-  expect(statusEnvelope.data).toEqual(expectedStatus);
-  expect(readFileSync(expected.ledger, "utf8")).toBe(ledgerBeforeStatus);
-  expect(git("status", "--porcelain=v1")).toBe(statusBefore);
+  });
+  expect(nextEnvelope.data.notices).toContain("No tickets in this feature.");
+  expect(readFileSync(ledgerPath, "utf8")).toBe(ledgerBeforeNext);
+  expect(git("status", "--porcelain=v1")).toBe(worktreeStatusBefore);
 
   const createdTicket = cli.run(gitWorkspace, [
     "--json",
@@ -252,12 +218,10 @@ test("packaged sdd create and status expose feature state outside the checkout",
     featureDirectory,
     "--title",
     "Packaged ticket",
-    "--reporter",
-    "maintainer",
-    "--category",
-    "enhancement",
-    "--actor",
-    "controller",
+    "--requirements",
+    "Packaged ticket requirements.",
+    "--acceptance-criteria",
+    "The packaged ticket is ready for work.",
   ]);
   expect(createdTicket.status, createdTicket.stderr).toBe(0);
   const ticketEnvelope = JSON.parse(createdTicket.stdout);
@@ -265,9 +229,8 @@ test("packaged sdd create and status expose feature state outside the checkout",
   expect(ticketEnvelope.data.ticket).toBe("T-0001");
   const ticket = readFileSync(join(featureDirectory, "tickets", "T-0001.md"), "utf8");
   expect(ticket).toContain("# Packaged ticket");
-  expect(ticket).toContain("**Reporter:** maintainer");
-  expect(ticket).toContain("**Category:** enhancement");
-  expect(ticket).toContain("[REQUIREMENTS]");
+  expect(ticket).toContain("Packaged ticket requirements.");
+  expect(ticket).toContain("The packaged ticket is ready for work.");
 
   const invocationWorkspace = tempDirectory("spindle-packaged-project-init-");
   makeGitWorkspace(invocationWorkspace);
@@ -373,15 +336,44 @@ test("packaged command discovery and help remain intact", () => {
   const sddHelp = cli.run(projectWorkspace, ["sdd", "--help"]);
   expect(sddHelp.status, sddHelp.stderr).toBe(0);
   expect(sddHelp.stdout).toMatch(/^\s+create\s/m);
-  expect(sddHelp.stdout).toMatch(/^\s+status\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+next\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+delivery\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+finish\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+ticket\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+task\s/m);
   expect(sddHelp.stderr).toBe("");
 
   for (const [args, expectedContent] of [
     [
       ["sdd", "create", "--help"],
-      ["--title <title>", "--actor <acting-agent>", "--require-retrospective"],
+      ["--slug <slug>", "--spec <text>", "--design <text>"],
     ],
-    [["sdd", "status", "--help"], ["--feature <directory>"]],
+    [["sdd", "next", "--help"], ["--feature <directory>"]],
+    [
+      ["sdd", "delivery", "create", "--help"],
+      ["--feature <directory>", "--write-scope <path>"],
+    ],
+    [
+      ["sdd", "ticket", "update", "--help"],
+      ["--feature <directory>", "--ticket <id>"],
+    ],
+    [
+      ["sdd", "ticket", "comment", "add", "--help"],
+      ["--feature <directory>", "--ticket <id>", "--comment <text>"],
+    ],
+    [
+      ["sdd", "task", "update", "--help"],
+      ["--feature <directory>", "--task <id>", "--context <reference>", "--clear-context"],
+    ],
+    [
+      ["sdd", "task", "remove", "--help"],
+      ["--feature <directory>", "--task <id>"],
+    ],
+    [
+      ["sdd", "task", "submit", "--help"],
+      ["--feature <directory>", "--task <id>", "--attempt <n>", "--comment <text>"],
+    ],
+    [["sdd", "finish", "--help"], ["--feature <directory>"]],
     [["init", "--help"], ["Usage: spindle init [options]"]],
     [
       ["tool", "add", "--help"],
@@ -415,11 +407,11 @@ test("packaged init from a nested directory targets the Git worktree root", () =
     "--no-interactive",
   ]);
   expect(result.status, result.stderr).toBe(0);
-  expect(JSON.parse(readFileSync(join(project, ".spindle", "config.json"), "utf8")).stacks).toEqual([
-    "python",
-  ]);
+  expect(JSON.parse(readFileSync(join(project, ".spindle", "config.json"), "utf8")).stacks).toEqual(
+    ["python"],
+  );
   expect(
-    existsSync(join(project, ".github", "skills", "private-test-driven-development", "SKILL.md")),
+    existsSync(join(project, ".github", "skills", "private-codebase-design", "SKILL.md")),
   ).toBe(true);
   expect(readdirSync(nested)).toEqual([]);
 });
@@ -438,7 +430,7 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   ]);
   expect(result.status, result.stderr).toBe(0);
 
-  const skillDirectory = join(project, ".github", "skills", "private-test-driven-development");
+  const skillDirectory = join(project, ".github", "skills", "private-codebase-design");
   const skillPath = join(skillDirectory, "SKILL.md");
   const installed = readFileSync(skillPath, "utf8");
   expect(matter(installed).data.description).toBe(
@@ -447,7 +439,6 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   expect(installed).not.toMatch(/{{|}}/);
 
   for (const [name, references] of [
-    ["private-test-driven-development", ["tests.md", "mocking.md"]],
     ["public-ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
     ["private-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
   ] as const) {
@@ -474,13 +465,13 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   legacySkill.data.metadata.spindle.version = "1.0.0";
   writeFileSync(skillPath, matter.stringify(legacySkill.content, legacySkill.data));
   rmSync(join(skillDirectory, "references"), { recursive: true });
-  for (const name of ["tests.md", "mocking.md"]) {
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     writeFileSync(join(skillDirectory, name), "legacy location\n");
   }
 
   const updated = cli.run(project, ["update"]);
   expect(updated.status, updated.stderr).toBe(0);
-  for (const name of ["tests.md", "mocking.md"]) {
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     expect(existsSync(join(skillDirectory, name))).toBe(false);
     expect(existsSync(join(skillDirectory, "references", name))).toBe(true);
   }
@@ -500,17 +491,21 @@ test("packaged workflow commands reject malformed, duplicate, inapplicable, and 
   const invalidCases = [
     ...[
       ["sdd", "create"],
-      ["sdd", "create", "--title"],
-      ["sdd", "create", "--title", "Feature"],
-      ["sdd", "create", "--title", "Feature", "--actor"],
-      ["sdd", "create", "--title", "Feature", "--actor", "one", "--actor", "two"],
-      ["sdd", "create", "--title", "Feature", "--actor", "maintainer", "--unknown"],
-      ["sdd", "create", "--title", "Feature", "--actor", "maintainer", "nested"],
-      ["sdd", "status"],
-      ["sdd", "status", "--feature"],
-      ["sdd", "status", "--feature", "missing.md", "--feature", "another.md"],
-      ["sdd", "status", "--feature", "missing.md", "--unknown"],
-      ["sdd", "status", "--feature", "missing.md", "nested"],
+      ["sdd", "create", "--slug"],
+      ["sdd", "create", "--slug", "feature"],
+      ["sdd", "create", "--slug", "one", "--slug", "two", "--spec", "Feature"],
+      ["sdd", "create", "--slug", "feature", "--spec", "Feature", "--unknown"],
+      ["sdd", "create", "--slug", "feature", "--spec", "Feature", "nested"],
+      ["sdd", "next"],
+      ["sdd", "next", "--feature"],
+      ["sdd", "next", "--feature", "missing.md", "--feature", "another.md"],
+      ["sdd", "next", "--feature", "missing.md", "--unknown"],
+      ["sdd", "next", "--feature", "missing.md", "nested"],
+      ["sdd", "delivery", "create"],
+      ["sdd", "delivery", "create", "--feature"],
+      ["sdd", "delivery", "create", "--feature", "missing.md", "--feature", "another.md"],
+      ["sdd", "finish"],
+      ["sdd", "finish", "--feature"],
       ["sdd", "unknown"],
     ].map((args) => [args, gitWorkspace] as const),
     ...[

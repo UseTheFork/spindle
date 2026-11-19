@@ -4,7 +4,8 @@ status: accepted
 
 # Resolve Project Settings with a shared schema
 
-This decision replaces ADR-0005's Project Settings snapshot contract.
+This decision defines the Project Settings snapshot contract for
+`.spindle/config.json`.
 
 Zod defines Project Settings, their defaults, and runtime validation. A valid
 `settings.project` contains resolved Project Settings; absent and invalid states

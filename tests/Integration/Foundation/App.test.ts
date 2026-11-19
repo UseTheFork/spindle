@@ -184,10 +184,12 @@ test("path helpers use distinct workspace, installation and invocation roots", (
   expect(() => app.workspacePath()).toThrow(/Unbound/);
   expect(() => app.workspacePath("nested/file")).toThrow(/Unbound/);
   expect(() => app.workspacePath("/absolute/file")).toThrow(/Unbound/);
+  expect(() => app.featuresPath()).toThrow(/Unbound/);
   app.instance("path.workspace", "/workspace");
 
   for (const [helper, root] of [
     [app.workspacePath.bind(app), "/workspace"],
+    [app.featuresPath.bind(app), join("/workspace", ".spindle", "features")],
     [app.appPath.bind(app), installationRoot],
     [app.assetsPath.bind(app), fileURLToPath(new URL("../../../assets/", import.meta.url))],
     [app.basePath.bind(app), "/unrelated/invocation"],

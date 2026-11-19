@@ -21,7 +21,8 @@ import { FoundationServiceProvider } from "@spindle/Foundation/FoundationService
 import { Kernel } from "@spindle/Foundation/Kernel";
 import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 import { ProjectServiceProvider } from "@spindle/Project/ProjectServiceProvider";
-import { ReviewService } from "@spindle/SubagentDrivenDevelopment/Services/ReviewService";
+import { SettingsService } from "@spindle/Settings/Services/SettingsService";
+import { SettingsServiceProvider } from "@spindle/Settings/SettingsServiceProvider";
 import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { Repository } from "@spindle/Support/Repository";
 import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
@@ -271,55 +272,30 @@ test("Commander alone supplies validated repeated options to the executable comp
   expect(run).toHaveBeenCalledWith(["python", "typescript"], "custom run", false, "overwrite");
 });
 
-test("Commander preserves a real positional action and nested command path without reparsing", async () => {
+test("Commander preserves a real positional argument and nested command path without reparsing", async () => {
   const { nested } = workspace();
   const operationFailure = new Error("operation reached");
-  vi.spyOn(ReviewService.prototype, "reviewRequire").mockImplementation(() => {
-    throw operationFailure;
-  });
+  const get = vi.spyOn(SettingsService.prototype, "get").mockRejectedValue(operationFailure);
   let application: Application | undefined;
-  const raw = [
-    "sdd",
-    "review",
-    "require",
-    "--feature",
-    "/",
-    "--scope",
-    "delivery",
-    "--type",
-    "reviewer",
-    "--details",
-    "Required",
-    "--actor",
-    "maintainer",
-  ];
+  const raw = ["settings", "get", "stacks"];
   await expect(
     Cli.dispatch(
       raw,
-      () => {
-        application = Application.configure(nested, [
-          BlueprintManagementServiceProvider,
-          ProjectServiceProvider,
-          ToolingServiceProvider,
-          SubagentDrivenDevelopmentServiceProvider,
-        ]).create();
+      (_invocation, providers) => {
+        application = Application.configure(nested, providers).create();
         return application;
       },
       "spindle",
-      [
-        BlueprintManagementServiceProvider,
-        ProjectServiceProvider,
-        ToolingServiceProvider,
-        SubagentDrivenDevelopmentServiceProvider,
-      ],
+      [SettingsServiceProvider],
     ),
   ).rejects.toBe(operationFailure);
   if (!application) throw new Error("Missing dispatched application.");
   expect(application.value("console.invocation")).toMatchObject({
-    positionals: ["require"],
-    commandPath: ["sdd", "review"],
+    positionals: ["stacks"],
+    commandPath: ["settings", "get"],
     raw,
   });
+  expect(get).toHaveBeenCalledWith("stacks");
 });
 
 test("semantic invalid input fails before Application construction or Git bootstrap", async () => {
