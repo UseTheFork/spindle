@@ -16,10 +16,10 @@ import { SddTicketCommitCommand } from "@spindle/SubagentDrivenDevelopment/Comma
 import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCreateCommand";
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
 import { TicketCommitService } from "@spindle/SubagentDrivenDevelopment/Services/TicketCommitService";
 import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { WorktreeStartService } from "@spindle/SubagentDrivenDevelopment/Services/WorktreeStartService";
 
@@ -51,7 +51,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(TaskDispatchService);
     this.app.singleton(TicketCommitService);
     this.app.singleton(TicketIntegrationService);
-    this.app.singleton(TicketReviewService);
+    this.app.singleton(SddReviewService);
   }
 
   public async boot(): Promise<void> {}

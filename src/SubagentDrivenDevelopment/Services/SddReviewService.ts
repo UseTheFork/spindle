@@ -18,10 +18,12 @@ type ProposedFinding = {
   suggestedFix: string;
 };
 type ReviewFacts = Pick<Feature, "reviewRounds" | "findings">;
+type ReviewTarget = ReviewRound["target"];
 type ReviewableTicket = Pick<
   Ticket,
   "id" | "workRoundCommits" | "committedTaskIds" | "tasks" | "worktree" | "branch" | "merged"
 >;
+type RevisionResult = { revision: string; worktree: string } | { blocker: string };
 
 const responseTemplate = [
   "Recommendation: pass | changes-required",
@@ -34,8 +36,8 @@ const responseTemplate = [
   "  Suggested fix:",
 ].join("\n");
 
-export class TicketReviewService extends Service {
-  public async start(reference: string, ticketId: string, scope: string, focus?: string) {
+export class SddReviewService extends Service {
+  public async start(reference: string, target: ReviewTarget, scope: string, focus?: string) {
     if (!scope.trim() || (focus !== undefined && !focus.trim())) {
       throw new Error("Review scope and optional focus must not be empty.");
     }
@@ -43,41 +45,16 @@ export class TicketReviewService extends Service {
     return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
       if (feature.pendingStart)
         throw new Error("Resume the pending start before starting reviews.");
-      const ticket = this.ticket(feature, ticketId);
-      const current = await this.currentRevision(ticket);
+      const current =
+        target.type === "ticket"
+          ? await this.currentTicketRevision(this.ticket(feature, target.ticketId))
+          : await this.currentFeatureRevision(feature);
       if ("blocker" in current) throw new Error(current.blocker);
-      if (this.acceptance(feature, ticket.id, current.revision) === "Accepted") {
-        throw new Error(`Ticket '${ticket.id}' is already accepted at this revision.`);
+      if (this.acceptance(feature, target, current.revision, feature.tickets) === "Accepted") {
+        throw new Error(`${this.describeTarget(target)} is already accepted at this revision.`);
       }
-      const round = this.round(feature, ticket.id, current.revision);
-      const findingsToVerify = feature.findings.flatMap((finding) => {
-        if (
-          finding.type !== "review" ||
-          finding.decision.status !== "open" ||
-          finding.fixWork?.type !== "task"
-        )
-          return [];
-        const { taskId } = finding.fixWork;
-        if (
-          !ticket.committedTaskIds?.includes(taskId) ||
-          !ticket.tasks.some(
-            ({ id, discoveredFrom }) => id === taskId && discoveredFrom === finding.id,
-          )
-        )
-          return [];
-        if (
-          feature.reviewRounds.some(
-            ({ codeRevision, reviews }) =>
-              codeRevision === current.revision &&
-              reviews.some(({ id }) => id === finding.reviewId),
-          )
-        ) {
-          throw new Error(
-            `Fix for finding '${finding.id}' needs a changed code revision before review.`,
-          );
-        }
-        return [finding.id];
-      });
+      const round = this.round(feature, target, current.revision);
+      const findingsToVerify = this.findingsToVerify(feature, target, current.revision);
       const review = {
         id: `R-${randomUUID()}`,
         targetWorktree: current.worktree,
@@ -89,7 +66,7 @@ export class TicketReviewService extends Service {
         ledger.reviewRounds[feature.reviewRounds.indexOf(round)].reviews.push(review);
       } else {
         ledger.reviewRounds.push({
-          target: { type: "ticket", ticketId },
+          target,
           codeRevision: current.revision,
           reviews: [review],
         });
@@ -99,7 +76,7 @@ export class TicketReviewService extends Service {
       const quoted = `'${path.replaceAll("'", "'\\''")}'`;
       return {
         review: review.id,
-        ticket: ticketId,
+        ...(target.type === "ticket" ? { ticket: target.ticketId } : { feature: feature.name }),
         codeRevision: current.revision,
         assignmentCommand: `spindle sdd assignment --feature ${quoted} --review ${review.id} --json`,
       };
@@ -109,18 +86,15 @@ export class TicketReviewService extends Service {
   public async assignment(reference: string, reviewId: string) {
     if (!isAbsolute(reference)) throw new Error("Assignment requires an absolute --feature path.");
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
-    const { review, round, ticket } = await this.activeReview(feature, reviewId);
-    return {
+    const { review, round } = await this.activeReview(feature, reviewId);
+    const assignment = {
       role: "reviewer",
       feature: feature.name,
-      ticket: ticket.id,
       review: review.id,
       worktree: review.targetWorktree,
       codeRevision: round.codeRevision,
       scope: review.scope,
       focus: review.focus,
-      requirements: ticket.requirements,
-      acceptanceCriteria: ticket.acceptanceCriteria,
       findingsToVerify: feature.findings.filter(({ id }) => review.findingsToVerify.includes(id)),
       reviewerRules: [
         "Verify each listed finding against the current code. Report any fix that still fails as a finding.",
@@ -129,6 +103,20 @@ export class TicketReviewService extends Service {
         "Return the review to the controller; do not write a report file.",
       ],
       responseTemplate,
+    };
+    if (round.target.type === "ticket") {
+      const ticket = this.ticket(feature, round.target.ticketId);
+      return {
+        ...assignment,
+        ticket: ticket.id,
+        requirements: ticket.requirements,
+        acceptanceCriteria: ticket.acceptanceCriteria,
+      };
+    }
+    return {
+      ...assignment,
+      specification: feature.specification,
+      ...(feature.design === undefined ? {} : { design: feature.design }),
     };
   }
 
@@ -151,7 +139,7 @@ export class TicketReviewService extends Service {
     return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
       if (feature.pendingStart)
         throw new Error("Resume the pending start before submitting reviews.");
-      const { review, round, ticket } = await this.activeReview(feature, reviewId);
+      const { review, round } = await this.activeReview(feature, reviewId);
       const findings = proposals.map((proposal) =>
         findingSchema.parse({
           ...proposal,
@@ -170,9 +158,11 @@ export class TicketReviewService extends Service {
       await publish({ ...ledger, reviewRounds: feature.reviewRounds, findings: feature.findings });
       return {
         review: reviewId,
-        ticket: ticket.id,
+        ...(round.target.type === "ticket"
+          ? { ticket: round.target.ticketId }
+          : { feature: feature.name }),
         findings: findings.map(({ id }) => id),
-        acceptance: this.acceptance(feature, ticket.id, round.codeRevision),
+        acceptance: this.acceptance(feature, round.target, round.codeRevision, feature.tickets),
       };
     });
   }
@@ -192,47 +182,69 @@ export class TicketReviewService extends Service {
       const round = feature.reviewRounds.find(({ reviews }) =>
         reviews.some(({ id }) => id === finding.reviewId),
       );
-      if (round?.target.type !== "ticket")
-        throw new Error("Only ticket review findings can be dismissed.");
-      const ticket = this.ticket(feature, round.target.ticketId);
-      if (ticket.merged) throw new Error(`Ticket '${ticket.id}' is already merged.`);
+      if (!round) throw new Error(`Finding '${findingId}' has no review round.`);
+      if (round.target.type === "ticket") {
+        const ticket = this.ticket(feature, round.target.ticketId);
+        if (ticket.merged) throw new Error(`Ticket '${ticket.id}' is already merged.`);
+      }
       finding.decision = { status: "dismissed", reason };
       this.resolveVerifiedFindings(feature, round);
       await publish({ ...ledger, findings: feature.findings });
-      return { finding: finding.id, ticket: ticket.id, decision: finding.decision };
+      return {
+        finding: finding.id,
+        ...(round.target.type === "ticket"
+          ? { ticket: round.target.ticketId }
+          : { feature: feature.name }),
+        decision: finding.decision,
+      };
     });
   }
 
-  private resolveVerifiedFindings(feature: Feature, round: ReviewRound): void {
-    if (round.reviews.some(({ result }) => result === undefined)) return;
-    const reviewIds = new Set(round.reviews.map(({ id }) => id));
-    if (
-      feature.findings.some(
-        (finding) =>
-          finding.type === "review" &&
-          reviewIds.has(finding.reviewId) &&
-          finding.decision.status === "open",
-      )
-    )
-      return;
-    for (const finding of feature.findings) {
-      if (
-        finding.type === "review" &&
-        finding.decision.status === "open" &&
-        round.reviews.every(({ findingsToVerify }) => findingsToVerify.includes(finding.id))
-      ) {
-        finding.decision = { status: "resolved" };
+  public async status(
+    feature: Feature,
+    ticket: ReviewableTicket,
+  ): Promise<
+    | { blocker: string }
+    | {
+        state: "Accepted" | "InAcceptance" | "Blocked";
+        codeRevision: string;
+        hasRound: boolean;
       }
-    }
+  > {
+    const current = await this.currentTicketRevision(ticket);
+    if ("blocker" in current) return { blocker: current.blocker };
+    const acceptance = this.acceptance(
+      feature,
+      { type: "ticket", ticketId: ticket.id },
+      current.revision,
+    );
+    return {
+      state: acceptance === "InReview" ? "InAcceptance" : acceptance,
+      codeRevision: current.revision,
+      hasRound:
+        this.round(feature, { type: "ticket", ticketId: ticket.id }, current.revision) !==
+        undefined,
+    };
   }
 
-  public async status(feature: Feature, ticket: ReviewableTicket) {
-    const current = await this.currentRevision(ticket);
+  public async featureStatus(
+    feature: Feature,
+  ): Promise<
+    | { blocker: string }
+    | { state: "Accepted" | "InReview" | "Blocked"; codeRevision: string; hasRound: boolean }
+  > {
+    const current = await this.currentFeatureRevision(feature);
     if ("blocker" in current) return { blocker: current.blocker };
+    const acceptance = this.acceptance(
+      feature,
+      { type: "feature" },
+      current.revision,
+      feature.tickets,
+    );
     return {
-      state: this.acceptance(feature, ticket.id, current.revision),
+      state: acceptance === "InAcceptance" ? "InReview" : acceptance,
       codeRevision: current.revision,
-      hasRound: this.round(feature, ticket.id, current.revision) !== undefined,
+      hasRound: this.round(feature, { type: "feature" }, current.revision) !== undefined,
     };
   }
 
@@ -240,9 +252,8 @@ export class TicketReviewService extends Service {
     facts: ReviewFacts,
     ticket: Pick<Ticket, "id" | "workRoundCommits">,
   ) {
-    const rounds = facts.reviewRounds.filter(
-      ({ target }) => target.type === "ticket" && target.ticketId === ticket.id,
-    );
+    const target = { type: "ticket" as const, ticketId: ticket.id };
+    const rounds = this.roundsForTarget(facts, target);
     const reviewIds = new Set(rounds.flatMap(({ reviews }) => reviews.map(({ id }) => id)));
     if (rounds.some(({ reviews }) => reviews.some(({ result }) => result === undefined))) {
       throw new Error(`Cannot add a task while ticket '${ticket.id}' is under review.`);
@@ -260,10 +271,70 @@ export class TicketReviewService extends Service {
     if (!commit || rounds.length === 0) return;
     const git = await this.app.make(GitService);
     const revision = this.codeRevision(git, this.app.workspaceRoot, commit);
-    if (this.acceptance(facts, ticket.id, revision) === "Accepted") {
+    if (this.acceptance(facts, target, revision) === "Accepted") {
       throw new Error(
         `Cannot add an ordinary task to accepted ticket '${ticket.id}'; use linked fix work.`,
       );
+    }
+  }
+
+  private findingsToVerify(feature: Feature, target: ReviewTarget, revision: string): string[] {
+    return feature.findings.flatMap((finding) => {
+      if (finding.type !== "review" || finding.decision.status !== "open") return [];
+      const fixWork = finding.fixWork;
+      const sourceRound = feature.reviewRounds.find(({ reviews }) =>
+        reviews.some(({ id }) => id === finding.reviewId),
+      );
+      if (!sourceRound || !this.sameTarget(sourceRound.target, target)) return [];
+      if (target.type === "ticket") {
+        if (finding.fixWork?.type !== "task") return [];
+        const ticket = this.ticket(feature, target.ticketId);
+        const { taskId } = finding.fixWork;
+        if (
+          !ticket.committedTaskIds?.includes(taskId) ||
+          !ticket.tasks.some(
+            ({ id, discoveredFrom }) => id === taskId && discoveredFrom === finding.id,
+          )
+        )
+          return [];
+      } else {
+        if (fixWork?.type !== "ticket") return [];
+        const fixTicket = feature.tickets.find(({ id }) => id === fixWork.ticketId);
+        if (!fixTicket?.merged) return [];
+      }
+      if (sourceRound.codeRevision === revision) {
+        throw new Error(
+          `Fix for finding '${finding.id}' needs a changed code revision before review.`,
+        );
+      }
+      return [finding.id];
+    });
+  }
+
+  private resolveVerifiedFindings(feature: Feature, round: ReviewRound): void {
+    if (round.reviews.some(({ result }) => result === undefined)) return;
+    const reviewIds = new Set(round.reviews.map(({ id }) => id));
+    if (
+      feature.findings.some(
+        (finding) =>
+          finding.type === "review" &&
+          reviewIds.has(finding.reviewId) &&
+          finding.decision.status === "open",
+      )
+    )
+      return;
+    for (const finding of feature.findings) {
+      if (finding.type !== "review" || finding.decision.status !== "open") continue;
+      const sourceRound = feature.reviewRounds.find(({ reviews }) =>
+        reviews.some(({ id }) => id === finding.reviewId),
+      );
+      if (
+        sourceRound &&
+        this.sameTarget(sourceRound.target, round.target) &&
+        round.reviews.every(({ findingsToVerify }) => findingsToVerify.includes(finding.id))
+      ) {
+        finding.decision = { status: "resolved" };
+      }
     }
   }
 
@@ -273,31 +344,63 @@ export class TicketReviewService extends Service {
     return ticket;
   }
 
-  private round(feature: ReviewFacts, ticketId: string, revision: string): ReviewRound | undefined {
-    const latest = feature.reviewRounds
-      .filter(({ target }) => target.type === "ticket" && target.ticketId === ticketId)
-      .at(-1);
+  private round(
+    feature: ReviewFacts,
+    target: ReviewTarget,
+    revision: string,
+  ): ReviewRound | undefined {
+    const latest = this.roundsForTarget(feature, target).at(-1);
     return latest?.codeRevision === revision ? latest : undefined;
   }
 
-  private acceptance(feature: ReviewFacts, ticketId: string, revision: string) {
-    const round = this.round(feature, ticketId, revision);
-    const reviewIds = new Set(
-      feature.reviewRounds
-        .filter(({ target }) => target.type === "ticket" && target.ticketId === ticketId)
-        .flatMap(({ reviews }) => reviews.map(({ id }) => id)),
+  private roundsForTarget(feature: ReviewFacts, target: ReviewTarget): ReviewRound[] {
+    return feature.reviewRounds.filter(({ target: candidate }) =>
+      this.sameTarget(candidate, target),
     );
+  }
+
+  private sameTarget(left: ReviewTarget, right: ReviewTarget): boolean {
+    return (
+      left.type === right.type &&
+      (left.type === "feature" || (right.type === "ticket" && left.ticketId === right.ticketId))
+    );
+  }
+
+  private acceptance(
+    feature: ReviewFacts,
+    target: ReviewTarget,
+    revision: string,
+    tickets: readonly Pick<Ticket, "id" | "merged">[] = [],
+  ) {
+    const rounds = this.roundsForTarget(feature, target);
+    const round = this.round(feature, target, revision);
+    const reviewIds = new Set(rounds.flatMap(({ reviews }) => reviews.map(({ id }) => id)));
     const open = feature.findings.filter((finding) =>
       finding.type === "review"
         ? reviewIds.has(finding.reviewId) && finding.decision.status === "open"
-        : finding.ticketId === ticketId && finding.decision === "open",
+        : target.type === "ticket" &&
+          finding.ticketId === target.ticketId &&
+          finding.decision === "open",
     );
-    if (open.some((finding) => finding.type === "conflict" || !finding.fixWork))
+    if (
+      open.some((finding) => {
+        const fixWork = finding.fixWork;
+        if (finding.type === "conflict" || !fixWork) return true;
+        return (
+          target.type === "feature" &&
+          fixWork.type === "ticket" &&
+          tickets.find(({ id }) => id === fixWork.ticketId)?.merged !== true
+        );
+      })
+    )
       return "Blocked" as const;
-    if (open.length > 0) return "InAcceptance" as const;
+    if (open.length > 0)
+      return target.type === "ticket" ? ("InAcceptance" as const) : ("InReview" as const);
     return round?.reviews.every(({ result }) => result !== undefined)
       ? ("Accepted" as const)
-      : ("InAcceptance" as const);
+      : target.type === "ticket"
+        ? ("InAcceptance" as const)
+        : ("InReview" as const);
   }
 
   private async activeReview(feature: Feature, reviewId: string) {
@@ -305,24 +408,25 @@ export class TicketReviewService extends Service {
       reviews.some(({ id }) => id === reviewId),
     );
     const review = round?.reviews.find(({ id }) => id === reviewId);
-    if (!review || round?.target.type !== "ticket")
-      throw new Error(`Unknown ticket review '${reviewId}'.`);
+    if (!review || !round) throw new Error(`Unknown review '${reviewId}'.`);
     if (review.result) throw new Error(`Review '${reviewId}' already has a result.`);
-    const ticket = this.ticket(feature, round.target.ticketId);
-    const current = await this.currentRevision(ticket);
+    const current =
+      round.target.type === "ticket"
+        ? await this.currentTicketRevision(this.ticket(feature, round.target.ticketId))
+        : await this.currentFeatureRevision(feature);
     if (
       "blocker" in current ||
       current.revision !== round.codeRevision ||
       current.worktree !== review.targetWorktree
     ) {
       throw new Error(
-        `Review '${reviewId}' no longer matches the current ticket revision or worktree.`,
+        `Review '${reviewId}' no longer matches the current ${round.target.type} revision or worktree.`,
       );
     }
-    return { review, round, ticket };
+    return { review, round };
   }
 
-  private async currentRevision(ticket: ReviewableTicket) {
+  private async currentTicketRevision(ticket: ReviewableTicket): Promise<RevisionResult> {
     const commit = ticket.workRoundCommits.at(-1);
     if (
       !commit ||
@@ -353,6 +457,42 @@ export class TicketReviewService extends Service {
     return { revision: this.codeRevision(git, worktree, commit), worktree } as const;
   }
 
+  private async currentFeatureRevision(feature: Feature): Promise<RevisionResult> {
+    if (feature.pendingStart || feature.pendingTicketCommit || feature.pendingIntegration) {
+      return { blocker: `Feature '${feature.name}' has a pending workflow operation.` } as const;
+    }
+    if (!feature.tickets.length || feature.tickets.some(({ merged }) => !merged)) {
+      return {
+        blocker: `All tickets in feature '${feature.name}' must be integrated before feature review.`,
+      } as const;
+    }
+    if (!feature.featureWorktree || !feature.featureBranch) {
+      return { blocker: `Feature '${feature.name}' has no active feature worktree.` } as const;
+    }
+    const git = await this.app.make(GitService);
+    const worktree = feature.featureWorktree;
+    await git.requireWorktreeBranch(worktree, feature.featureBranch);
+    const head = this.gitOutput(git, worktree, ["rev-parse", "HEAD"]).toString("utf8").trim();
+    const branchHead = this.gitOutput(git, worktree, [
+      "rev-parse",
+      "--verify",
+      `refs/heads/${feature.featureBranch}`,
+    ])
+      .toString("utf8")
+      .trim();
+    if (
+      head !== branchHead ||
+      git
+        .changedPaths(worktree, false)
+        .some((path) => path !== ".spindle" && !path.startsWith(".spindle/"))
+    ) {
+      return {
+        blocker: `Feature '${feature.name}' must be at its branch tip with no outstanding code changes.`,
+      } as const;
+    }
+    return { revision: this.codeRevision(git, worktree, head), worktree } as const;
+  }
+
   private codeRevision(git: GitService, worktree: string, commit: string): string {
     const tree = this.gitOutput(git, worktree, ["ls-tree", "-z", commit]);
     const digest = createHash("sha256");
@@ -365,6 +505,10 @@ export class TicketReviewService extends Service {
       start = end + 1;
     }
     return digest.digest("hex");
+  }
+
+  private describeTarget(target: ReviewTarget): string {
+    return target.type === "ticket" ? `Ticket '${target.ticketId}'` : "Feature";
   }
 
   private gitOutput(git: GitService, worktree: string, args: string[]): Buffer {

@@ -3,8 +3,8 @@ import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import type { Command as CommanderCommand } from "commander";
 
 type Options = { feature: string; task?: string; attempt?: string; review?: string };
@@ -50,6 +50,6 @@ export class SddAssignmentCommand extends Command {
   }
 
   public async review(feature: string, reviewId: string) {
-    return (await this.app.make(TicketReviewService)).assignment(feature, reviewId);
+    return (await this.app.make(SddReviewService)).assignment(feature, reviewId);
   }
 }

@@ -5,7 +5,7 @@ import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import type { Command as CommanderCommand } from "commander";
 
@@ -25,6 +25,7 @@ export class SddNextCommand extends Command {
         const app = await createApp();
         const data = await (await app.make(SddNextCommand)).run(feature, verbose);
         const human = [`Feature ${data.feature}`, ...data.notices];
+        if (data.featureReview) human.push(`Feature review: ${data.featureReview.state}`);
         if (data.actions.length > 0) human.push("Available actions:", ...data.actions);
         for (const ticket of data.tickets) {
           human.push(
@@ -140,8 +141,8 @@ export class SddNextCommand extends Command {
           )
         )
           continue;
-        const status = await (await this.app.make(TicketReviewService)).status(feature, ticket);
-        if (status.blocker !== undefined) {
+        const status = await (await this.app.make(SddReviewService)).status(feature, ticket);
+        if ("blocker" in status) {
           notices.push(status.blocker);
         } else {
           const item = tickets.find(({ ticketId }) => ticketId === ticket.id);
@@ -150,6 +151,51 @@ export class SddNextCommand extends Command {
             actions.push(`spindle sdd review --feature ${feature.name} --ticket ${ticket.id}`);
           } else if (status.state === "Accepted") {
             actions.push(`spindle sdd integrate --feature ${feature.name} --ticket ${ticket.id}`);
+          }
+        }
+      }
+    }
+    let featureReview:
+      | {
+          state: "Accepted" | "InReview" | "Blocked";
+          codeRevision: string;
+          hasRound: boolean;
+        }
+      | undefined;
+    if (
+      !feature.pendingStart &&
+      !feature.pendingTicketCommit &&
+      !feature.pendingIntegration &&
+      feature.tickets.length > 0 &&
+      feature.tickets.every(({ merged }) => merged)
+    ) {
+      const status = await (await this.app.make(SddReviewService)).featureStatus(feature);
+      if ("blocker" in status) {
+        notices.push(status.blocker);
+      } else {
+        featureReview = {
+          state: status.state,
+          codeRevision: status.codeRevision,
+          hasRound: status.hasRound,
+        };
+        if (status.state === "InReview") {
+          actions.push(`spindle sdd review --feature ${feature.name} --target feature`);
+        } else if (status.state === "Blocked") {
+          const reviewIds = new Set(
+            feature.reviewRounds
+              .filter(({ target }) => target.type === "feature")
+              .flatMap(({ reviews }) => reviews.map(({ id }) => id)),
+          );
+          for (const finding of feature.findings) {
+            if (
+              finding.type === "review" &&
+              reviewIds.has(finding.reviewId) &&
+              finding.decision.status === "open"
+            ) {
+              notices.push(
+                `Feature finding ${finding.id} needs a decision. Use finding fix or finding dismiss.`,
+              );
+            }
           }
         }
       }
@@ -176,7 +222,14 @@ export class SddNextCommand extends Command {
           })),
         }))
       : undefined;
-    return { feature: feature.name, actions, notices, tickets, ...(graph ? { graph } : {}) };
+    return {
+      feature: feature.name,
+      actions,
+      notices,
+      tickets,
+      ...(featureReview ? { featureReview } : {}),
+      ...(graph ? { graph } : {}),
+    };
   }
 
   private static describe(blockers: readonly { code: string }[]): string {

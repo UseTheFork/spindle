@@ -19,14 +19,16 @@ import {
   featureLedgerSchema,
   type FeatureLedger,
 } from "@spindle/SubagentDrivenDevelopment/Models/FeatureLedger";
+import type { Finding } from "@spindle/SubagentDrivenDevelopment/Models/Finding";
 import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
 type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">;
 type NewTask = Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">;
+type ReviewFinding = Extract<Finding, { type: "review" }>;
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const numberedWorkspace = /^([0-9]{4,})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
@@ -152,7 +154,7 @@ export class FeatureWorkspaceService extends Service {
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
       if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
-      await (await this.app.make(TicketReviewService)).assertOrdinaryTaskAllowed(ledger, ticket);
+      await (await this.app.make(SddReviewService)).assertOrdinaryTaskAllowed(ledger, ticket);
       taskId = this.appendTask(ticket, input);
       return ledger;
     });
@@ -161,8 +163,10 @@ export class FeatureWorkspaceService extends Service {
 
   public async createFindingFixTask(reference: string, findingId: string, input: NewTask) {
     if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
-    let result: { finding: string; ticket: string; task: string } | undefined;
-    await this.updateLedger(reference, async (ledger) => {
+    let result:
+      | { finding: string; ticket: string; task: string; ticketCreated: boolean }
+      | undefined;
+    await this.withLedger(reference, async (ledger, name, workspace) => {
       if (ledger.pendingStart)
         throw new Error("Resume the pending start before creating fix work.");
       const finding = ledger.findings.find(({ id }) => id === findingId);
@@ -180,8 +184,38 @@ export class FeatureWorkspaceService extends Service {
         const round = ledger.reviewRounds.find(({ reviews }) =>
           reviews.some(({ id }) => id === finding.reviewId),
         );
-        if (round?.target.type !== "ticket")
-          throw new Error("Only ticket review findings support fix work.");
+        if (!round) throw new Error(`Finding '${findingId}' has no review round.`);
+        if (round.target.type === "feature") {
+          if (!ledger.featureBranch || !ledger.featureWorktree) {
+            throw new Error("Start the feature before creating feature finding fix work.");
+          }
+          if (ledger.tickets.some(({ merged }) => !merged)) {
+            throw new Error(
+              "Integrate all feature tickets before creating feature finding fix work.",
+            );
+          }
+          if (
+            ledger.reviewRounds.some(
+              ({ target, reviews }) =>
+                target.type === "feature" && reviews.some(({ result }) => result === undefined),
+            )
+          ) {
+            throw new Error("Wait for all feature reviews before creating fix work.");
+          }
+          if (input.dependencies.length > 0) {
+            throw new Error(
+              "Feature finding fix work starts in a new ticket and has no task dependencies.",
+            );
+          }
+          result = await this.createFeatureFindingFixTicket(
+            ledger,
+            workspace,
+            name,
+            finding,
+            input,
+          );
+          return;
+        }
         ticketId = round.target.ticketId;
       } else {
         ticketId = finding.ticketId;
@@ -226,11 +260,68 @@ export class FeatureWorkspaceService extends Service {
       }
       const task = this.appendTask(ticket, { ...input, discoveredFrom: findingId });
       finding.fixWork = { type: "task", taskId: task };
-      result = { finding: findingId, ticket: ticketId, task };
-      return ledger;
+      const next = featureLedgerSchema.parse(ledger);
+      await this.assemble(name, workspace, next);
+      await this.replaceLedger(workspace, next);
+      result = { finding: findingId, ticket: ticketId, task, ticketCreated: false };
     });
     if (!result) throw new Error("Fix task was not created.");
     return result;
+  }
+
+  private async createFeatureFindingFixTicket(
+    ledger: FeatureLedger,
+    workspace: string,
+    name: string,
+    finding: ReviewFinding,
+    input: NewTask,
+  ) {
+    const directory = join(workspace, "tickets");
+    const ids = [
+      ...ledger.tickets.map(({ id }) => id),
+      ...(await readdir(directory))
+        .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
+        .map((entry) => basename(entry, ".md")),
+    ];
+    const number = FeatureWorkspaceService.nextNumber(ids.map((ticketId) => ticketId.slice(2)));
+    const id = `T-${number.padStart(4, "0")}`;
+    const plain = (value: string) => value.replace(/\s+/g, " ").trim();
+    const title = `Resolve feature finding: ${plain(finding.title)}`;
+    const requirements = [
+      `Resolve feature review finding ${finding.id}.`,
+      `Criterion: ${plain(finding.criterion)}`,
+      `Evidence: ${plain(finding.evidence)}`,
+      `Suggested fix: ${plain(finding.suggestedFix)}`,
+    ].join("\n\n");
+    const acceptanceCriteria = `The finding criterion is satisfied: ${plain(finding.criterion)}`;
+    const path = join(directory, `${id}.md`);
+    const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
+    const parsed = this.ticketRequirements(markdown, path);
+    if (parsed.requirements !== requirements || parsed.acceptanceCriteria !== acceptanceCriteria) {
+      throw new Error(`Could not create ticket requirements for finding '${finding.id}'.`);
+    }
+    const ticket: FeatureLedger["tickets"][number] = {
+      id,
+      title,
+      dependencies: [],
+      tasks: [],
+      workRoundCommits: [],
+      merged: false,
+    };
+    const task = this.appendTask(ticket, {
+      instructions: input.instructions,
+      writeScope: input.writeScope,
+      context: input.context,
+      dependencies: [],
+      discoveredFrom: finding.id,
+    });
+    ledger.tickets.push(ticket);
+    finding.fixWork = { type: "ticket", ticketId: id };
+    const next = featureLedgerSchema.parse(ledger);
+    await this.assemble(name, workspace, next, { id, markdown });
+    await writeFile(path, markdown, { flag: "wx", flush: true });
+    await this.replaceLedger(workspace, next);
+    return { finding: finding.id, ticket: id, task, ticketCreated: true };
   }
 
   private appendTask(

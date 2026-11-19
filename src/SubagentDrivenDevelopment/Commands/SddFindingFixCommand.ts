@@ -19,9 +19,9 @@ type Options = {
 export class SddFindingFixCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
     const collect = (value: string, previous: string[] = []) => [...previous, value];
-    SddCommandGroup.subgroup(program, "finding", "Decide ticket review findings.")
+    SddCommandGroup.subgroup(program, "finding", "Decide review findings.")
       .command("fix")
-      .description("Create a ticket task linked to an open finding.")
+      .description("Create scoped fix work linked to an open finding.")
       .requiredOption(
         "--feature <directory>",
         "Feature workspace",
@@ -51,7 +51,9 @@ export class SddFindingFixCommand extends Command {
         });
         (await app.make(ConsoleOutputService)).result({
           level: "success",
-          human: `Created task ${data.task} for finding ${data.finding}.`,
+          human: data.ticketCreated
+            ? `Created fix ticket ${data.ticket} and task ${data.task} for finding ${data.finding}.`
+            : `Created task ${data.task} for finding ${data.finding}.`,
           data,
         });
       });

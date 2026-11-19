@@ -512,6 +512,11 @@ Each `review` call creates one review in the round for its target and code
 revision. It returns the review ID and an assignment command for the reviewer:
 
 ```text
+spindle sdd review --feature <feature-workspace> --ticket <ticket-id>
+spindle sdd review --feature <feature-workspace> --target feature
+```
+
+```text
 spindle sdd assignment --feature <absolute-feature-directory> --review <review-id> --json
 ```
 
@@ -743,13 +748,13 @@ human-readable output. With `--json`, a successful command writes one JSON
 object to stdout and exits with status `0`:
 
 ```json
-{"ok": true, "data": {}}
+{ "ok": true, "data": {} }
 ```
 
 A failed command writes one JSON object to stderr and exits with status `1`:
 
 ```json
-{"ok": false, "error": {"code": "TASK_NOT_READY", "message": "...", "details": {}}}
+{ "ok": false, "error": { "code": "TASK_NOT_READY", "message": "...", "details": {} } }
 ```
 
 `error.code` is stable and machine-readable. `error.message` explains the

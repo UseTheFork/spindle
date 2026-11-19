@@ -5,14 +5,14 @@ import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import type { Command as CommanderCommand } from "commander";
 
 type Options = { feature: string; finding: string; reason: string };
 
 export class SddFindingDismissCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
-    SddCommandGroup.subgroup(program, "finding", "Decide ticket review findings.")
+    SddCommandGroup.subgroup(program, "finding", "Decide review findings.")
       .command("dismiss")
       .description("Dismiss an open ticket review finding with a reason.")
       .requiredOption(
@@ -44,6 +44,6 @@ export class SddFindingDismissCommand extends Command {
   }
 
   public async run({ feature, finding, reason }: Options) {
-    return (await this.app.make(TicketReviewService)).dismissFinding(feature, finding, reason);
+    return (await this.app.make(SddReviewService)).dismissFinding(feature, finding, reason);
   }
 }

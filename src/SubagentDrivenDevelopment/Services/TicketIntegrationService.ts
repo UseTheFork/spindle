@@ -11,7 +11,7 @@ import type { Finding } from "@spindle/SubagentDrivenDevelopment/Models/Finding"
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import type { TicketIntegrationJournal } from "@spindle/SubagentDrivenDevelopment/Models/TicketIntegrationJournal";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
-import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
+import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 
 export class TicketIntegrationService extends Service {
   public async integrate(
@@ -83,7 +83,7 @@ export class TicketIntegrationService extends Service {
     if (!ticket.branch || !ticket.worktree || ticket.tasks.length === 0) {
       throw new Error(`Ticket '${ticket.id}' has no active worktree or completed tasks.`);
     }
-    const status = await (await this.app.make(TicketReviewService)).status(feature, ticket);
+    const status = await (await this.app.make(SddReviewService)).status(feature, ticket);
     if ("blocker" in status || status.state !== "Accepted") {
       throw new Error(
         `Ticket '${ticket.id}' is not accepted: ${"blocker" in status ? status.blocker : status.state}.`,
