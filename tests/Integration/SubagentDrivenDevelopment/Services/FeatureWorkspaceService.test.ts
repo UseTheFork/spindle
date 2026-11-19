@@ -5,7 +5,7 @@ import { Application } from "@spindle/Foundation/Application";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 
 const name = "0001-example";
 const serviceFor = async (root: string) => {
@@ -41,6 +41,35 @@ test("creates and loads a workspace without putting Markdown in the ledger", asy
     reviewRounds: [],
   });
   await expect(service.load(name)).resolves.toMatchObject(input);
+});
+
+test("renders ticket Markdown from the SDD template", async () => {
+  const root = await makeTempDir();
+  const templatePath = join(root, "ticket.md");
+  await writeFile(
+    templatePath,
+    "# {{ variables.title | upper }}\n\n## Requirements\n\n{{ variables.requirements }}\n\n" +
+      "## Acceptance Criteria\n\n{{ variables.acceptance_criteria }}\n\n## Comments\n",
+  );
+  const app = new Application({ basePath: root });
+  app.instance("path.workspace", root);
+  app.register(SubagentDrivenDevelopmentServiceProvider);
+  await app.boot();
+  vi.spyOn(app, "assetsPath").mockReturnValue(templatePath);
+  const service = await app.make(FeatureWorkspaceService);
+  await service.create({ name, specification: "# Spec\n" });
+
+  const created = await service.createTicket(name, {
+    title: "Template ticket",
+    requirements: "Do the work.",
+    acceptanceCriteria: "The work is done.",
+    dependencies: [],
+  });
+
+  expect(await readFile(created.path, "utf8")).toBe(
+    "# TEMPLATE TICKET\n\n## Requirements\n\nDo the work.\n\n" +
+      "## Acceptance Criteria\n\nThe work is done.\n\n## Comments\n",
+  );
 });
 
 test("hydrates ticket requirements from Markdown and rejects invalid graph changes", async () => {

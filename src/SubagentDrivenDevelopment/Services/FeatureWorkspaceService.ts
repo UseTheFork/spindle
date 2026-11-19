@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
+import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
 import type { DeliveryDetails } from "@spindle/SubagentDrivenDevelopment/Models/DeliveryDetails";
@@ -26,6 +27,7 @@ import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
+import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
 type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">;
@@ -326,7 +328,7 @@ export class FeatureWorkspaceService extends Service {
     const number = FeatureWorkspaceService.nextNumber(ids.map((id) => id.slice(2)));
     const id = `T-${number.padStart(4, "0")}`;
     const path = join(directory, `${id}.md`);
-    const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
+    const markdown = await this.renderTicketMarkdown(title, requirements, acceptanceCriteria);
     const parsed = this.ticketRequirements(markdown, path);
     if (parsed.requirements !== requirements || parsed.acceptanceCriteria !== acceptanceCriteria) {
       throw new Error(
@@ -567,7 +569,7 @@ export class FeatureWorkspaceService extends Service {
     ].join("\n\n");
     const acceptanceCriteria = `The finding criterion is satisfied: ${plain(finding.criterion)}`;
     const path = join(directory, `${id}.md`);
-    const markdown = `# ${title}\n\n## Requirements\n\n${requirements}\n\n## Acceptance Criteria\n\n${acceptanceCriteria}\n\n## Comments\n`;
+    const markdown = await this.renderTicketMarkdown(title, requirements, acceptanceCriteria);
     const parsed = this.ticketRequirements(markdown, path);
     if (parsed.requirements !== requirements || parsed.acceptanceCriteria !== acceptanceCriteria) {
       throw new Error(`Could not create ticket requirements for finding '${finding.id}'.`);
@@ -606,6 +608,20 @@ export class FeatureWorkspaceService extends Service {
     const id = `${ticket.id}.${number}`;
     ticket.tasks.push({ ...input, id, state: "Pending", attempt: 0 });
     return id;
+  }
+
+  private async renderTicketMarkdown(
+    title: string,
+    requirements: string,
+    acceptanceCriteria: string,
+  ): Promise<string> {
+    const template = await this.readRecord(
+      this.app.assetsPath(join("Templates", templateCatalog.sdd.ticket)),
+    );
+    return RenderText.render(template, {
+      stacks: [],
+      variables: { title, requirements, acceptance_criteria: acceptanceCriteria },
+    });
   }
 
   private git(git: GitService, cwd: string, args: string[]): string {
