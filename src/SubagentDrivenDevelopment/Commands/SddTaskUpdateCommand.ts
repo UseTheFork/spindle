@@ -14,8 +14,10 @@ type Options = {
   task: string;
   instructions?: string;
   writeScope?: string[];
+  context?: string[];
   dependsOn?: string[];
   clearWriteScope?: boolean;
+  clearContext?: boolean;
   clearDependencies?: boolean;
 };
 
@@ -24,7 +26,7 @@ export class SddTaskUpdateCommand extends Command {
     const collect = (value: string, previous: string[] = []) => [...previous, value];
     SddCommandGroup.subgroup(program, "task", "Manage ticket tasks.")
       .command("update")
-      .description("Update a pending task's instructions, write scope, or dependencies.")
+      .description("Update a pending task's instructions, write scope, context, or dependencies.")
       .requiredOption(
         "--feature <directory>",
         "Feature workspace",
@@ -35,12 +37,17 @@ export class SddTaskUpdateCommand extends Command {
       .option("--instructions <text>", "New task instructions, or - for stdin")
       .option("--write-scope <path>", "Replace planned paths (repeatable)", collect)
       .option("--clear-write-scope", "Clear the write scope (delivery tasks only)")
+      .option("--context <reference>", "Replace context files or links (repeatable)", collect)
+      .option("--clear-context", "Remove all task context")
       .option("--depends-on <task>", "Replace prerequisites (repeatable)", collect)
       .option("--clear-dependencies", "Remove all task prerequisites")
       .allowExcessArguments(false)
       .action(async (options: Options) => {
         if (options.writeScope && options.clearWriteScope) {
           throw new Error("--write-scope cannot be used with --clear-write-scope.");
+        }
+        if (options.context && options.clearContext) {
+          throw new Error("--context cannot be used with --clear-context.");
         }
         if (options.dependsOn && options.clearDependencies) {
           throw new Error("--depends-on cannot be used with --clear-dependencies.");
@@ -67,8 +74,10 @@ export class SddTaskUpdateCommand extends Command {
     task,
     instructions,
     writeScope,
+    context,
     dependsOn,
     clearWriteScope,
+    clearContext,
     clearDependencies,
   }: Options) {
     this.assertApplicationBooted();
@@ -76,6 +85,8 @@ export class SddTaskUpdateCommand extends Command {
       instructions,
       ...(clearWriteScope ? { writeScope: [] } : {}),
       ...(writeScope === undefined ? {} : { writeScope }),
+      ...(clearContext ? { context: [] } : {}),
+      ...(context === undefined ? {} : { context }),
       ...(clearDependencies ? { dependencies: [] } : {}),
       ...(dependsOn === undefined ? {} : { dependencies: dependsOn }),
     });

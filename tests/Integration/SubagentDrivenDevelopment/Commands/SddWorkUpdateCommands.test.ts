@@ -71,6 +71,23 @@ test(
     const remove = (id: string) =>
       run("task", "remove", ...featureFlag, "--ticket", "T-0001", "--task", id);
 
+    const conflictingContextOptions = run(
+      "task",
+      "update",
+      ...featureFlag,
+      "--ticket",
+      "T-0001",
+      "--task",
+      second,
+      "--context",
+      "docs/context.md",
+      "--clear-context",
+    );
+    expect(conflictingContextOptions.status).toBe(1);
+    expect(conflictingContextOptions.stderr).toContain(
+      "--context cannot be used with --clear-context",
+    );
+
     const beforeConflict = await readFile(join(workspace, "sdd.json"), "utf8");
     const conflict = run(
       "task",
@@ -94,10 +111,23 @@ test(
       "first.ts",
       "--depends-on",
       first,
+      "--context",
+      "docs/first.md",
+      "--context",
+      "https://example.test/task",
     );
-    expect(await readFile(join(workspace, "sdd.json"), "utf8")).toContain(
-      "Updated task instructions.",
-    );
+    const updatedTask = async () => {
+      const ledger = JSON.parse(await readFile(join(workspace, "sdd.json"), "utf8"));
+      return ledger.tickets[0].tasks.find(({ id }: { id: string }) => id === second);
+    };
+    expect(await updatedTask()).toMatchObject({
+      instructions: "Updated task instructions.",
+      context: ["docs/first.md", "https://example.test/task"],
+    });
+    update("--context", "docs/revised.md");
+    expect((await updatedTask()).context).toEqual(["docs/revised.md"]);
+    update("--clear-context");
+    expect(await updatedTask()).not.toHaveProperty("context");
     const dependency = remove(first);
     expect(dependency.status).toBe(1);
     expect(dependency.stderr).toContain("another task depends on it");
@@ -126,6 +156,19 @@ test(
     );
     expect(updateActive.status).toBe(1);
     expect(updateActive.stderr).toContain("before it is dispatched");
+    const updateActiveContext = run(
+      "task",
+      "update",
+      ...featureFlag,
+      "--ticket",
+      "T-0001",
+      "--task",
+      active,
+      "--context",
+      "docs/late.md",
+    );
+    expect(updateActiveContext.status).toBe(1);
+    expect(updateActiveContext.stderr).toContain("before it is dispatched");
     const removeActive = remove(active);
     expect(removeActive.status).toBe(1);
     expect(removeActive.stderr).toContain("before it is dispatched");

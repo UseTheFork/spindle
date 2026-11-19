@@ -358,7 +358,7 @@ test("packaged command discovery and help remain intact", () => {
     ],
     [
       ["sdd", "task", "update", "--help"],
-      ["--feature <directory>", "--task <id>"],
+      ["--feature <directory>", "--task <id>", "--context <reference>", "--clear-context"],
     ],
     [
       ["sdd", "task", "remove", "--help"],

@@ -34,7 +34,7 @@ type NewDeliveryTask = NewTask &
 type TicketUpdate = Partial<
   Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">
 >;
-type TaskUpdate = Partial<Pick<Task, "instructions" | "writeScope" | "dependencies">>;
+type TaskUpdate = Partial<Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">>;
 type ReviewFinding = Extract<Finding, { type: "review" }>;
 type DeliverySnapshot = {
   originalBranch: string;
@@ -436,6 +436,10 @@ export class FeatureWorkspaceService extends Service {
         ...(input.writeScope === undefined ? {} : { writeScope: input.writeScope }),
         ...(input.dependencies === undefined ? {} : { dependencies: input.dependencies }),
       });
+      if (input.context !== undefined) {
+        if (input.context.length === 0) delete task.context;
+        else task.context = input.context;
+      }
       updated = true;
       return ledger;
     });
