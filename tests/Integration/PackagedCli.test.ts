@@ -411,7 +411,7 @@ test("packaged init from a nested directory targets the Git worktree root", () =
     ["python"],
   );
   expect(
-    existsSync(join(project, ".github", "skills", "private-test-driven-development", "SKILL.md")),
+    existsSync(join(project, ".github", "skills", "private-codebase-design", "SKILL.md")),
   ).toBe(true);
   expect(readdirSync(nested)).toEqual([]);
 });
@@ -430,7 +430,7 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   ]);
   expect(result.status, result.stderr).toBe(0);
 
-  const skillDirectory = join(project, ".github", "skills", "private-test-driven-development");
+  const skillDirectory = join(project, ".github", "skills", "private-codebase-design");
   const skillPath = join(skillDirectory, "SKILL.md");
   const installed = readFileSync(skillPath, "utf8");
   expect(matter(installed).data.description).toBe(
@@ -439,7 +439,6 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   expect(installed).not.toMatch(/{{|}}/);
 
   for (const [name, references] of [
-    ["private-test-driven-development", ["tests.md", "mocking.md"]],
     ["public-ref-domain-modeling", ["ADR-FORMAT.md", "GLOSSARY-FORMAT.md"]],
     ["private-codebase-design", ["DEEPENING.md", "DESIGN-IT-TWICE.md"]],
   ] as const) {
@@ -466,13 +465,13 @@ test("packaged CLI renders a Private Skill and updates relocated references outs
   legacySkill.data.metadata.spindle.version = "1.0.0";
   writeFileSync(skillPath, matter.stringify(legacySkill.content, legacySkill.data));
   rmSync(join(skillDirectory, "references"), { recursive: true });
-  for (const name of ["tests.md", "mocking.md"]) {
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     writeFileSync(join(skillDirectory, name), "legacy location\n");
   }
 
   const updated = cli.run(project, ["update"]);
   expect(updated.status, updated.stderr).toBe(0);
-  for (const name of ["tests.md", "mocking.md"]) {
+  for (const name of ["DEEPENING.md", "DESIGN-IT-TWICE.md"]) {
     expect(existsSync(join(skillDirectory, name))).toBe(false);
     expect(existsSync(join(skillDirectory, "references", name))).toBe(true);
   }

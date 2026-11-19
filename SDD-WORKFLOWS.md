@@ -707,6 +707,11 @@ the branch relationship before cleanup and finalizes the ledger after cleanup.
 If an operation is interrupted, `next` reports its current phase and prints
 the assignment or record command to resume it.
 
+The SDD orchestrator acts as the controller. It returns to `next` after each
+action or handoff. It uses the listed actions and notices to decide what to
+do, and sends CLI-generated assignments to the Task Worker, Reviewer, or
+Merge Agent. An empty action list does not mean the feature is complete.
+
 Start all reviewers in a ticket's round before submitting results. Do not
 add tasks while a review result is pending. A ticket
 must be at its recorded work-round commit with all tasks committed and no
