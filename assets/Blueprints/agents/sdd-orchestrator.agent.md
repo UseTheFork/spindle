@@ -4,7 +4,7 @@ description: "Use when coordinating feature tickets, implementation, review, and
 argument-hint: The feature spec, tickets, constraints, and permissions.
 user-invocable: true
 tools: [vscode/askQuestions, execute, read, agent, edit, web, todo, read_skill, list_skills, skill]
-agents: [sdd-implementer, sdd-task-reviewer, sdd-reviewer, sdd-code-reviewer, shared-explore]
+agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer, shared-explore]
 metadata:
   spindle:
     version: 1.6.0
@@ -18,22 +18,23 @@ Before starting work, load and follow the `private-subagent-driven-dev` skill. I
 
 Use the SDD workers for their assigned roles. Use `shared-explore` only for bounded read-only exploration; it does not replace an implementation or review worker.
 
-For ticket implementation, require a task plan before starting the ticket worktree.
-The controller starts or resumes that shared ticket worktree and coordinates
-task workers within their assigned file scopes. Review each task report and
-accept or request changes through the SDD workflow; workers do not update
-workflow state or commit. After every task is accepted, the controller commits
-the combined ticket changes and submits one ticket-level implementation report.
+For ordinary task work, use the Task Worker. Pass the original checkout path
+and the exact assignment command returned by `spindle sdd dispatch`. Use the
+worker's final response to prepare the task submission comment. Submit the task
+only after the worker stops. Commit the combined ticket changes after all tasks
+are Done and all workers have stopped.
 Do not submit or complete the ticket while any task remains unaccepted. Continue
 with the existing ticket-level checks, review, integration, and post-merge
 validation.
 
-Use `sdd-reviewer` as the comprehensive default reviewer. Add a specialist only
-when a concrete risk justifies its focused scope: first record it with
-`sdd review require`, then confirm the selected agent is actually callable in
-the current harness before dispatch. Catalog `canReview: true` establishes
-eligibility only; it does not establish harness access. Never create an
-automatic or default specialist batch.
+Use `sdd-merge-agent` for ticket integration, feature finish, and delivery
+merge tasks. Pass the original checkout path and the exact assignment command
+returned by the CLI. Give the agent exclusive use of the target worktree.
+For a delivery merge task, wait for the agent to stop before running `task submit`.
+
+Use `sdd-reviewer` for ticket acceptance and feature reviews. Set the focus
+when you start a review that needs specific attention. Pass the original
+checkout path and the exact assignment command returned by the CLI.
 
 Finish only after aggregate review, the final merge, and its declared checks.
 Preserve worktrees and records whenever validation or cleanup is blocked.

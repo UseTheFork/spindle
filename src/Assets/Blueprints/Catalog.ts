@@ -3,27 +3,14 @@ import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Ca
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {
     general: { path: "general.agent.md", stacks: [] },
-    "sdd-code-reviewer": {
-      path: "sdd-code-reviewer.agent.md",
-      stacks: [],
-      canReview: true,
-    },
-    "sdd-code-slop-reviewer": {
-      path: "sdd-code-slop-reviewer.agent.md",
-      stacks: [],
-    },
-    "sdd-implementer": { path: "sdd-implementer.agent.md", stacks: [] },
+    "sdd-merge-agent": { path: "sdd-merge-agent.agent.md", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", stacks: [] },
     "sdd-reviewer": {
       path: "sdd-reviewer.agent.md",
       stacks: [],
       canReview: true,
     },
-    "sdd-task-reviewer": {
-      path: "sdd-task-reviewer.agent.md",
-      stacks: [],
-      canReview: true,
-    },
+    "sdd-task-worker": { path: "sdd-task-worker.agent.md", stacks: [] },
     "shared-explore": { path: "shared-explore.agent.md", stacks: [] },
     "shared-r": { path: "shared-r.agent.md", stacks: [] },
     "shared-rw": { path: "shared-rw.agent.md", stacks: [] },
