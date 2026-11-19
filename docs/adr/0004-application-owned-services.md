@@ -80,6 +80,7 @@ when compiled), not the Git root. `assetsPath(path = "")` joins the package's
 `joinPaths(basePath, path = "")`,
 which preserves the base for an empty suffix, replaces it for an absolute suffix,
 and joins relative suffixes without resolving relative bases against cwd.
+`featuresPath(path = "")` joins the workspace's `.spindle/features` directory.
 Application does not read `process.cwd()`; the executable supplies it.
 Its initially empty mutable `config` is isolated between applications and
 available before provider construction. Application Configuration is distinct

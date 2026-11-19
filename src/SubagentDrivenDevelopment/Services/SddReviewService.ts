@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -80,7 +80,7 @@ export class SddReviewService extends Service {
         });
       }
       await publish(ledger);
-      const path = this.app.workspacePath(join(".spindle", "features", feature.name));
+      const path = this.app.featuresPath(feature.name);
       const quoted = `'${path.replaceAll("'", "'\\''")}'`;
       return {
         review: review.id,

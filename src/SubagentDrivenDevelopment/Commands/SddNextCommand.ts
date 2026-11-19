@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { Command } from "@spindle/Commands/Command";
 import { CommandOptions } from "@spindle/Commands/CommandOptions";
 import type { Application } from "@spindle/Foundation/Application";
@@ -62,7 +60,7 @@ export class SddNextCommand extends Command {
     } else if (feature.pendingMergeOperation) {
       notices.push("A merge operation is pending. Run the listed command to resume it.");
       actions.push(
-        `spindle sdd assignment --feature ${SddNextCommand.shellArgument(this.app.workspacePath(join(".spindle", "features", feature.name)))} --merge ${feature.pendingMergeOperation.id} --json`,
+        `spindle sdd assignment --feature ${SddNextCommand.shellArgument(this.app.featuresPath(feature.name))} --merge ${feature.pendingMergeOperation.id} --json`,
       );
     } else if (feature.pendingTicketCommit) {
       const { ticketId, message } = feature.pendingTicketCommit;

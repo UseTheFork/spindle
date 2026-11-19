@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -274,7 +274,7 @@ export class TaskDispatchService extends Service {
   }
 
   private featurePath(name: string): string {
-    return this.app.workspacePath(join(".spindle", "features", name));
+    return this.app.featuresPath(name);
   }
 
   private git(git: GitService, cwd: string, args: string[]): string {

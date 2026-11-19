@@ -622,7 +622,7 @@ export class FeatureWorkspaceService extends Service {
 
   private async workspaceLocation(reference: string): Promise<{ name: string; workspace: string }> {
     const name = basename(reference);
-    const expectedWorkspace = this.app.workspacePath(join(".spindle", "features", name));
+    const expectedWorkspace = this.app.featuresPath(name);
     if (reference !== name && resolve(this.app.workspaceRoot, reference) !== expectedWorkspace) {
       if (!isAbsolute(reference)) {
         throw new Error(
@@ -796,7 +796,7 @@ export class FeatureWorkspaceService extends Service {
 
   private async featuresDirectory(createParents: boolean): Promise<string> {
     const state = this.app.workspacePath(".spindle");
-    const features = join(state, "features");
+    const features = this.app.featuresPath();
     for (const directory of [state, features]) {
       if (createParents) {
         try {
