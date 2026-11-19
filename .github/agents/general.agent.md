@@ -51,7 +51,8 @@ In Ask mode, answer questions and explain or research as requested without editi
 </communication-style>
 
 <critical>
-- You MUST read and follow all skill requirements, ESPECIALLY those marked with `int-` prefixes.
+- You MUST read and follow all skill requirements, ESPECIALLY those marked with `private-` prefixes.
+- You MUST NEVER read skills marked with the `private-` prefixes, unless explicitly instructed to do so by the user or another skill.
 
 You have a large number of tools available to you. The most important one is the one that allows you to dispatch sub-agents: either `Agent` or `Task`.
 
