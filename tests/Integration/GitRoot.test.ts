@@ -95,7 +95,7 @@ test("workspace commands fail without Git discovery and leave the directory unch
   }
 });
 
-test("init and SDD status fail without Git discovery", async () => {
+test("init and SDD next fail without Git discovery", async () => {
   const invocation = await makeTempDir("spindle-command-no-git-");
   const workspace = await makeTempDir("spindle-command-workspace-");
   execFileSync("git", ["init", "-q"], { cwd: workspace });
@@ -118,7 +118,7 @@ test("init and SDD status fail without Git discovery", async () => {
 
     const sdd = runCliRaw(
       invocation,
-      ["sdd", "status", "--feature", join(workspace, ".spindle/features/feature")],
+      ["sdd", "next", "--feature", join(workspace, ".spindle/features/feature")],
       searchPath,
     );
     expect(sdd.status).not.toBe(0);
@@ -141,9 +141,9 @@ test("help and version work outside Git when Git is unavailable", async () => {
     ["update", "--help"],
     ["sdd", "--help"],
     ["sdd", "-h"],
-    ["sdd", "status", "-h"],
+    ["sdd", "next", "-h"],
     ["help", "sdd"],
-    ["help", "sdd", "status"],
+    ["help", "sdd", "next"],
     ["tool", "--help"],
     ["tool", "list", "--help"],
     ["help", "tool"],
