@@ -149,16 +149,12 @@ export class TaskDispatchService extends Service {
           }
         : {}),
       ...(finding === undefined ? {} : { finding }),
-      reportPath: join(
-        this.featurePath(feature.name),
-        "reports",
-        `${task.id}-attempt-${attempt}.md`,
-      ),
       workerRules: [
         merge
           ? "Work in the assigned ticket worktree and change only files in the write scope."
           : "Work in the assigned ticket worktree. The write scope is advisory; you may change other files when needed.",
         "You may read other files and run focused tests. Other workers may be editing files in the same worktree.",
+        "After completing the task, send the controller a concise summary of changes and checks for the submission comment.",
         "Do not change workflow records or run other SDD commands.",
         merge
           ? task.deliveryMerge
@@ -166,15 +162,16 @@ export class TaskDispatchService extends Service {
             : "Resolve only the assigned merge; stage those resolutions and create its merge commit."
           : "Do not stage or commit changes.",
       ],
-      reportInstructions: merge
-        ? "Write only to the assigned report path. Summarize the merge commit, conflict resolutions, test results, and blockers, then notify the controller."
-        : "Write only to the assigned report path. Summarize changes, test results, and blockers, then notify the controller.",
     };
   }
 
-  public async submit(reference: string, taskId: string, attempt: number) {
+  public async submit(reference: string, taskId: string, attempt: number, comment?: string) {
     this.assertApplicationBooted();
     this.requireAttempt(attempt);
+    const submissionComment = comment?.trim();
+    if (comment !== undefined && !submissionComment) {
+      throw new Error("Submission comment must not be empty.");
+    }
     const workspace = await this.app.make(FeatureWorkspaceService);
     const git = await this.app.make(GitService);
     return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
@@ -264,6 +261,7 @@ export class TaskDispatchService extends Service {
             `Delivery worktree has uncommitted paths: ${JSON.stringify(outstanding)}`,
           );
         }
+        if (submissionComment !== undefined) task.submissionComment = submissionComment;
         task.state = "Done";
         ticket.workRoundCommits.push(head);
         ticket.committedTaskIds = [...new Set([...(ticket.committedTaskIds ?? []), task.id])];
@@ -275,6 +273,7 @@ export class TaskDispatchService extends Service {
           attempt,
           state: task.state,
           commit: head,
+          ...(submissionComment === undefined ? {} : { submissionComment }),
         };
       }
       if (mergeFinding) {
@@ -338,6 +337,7 @@ export class TaskDispatchService extends Service {
             `Merge task worktree has uncommitted paths: ${JSON.stringify(outstanding)}`,
           );
         }
+        if (submissionComment !== undefined) task.submissionComment = submissionComment;
         task.state = "Done";
         mergeFinding.decision = "resolved";
         ticket.workRoundCommits.push(head);
@@ -351,8 +351,10 @@ export class TaskDispatchService extends Service {
           state: task.state,
           commit: head,
           finding: mergeFinding.id,
+          ...(submissionComment === undefined ? {} : { submissionComment }),
         };
       }
+      if (submissionComment !== undefined) task.submissionComment = submissionComment;
       task.state = "Done";
       await publish(ledger);
       return {
@@ -361,6 +363,7 @@ export class TaskDispatchService extends Service {
         task: task.id,
         attempt,
         state: task.state,
+        ...(submissionComment === undefined ? {} : { submissionComment }),
       };
     });
   }

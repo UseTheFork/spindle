@@ -137,9 +137,8 @@ original checkout:
 ```text
 spec.md     Feature requirements
 design.md   Optional feature design
-sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, reviews, findings
+sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, submission comments, reviews, findings
 tickets/    Ticket requirements, acceptance criteria and comments
-reports/    Worker reports
 ```
 
 The feature workspace in the original checkout is the only live copy of the
@@ -159,8 +158,9 @@ with their code revisions and recommendations, finding decisions and operation
 journals. Ticket state is derived from these facts; it is not stored
 separately. Only the controller changes the ledger, through the CLI. A
 workspace lock serializes ledger writes, and each write replaces the file
-atomically. Workers do not change workflow
-records, except to write their assigned report. A final-delivery merge may bring
+atomically. Workers do not change workflow records. A task's optional
+submission comment is stored with that task in the ledger, not in the ticket's
+Markdown Comments section. A final-delivery merge may bring
 committed `.spindle/` files from the original branch into the feature branch;
 those copies are ordinary repository files, not live records.
 
@@ -258,7 +258,8 @@ It returns the attempt number and exact `assignment` command, and refuses a
 second active assignment. If a worker stops without submitting, the controller
 can confirm the worker has stopped with `dispatch --retry-stopped-attempt <n>`.
 The confirmation must match the current attempt, and the new attempt number
-makes the previous assignment stale. Each attempt has a separate report path.
+makes the previous assignment stale. Each attempt has a separate number, so
+submissions from stale assignments are rejected.
 
 ```mermaid
 sequenceDiagram
@@ -280,14 +281,14 @@ sequenceDiagram
     CLI-->>W1: structured task assignment
     W2->>CLI: assignment --task T-0002.3 --attempt 1
     CLI-->>W2: structured task assignment
-    W1-->>C: report (changes left uncommitted)
-    C->>CLI: task submit --task T-0002.2
+    W1-->>C: completion summary
+    C->>CLI: task submit --task T-0002.2 --comment "..."
     Note over W2: still editing its own files
-    Note over CLI: checks changed paths and records task Done without committing
-    W2-->>C: report (changes left uncommitted)
-    C->>CLI: task submit --task T-0002.3
+    Note over CLI: records task Done without committing
+    W2-->>C: completion summary
+    C->>CLI: task submit --task T-0002.3 --comment "..."
     C->>CLI: ticket commit --ticket T-0002 --message "Add dispatch support"
-    Note over CLI: checks combined paths and creates one ticket commit
+    Note over CLI: creates one ticket commit for combined work
 ```
 
 The controller gives the worker the command printed by `dispatch`, not a
@@ -305,7 +306,7 @@ is in progress and the attempt matches the current dispatch. Its structured
 output includes the role, feature/ticket/task IDs, attempt, ticket worktree
 path, task instructions and completion criteria, write scope, optional
 context, ticket requirements, acceptance criteria, originating finding and
-evidence, worker rules and response/report instructions. Review mode returns
+evidence and worker rules. Review mode returns
 the role, review ID, target worktree, review scope, code revision, review
 criteria, optional focus, findings to verify and response template. It reads a
 complete ledger snapshot and does
@@ -318,7 +319,6 @@ Workers:
   work in the ticket worktree that the assignment names;
 - use the write scope as a plan for ordinary task work; ordinary tasks may
   change other files when needed. Merge agents must stay within their scope.
-  Write reports only to the separately assigned report path;
 - do not commit, stage or run SDD commands other than the read-only
   `assignment` command, except that an assigned merge agent may run Git merge,
   stage conflict resolutions and create the assigned merge commit;
@@ -335,11 +335,13 @@ stateDiagram-v2
     Done --> [*]
 ```
 
-- **`task submit --task <id> --attempt <n>`** runs after the submitting worker
-  stops. The attempt must match the current assignment. Ordinary task
-  submission does not compare changed paths with task scopes. Files outside
-  the declared scopes are allowed, and all changes remain in the shared
-  worktree for the ticket commit.
+- **`task submit --task <id> --attempt <n> [--comment <text>]`** runs after the
+  submitting worker stops. The attempt must match the current assignment.
+  Ordinary task submission does not compare changed paths with task scopes.
+  Files outside the declared scopes are allowed, and all changes remain in the
+  shared worktree for the ticket commit. A submission comment is optional,
+  accepts text or stdin with `--comment -`, and is stored with the task; it
+  does not append to the ticket's Comments section.
 - For ordinary tasks, **Done** means the CLI accepted the submission and
   recorded completion. It does not create an individual task commit.
   Dependent tasks can use the completed work in the shared worktree.
@@ -591,7 +593,7 @@ flowchart TD
     D --> B
     C -->|"No"| E{"Original branch tip already included?"}
     E -->|"No"| M["Create delivery ticket and dispatch merge task"]
-    M --> N["Merge agent runs merge, resolves conflicts, commits and reports"]
+    M --> N["Merge agent runs merge, resolves conflicts, commits and submits a comment"]
     N --> O["CLI verifies merge; acceptance review, integrate"]
     O --> P{"Controller requests another feature review?"}
     P -->|"Yes"| B
@@ -619,32 +621,33 @@ flowchart TD
 
 The merge agent receives a normal task assignment with explicit merge
 permissions. The assignment identifies the ticket worktree, original branch
-commit, file scope and report path. The file scope must cover incoming file
-changes and conflict resolutions. No other task or Git operation may run in
-that ticket worktree while the agent works.
+commit and file scope. The file scope must cover incoming file changes and
+conflict resolutions. No other task or Git operation may run in that ticket
+worktree while the agent works.
 
 The merge agent:
 
 - runs `git merge --no-ff` against the original branch in the ticket worktree;
 - resolves conflicts within the assigned scope, stages those resolutions and
   creates the merge commit;
-- runs focused tests and writes a report with the merge outcome, conflict
-  resolutions, test results and any unresolved problems;
+- runs focused tests and includes the merge outcome, conflict resolutions,
+  test results and any unresolved problems in the submission comment;
 - does not edit workflow records, move the feature or original branch, or
   push.
 
-If the agent cannot complete the merge within its assignment, it reports the
-blocker and leaves its work in place. The task remains InProgress. The
-controller must confirm that the agent has stopped before another agent or
-recovery operation uses the worktree.
+If the agent cannot complete the merge, it leaves its work in place and tells
+the controller. The task remains InProgress. The controller must confirm that
+the agent has stopped before another agent or recovery operation uses the
+worktree.
 
-At submission, the CLI verifies the actual Git state, not just the report.
+At submission, the CLI verifies the actual Git state. The submission comment
+is a summary, not evidence that the merge succeeded.
 The result must be the ticket branch tip and include a merge of the original
 branch. The worktree must have no unresolved conflicts or uncommitted changes.
 Changes made by the merge must stay within the assigned scope. Verification
 failures leave the task InProgress and report the reason. A verified merge
-still needs an independent acceptance review round; the agent's report does
-not approve it.
+still needs an independent acceptance review round; the agent's submission
+comment does not approve it.
 
 ## Commands
 
@@ -768,7 +771,7 @@ failure. `error.details` is optional and provides additional context.
 | `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                                                                             |
 | `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                                                                              |
-| `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                                                                  |
+| `task submit`                    | Record task completion with an optional comment, or verify a merge-task commit and record it as the work-round commit.                                                                                                    |
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                         |
 | `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                    |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                  |

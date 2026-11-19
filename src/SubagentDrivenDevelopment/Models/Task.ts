@@ -23,6 +23,7 @@ export const taskSchema = z
     instructions: z.string().min(1),
     writeScope: z.array(writePathSchema),
     context: z.array(z.string()).optional(),
+    submissionComment: z.string().trim().min(1).optional(),
     dependencies: z.array(taskIdSchema),
     discoveredFrom: z.string().min(1).optional(),
     deliveryMerge: z
@@ -51,6 +52,10 @@ export const taskSchema = z
   .refine((task) => (task.state === "Pending" ? task.attempt === 0 : task.attempt > 0), {
     path: ["attempt"],
     message: "Pending tasks have no dispatch attempt; started tasks have at least one.",
+  })
+  .refine((task) => task.submissionComment === undefined || task.state === "Done", {
+    path: ["submissionComment"],
+    message: "Submission comments can only be recorded for completed tasks.",
   });
 
 export type Task = z.output<typeof taskSchema>;

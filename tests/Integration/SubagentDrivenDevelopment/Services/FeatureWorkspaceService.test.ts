@@ -29,7 +29,6 @@ test("creates and loads a workspace without putting Markdown in the ledger", asy
   await expect(service.create({ ...input, name: "../escape" })).rejects.toThrow("Invalid numbered");
   expect((await readdir(workspace)).sort()).toEqual([
     "design.md",
-    "reports",
     "sdd.json",
     "spec.md",
     "tickets",

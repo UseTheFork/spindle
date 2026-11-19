@@ -178,7 +178,6 @@ test("packaged SDD create and next expose feature state outside the package chec
   expect(readFileSync(join(featureDirectory, "design.md"), "utf8")).toContain("## Intent");
   expect(readdirSync(featureDirectory).sort()).toEqual([
     "design.md",
-    "reports",
     "sdd.json",
     "spec.md",
     "tickets",
@@ -363,6 +362,10 @@ test("packaged command discovery and help remain intact", () => {
     [
       ["sdd", "task", "remove", "--help"],
       ["--feature <directory>", "--task <id>"],
+    ],
+    [
+      ["sdd", "task", "submit", "--help"],
+      ["--feature <directory>", "--task <id>", "--attempt <n>", "--comment <text>"],
     ],
     [["sdd", "finish", "--help"], ["--feature <directory>"]],
     [["init", "--help"], ["Usage: spindle init [options]"]],

@@ -27,7 +27,8 @@ test(
     const ledger = join(workspace, "sdd.json");
     const before = await readFile(ledger, "utf8");
     await mkdir(join(workspace, ".ledger-lock"));
-    expect(invoke(...assignment, "--attempt", "2")).toMatchObject({
+    const assigned = invoke(...assignment, "--attempt", "2");
+    expect(assigned).toMatchObject({
       role: "worker",
       feature: name,
       ticket: "T-0001",
@@ -39,10 +40,10 @@ test(
       context: ["docs/schema.md"],
       requirements: "Scope",
       acceptanceCriteria: "Done",
-      reportPath: join(workspace, "reports", `${id}-attempt-2.md`),
       workerRules: expect.arrayContaining(["Do not stage or commit changes."]),
-      reportInstructions: expect.any(String),
     });
+    expect(assigned).not.toHaveProperty("reportPath");
+    expect(assigned).not.toHaveProperty("reportInstructions");
     expect(await readFile(ledger, "utf8")).toBe(before);
   },
 );

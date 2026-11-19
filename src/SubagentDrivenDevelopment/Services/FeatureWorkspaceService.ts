@@ -86,7 +86,6 @@ export class FeatureWorkspaceService extends Service {
     try {
       await this.withLock(join(workspace, ".ledger-lock"), async () => {
         await mkdir(join(workspace, "tickets"));
-        await mkdir(join(workspace, "reports"));
         await writeFile(join(workspace, "spec.md"), feature.specification, { flag: "wx" });
         if (feature.design !== undefined) {
           await writeFile(join(workspace, "design.md"), feature.design, { flag: "wx" });
@@ -251,7 +250,7 @@ export class FeatureWorkspaceService extends Service {
         );
       }
       const task: NewDeliveryTask = {
-        instructions: `Merge the assigned ${feature.originalBranch} commit into this ticket branch with a no-fast-forward merge. Resolve conflicts only within the assigned write scope, create the merge commit, run focused checks, and write the outcome to the assigned report path.`,
+        instructions: `Merge the assigned ${feature.originalBranch} commit into this ticket branch with a no-fast-forward merge. Resolve conflicts only within the assigned write scope, create the merge commit, run focused checks, and summarize the outcome when submitting the task.`,
         writeScope: input.writeScope,
         dependencies: [],
         deliveryMerge: { originalBranch: feature.originalBranch },

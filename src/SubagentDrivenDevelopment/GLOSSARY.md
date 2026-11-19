@@ -22,6 +22,10 @@ _Avoid_: Subtask
 **Work graph**:
 A feature's hierarchy of tickets and their tasks, connected by dependencies.
 
+**Submission comment**:
+An optional note attached to a task when its worker submits it as Done.
+_Avoid_: Ticket comment
+
 **Write scope**:
 The planned repository paths a task is expected to change. A write scope helps
 identify planned overlap between tasks but does not limit all files a worker
