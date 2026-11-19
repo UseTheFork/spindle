@@ -11,7 +11,7 @@
 - [Settings](src/Settings/GLOSSARY.md): Project Settings and their lifecycle.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
   features, tickets, assignments, findings, evidence, and delivery.
-- [SDD target workflow](SDD-WORKFLOWS.md): target design for the SDD rebuild:
+- [SDD target workflow](docs/product/sdd/workflow.md): target design for the SDD rebuild:
   work graph, parallel dispatch, integration, reviews and delivery.
 - [Git](src/Git/GLOSSARY.md): repositories, working trees, index, and commits.
 

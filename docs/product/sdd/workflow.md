@@ -2,7 +2,7 @@
 
 This document defines the target design for subagent-driven development (SDD).
 It is the starting point for rebuilding
-[`src/SubagentDrivenDevelopment/`](src/SubagentDrivenDevelopment/) from
+[`src/SubagentDrivenDevelopment/`](../../../src/SubagentDrivenDevelopment/) from
 scratch. The rebuild does not support or migrate feature workspaces, branches
 or worktrees created by the current implementation.
 
@@ -173,7 +173,7 @@ those copies are ordinary repository files, not live records.
 ## Configuration
 
 SDD settings live under the `sdd` key in
-[`.spindle/config.json`](.spindle/config.json) and apply to all features.
+[`.spindle/config.json`](../../../.spindle/config.json) and apply to all features.
 Features cannot override them, and `sdd.json` holds no feature settings.
 
 - `worktree_directory` sets the shared parent directory for all feature and
