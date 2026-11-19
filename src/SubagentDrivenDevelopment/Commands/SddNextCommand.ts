@@ -55,7 +55,11 @@ export class SddNextCommand extends Command {
     const start = `spindle sdd start --feature ${feature.name}`;
     const ticketStart = (ticketId: string) =>
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
-    if (feature.completed) {
+    if (feature.specification === undefined) {
+      notices.push(
+        "Add spec.md with the approved specification before creating tickets or starting work.",
+      );
+    } else if (feature.completed) {
       notices.push("Feature is complete.");
     } else if (feature.pendingMergeOperation) {
       notices.push("A merge operation is pending. Run the listed command to resume it.");
@@ -209,7 +213,7 @@ export class SddNextCommand extends Command {
         }
       }
     }
-    if (actions.length === 0) {
+    if (actions.length === 0 && feature.specification !== undefined) {
       if (!feature.completed) notices.push("No workflow actions available in this CLI yet.");
       if (!feature.completed && settings.status === "valid" && !settings.data.sdd) {
         notices.push(

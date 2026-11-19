@@ -141,7 +141,7 @@ Each feature has a workspace under `.spindle/features/<feature>/` in the
 original checkout:
 
 ```text
-spec.md     Feature requirements
+spec.md     Feature requirements; absent until a design-only workspace receives its spec
 design.md   Optional feature design
 sdd.json    Ledger: worktree paths, tickets, tasks, dependencies, links, write scopes, submission comments, reviews, findings
 tickets/    Ticket requirements, acceptance criteria and comments
@@ -695,9 +695,13 @@ spindle sdd task create --feature 0001-dispatch --ticket T-0001 \
 spindle sdd next --feature 0001-dispatch --json
 ```
 
-`create` accepts an optional `--design`. Only one of `--spec` and `--design`
-can read from standard input. `next` accepts a numbered workspace name or a
-directory under `.spindle/features/` in the original checkout. Set
+`create` accepts `--spec`, `--design`, or both. To save an approved design
+before its spec, use `spindle sdd create --slug <slug> --design -` and send
+the design Markdown on standard input. Save the approved spec as `spec.md`
+in that same workspace before creating tickets or starting worktrees. Only
+one of `--spec` and `--design` can read from standard input. `next` accepts a
+numbered workspace name or a directory under `.spindle/features/` in the
+original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
 `ticket start`, `dispatch`, ticket and feature review, delivery-ticket
 creation, `integrate`, and `finish` when available. `integrate` and `finish`

@@ -19,6 +19,9 @@ export class WorktreeStartService extends Service {
     const original = await realpath(this.app.workspaceRoot);
 
     return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
+      if (feature.specification === undefined) {
+        throw new Error(`Feature '${feature.name}' requires a non-empty spec.md before start.`);
+      }
       const branch = `sdd/${feature.name}/${ticketId ?? "feature"}`;
       const ticket =
         ticketId === undefined ? undefined : ledger.tickets.find(({ id }) => id === ticketId);

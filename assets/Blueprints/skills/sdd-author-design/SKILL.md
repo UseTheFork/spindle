@@ -5,42 +5,70 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 1.1.2
+    version: 2.0.0
 ---
 
-# Authoring a Design
+# Author an SDD Design
 
-Help the user clarify what they want before turning an idea into a design. A design is optional; when one is created, it is authored and approved before its spec, and tickets follow the spec. Use this for product and project decisions, not as a gate for a clear, bounded task or a user who wants a spec without a design.
+Settle consequential product or workflow decisions before drafting a spec. Design is optional. If the user wants a spec without a design, stop and point them to `/sdd-to-spec`.
 
-## Required skills
+Announce `Step <ID> - <label>` before each node, including resumed steps and loop re-entries. State each decision result and the selected branch before entering the next node.
 
-Before drafting or editing, read:
+```mermaid
+flowchart TD
+    A[Understand the brief] --> B{Decision open?}
+    B -- Yes --> C[Settle the decision]
+    C --> B
+    B -- No --> D[Draft the design]
+    D --> E{Design approved?}
+    E -- Revise --> A
+    E -- Approved --> F[Save the design and hand off]
+```
 
-- **REQUIRED:** `public-ref-asd-ste100`
+## A. Understand the brief
 
-Apply the clarity rules from the `public-ref-asd-ste100` skill. Include a before/after table only when the user requests one.
+Identify the user goal, success outcomes, scope, and constraints. Read relevant project docs and code before asking questions. Identify the original checkout and any existing numbered feature workspace. If that workspace already has a spec, ask before adding or revising a design for it.
 
-## Process
+**Complete when:** the brief and workspace are clear, and any consequential open decision is named.
 
-1. **Check the brief.** Identify the user's goal, why it matters, what success means, and which important decisions remain open. In an existing project, inspect relevant code and docs first; do not ask for facts the project already answers. If the user asks for a design and the request is specific with no consequential decision open, proceed to the design without unnecessary questioning. **Complete when** the brief is actionable or a concrete unresolved decision is identified.
+## B. Decision open?
 
-2. **Clarify the outcome.** Ask one focused, open question about the uncertainty that most changes the result. Explain briefly what the answer will affect. Build on the user's responses and ask follow-ups only for unresolved decisions. If the user delegates a consequential decision, state your recommendation and why, then ask for confirmation before treating it as settled. **Complete when** goal, success criteria, scope, and constraints are understood or explicitly marked as assumptions.
+Go to C if a decision changes the outcome, scope, or workflow. Otherwise go to D. Do not reopen decisions that the user or project evidence already settled.
 
-3. **Compare approaches.** Present two or three viable approaches grounded in the project and clarified goal, explain their main trade-offs, recommend one, and ask the user to choose. If only one approach fits, explain why alternatives do not. Wait for the choice before drafting. **Complete when** the user has selected an approach or delegated the choice.
+**Complete when:** the next branch is stated.
 
-4. **Create or select the SDD feature workspace.**
-   - For a new feature, choose a concise title and follow the ticket-tracker guidance for `--actor`. Run `{{ computed.spindle_package_manager }} spindle sdd create --title "<feature title>" --actor <acting-agent> --with-design`. Use the returned workspace and spec paths; `design.md` is beside `spec.md`. The command creates both template files, but fill and approve the design before filling the spec.
-   - For an existing numbered SDD feature workspace, reuse it. If `design.md` already exists, preserve it and edit it only as requested. If it is missing, first confirm `spec.md` is still the untouched template; then copy the design template from the Spindle installation's `assets/Templates/sdd/design.md` into that workspace without overwriting existing files.
-   - If the existing spec has substantive content, stop before adding or revising a design: that would put design after spec. Explain the conflict and ask whether the user wants to continue as an explicit exception or keep the feature spec-only.
-   - Do not create a dated feature directory or a second SDD workspace for the same feature.
+## C. Settle the decision
 
-   **Complete when** a single numbered feature workspace is selected and its `design.md` exists without overwriting user content.
+Ask one focused question at a time. Explain what the answer changes. When multiple approaches fit, compare their main trade-offs and recommend one. Record the user's choice or an expressly delegated decision. Return to B.
 
-5. **Write the design.** Use the existing `design.md` scaffold, replacing its `[PLACEHOLDER]` fields with the selected intent, success criteria, scope and constraints, considered approaches and trade-offs, chosen direction, and assumptions or open decisions. Write success criteria as observable outcomes that show the design achieves its intent; include measurable targets where practical without inventing precision. Leave detailed requirements and acceptance scenarios to the subsequent spec. Preserve unresolved decisions explicitly. **Complete when** the design represents the conversation, states observable success outcomes, and distinguishes user decisions from recommendations.
+**Complete when:** the decision is recorded or a focused follow-up is pending.
 
-6. **Get approval.** Share the design path and its content for user approval or correction. Do not begin spec drafting until the user approves the design. If the user opts out of brainstorming or asks for a spec without design, respect that choice; do not create a design as a gate. After approval, ask the user to invoke `/sdd-to-spec` to create the spec in the same feature workspace; do not invoke it automatically. **Complete when** the design is approved, corrected for another review, or the user has chosen the spec-only path.
+## D. Draft the design
 
-## Keep the conversation useful
+Follow the `public-ref-asd-ste100` skill for clarity. Use the Spindle installation's `assets/Templates/sdd/design.md` as the outline. Define the terms, rules, and responsibilities needed to understand the selected approach.
 
-- Prefer the user's own description before suggesting solutions; offer recommendations when asked or when the user delegates a decision.
-- Keep questions specific to the project, and avoid reopening decisions already settled by the user or verified project evidence.
+Describe how the design works from entry to outcome. Include alternate paths, failure, and recovery where they matter. Use a Mermaid flowchart for branching, a sequence diagram for handoffs, or a state diagram for lifecycle rules. Add a diagram only when it clarifies the design. Keep rules and exceptions explicit in prose. Leave detailed requirements, tickets, and tasks to later steps.
+
+**Complete when:** the draft shows the observable outcomes, selected direction, and open questions without implying decisions the user did not make.
+
+## E. Design approved?
+
+Show the draft and ask for approval. Return to A if the user requests changes. Continue to F only after approval. Stop if the user chooses the spec-only path.
+
+**Complete when:** approval, revisions, or the spec-only choice is explicit.
+
+## F. Save the design and hand off
+
+For an existing workspace, save the approved text as its `design.md`. Read and preserve existing content outside the approved changes. Do not create another workspace or edit the ledger.
+
+For a new feature, use a lowercase kebab-case slug. Run this command from the original checkout and supply the approved Markdown on standard input:
+
+```sh
+{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>" --design -
+```
+
+Use the returned workspace path to locate `design.md`. If creation fails, report the error and check for a partially created workspace before retrying.
+
+Report the design path and ask the user to invoke `/sdd-to-spec` with it. Do not invoke that skill automatically or create a placeholder spec.
+
+**Complete when:** the approved design is saved in one feature workspace and the user has its path for spec authoring.

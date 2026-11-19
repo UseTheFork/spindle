@@ -23,14 +23,12 @@ The `tool` subcommands maintain project-specific entries in
 built-in commands are always included in the guide and `tool list`; their keys
 are reserved and are not stored in the registry. A missing `tooling` array is
 initialized to an empty array by `init` or `update`; existing entries are
-preserved. `sdd create` creates an ID-based feature workspace beneath `.spindle/features/` in the
-discovered root, copying the shared SDD spec template and optionally a design
-template with `--with-design`. Feature and ticket creation require valid Project
-Settings with `spindle_package_manager`, initialized by `spindle init`.
-`sdd status` requires an
-explicit `--spec` path within that checkout and reads the stored ledger without
-mutation. The old report-path resolver is not available, and dated feature
-workspaces are not migrated.
+preserved. `sdd create --slug <slug>` creates a numbered feature workspace
+beneath `.spindle/features/` in the original checkout. Supply `--spec`,
+`--design`, or both with the corresponding Markdown. A design-only workspace
+needs a non-empty `spec.md` before tickets or worktrees can be created.
+Feature and ticket creation require valid Project Settings.
+`sdd next --feature <feature>` reads the work graph without changing it.
 
 The shipped collection is controlled by the typed `blueprintCatalog` object in
 `src/Assets/Blueprints/Catalog.ts`. Edit this object to add or retire entries, then

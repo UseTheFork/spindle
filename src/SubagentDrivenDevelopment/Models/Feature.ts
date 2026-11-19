@@ -9,7 +9,7 @@ import { z } from "zod";
 export const featureSchema = z.strictObject({
   name: z.string().min(1),
   ledgerRepositoryRoot: z.string().min(1),
-  specification: z.string().min(1),
+  specification: z.string().min(1).optional(),
   design: z.string().optional(),
   originalBranch: z.string().min(1).optional(),
   featureBranch: z.string().min(1).optional(),

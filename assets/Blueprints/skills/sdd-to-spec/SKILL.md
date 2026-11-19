@@ -5,7 +5,7 @@ argument-hint: "[design file path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 2.0.0
+    version: 2.0.1
 ---
 
 # To Spec
@@ -40,7 +40,7 @@ Accept one optional design file path. If omitted, use the feature workspace's `d
    **Complete when:** the user approves the spec and no open question blocks ticket planning.
 
 4. **Save the spec and hand off.**
-   - If the feature workspace exists, update its `spec.md`. Do not create a second workspace or edit the ledger.
+   - If the feature workspace exists, save the spec as its `spec.md`. Create that file if the workspace was created with only a design. Do not create a second workspace or edit the ledger.
    - Otherwise, derive a lowercase kebab-case slug. Run `{{ computed.spindle_package_manager }} spindle sdd create --slug "<slug>" --spec "<spec Markdown>"` from the original checkout. Pass the approved design Markdown with `--design` when a design applies. Either text flag accepts `-` for standard input, but only one can use it per command.
    - Use the workspace path returned by `sdd create` to locate the new `spec.md`. If creation fails, report the error. Check for a partially created workspace before retrying.
    - Report the saved spec path. Ask the user to invoke `/sdd-to-tickets` with that path. Do not invoke it automatically.

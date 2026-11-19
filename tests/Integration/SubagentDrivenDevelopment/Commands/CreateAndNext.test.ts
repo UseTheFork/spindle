@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -79,6 +80,63 @@ test("creates numbered feature workspaces and reports an empty graph", async () 
   const missing = runCli(other, ["--json", "sdd", "next", "--feature", "0003-missing"], path);
   expect(missing.status).toBe(1);
   expect(missing.stderr).toContain("was not found in this checkout");
+});
+
+test("a design can be saved before the spec without enabling implementation", async () => {
+  const project = await makeTempDir();
+  execFileSync("git", ["init", "-q"], { cwd: project });
+  await mkdir(join(project, ".spindle"));
+  await writeFile(join(project, ".spindle", "config.json"), '{"stacks":["typescript"]}');
+  const path = process.env.PATH ?? "";
+  const run = (args: string[], input?: string) =>
+    runCliRaw(project, ["sdd", ...args], path, {}, input);
+  const feature = "0001-design-first";
+  const workspace = join(project, ".spindle", "features", feature);
+  const ledger = join(workspace, "sdd.json");
+  const design = "# Design\n\nDesign first.\n";
+  const missing = run(["create", "--slug", "missing"]);
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toContain("Provide --spec, --design, or both.");
+  const created = run(["create", "--slug", "design-first", "--design", "-"], design);
+  expect(created.status, created.stderr).toBe(0);
+  expect(await readFile(join(workspace, "design.md"), "utf8")).toBe(design);
+  await expect(readFile(join(workspace, "spec.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  const before = await readFile(ledger, "utf8");
+
+  const next = run(["next", "--feature", feature, "--json"]);
+  expect(next.status, next.stderr).toBe(0);
+  expect(JSON.parse(next.stdout)).toMatchObject({
+    data: {
+      feature,
+      actions: [],
+      notices: expect.arrayContaining([expect.stringContaining("spec.md")]),
+    },
+  });
+  const start = run(["start", "--feature", feature]);
+  expect(start.status).not.toBe(0);
+  expect(start.stderr).toContain("requires a non-empty spec.md");
+  const ticket = [
+    "ticket",
+    "create",
+    "--feature",
+    feature,
+    "--title",
+    "Implement",
+    "--requirements",
+    "Scope.",
+    "--acceptance-criteria",
+    "Done.",
+  ];
+  const blocked = run(ticket);
+  expect(blocked.status).not.toBe(0);
+  expect(blocked.stderr).toContain("requires a non-empty spec.md");
+  expect(await readFile(ledger, "utf8")).toBe(before);
+  expect(await readdir(join(workspace, "tickets"))).toEqual([]);
+
+  await writeFile(join(workspace, "spec.md"), "# Approved spec\n");
+  const recorded = run(ticket);
+  expect(recorded.status, recorded.stderr).toBe(0);
+  expect(await readdir(join(workspace, "tickets"))).toEqual(["T-0001.md"]);
 });
 
 test("ticket and task creation drive readiness and reject invalid graph changes", async () => {

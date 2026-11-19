@@ -97,7 +97,9 @@ export class FeatureWorkspaceService extends Service {
     try {
       await this.withLock(join(workspace, ".ledger-lock"), async () => {
         await mkdir(join(workspace, "tickets"));
-        await writeFile(join(workspace, "spec.md"), feature.specification, { flag: "wx" });
+        if (feature.specification !== undefined) {
+          await writeFile(join(workspace, "spec.md"), feature.specification, { flag: "wx" });
+        }
         if (feature.design !== undefined) {
           await writeFile(join(workspace, "design.md"), feature.design, { flag: "wx" });
         }
@@ -840,6 +842,15 @@ export class FeatureWorkspaceService extends Service {
     }
   }
 
+  private async readOptionalRecord(path: string): Promise<string | undefined> {
+    try {
+      return await this.readRecord(path);
+    } catch (error) {
+      if (!FeatureWorkspaceService.hasCode(error, "ENOENT")) throw error;
+      return undefined;
+    }
+  }
+
   private async replaceLedger(workspace: string, ledger: FeatureLedger): Promise<void> {
     const temporary = await mkdtemp(join(workspace, ".ledger-"));
     try {
@@ -868,10 +879,18 @@ export class FeatureWorkspaceService extends Service {
     ledger: FeatureLedger,
     pending?: { id: string; markdown: string },
   ): Promise<Feature> {
-    const design = await this.readRecord(join(workspace, "design.md")).catch((error: unknown) => {
-      if (!FeatureWorkspaceService.hasCode(error, "ENOENT")) throw error;
-      return undefined;
-    });
+    const design = await this.readOptionalRecord(join(workspace, "design.md"));
+    const specification = await this.readOptionalRecord(join(workspace, "spec.md"));
+    if (
+      !specification?.trim() &&
+      (specification !== undefined ||
+        !design?.trim() ||
+        ledger.pendingStart ||
+        ledger.featureBranch ||
+        ledger.tickets.length > 0)
+    ) {
+      throw new Error(`Feature '${name}' requires a non-empty spec.md.`);
+    }
     const ticketsDirectory = join(workspace, "tickets");
     await this.requireDirectory(ticketsDirectory);
     const tickets = await Promise.all(
@@ -885,7 +904,7 @@ export class FeatureWorkspaceService extends Service {
     const feature = featureSchema.parse({
       ...facts,
       name,
-      specification: await this.readRecord(join(workspace, "spec.md")),
+      specification,
       design,
       tickets,
     });

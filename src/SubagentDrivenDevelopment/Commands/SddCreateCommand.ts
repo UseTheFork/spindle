@@ -14,14 +14,16 @@ export class SddCreateCommand extends Command {
       .command("create")
       .description("Create a numbered feature workspace in the original checkout.")
       .requiredOption("--slug <slug>", "Lowercase feature slug", CommandOptions.once("--slug"))
-      .requiredOption(
+      .option(
         "--spec <text>",
         "Feature specification, or - for stdin",
         CommandOptions.once("--spec"),
       )
       .option("--design <text>", "Optional design, or - for stdin", CommandOptions.once("--design"))
       .allowExcessArguments(false)
-      .action(async ({ slug, spec, design }: { slug: string; spec: string; design?: string }) => {
+      .action(async ({ slug, spec, design }: { slug: string; spec?: string; design?: string }) => {
+        if (spec === undefined && design === undefined)
+          throw new Error("Provide --spec, --design, or both.");
         if (spec === "-" && design === "-") {
           throw new Error("Only one of --spec and --design can read from stdin.");
         }
@@ -46,11 +48,14 @@ export class SddCreateCommand extends Command {
     design,
   }: {
     slug: string;
-    specification: string;
+    specification?: string;
     design?: string;
   }) {
     this.assertApplicationBooted();
-    if (!specification.trim()) throw new Error("Feature specification must not be empty.");
+    if (specification === undefined && design === undefined)
+      throw new Error("Provide --spec, --design, or both.");
+    if (specification !== undefined && !specification.trim())
+      throw new Error("Feature specification must not be empty.");
     if (design !== undefined && !design.trim())
       throw new Error("Feature design must not be empty.");
     return (await this.app.make(FeatureWorkspaceService)).createNumbered(slug, {
