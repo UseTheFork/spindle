@@ -23,7 +23,10 @@ export class SddTicketStartCommand extends Command {
         const data = await (await app.make(SddTicketStartCommand)).run(feature, ticket);
         const human = [`Started ticket ${ticket}: ${data.worktree}`];
         if (data.setupCommands.length > 0) {
-          human.push("Run in the ticket worktree before dispatch:", ...data.setupCommands);
+          human.push(
+            "Complete these ticket worktree setup steps before dispatch:",
+            ...data.setupCommands,
+          );
         }
         (await app.make(ConsoleOutputService)).result({ level: "success", human, data });
       });

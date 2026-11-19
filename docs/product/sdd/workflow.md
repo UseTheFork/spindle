@@ -181,9 +181,11 @@ Features cannot override them, and `sdd.json` holds no feature settings.
   `~` and `~/` paths expand to the current user's home directory. The resolved
   worktree destination must remain outside the original checkout, including
   after symlink resolution.
-- `setup_command` is an array of commands for the controller to run in each
-  new ticket worktree. The CLI returns these commands but does not run them.
-  The array can be empty.
+- `setup_command` is an ordered array of shell commands and instructions for
+  setting up each new ticket worktree. Prefix plain-language instructions with
+  `Instruction:`. Unprefixed entries remain shell commands. The CLI returns
+  these strings in `setupCommands` without carrying them out. The array can be
+  empty.
 
 Example SDD configuration:
 
@@ -191,7 +193,10 @@ Example SDD configuration:
 {
   "sdd": {
     "worktree_directory": "/home/user/source/spindle_worktrees",
-    "setup_command": ["pnpm install"]
+    "setup_command": [
+      "Instruction: Copy .env from the original checkout to the ticket worktree if it is missing there. Do not print its contents.",
+      "pnpm install"
+    ]
   }
 }
 ```
@@ -226,8 +231,9 @@ flowchart LR
   worktree from the current feature branch tip and records both in the
   ledger. The CLI does not run setup. `ticket start` returns the new worktree
   path and `sdd.setup_command` from the original checkout's configuration.
-  The controller runs each command once, in array order, in the new ticket
-  worktree before it dispatches the ticket's tasks. An empty array means no
+  The controller completes the setup entries in array order before it
+  dispatches the ticket's tasks. It follows `Instruction:` entries as prose
+  and runs unprefixed commands in the new ticket worktree. An empty array means no
   setup. The merge agent removes the ticket worktree and branch after the
   ticket branch has been merged into the feature branch and recorded.
 - Worktrees live under `sdd.worktree_directory`, outside the original
@@ -835,7 +841,7 @@ failure. `error.details` is optional and provides additional context.
 | `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
 | `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
 | `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                                    |
-| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup commands.                                                                      |
+| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup steps.                                                                         |
 | `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope, context and dependencies. Refuses unordered write conflicts.                                                                                                |
 | `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |
 | `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                                                                             |

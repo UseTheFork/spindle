@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skil
 agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.1.1
+    version: 2.1.2
 ---
 
 # SDD Orchestrator
@@ -70,8 +70,12 @@ serial. Do not treat an empty action list as completion.
 Run the selected command. For actions that need input, such as a commit message
 or a finding decision, supply it within the user's authorization.
 
-- After `ticket start`, run the returned setup commands in order in the ticket
-  worktree before dispatch. Stop dispatch for that ticket if setup fails.
+- After `ticket start`, complete the entries in `setupCommands` in order
+  before dispatch. Follow entries prefixed with `Instruction:` as prose; do
+  not pass them to a shell. Run unprefixed entries as shell commands in the
+  ticket worktree. Ask the user if an instruction is unclear or requires
+  authorization. Do not print or commit secret file contents. Stop dispatch
+  for that ticket if any setup step fails or is blocked.
 - Commit combined ticket work only after all tasks are Done and their workers
   have stopped. Use the commit command and message required by the CLI.
 - Start all intended reviewers in a round before submitting any review result.

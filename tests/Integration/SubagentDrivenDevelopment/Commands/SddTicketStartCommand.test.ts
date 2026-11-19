@@ -1,11 +1,19 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { startFixture } from "@test/Helpers/SubagentDrivenDevelopment/StartFixture";
 import { expect, test } from "vitest";
 
 test("starts only ready tickets at the feature tip and returns setup without running it", async () => {
-  const { name, workspace, worktrees, setup, git, run } = await startFixture();
+  const { repo, name, workspace, worktrees, setup, git, run } = await startFixture();
+  const instruction = "Instruction: Copy .env from the original checkout to the ticket worktree.";
+  await writeFile(
+    join(repo, ".spindle", "config.json"),
+    JSON.stringify({
+      stacks: ["typescript"],
+      sdd: { worktree_directory: "../worktrees", setup_command: [instruction, setup] },
+    }),
+  );
   const featureFlag = ["--feature", name];
   const ticketFlag = ["--ticket", "T-0001"];
   const invoke = (...args: string[]) => {
@@ -59,7 +67,7 @@ test("starts only ready tickets at the feature tip and returns setup without run
     ticket: "T-0001",
     branch,
     worktree,
-    setupCommands: [setup],
+    setupCommands: [instruction, setup],
   });
   expect(git("-C", worktree, "rev-parse", "HEAD")).toBe(
     git("-C", featureTree, "rev-parse", "HEAD"),
