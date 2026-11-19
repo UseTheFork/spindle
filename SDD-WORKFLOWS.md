@@ -115,15 +115,16 @@ Done. They use its uncommitted changes in the shared ticket worktree.
   dispatched. Before dispatch, `ticket update` can edit them; after dispatch,
   it can edit other ticket fields, such as dependencies, but not requirements
   or acceptance criteria.
+  Ticket title and dependencies can be updated until the ticket is merged.
 - Tasks can be added to a ticket before it is accepted. After acceptance and
   before merge, the controller can add only fix tasks linked to findings.
   Adding a fix task pauses integration and returns the ticket to InProgress.
   The ticket must pass acceptance review again after the fix. No tasks can
-  be added after merge. A task can be removed only before it is
-  dispatched. A task's write scope can change only before it is dispatched,
-  or when the controller accepts an out-of-scope file at submission. A scope
-  change must not create an unordered write conflict with another unfinished
-  task.
+  be added after merge. A task can be removed only before it is dispatched.
+  A pending task's instructions and dependencies can change only before
+  dispatch. Its write scope can change before dispatch, or when the controller
+  accepts an out-of-scope file at submission. A scope change must not create an
+  unordered write conflict with another unfinished task.
 
 ## Records
 
@@ -761,24 +762,25 @@ A failed command writes one JSON object to stderr and exits with status `1`:
 `error.code` is stable and machine-readable. `error.message` explains the
 failure. `error.details` is optional and provides additional context.
 
-| Command                          | Purpose                                                                                                                                                                    |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                             |
-| `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                        |
-| `ticket create`, `ticket update` | Create or edit tickets, dependencies and blockers. Requirements and acceptance criteria can be edited only before the first task is dispatched. A new ticket has no tasks. |
-| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup commands.                       |
-| `task create`, `task update`     | Add or edit tasks: instructions, write scopes and dependencies. Refuses unordered write conflicts.                                                                         |
-| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                              |
-| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                               |
-| `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                   |
-| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                          |
-| `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                     |
-| `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                   |
-| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                  |
-| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings. Conflict findings require a scoped merge task.                                                  |
-| `integrate`                      | Merge an accepted ticket into its feature, record conflicts for scoped resolution, or resume an interrupted integration.                                                   |
-| `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                 |
-| `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                       |
+| Command                          | Purpose                                                                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                                                                            |
+| `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
+| `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
+| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup commands.                                                                      |
+| `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope and dependencies. Refuses unordered write conflicts.                                                                                                         |
+| `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |
+| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                                                                             |
+| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                                                                              |
+| `task submit`                    | Record a worker's task completion, or verify a merge-task commit and record it as the work-round commit.                                                                                                                  |
+| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                         |
+| `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                    |
+| `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                  |
+| `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                                                                 |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings. Conflict findings require a scoped merge task.                                                                                                 |
+| `integrate`                      | Merge an accepted ticket into its feature, record conflicts for scoped resolution, or resume an interrupted integration.                                                                                                  |
+| `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                                                              |
+| `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                                                                      |
 
 ## Recovery and safety
 

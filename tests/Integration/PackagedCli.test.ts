@@ -338,6 +338,8 @@ test("packaged command discovery and help remain intact", () => {
   expect(sddHelp.stdout).toMatch(/^\s+next\s/m);
   expect(sddHelp.stdout).toMatch(/^\s+delivery\s/m);
   expect(sddHelp.stdout).toMatch(/^\s+finish\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+ticket\s/m);
+  expect(sddHelp.stdout).toMatch(/^\s+task\s/m);
   expect(sddHelp.stderr).toBe("");
 
   for (const [args, expectedContent] of [
@@ -349,6 +351,18 @@ test("packaged command discovery and help remain intact", () => {
     [
       ["sdd", "delivery", "create", "--help"],
       ["--feature <directory>", "--write-scope <path>"],
+    ],
+    [
+      ["sdd", "ticket", "update", "--help"],
+      ["--feature <directory>", "--ticket <id>"],
+    ],
+    [
+      ["sdd", "task", "update", "--help"],
+      ["--feature <directory>", "--task <id>"],
+    ],
+    [
+      ["sdd", "task", "remove", "--help"],
+      ["--feature <directory>", "--task <id>"],
     ],
     [["sdd", "finish", "--help"], ["--feature <directory>"]],
     [["init", "--help"], ["Usage: spindle init [options]"]],

@@ -10,7 +10,7 @@ import {
   rmdir,
   writeFile,
 } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -31,6 +31,10 @@ type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | 
 type NewTask = Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">;
 type NewDeliveryTask = NewTask &
   Pick<Task, "deliveryMerge"> & { deliveryMerge: NonNullable<Task["deliveryMerge"]> };
+type TicketUpdate = Partial<
+  Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">
+>;
+type TaskUpdate = Partial<Pick<Task, "instructions" | "writeScope" | "dependencies">>;
 type ReviewFinding = Extract<Finding, { type: "review" }>;
 type DeliverySnapshot = {
   originalBranch: string;
@@ -106,6 +110,71 @@ export class FeatureWorkspaceService extends Service {
     this.assertApplicationBooted();
     return this.withLedger(reference, async (ledger, name, workspace) => {
       return this.createTicketRecord(ledger, name, workspace, input);
+    });
+  }
+
+  public async updateTicket(reference: string, ticketId: string, input: TicketUpdate) {
+    if (Object.values(input).every((value) => value === undefined)) {
+      throw new Error("Specify at least one ticket field to update.");
+    }
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
+      if (ticket.merged) throw new Error(`Cannot update merged ticket '${ticketId}'.`);
+      const requirementsPath = join(workspace, "tickets", `${ticketId}.md`);
+      const markdown = await this.readRecord(requirementsPath);
+      const current = this.ticketRequirements(markdown, requirementsPath);
+      const title = input.title?.trim() ?? ticket.title;
+      const requirements =
+        input.requirements?.trim().replaceAll("\r\n", "\n") ?? current.requirements;
+      const acceptanceCriteria =
+        input.acceptanceCriteria?.trim().replaceAll("\r\n", "\n") ?? current.acceptanceCriteria;
+      if (!title || /[\r\n]/.test(title)) {
+        throw new Error("Ticket title must be a non-empty single line.");
+      }
+      const changesCriteria =
+        input.requirements !== undefined || input.acceptanceCriteria !== undefined;
+      if (
+        changesCriteria &&
+        ticket.tasks.some(({ state, attempt }) => state !== "Pending" || attempt > 0)
+      ) {
+        throw new Error(
+          "Ticket requirements and acceptance criteria cannot change after a task is dispatched.",
+        );
+      }
+      if (!requirements || !acceptanceCriteria) {
+        throw new Error("Ticket requirements and acceptance criteria must not be empty.");
+      }
+      const nextMarkdown = this.updateTicketMarkdown(
+        markdown,
+        title,
+        requirements,
+        acceptanceCriteria,
+        requirementsPath,
+      );
+      const dependencies = input.dependencies ?? ticket.dependencies;
+      const next = featureLedgerSchema.parse({
+        ...ledger,
+        tickets: ledger.tickets.map((candidate) =>
+          candidate.id === ticketId ? { ...candidate, title, dependencies } : candidate,
+        ),
+      });
+      await this.assemble(name, workspace, next, { id: ticketId, markdown: nextMarkdown });
+      await this.replaceRecord(requirementsPath, nextMarkdown);
+      try {
+        await this.replaceLedger(workspace, next);
+      } catch (error) {
+        try {
+          await this.replaceRecord(requirementsPath, markdown);
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            `Ticket '${ticketId}' update failed and its Markdown rollback also failed.`,
+          );
+        }
+        throw error;
+      }
+      return { ticket: ticketId, path: requirementsPath };
     });
   }
 
@@ -285,6 +354,126 @@ export class FeatureWorkspaceService extends Service {
     return { ticket: ticketId, task: taskId };
   }
 
+  public async updateTask(reference: string, ticketId: string, taskId: string, input: TaskUpdate) {
+    if (Object.values(input).every((value) => value === undefined)) {
+      throw new Error("Specify at least one task field to update.");
+    }
+    let updated = false;
+    await this.updateLedger(reference, async (ledger) => {
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
+      if (ticket.merged) throw new Error(`Cannot update a task on merged ticket '${ticketId}'.`);
+      const task = ticket.tasks.find(({ id }) => id === taskId);
+      if (!task) throw new Error(`Unknown task '${taskId}' in ticket '${ticketId}'.`);
+      if (task.state !== "Pending" || task.attempt > 0) {
+        throw new Error(`Task '${taskId}' can only be updated before it is dispatched.`);
+      }
+      const instructions = input.instructions?.trim();
+      if (instructions !== undefined && !instructions) {
+        throw new Error("Task instructions must not be empty.");
+      }
+      if (input.writeScope !== undefined) {
+        if (!task.deliveryMerge && input.writeScope.length === 0) {
+          throw new Error("Ordinary tasks must retain at least one writable path.");
+        }
+        const requiredPaths: string[] = [];
+        if (task.deliveryMerge) {
+          if (!ticket.delivery) {
+            throw new Error(`Delivery task '${taskId}' has no delivery ticket metadata.`);
+          }
+          const git = await this.app.make(GitService);
+          const mergeBase = this.git(git, this.app.workspaceRoot, [
+            "merge-base",
+            ticket.delivery.baseCommit,
+            ticket.delivery.sourceCommit,
+          ]);
+          requiredPaths.push(
+            ...this.git(git, this.app.workspaceRoot, [
+              "diff",
+              "--no-renames",
+              "--name-only",
+              "-z",
+              mergeBase,
+              ticket.delivery.sourceCommit,
+            ])
+              .split("\0")
+              .filter(Boolean),
+          );
+        }
+        if (task.discoveredFrom) {
+          const finding = ledger.findings.find(({ id }) => id === task.discoveredFrom);
+          if (!finding)
+            throw new Error(`Originating finding '${task.discoveredFrom}' was not found.`);
+          if (finding.type === "conflict") {
+            if (!finding.sourceCommit || !finding.targetCommit) {
+              throw new Error(
+                `Conflict finding '${finding.id}' has no integration commit details.`,
+              );
+            }
+            const git = await this.app.make(GitService);
+            requiredPaths.push(...finding.conflictedPaths);
+            requiredPaths.push(
+              ...this.git(git, this.app.workspaceRoot, [
+                "diff",
+                "--no-renames",
+                "--name-only",
+                "-z",
+                finding.targetCommit,
+                finding.sourceCommit,
+              ])
+                .split("\0")
+                .filter(Boolean),
+            );
+          }
+        }
+        const uncovered = this.uncoveredPaths(requiredPaths, input.writeScope);
+        if (uncovered.length > 0) {
+          throw new Error(`Task scope must cover all required paths: ${JSON.stringify(uncovered)}`);
+        }
+      }
+      Object.assign(task, {
+        ...(instructions === undefined ? {} : { instructions }),
+        ...(input.writeScope === undefined ? {} : { writeScope: input.writeScope }),
+        ...(input.dependencies === undefined ? {} : { dependencies: input.dependencies }),
+      });
+      updated = true;
+      return ledger;
+    });
+    if (!updated) throw new Error(`Task '${taskId}' was not updated.`);
+    return { ticket: ticketId, task: taskId };
+  }
+
+  public async removeTask(reference: string, ticketId: string, taskId: string) {
+    let removed = false;
+    await this.updateLedger(reference, (ledger) => {
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
+      if (ticket.merged) throw new Error(`Cannot remove a task from merged ticket '${ticketId}'.`);
+      const index = ticket.tasks.findIndex(({ id }) => id === taskId);
+      if (index < 0) throw new Error(`Unknown task '${taskId}' in ticket '${ticketId}'.`);
+      const task = ticket.tasks[index];
+      if (task.state !== "Pending" || task.attempt > 0) {
+        throw new Error(`Task '${taskId}' can only be removed before it is dispatched.`);
+      }
+      if (task.deliveryMerge) {
+        throw new Error("The delivery merge task cannot be removed.");
+      }
+      if (ticket.tasks.some(({ dependencies }) => dependencies.includes(taskId))) {
+        throw new Error(`Cannot remove task '${taskId}' while another task depends on it.`);
+      }
+      ticket.tasks.splice(index, 1);
+      for (const finding of ledger.findings) {
+        if (finding.fixWork?.type === "task" && finding.fixWork.taskId === taskId) {
+          delete finding.fixWork;
+        }
+      }
+      removed = true;
+      return ledger;
+    });
+    if (!removed) throw new Error(`Task '${taskId}' was not removed.`);
+    return { ticket: ticketId, task: taskId, removed: true };
+  }
+
   public async createFindingFixTask(reference: string, findingId: string, input: NewTask) {
     if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
     let result:
@@ -373,8 +562,9 @@ export class FeatureWorkspaceService extends Service {
           .split("\0")
           .filter(Boolean);
         const scope = new Set(input.writeScope);
-        const uncovered = [...new Set([...finding.conflictedPaths, ...incoming])].filter(
-          (path) => !scope.has(path),
+        const uncovered = this.uncoveredPaths(
+          [...finding.conflictedPaths, ...incoming],
+          [...scope],
         );
         if (uncovered.length > 0) {
           throw new Error(
@@ -465,6 +655,11 @@ export class FeatureWorkspaceService extends Service {
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${result.stderr.trim()}`);
     return result.stdout.replace(/\r?\n$/, "");
+  }
+
+  private uncoveredPaths(paths: string[], writeScope: string[]): string[] {
+    const scope = new Set(writeScope);
+    return [...new Set(paths)].filter((path) => !scope.has(path));
   }
 
   private workspaceName(reference: string): string {
@@ -637,6 +832,17 @@ export class FeatureWorkspaceService extends Service {
     }
   }
 
+  private async replaceRecord(path: string, content: string): Promise<void> {
+    const temporary = await mkdtemp(join(dirname(path), ".ticket-"));
+    try {
+      const pending = join(temporary, "record.md");
+      await writeFile(pending, content, { flag: "wx", flush: true });
+      await rename(pending, path);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  }
+
   private async assemble(
     name: string,
     workspace: string,
@@ -708,6 +914,69 @@ export class FeatureWorkspaceService extends Service {
       );
     }
     return { requirements, acceptanceCriteria };
+  }
+
+  private updateTicketMarkdown(
+    markdown: string,
+    title: string,
+    requirements: string,
+    acceptanceCriteria: string,
+    path: string,
+  ): string {
+    const lines = markdown.split(/\r?\n/);
+    if (!/^#\s+/.test(lines[0] ?? "")) {
+      throw new Error(`Expected a level 1 ticket title in ${path}.`);
+    }
+    const headings: number[] = [];
+    const targetHeadings = new Map<string, number>();
+    let fence: string | undefined;
+    for (let index = 0; index < lines.length; index++) {
+      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(lines[index]);
+      if (fence) {
+        if (marker && marker[1].startsWith(fence) && marker[2].trim() === "") fence = undefined;
+      } else if (marker) {
+        fence = marker[1];
+      } else {
+        const heading = /^ {0,3}#{1,2}[ \t]+(.+?)\s*$/.exec(lines[index]);
+        if (!heading) continue;
+        headings.push(index);
+        if (heading[1] === "Requirements" || heading[1] === "Acceptance Criteria") {
+          if (targetHeadings.has(heading[1])) {
+            throw new Error(`Duplicate '${heading[1]}' heading in ${path}.`);
+          }
+          targetHeadings.set(heading[1], index);
+        }
+      }
+    }
+    const sections = [
+      { label: "Requirements", content: requirements },
+      { label: "Acceptance Criteria", content: acceptanceCriteria },
+    ]
+      .map((section) => ({ ...section, index: targetHeadings.get(section.label) }))
+      .sort((left, right) => (right.index ?? -1) - (left.index ?? -1));
+    for (const section of sections) {
+      const sectionIndex = section.index;
+      if (sectionIndex === undefined) {
+        throw new Error(`Missing '${section.label}' heading in ${path}.`);
+      }
+      const end = headings.find((headingIndex) => headingIndex > sectionIndex) ?? lines.length;
+      lines.splice(
+        sectionIndex + 1,
+        end - sectionIndex - 1,
+        "",
+        ...section.content.split("\n"),
+        "",
+      );
+    }
+    lines[0] = `# ${title}`;
+    const updated = lines.join("\n");
+    const parsed = this.ticketRequirements(updated, path);
+    if (parsed.requirements !== requirements || parsed.acceptanceCriteria !== acceptanceCriteria) {
+      throw new Error(
+        "Ticket requirements and acceptance criteria must not contain level 1 or 2 headings outside code fences.",
+      );
+    }
+    return updated;
   }
 
   private static hasCode(error: unknown, code: string): boolean {
