@@ -14,6 +14,10 @@ A coherent deliverable within a feature, defined by its requirements and
 acceptance criteria. It groups the tasks that produce that deliverable.
 _Avoid_: Issue
 
+**Ticket comment**:
+A note attached to a ticket that adds context without changing its requirements
+or acceptance criteria.
+
 **Task**:
 A unit of implementation within a ticket, defined by its instructions, planned
 write scope, and dependencies.
@@ -24,7 +28,7 @@ A feature's hierarchy of tickets and their tasks, connected by dependencies.
 
 **Submission comment**:
 An optional note attached to a task when its worker submits it as Done.
-_Avoid_: Ticket comment
+_Avoid_: Task comment
 
 **Write scope**:
 The planned repository paths a task is expected to change. A write scope helps

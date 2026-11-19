@@ -177,6 +177,23 @@ export class FeatureWorkspaceService extends Service {
     });
   }
 
+  public async addTicketComment(reference: string, ticketId: string, comment: string) {
+    this.assertApplicationBooted();
+    const normalizedComment = comment.trim().replaceAll("\r\n", "\n");
+    if (!normalizedComment) throw new Error("Ticket comment must not be empty.");
+    return this.withLedger(reference, async (ledger, name, workspace) => {
+      const ticket = ledger.tickets.find(({ id }) => id === ticketId);
+      if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
+      if (ticket.merged) throw new Error(`Cannot comment on merged ticket '${ticketId}'.`);
+      const path = join(workspace, "tickets", `${ticketId}.md`);
+      const markdown = await this.readRecord(path);
+      const updated = this.appendTicketComment(markdown, normalizedComment, path);
+      await this.assemble(name, workspace, ledger, { id: ticketId, markdown: updated });
+      await this.replaceRecord(path, updated);
+      return { ticket: ticketId, path };
+    });
+  }
+
   public async createDeliveryTicket(
     reference: string,
     snapshot: DeliverySnapshot,
@@ -980,6 +997,64 @@ export class FeatureWorkspaceService extends Service {
       );
     }
     return updated;
+  }
+
+  private appendTicketComment(markdown: string, comment: string, path: string): string {
+    const commentLines = comment.split("\n");
+    let commentFence: string | undefined;
+    for (const line of commentLines) {
+      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+      if (commentFence) {
+        if (marker && marker[1].startsWith(commentFence) && marker[2].trim() === "") {
+          commentFence = undefined;
+        }
+      } else if (marker) {
+        commentFence = marker[1];
+      } else if (/^ {0,3}#{1,2}[ \t]+/.test(line)) {
+        throw new Error(
+          "Ticket comments must not contain level 1 or 2 headings outside code fences.",
+        );
+      }
+    }
+    if (commentFence !== undefined) throw new Error("Ticket comments must close code fences.");
+
+    const lines = markdown.split(/\r?\n/);
+    const headings: number[] = [];
+    let commentHeading: number | undefined;
+    let fence: string | undefined;
+    for (let index = 0; index < lines.length; index++) {
+      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(lines[index]);
+      if (fence) {
+        if (marker && marker[1].startsWith(fence) && marker[2].trim() === "") fence = undefined;
+      } else if (marker) {
+        fence = marker[1];
+      } else {
+        const heading = /^ {0,3}#{1,2}[ \t]+(.+?)\s*$/.exec(lines[index]);
+        if (!heading) continue;
+        headings.push(index);
+        if (heading[1] === "Comments") {
+          if (commentHeading !== undefined)
+            throw new Error(`Duplicate 'Comments' heading in ${path}.`);
+          commentHeading = index;
+        }
+      }
+    }
+    if (fence !== undefined) throw new Error(`Unclosed code fence in ${path}.`);
+    if (commentHeading === undefined) {
+      return `${markdown.trimEnd()}\n\n## Comments\n\n${comment}\n`;
+    }
+
+    const end = headings.find((heading) => heading > commentHeading) ?? lines.length;
+    const existing = lines.slice(commentHeading + 1, end);
+    while (existing.at(-1)?.trim() === "") existing.pop();
+    return [
+      ...lines.slice(0, commentHeading + 1),
+      ...existing,
+      "",
+      ...commentLines,
+      "",
+      ...lines.slice(end),
+    ].join("\n");
   }
 
   private static hasCode(error: unknown, code: string): boolean {

@@ -16,6 +16,7 @@ import { SddTaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Command
 import { SddTaskRemoveCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskRemoveCommand";
 import { SddTaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskSubmitCommand";
 import { SddTaskUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskUpdateCommand";
+import { SddTicketCommentAddCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCommentAddCommand";
 import { SddTicketCommitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCommitCommand";
 import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketCreateCommand";
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
@@ -39,6 +40,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddFinishCommand,
       SddTicketCreateCommand,
       SddTicketUpdateCommand,
+      SddTicketCommentAddCommand,
       SddTaskCreateCommand,
       SddTaskUpdateCommand,
       SddTaskRemoveCommand,

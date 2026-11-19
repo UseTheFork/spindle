@@ -734,6 +734,18 @@ or acceptance criteria so the Markdown sections remain unambiguous. If a
 ticket write is interrupted before ledger publication, its unlisted Markdown
 file is preserved and its ID will not be reused.
 
+Use `ticket comment add` to append a ticket note under `## Comments`. It can
+be used after task dispatch but not after the ticket is merged. Ticket comments
+do not change requirements or acceptance criteria. They are separate from task
+submission comments.
+
+```bash
+spindle sdd ticket comment add --feature 0001-dispatch --ticket T-0001 \
+  --comment - <<'EOF'
+Record the controller's ticket-level note here.
+EOF
+```
+
 Use a quoted heredoc for multi-line text so the shell passes it unchanged:
 
 ```bash
@@ -766,6 +778,7 @@ failure. `error.details` is optional and provides additional context.
 | `create`                         | Create a numbered feature workspace in the original checkout with `spec.md`, optional `design.md` and a new `sdd.json` ledger.                                                                                            |
 | `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
 | `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
+| `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                                    |
 | `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup commands.                                                                      |
 | `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope, context and dependencies. Refuses unordered write conflicts.                                                                                                |
 | `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |

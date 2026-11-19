@@ -356,6 +356,10 @@ test("packaged command discovery and help remain intact", () => {
       ["--feature <directory>", "--ticket <id>"],
     ],
     [
+      ["sdd", "ticket", "comment", "add", "--help"],
+      ["--feature <directory>", "--ticket <id>", "--comment <text>"],
+    ],
+    [
       ["sdd", "task", "update", "--help"],
       ["--feature <directory>", "--task <id>", "--context <reference>", "--clear-context"],
     ],
