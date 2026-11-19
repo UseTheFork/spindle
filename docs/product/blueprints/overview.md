@@ -12,8 +12,8 @@ version output remain available outside Git.
 when invoked from a nested directory. A successful `init` installs selected
 Blueprints before applying project guidance and the tooling registry. Both
 `init` and `update` render project guidance before changing the project, then
-replace `docs/agents/domain.md` and `docs/agents/ticket-tracker.md` and
-regenerate `docs/agents/tooling.md`. Copilot instructions between
+replace `docs/agents/domain.md` and regenerate `docs/agents/tooling.md`.
+Existing `docs/agents/ticket-tracker.md` files are left untouched. Copilot instructions between
 `<!-- spindle:start -->` and `<!-- spindle:end -->` are replaced while content
 outside a valid pair is preserved. Unmarked files and files with invalid
 markers are replaced entirely.
