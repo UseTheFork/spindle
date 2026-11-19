@@ -177,7 +177,10 @@ SDD settings live under the `sdd` key in
 Features cannot override them, and `sdd.json` holds no feature settings.
 
 - `worktree_directory` sets the shared parent directory for all feature and
-  ticket worktrees.
+  ticket worktrees. Relative paths resolve from the original checkout's root.
+  `~` and `~/` paths expand to the current user's home directory. The resolved
+  worktree destination must remain outside the original checkout, including
+  after symlink resolution.
 - `setup_command` is an array of commands for the controller to run in each
   new ticket worktree. The CLI returns these commands but does not run them.
   The array can be empty.

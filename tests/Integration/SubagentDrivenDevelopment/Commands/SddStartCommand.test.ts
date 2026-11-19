@@ -1,7 +1,9 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { runCliRaw } from "@test/Helpers/Cli";
 import { startFixture } from "@test/Helpers/SubagentDrivenDevelopment/StartFixture";
+import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
 import { expect, test } from "vitest";
 
 test("starts the feature without changing the original checkout or committing records", async () => {
@@ -68,4 +70,48 @@ test("refuses a worktree directory that resolves inside the original checkout", 
   expect(JSON.parse(await readFile(join(workspace, "sdd.json"), "utf8"))).not.toHaveProperty(
     "pendingStart",
   );
+});
+
+test.each(["~", "~/source/worktrees"])(
+  "expands the home directory in worktree_directory %s",
+  async (directory) => {
+    const { repo, workspace, name, git } = await startFixture();
+    const home = await realpath(await makeTempDir());
+    await writeFile(
+      join(repo, ".spindle", "config.json"),
+      JSON.stringify({ stacks: ["typescript"], sdd: { worktree_directory: directory } }),
+    );
+    const result = runCliRaw(
+      repo,
+      ["--json", "sdd", "start", "--feature", name],
+      process.env.PATH ?? "",
+      { HOME: home, USERPROFILE: home },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const path = join(home, directory === "~" ? "" : "source/worktrees", name, "feature");
+    expect(JSON.parse(result.stdout).data.worktree).toBe(path);
+    expect(git("-C", path, "rev-parse", "--show-toplevel")).toBe(path);
+    expect(JSON.parse(await readFile(join(workspace, "sdd.json"), "utf8"))).toMatchObject({
+      featureWorktree: path,
+    });
+  },
+);
+
+test("refuses a home-relative worktree directory inside the original checkout", async () => {
+  const { repo, workspace, name, git } = await startFixture();
+  await writeFile(
+    join(repo, ".spindle", "config.json"),
+    JSON.stringify({ stacks: ["typescript"], sdd: { worktree_directory: "~/worktrees" } }),
+  );
+  const ledger = await readFile(join(workspace, "sdd.json"), "utf8");
+  const result = runCliRaw(
+    repo,
+    ["--json", "sdd", "start", "--feature", name],
+    process.env.PATH ?? "",
+    { HOME: repo, USERPROFILE: repo },
+  );
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("worktrees must be outside the original checkout");
+  expect(git("branch", "--list", `sdd/${name}/feature`)).toBe("");
+  expect(await readFile(join(workspace, "sdd.json"), "utf8")).toBe(ledger);
 });

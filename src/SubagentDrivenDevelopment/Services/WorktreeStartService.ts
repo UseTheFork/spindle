@@ -1,4 +1,5 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
@@ -73,8 +74,13 @@ export class WorktreeStartService extends Service {
           throw new Error(
             "Set sdd.worktree_directory in .spindle/config.json before starting work.",
           );
+        const directory = config.worktree_directory;
+        const worktreeRoot =
+          directory === "~" || directory.startsWith("~/")
+            ? join(homedir(), directory.slice(2))
+            : directory;
         const worktree = await this.canonicalPath(
-          resolve(original, config.worktree_directory, feature.name, ticketId ?? "feature"),
+          resolve(original, worktreeRoot, feature.name, ticketId ?? "feature"),
         );
         this.assertExternal(original, worktree);
         const sourceRef = ticket
