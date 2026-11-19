@@ -58,6 +58,31 @@ test("init renders the shipped SDD reviewer", async () => {
   });
 });
 
+test("init ships the private SDD workflow reference with the orchestrator", async () => {
+  const project = await makeTempDir("spindle-sdd-workflow-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+
+  const github = join(project, ".github");
+  const name = "private-ref-sdd-workflow";
+  const reference = matter(await readFile(join(github, "skills", name, "SKILL.md"), "utf8"));
+  const orchestrator = matter(
+    await readFile(join(github, "agents", "sdd-orchestrator.agent.md"), "utf8"),
+  );
+  expect(reference.data).toMatchObject({
+    name,
+    description:
+      "This is a private skill do not load it unless explicitly required by the user or another skill.",
+    "user-invocable": false,
+  });
+  expect(reference.data["disable-model-invocation"]).toBeUndefined();
+  expect(orchestrator.content).toContain(`load the \`${name}\` skill`);
+});
+
 test("init omits retired SDD reviewers and update removes their managed installations", async () => {
   const project = await makeTempDir("spindle-retired-review-project-");
   const init = runBundledCli(

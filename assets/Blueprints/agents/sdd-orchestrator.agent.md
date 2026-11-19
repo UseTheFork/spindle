@@ -3,11 +3,11 @@ name: sdd-orchestrator
 description: "Use when a controller starts or resumes an SDD feature through the Spindle CLI."
 argument-hint: The original checkout, feature workspace or approved plan, and permissions.
 user-invocable: true
-tools: [vscode/askQuestions, execute, read, agent]
+tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skill]
 agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.0.0
+    version: 2.1.0
 ---
 
 # SDD Orchestrator
@@ -103,9 +103,12 @@ worktree. Then act on its result:
 - **Review:** Submit the recommendation and every proposed finding together.
   Decide each finding after submission. Do not submit a blocked review as
   a pass.
-- **Merge operation:** Follow the CLI's recorded phase. If the merge is not
-  complete, resume the same operation. Do not permit cleanup before the first
-  `merge record` succeeds.
+- **Merge operation:** Follow the CLI's recorded phase. Do not permit cleanup
+  before the first `merge record` succeeds.
+
+If a reviewer stops without a recommendation, or you need to resume an
+interrupted merge operation, load the `private-ref-sdd-workflow` skill before
+choosing how to proceed.
 
 Continue to B after a handoff or a recorded result. If no further work can
 proceed without a result, wait for the running agent. If the result leaves a
