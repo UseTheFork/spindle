@@ -16,7 +16,7 @@ Act as the controller for one feature. Use the CLI to read and update workflow s
 
 ## Workflow
 
-Before acting at each node, announce `Step <node ID> - <node label> (feature <name>)`. Use `(feature unknown)` until you know the name. Announce resumed nodes and loop re-entries. At each decision node, report the result and selected branch.
+{{ computed.workflow_step_guidance }}
 
 ```mermaid
 flowchart TD

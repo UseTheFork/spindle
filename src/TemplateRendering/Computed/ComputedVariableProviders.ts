@@ -5,6 +5,7 @@ import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Comp
 import { ProjectGuidanceProvider } from "@spindle/TemplateRendering/Computed/Providers/ProjectGuidanceProvider";
 import { SkillUsageProvider } from "@spindle/TemplateRendering/Computed/Providers/SkillUsageProvider";
 import { SpindlePackageManagerProvider } from "@spindle/TemplateRendering/Computed/Providers/SpindlePackageManagerProvider";
+import { WorkflowStepGuidanceProvider } from "@spindle/TemplateRendering/Computed/Providers/WorkflowStepGuidanceProvider";
 
 export const computedVariableProviders = {
   authoring_flowchart: AuthoringFlowchartProvider,
@@ -13,4 +14,5 @@ export const computedVariableProviders = {
   project_guidance: ProjectGuidanceProvider,
   skill_usage: SkillUsageProvider,
   spindle_package_manager: SpindlePackageManagerProvider,
+  workflow_step_guidance: WorkflowStepGuidanceProvider,
 } satisfies ComputedVariableRegistry;

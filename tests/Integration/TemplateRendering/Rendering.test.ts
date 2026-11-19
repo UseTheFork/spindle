@@ -36,6 +36,20 @@ test("the authoring flowchart is available as a computed value", () => {
   ).toBe(flowchart);
 });
 
+test("workflow step guidance is available as a computed value", () => {
+  const resolved = ResolveRenderContext.resolve(
+    new Application({ basePath: "/project" }),
+    {},
+    { workflow_step_guidance: computedVariableProviders.workflow_step_guidance },
+  );
+  const guidance = resolved.computed.workflow_step_guidance;
+
+  expect(guidance).toBe(
+    "Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Select the mode from the calling context before entering A.",
+  );
+  expect(RenderText.render("{{ computed.workflow_step_guidance }}", resolved)).toBe(guidance);
+});
+
 test("Nunjucks raw blocks preserve literal Nunjucks-like placeholders", () => {
   const source = "{% raw %}{{VSCODE_FOO}} {% if x %}literal{% endif %}{% endraw %}";
 

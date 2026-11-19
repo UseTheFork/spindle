@@ -15,7 +15,7 @@ Implement one ordinary SDD task. Return the result to the controller. The contro
 
 ## Workflow
 
-Before acting at each node, announce `Step <node ID> - <node label> (task <task ID>)`. Use `(task unknown)` when the task ID is not available. Announce resumed nodes and loop re-entries. At each decision node, report the result and selected branch before entering the next node.
+{{ computed.workflow_step_guidance }}
 
 ```mermaid
 flowchart TD

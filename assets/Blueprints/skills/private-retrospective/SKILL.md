@@ -22,7 +22,7 @@ If the calling context does not clearly establish exactly one mode, explain that
 
 ## Workflow
 
-Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Select the mode from the calling context before entering A.
+{{ computed.workflow_step_guidance }}
 
 ```mermaid
 flowchart TD

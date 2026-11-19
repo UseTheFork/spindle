@@ -15,7 +15,7 @@ Review one assigned ticket or feature. Return your recommendation and findings t
 
 ## Workflow
 
-Before acting at each node, announce `Step <node ID> - <node label> (review <review ID>)`. Use `(review unknown)` when the review ID is not available. Announce resumed nodes too. At each decision node, report the result and selected branch before entering the next node.
+{{ computed.workflow_step_guidance }}
 
 ```mermaid
 flowchart TD
