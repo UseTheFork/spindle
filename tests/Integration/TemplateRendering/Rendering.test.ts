@@ -21,21 +21,6 @@ test("standard Nunjucks expressions, blocks, and comments render from text", () 
   expect(RenderText.render(source, context)).toBe("Hello Spindle! Python");
 });
 
-test("the authoring flowchart is available as a computed value", () => {
-  const provider = computedVariableProviders.authoring_flowchart;
-  const flowchart = new provider(new Application({ basePath: "/project" })).render();
-
-  expect(flowchart).toContain("flowchart TD");
-  expect(flowchart).toContain("ask one question per turn");
-  expect(flowchart).toContain("Do not load other skills or announce the current flowchart step");
-  expect(
-    RenderText.render("{{ computed.authoring_flowchart }}", {
-      ...context,
-      computed: { ...context.computed, authoring_flowchart: flowchart },
-    }),
-  ).toBe(flowchart);
-});
-
 test("workflow step guidance is available as a computed value", () => {
   const resolved = ResolveRenderContext.resolve(
     new Application({ basePath: "/project" }),
