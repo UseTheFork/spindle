@@ -1,4 +1,4 @@
-import { readFile, unlink, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { runCliRaw } from "@test/Helpers/Cli";
@@ -6,7 +6,7 @@ import { dispatchFixture } from "@test/Helpers/SubagentDrivenDevelopment/Dispatc
 import { expect, test } from "vitest";
 
 test(
-  "commits one scoped round and recovers after Git advances the branch",
+  "commits out-of-scope task changes and recovers after Git advances the branch",
   { timeout: 15_000 },
   async () => {
     const { featureFlag, invoke, git, repo, run, startTicket, task, workspace } =
@@ -28,13 +28,8 @@ test(
     expect(run(...args).stderr).toContain("must be Done");
     invoke("dispatch", ...featureFlag, "--task", id);
     await writeFile(join(worktree, "first.ts"), "first");
-    invoke("task", "submit", ...featureFlag, "--task", id, "--attempt", "1");
     await writeFile(join(worktree, "out of scope.ts"), "keep");
-    const rejected = run(...args);
-    expect(rejected.status).toBe(1);
-    expect(rejected.stderr).toContain("out of scope.ts");
-    expect(git("-C", worktree, "rev-parse", "HEAD")).toBe(base);
-    await unlink(join(worktree, "out of scope.ts"));
+    invoke("task", "submit", ...featureFlag, "--task", id, "--attempt", "1");
 
     const ledger = join(workspace, "sdd.json");
     const interrupted = runCliRaw(repo, ["--json", "sdd", ...args], process.env.PATH ?? "", {
@@ -55,6 +50,7 @@ test(
     expect(invoke(...args)).toMatchObject({ ticket: "T-0001", commit });
     expect(git("-C", worktree, "rev-list", "--count", `${base}..HEAD`)).toBe("1");
     expect(git("-C", worktree, "show", "HEAD:first.ts")).toBe("first");
+    expect(git("-C", worktree, "show", "HEAD:out of scope.ts")).toBe("keep");
     expect(git("-C", worktree, "status", "--short")).toBe("");
     const completed = JSON.parse(await readFile(ledger, "utf8"));
     expect(completed).not.toHaveProperty("pendingTicketCommit");

@@ -155,8 +155,10 @@ export class TaskDispatchService extends Service {
         `${task.id}-attempt-${attempt}.md`,
       ),
       workerRules: [
-        "Work in the assigned ticket worktree and change only files in the write scope.",
-        "You may read other files and run focused tests. Other workers may be editing outside your scope.",
+        merge
+          ? "Work in the assigned ticket worktree and change only files in the write scope."
+          : "Work in the assigned ticket worktree. The write scope is advisory; you may change other files when needed.",
+        "You may read other files and run focused tests. Other workers may be editing files in the same worktree.",
         "Do not change workflow records or run other SDD commands.",
         merge
           ? task.deliveryMerge
@@ -350,17 +352,6 @@ export class TaskDispatchService extends Service {
           commit: head,
           finding: mergeFinding.id,
         };
-      }
-      const assigned = new Set(
-        ticket.tasks
-          .filter(({ state }) => state === "InProgress" || state === "Done")
-          .flatMap(({ writeScope }) => writeScope),
-      );
-      const unassigned = git.changedPaths(worktree).filter((path) => !assigned.has(path));
-      if (unassigned.length > 0) {
-        throw new Error(
-          `Task '${taskId}' has unassigned changed paths in its ticket worktree: ${JSON.stringify(unassigned)}`,
-        );
       }
       task.state = "Done";
       await publish(ledger);

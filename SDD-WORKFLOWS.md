@@ -26,10 +26,12 @@ or worktrees created by the current implementation.
    the acceptance review.
 2. **One worktree per ticket.** All tasks of a ticket run in its ticket
    worktree. Several agents can work in the same ticket worktree at once.
-3. **Tasks declare their write scope.** Every task lists the exact files it may
-   create, edit or delete. The CLI uses these scopes to reject unordered
-   write conflicts and unassigned changed paths. It does not store per-task
-   file hashes or snapshots.
+3. **Tasks declare a planned write scope.** Each task lists the repository
+   paths it is expected to change. The CLI uses declared scopes to identify
+   planned write conflicts, but ordinary tasks may change other files.
+   Submission and ticket commit do not reject those changes. Merge-task
+   submissions still verify that the merge changes only files in scope.
+   The CLI does not store per-task file hashes or snapshots.
 4. **Dependencies order the work.** Tickets depend on tickets, and tasks depend
    on tasks in the same ticket. Work cannot start until its dependencies are
    done. Findings link to the fix tasks or tickets they create.
@@ -64,20 +66,21 @@ same ticket; a ticket may depend on other tickets in the feature.
 
 Each task has:
 
-| Field        | Meaning                                                                                                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Instructions | What to do and the task's completion criteria.                                                                          |
-| Write scope  | Exact repository-relative files the task may create, edit or delete. Paths may exist or not exist when the task starts. |
-| Context      | Optional files or links that may help the worker. This list is not exhaustive; workers may read other repository files. |
-| Dependencies | Tasks in the same ticket that must be Done before this task starts.                                                     |
+| Field        | Meaning                                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instructions | What to do and the task's completion criteria.                                                                                               |
+| Write scope  | Planned repository-relative paths the task is expected to change. Ordinary tasks may change other files; merge tasks must stay within scope. |
+| Context      | Optional files or links that may help the worker. This list is not exhaustive; workers may read other repository files.                      |
+| Dependencies | Tasks in the same ticket that must be Done before this task starts.                                                                          |
 
 A task must list at least one path in its write scope. Paths are repository-
 relative file paths, not directories or patterns.
 
 ### Write conflicts
 
-Two tasks in the same ticket **conflict** when their write scopes contain the
-same path.
+Two tasks in the same ticket **conflict** when their declared write scopes
+contain the same path. This identifies planned overlaps; it cannot predict
+additional files a worker may change.
 
 Conflicting tasks must be ordered by a dependency, in either direction.
 `task create` and `task update` refuse a change that leaves two conflicting
@@ -313,13 +316,14 @@ Workers:
 
 - run the `assignment` command from the original checkout and do their task
   work in the ticket worktree that the assignment names;
-- change only files in their write scope, and write their report only to the
-  separately assigned report path;
+- use the write scope as a plan for ordinary task work; ordinary tasks may
+  change other files when needed. Merge agents must stay within their scope.
+  Write reports only to the separately assigned report path;
 - do not commit, stage or run SDD commands other than the read-only
   `assignment` command, except that an assigned merge agent may run Git merge,
   stage conflict resolutions and create the assigned merge commit;
 - may read other repository files and run focused tests, knowing that other
-  agents may be editing files outside their write scope in the same worktree.
+  agents may be editing files in the same worktree.
 
 ## Task lifecycle
 
@@ -328,28 +332,21 @@ stateDiagram-v2
     [*] --> Pending
     Pending --> InProgress: dispatch (dependencies done)
     InProgress --> Done: task submit accepted (CLI records completion)
-    InProgress --> InProgress: task submit rejected (unassigned file)
     Done --> [*]
 ```
 
 - **`task submit --task <id> --attempt <n>`** runs after the submitting worker
-  stops. The attempt must match the current assignment. It checks staged,
-  unstaged, and untracked paths against the scopes of in-progress and Done
-  tasks in the ticket.
-  Changes within another such task's scope do not block submission. Changes
-  from completed tasks remain in the worktree until the ticket commit. A
-  changed path outside these scopes is unassigned; it is reported and leaves
-  the submitting task in progress. The controller can assign that path to a
-  task by updating its scope, if doing so creates no unordered conflict, then
-  submit again.
+  stops. The attempt must match the current assignment. Ordinary task
+  submission does not compare changed paths with task scopes. Files outside
+  the declared scopes are allowed, and all changes remain in the shared
+  worktree for the ticket commit.
 - For ordinary tasks, **Done** means the CLI accepted the submission and
   recorded completion. It does not create an individual task commit.
   Dependent tasks can use the completed work in the shared worktree.
   Done does not mean the ticket passed acceptance review.
 - The CLI does not keep per-task file hashes, snapshots or change baselines.
-  Scope validation identifies unassigned paths, not which worker changed a
-  scoped file. Workers must obey their own scopes; ticket review assesses the
-  combined result against the acceptance criteria.
+  Task submissions do not attribute files to workers. Ticket review assesses
+  the combined result against the acceptance criteria.
 - For an assigned merge task, such as a delivery merge or conflict resolution,
   the agent creates the merge commit instead. `task submit` verifies the merge,
   records task completion and counts the merge commit as the work-round
@@ -413,9 +410,8 @@ stateDiagram-v2
 - **Work-round commits.** Each completed task round has one work-round commit.
   For ordinary tasks, after all tasks are Done and no workers are running, the
   controller runs `ticket commit --ticket <id> --message <message>`. The CLI
-  checks the combined changed paths against the Done tasks' scopes, then
-  creates one ticket commit for that round under the workspace lock. Every
-  `ticket commit` requires a message. For an assigned merge task, such as a
+  commits the combined ticket work without checking it against task scopes.
+  Every `ticket commit` requires a message. For an assigned merge task, such as a
   delivery merge or conflict resolution, the agent creates the merge commit,
   and `task submit` verifies it and records it as the work-round commit.
   Ordinary task submissions do not create commits.

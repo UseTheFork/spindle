@@ -15,7 +15,7 @@ acceptance criteria. It groups the tasks that produce that deliverable.
 _Avoid_: Issue
 
 **Task**:
-A scoped unit of implementation within a ticket, defined by its instructions,
+A unit of implementation within a ticket, defined by its instructions, planned
 write scope, and dependencies.
 _Avoid_: Subtask
 
@@ -23,7 +23,9 @@ _Avoid_: Subtask
 A feature's hierarchy of tickets and their tasks, connected by dependencies.
 
 **Write scope**:
-The exact files a task may create, edit, or delete.
+The planned repository paths a task is expected to change. A write scope helps
+identify planned overlap between tasks but does not limit all files a worker
+may change.
 
 **Integration**:
 The incorporation of an accepted ticket into its feature.

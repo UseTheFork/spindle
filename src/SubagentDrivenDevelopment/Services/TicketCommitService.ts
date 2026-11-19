@@ -80,21 +80,8 @@ export class TicketCommitService extends Service {
               "The ticket branch no longer matches its last recorded work-round commit.",
             );
           }
-          const scope = new Set(ticket.tasks.flatMap(({ writeScope }) => writeScope));
-          this.checkScope(git.changedPaths(worktree), scope);
           this.git(git, worktree, ["add", "-A", "--", "."]);
           const tree = this.git(git, worktree, ["write-tree"]).trim();
-          const stagedPaths = this.git(git, worktree, [
-            "diff-tree",
-            "-r",
-            "--no-renames",
-            "--name-only",
-            "-z",
-            head,
-            tree,
-            "--",
-          ]);
-          this.checkScope(stagedPaths.split("\0").filter(Boolean), scope);
           const commit = this.git(
             git,
             worktree,
@@ -142,12 +129,6 @@ export class TicketCommitService extends Service {
       },
       { resumeTicketCommit: true },
     );
-  }
-
-  private checkScope(paths: string[], scope: ReadonlySet<string>): void {
-    const unassigned = paths.filter((path) => !scope.has(path));
-    if (unassigned.length > 0)
-      throw new Error(`Ticket has unassigned changed paths: ${JSON.stringify(unassigned)}`);
   }
 
   private git(git: GitService, cwd: string, args: string[], input?: string): string {

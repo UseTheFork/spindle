@@ -33,7 +33,7 @@ export class SddTaskUpdateCommand extends Command {
       .requiredOption("--ticket <id>", "Parent ticket ID", CommandOptions.once("--ticket"))
       .requiredOption("--task <id>", "Task ID", CommandOptions.once("--task"))
       .option("--instructions <text>", "New task instructions, or - for stdin")
-      .option("--write-scope <path>", "Replace writable paths (repeatable)", collect)
+      .option("--write-scope <path>", "Replace planned paths (repeatable)", collect)
       .option("--clear-write-scope", "Clear the write scope (delivery tasks only)")
       .option("--depends-on <task>", "Replace prerequisites (repeatable)", collect)
       .option("--clear-dependencies", "Remove all task prerequisites")

@@ -1,11 +1,11 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { dispatchFixture } from "@test/Helpers/SubagentDrivenDevelopment/DispatchFixture";
 import { expect, test } from "vitest";
 
 test(
-  "submits current attempts against the combined active and completed scopes without committing",
+  "accepts ordinary task changes outside declared scopes without committing",
   { timeout: 15_000 },
   async () => {
     const { featureFlag, invoke, git, name, run, startTicket, task, workspace } =
@@ -37,14 +37,7 @@ test(
     git("-C", worktree, "add", "second.ts");
     await writeFile(join(worktree, "second.ts"), "second with unstaged edits");
     await writeFile(join(worktree, "not yet assigned.ts"), "pending task");
-    const rejected = run(...submit(first, "2"));
-    expect(rejected.status).toBe(1);
-    expect(rejected.stderr).toContain("not yet assigned.ts");
     expect(await readFile(join(workspace, "sdd.json"), "utf8")).toBe(before);
-
-    await rename(join(worktree, "not yet assigned.ts"), join(workspace, "reports", "preserved.ts"));
-    const head = git("-C", worktree, "rev-parse", "HEAD");
-    const status = git("-C", worktree, "status", "--short");
     expect(invoke(...submit(first, "2"))).toEqual({
       feature: name,
       ticket: "T-0001",
@@ -52,6 +45,9 @@ test(
       attempt: 2,
       state: "Done",
     });
+    expect(await readFile(join(worktree, "not yet assigned.ts"), "utf8")).toBe("pending task");
+    const head = git("-C", worktree, "rev-parse", "HEAD");
+    const status = git("-C", worktree, "status", "--short");
     expect(invoke("next", ...featureFlag).actions).toContain(
       `spindle sdd dispatch --feature ${name} --task ${dependent}`,
     );

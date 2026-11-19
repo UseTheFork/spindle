@@ -36,7 +36,7 @@ export class SddTaskCreateCommand extends Command {
       )
       .requiredOption(
         "--write-scope <path>",
-        "Repository-relative writable file (repeatable)",
+        "Planned repository-relative file (repeatable)",
         collect,
       )
       .option("--context <reference>", "Context file or link (repeatable)", collect)
