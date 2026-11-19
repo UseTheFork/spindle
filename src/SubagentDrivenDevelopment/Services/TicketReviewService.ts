@@ -18,6 +18,10 @@ type ProposedFinding = {
   suggestedFix: string;
 };
 type ReviewFacts = Pick<Feature, "reviewRounds" | "findings">;
+type ReviewableTicket = Pick<
+  Ticket,
+  "id" | "workRoundCommits" | "committedTaskIds" | "tasks" | "worktree" | "branch" | "merged"
+>;
 
 const responseTemplate = [
   "Recommendation: pass | changes-required",
@@ -222,7 +226,7 @@ export class TicketReviewService extends Service {
     }
   }
 
-  public async status(feature: Feature, ticket: Ticket) {
+  public async status(feature: Feature, ticket: ReviewableTicket) {
     const current = await this.currentRevision(ticket);
     if ("blocker" in current) return { blocker: current.blocker };
     return {
@@ -239,8 +243,18 @@ export class TicketReviewService extends Service {
     const rounds = facts.reviewRounds.filter(
       ({ target }) => target.type === "ticket" && target.ticketId === ticket.id,
     );
+    const reviewIds = new Set(rounds.flatMap(({ reviews }) => reviews.map(({ id }) => id)));
     if (rounds.some(({ reviews }) => reviews.some(({ result }) => result === undefined))) {
       throw new Error(`Cannot add a task while ticket '${ticket.id}' is under review.`);
+    }
+    if (
+      facts.findings.some((finding) =>
+        finding.type === "conflict"
+          ? finding.ticketId === ticket.id && finding.decision === "open"
+          : reviewIds.has(finding.reviewId) && finding.decision.status === "open",
+      )
+    ) {
+      throw new Error(`Cannot add an ordinary task while ticket '${ticket.id}' has open findings.`);
     }
     const commit = ticket.workRoundCommits.at(-1);
     if (!commit || rounds.length === 0) return;
@@ -308,7 +322,7 @@ export class TicketReviewService extends Service {
     return { review, round, ticket };
   }
 
-  private async currentRevision(ticket: Ticket) {
+  private async currentRevision(ticket: ReviewableTicket) {
     const commit = ticket.workRoundCommits.at(-1);
     if (
       !commit ||

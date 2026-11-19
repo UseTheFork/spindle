@@ -5,6 +5,7 @@ import { SddCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/Sd
 import { SddDispatchCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddDispatchCommand";
 import { SddFindingDismissCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingDismissCommand";
 import { SddFindingFixCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddFindingFixCommand";
+import { SddIntegrateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddIntegrateCommand";
 import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddNextCommand";
 import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
 import { SddReviewSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewSubmitCommand";
@@ -17,6 +18,7 @@ import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Comman
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { TaskDispatchService } from "@spindle/SubagentDrivenDevelopment/Services/TaskDispatchService";
 import { TicketCommitService } from "@spindle/SubagentDrivenDevelopment/Services/TicketCommitService";
+import { TicketIntegrationService } from "@spindle/SubagentDrivenDevelopment/Services/TicketIntegrationService";
 import { TicketReviewService } from "@spindle/SubagentDrivenDevelopment/Services/TicketReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { WorktreeStartService } from "@spindle/SubagentDrivenDevelopment/Services/WorktreeStartService";
@@ -38,6 +40,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddReviewSubmitCommand,
       SddFindingDismissCommand,
       SddFindingFixCommand,
+      SddIntegrateCommand,
     ];
   }
 
@@ -47,6 +50,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(WorktreeStartService);
     this.app.singleton(TaskDispatchService);
     this.app.singleton(TicketCommitService);
+    this.app.singleton(TicketIntegrationService);
     this.app.singleton(TicketReviewService);
   }
 

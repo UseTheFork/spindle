@@ -13,6 +13,7 @@ import {
 import { basename, join, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
+import { GitService } from "@spindle/Git/Services/GitService";
 import { featureSchema, type Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature";
 import {
   featureLedgerSchema,
@@ -161,25 +162,35 @@ export class FeatureWorkspaceService extends Service {
   public async createFindingFixTask(reference: string, findingId: string, input: NewTask) {
     if (!input.instructions.trim()) throw new Error("Task instructions must not be empty.");
     let result: { finding: string; ticket: string; task: string } | undefined;
-    await this.updateLedger(reference, (ledger) => {
+    await this.updateLedger(reference, async (ledger) => {
       if (ledger.pendingStart)
         throw new Error("Resume the pending start before creating fix work.");
       const finding = ledger.findings.find(({ id }) => id === findingId);
       if (!finding) throw new Error(`Unknown finding '${findingId}'.`);
-      if (finding.type !== "review") throw new Error("Conflict fix work is not supported yet.");
-      if (finding.decision.status !== "open" || finding.fixWork) {
+      if (
+        (finding.type === "review"
+          ? finding.decision.status !== "open"
+          : finding.decision !== "open") ||
+        finding.fixWork
+      ) {
         throw new Error(`Finding '${findingId}' must be open and have no existing fix work.`);
       }
-      const round = ledger.reviewRounds.find(({ reviews }) =>
-        reviews.some(({ id }) => id === finding.reviewId),
-      );
-      if (round?.target.type !== "ticket")
-        throw new Error("Only ticket review findings support fix work.");
-      const ticketId = round.target.ticketId;
+      let ticketId: string;
+      if (finding.type === "review") {
+        const round = ledger.reviewRounds.find(({ reviews }) =>
+          reviews.some(({ id }) => id === finding.reviewId),
+        );
+        if (round?.target.type !== "ticket")
+          throw new Error("Only ticket review findings support fix work.");
+        ticketId = round.target.ticketId;
+      } else {
+        ticketId = finding.ticketId;
+      }
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket?.worktree || ticket.merged)
         throw new Error(`Ticket '${ticketId}' has no active worktree.`);
       if (
+        finding.type === "review" &&
         ledger.reviewRounds.some(
           ({ target, reviews }) =>
             target.type === "ticket" &&
@@ -188,6 +199,31 @@ export class FeatureWorkspaceService extends Service {
         )
       )
         throw new Error(`Wait for all reviews on '${ticketId}' before creating fix work.`);
+      if (finding.type === "conflict") {
+        if (!finding.sourceCommit || !finding.targetCommit) {
+          throw new Error(`Conflict finding '${findingId}' has no integration commit details.`);
+        }
+        const git = await this.app.make(GitService);
+        const incoming = this.git(git, ticket.worktree, [
+          "diff",
+          "--no-renames",
+          "--name-only",
+          "-z",
+          finding.targetCommit,
+          finding.sourceCommit,
+        ])
+          .split("\0")
+          .filter(Boolean);
+        const scope = new Set(input.writeScope);
+        const uncovered = [...new Set([...finding.conflictedPaths, ...incoming])].filter(
+          (path) => !scope.has(path),
+        );
+        if (uncovered.length > 0) {
+          throw new Error(
+            `Merge task scope must cover all incoming and conflicted paths: ${JSON.stringify(uncovered)}`,
+          );
+        }
+      }
       const task = this.appendTask(ticket, { ...input, discoveredFrom: findingId });
       finding.fixWork = { type: "task", taskId: task };
       result = { finding: findingId, ticket: ticketId, task };
@@ -207,6 +243,13 @@ export class FeatureWorkspaceService extends Service {
     const id = `${ticket.id}.${number}`;
     ticket.tasks.push({ ...input, id, state: "Pending", attempt: 0 });
     return id;
+  }
+
+  private git(git: GitService, cwd: string, args: string[]): string {
+    const result = git.run(args, { cwd, encoding: "utf8" });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${result.stderr.trim()}`);
+    return result.stdout.replace(/\r?\n$/, "");
   }
 
   private workspaceName(reference: string): string {
@@ -242,7 +285,7 @@ export class FeatureWorkspaceService extends Service {
       ledger: FeatureLedger,
       publish: (ledger: FeatureLedger) => Promise<void>,
     ) => Promise<T>,
-    options: { resumeTicketCommit?: boolean } = {},
+    options: { resumeTicketCommit?: boolean; resumeIntegration?: boolean } = {},
   ): Promise<T> {
     return this.withLedger(
       reference,
@@ -252,23 +295,28 @@ export class FeatureWorkspaceService extends Service {
           await this.replaceLedger(workspace, featureLedgerSchema.parse(next));
         });
       },
-      options.resumeTicketCommit,
+      options,
     );
   }
 
   private async withLedger<T>(
     reference: string,
     operation: (ledger: FeatureLedger, name: string, workspace: string) => Promise<T>,
-    resumeTicketCommit = false,
+    options: { resumeTicketCommit?: boolean; resumeIntegration?: boolean } = {},
   ): Promise<T> {
     this.assertApplicationBooted();
     const name = this.workspaceName(reference);
     const workspace = await this.workspacePath(name);
     return this.withLock(join(workspace, ".ledger-lock"), async () => {
       const ledger = await this.readLedger(workspace);
-      if (ledger.pendingTicketCommit && !resumeTicketCommit) {
+      if (ledger.pendingTicketCommit && !options.resumeTicketCommit) {
         throw new Error(
           "Resume the pending ticket commit first. Run sdd next for the resume command.",
+        );
+      }
+      if (ledger.pendingIntegration && !options.resumeIntegration) {
+        throw new Error(
+          "Resume the pending ticket integration first. Run sdd next for the resume command.",
         );
       }
       return operation(ledger, name, workspace);

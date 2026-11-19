@@ -53,7 +53,12 @@ export class SddNextCommand extends Command {
     const start = `spindle sdd start --feature ${feature.name}`;
     const ticketStart = (ticketId: string) =>
       `spindle sdd ticket start --feature ${feature.name} --ticket ${ticketId}`;
-    if (feature.pendingTicketCommit) {
+    if (feature.pendingIntegration) {
+      notices.push("A ticket integration is pending. Run the listed command to resume it.");
+      actions.push(
+        `spindle sdd integrate --feature ${feature.name} --ticket ${feature.pendingIntegration.ticketId}`,
+      );
+    } else if (feature.pendingTicketCommit) {
       const { ticketId, message } = feature.pendingTicketCommit;
       notices.push("A ticket commit is pending. Run the listed command to resume it.");
       const quoted = `'${message.replaceAll("'", "'\\''")}'`;
@@ -97,6 +102,11 @@ export class SddNextCommand extends Command {
               `${ticket.ticketId}: finding ${finding.id} needs a decision. Use finding fix or finding dismiss.`,
             );
           }
+          if (finding?.type === "conflict") {
+            notices.push(
+              `${ticket.ticketId}: conflict finding ${finding.id} needs a scoped merge task.`,
+            );
+          }
         }
         for (const task of ticket.tasks) {
           if (task.ready)
@@ -138,6 +148,8 @@ export class SddNextCommand extends Command {
           if (item) item.acceptance = status.state;
           if (status.state === "InAcceptance" && !status.hasRound) {
             actions.push(`spindle sdd review --feature ${feature.name} --ticket ${ticket.id}`);
+          } else if (status.state === "Accepted") {
+            actions.push(`spindle sdd integrate --feature ${feature.name} --ticket ${ticket.id}`);
           }
         }
       }

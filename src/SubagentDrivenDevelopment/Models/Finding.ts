@@ -34,6 +34,14 @@ export const findingSchema = z.discriminatedUnion("type", [
     type: z.literal("conflict"),
     ticketId: ticketIdSchema,
     conflictedPaths: z.array(z.string().min(1)).min(1),
+    sourceCommit: z
+      .string()
+      .regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/)
+      .optional(),
+    targetCommit: z
+      .string()
+      .regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/)
+      .optional(),
     decision: z.enum(["open", "resolved"]),
   }),
 ]);

@@ -3,6 +3,7 @@ import { reviewRoundSchema } from "@spindle/SubagentDrivenDevelopment/Models/Rev
 import { startJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/StartJournal";
 import { ticketSchema } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { ticketCommitJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/TicketCommitJournal";
+import { ticketIntegrationJournalSchema } from "@spindle/SubagentDrivenDevelopment/Models/TicketIntegrationJournal";
 import { z } from "zod";
 
 export const featureSchema = z.strictObject({
@@ -14,6 +15,7 @@ export const featureSchema = z.strictObject({
   featureWorktree: z.string().min(1).optional(),
   pendingStart: startJournalSchema.optional(),
   pendingTicketCommit: ticketCommitJournalSchema.optional(),
+  pendingIntegration: ticketIntegrationJournalSchema.optional(),
   tickets: z.array(ticketSchema),
   findings: z.array(findingSchema),
   reviewRounds: z.array(reviewRoundSchema),

@@ -1,4 +1,5 @@
-import { isAbsolute, join } from "node:path";
+import { existsSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
@@ -128,22 +129,105 @@ export class TaskDispatchService extends Service {
       if (!ticket.worktree || ticket.merged) {
         throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
       }
+      const mergeFinding = ledger.findings.find(
+        (finding) =>
+          finding.type === "conflict" &&
+          finding.ticketId === ticket.id &&
+          finding.decision === "open" &&
+          finding.fixWork?.type === "task" &&
+          finding.fixWork.taskId === task.id,
+      );
       if (
-        feature.findings.some(
+        ledger.findings.some(
           (finding) =>
             finding.type === "conflict" &&
             finding.ticketId === ticket.id &&
-            finding.decision === "open",
+            finding.decision === "open" &&
+            finding.id !== mergeFinding?.id,
         )
       ) {
-        throw new Error(
-          "Ordinary task submission cannot complete while the ticket has a pending merge conflict.",
-        );
+        throw new Error("Task submission cannot complete while another merge conflict is pending.");
       }
 
       const worktree = ticket.worktree;
       if (!ticket.branch) throw new Error(`Ticket '${ticket.id}' has no recorded branch.`);
       await git.requireWorktreeBranch(worktree, ticket.branch);
+      if (mergeFinding) {
+        if (mergeFinding.type !== "conflict") {
+          throw new Error("Merge task must be linked to an integration conflict.");
+        }
+        if (!mergeFinding.sourceCommit || !mergeFinding.targetCommit) {
+          throw new Error(
+            `Conflict finding '${mergeFinding.id}' has no integration commit details.`,
+          );
+        }
+        const unmerged = this.git(git, worktree, ["diff", "--name-only", "--diff-filter=U", "-z"])
+          .split("\0")
+          .filter(Boolean);
+        if (unmerged.length > 0) {
+          throw new Error(`Resolve merge conflicts before submitting: ${JSON.stringify(unmerged)}`);
+        }
+        const operationPaths = git.gitPaths(worktree, [
+          "MERGE_HEAD",
+          "CHERRY_PICK_HEAD",
+          "REVERT_HEAD",
+          "rebase-apply",
+          "rebase-merge",
+          "sequencer",
+        ]);
+        if (operationPaths.some((path) => existsSync(resolve(worktree, path)))) {
+          throw new Error("Finish the Git operation before submitting the merge task.");
+        }
+        const head = this.git(git, worktree, ["rev-parse", "--verify", "HEAD"]);
+        const parents = this.git(git, worktree, ["rev-list", "--parents", "-n", "1", head])
+          .trim()
+          .split(/\s+/);
+        if (
+          parents.length !== 3 ||
+          parents[1] !== mergeFinding.targetCommit ||
+          parents[2] !== mergeFinding.sourceCommit
+        ) {
+          throw new Error(
+            "Merge task must commit the resolved integration merge with its recorded parents.",
+          );
+        }
+        const changed = this.git(git, worktree, [
+          "diff",
+          "--no-renames",
+          "--name-only",
+          "-z",
+          mergeFinding.targetCommit,
+          head,
+        ])
+          .split("\0")
+          .filter(Boolean);
+        const uncovered = changed.filter((path) => !task.writeScope.includes(path));
+        if (uncovered.length > 0) {
+          throw new Error(
+            `Merge task changed paths outside its write scope: ${JSON.stringify(uncovered)}`,
+          );
+        }
+        const outstanding = git.changedPaths(worktree);
+        if (outstanding.length > 0) {
+          throw new Error(
+            `Merge task worktree has uncommitted paths: ${JSON.stringify(outstanding)}`,
+          );
+        }
+        task.state = "Done";
+        mergeFinding.decision = "resolved";
+        ticket.workRoundCommits.push(head);
+        ticket.committedTaskIds = [...new Set([...(ticket.committedTaskIds ?? []), task.id])];
+        await publish(ledger);
+        return {
+          feature: feature.name,
+          ticket: ticket.id,
+          task: task.id,
+          attempt,
+          state: task.state,
+          commit: head,
+          finding: mergeFinding.id,
+        };
+      }
       const assigned = new Set(
         ticket.tasks
           .filter(({ state }) => state === "InProgress" || state === "Done")
@@ -179,6 +263,13 @@ export class TaskDispatchService extends Service {
 
   private featurePath(name: string): string {
     return this.app.workspacePath(join(".spindle", "features", name));
+  }
+
+  private git(git: GitService, cwd: string, args: string[]): string {
+    const result = git.run(args, { cwd, encoding: "utf8" });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${result.stderr.trim()}`);
+    return result.stdout.replace(/\r?\n$/, "");
   }
 
   private requireAttempt(attempt: number): void {

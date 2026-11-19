@@ -667,14 +667,13 @@ spindle sdd next --feature 0001-dispatch --json
 can read from standard input. `next` accepts a numbered workspace name or a
 directory under `.spindle/features/` in the original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
-`ticket start`, `dispatch`, and ticket `review` when available. Worker
-assignments, ordinary task submission, and ticket acceptance review are
-supported, including dismissal and linked fix tasks for ticket review
-findings. Feature review, integration conflict handling, and merge-task
-submission are not implemented yet. If a start is interrupted, `next` reports the
-pending start and prints the
-command to resume it. Resume uses the journaled branch, path, and base
-commit rather than recomputing them.
+`ticket start`, `dispatch`, ticket `review`, and `integrate` when available.
+Worker assignments, ordinary task submission, ticket acceptance review,
+finding dismissal, linked fix tasks, and ticket integration are supported.
+Feature review and delivery are not implemented yet. If a start, ticket
+commit, or integration is interrupted, `next` reports the pending operation
+and prints the command to resume it. Resume uses the journaled commits,
+branches and worktrees rather than recomputing them.
 
 Start all reviewers in a ticket's round before submitting results. Do not
 add tasks while a review result is pending. A ticket
@@ -708,6 +707,19 @@ ordinary tasks, use `--depends-on` to order overlapping write scopes. Dispatch,
 submit, and commit the fix through the normal ticket workflow. The next review
 round on changed code includes the linked findings to verify. They remain open
 until all reviewers finish and no finding raised in that round remains open.
+
+Integrate only after the ticket is accepted:
+
+```sh
+spindle sdd integrate --feature 0001-dispatch --ticket T-0001
+```
+
+For a conflict, `integrate` records the conflicted paths and leaves the merge
+in progress in the ticket worktree. Create one scoped fix task that covers all
+incoming and conflicted paths. The assigned merge agent resolves, stages and
+commits the merge; `task submit` verifies the commit and resolves the conflict
+finding. The ticket then needs another acceptance review before integration
+can continue.
 
 For ticket and task creation, repeat `--depends-on` for each prerequisite.
 For task creation, repeat `--write-scope` and optionally `--context` for
@@ -757,8 +769,8 @@ failure. `error.details` is optional and provides additional context.
 | `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                     |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                   |
 | `assignment`                     | Read-only: print the structured task assignment for `--task` and `--attempt`, or review assignment for `--review`. Requires an absolute `--feature` path.                  |
-| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                 |
-| `integrate`                      | Merge the feature branch tip into an accepted ticket and fast-forward the feature branch after a clean merge.                                                              |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings. Conflict findings require a scoped merge task.                                                  |
+| `integrate`                      | Merge an accepted ticket into its feature, record conflicts for scoped resolution, or resume an interrupted integration.                                                   |
 | `finish`                         | Fast-forward the original branch to the feature branch and clean up.                                                                                                       |
 
 ## Recovery and safety
