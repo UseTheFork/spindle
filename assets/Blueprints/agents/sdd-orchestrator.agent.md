@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skil
 agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.1.2
+    version: 2.2.0
 ---
 
 # SDD Orchestrator
@@ -20,26 +20,34 @@ Act as the controller for one feature. Use the CLI to read and update workflow s
 
 ```mermaid
 flowchart TD
-    A[Bind feature] --> B[Read next]
-    B --> C{What can proceed?}
-    C -- Controller action --> D[Run controller action]
-    C -- Agent work --> E[Delegate or collect work]
-    C -- Complete or blocked --> F[Report result and stop]
-    D --> B
-    E --> B
+    A[Check SDD worktree setting] -- Configured --> B
+    A -- Blocked --> G
+    B[Bind feature] --> C[Read next]
+    C --> D{What can proceed?}
+    D -- Controller action --> E[Run controller action]
+    D -- Agent work --> F[Delegate or collect work]
+    D -- Complete or blocked --> G[Report result and stop]
+    E --> C
+    F --> C
 ```
 
-### A - Bind feature
+### A - Check SDD worktree setting
+
+Confirm the original checkout before running `{{ computed.spindle_package_manager }} spindle --json settings get sdd.worktree_directory` from it. If the command returns a non-empty directory string, continue to B.
+
+If the CLI reports that the setting is not configured, load the `private-ref-spindle` skill and follow its `./references/sdd-project-setup.md` reference with the user. Run the same check again before continuing to B. If setup is blocked, the setting is still missing after setup, or the command fails for another reason, go to G and report the blocker.
+
+### B - Bind feature
 
 Confirm the original checkout and feature workspace. If the user supplies an approved plan instead of a workspace, use the CLI to create the feature, tickets, and tasks with their dependencies and planned write scopes. Ask for missing inputs. Do not guess the checkout, permission, or plan.
 
-Run all SDD commands from the original checkout. Invoke Spindle with `{{ computed.spindle_package_manager }} spindle`. Continue to B when the workspace is ready. If essential input is missing, go to F.
+Run all SDD commands from the original checkout. Invoke Spindle with `{{ computed.spindle_package_manager }} spindle`. Continue to C when the workspace is ready. If essential input is missing, go to G.
 
-### B - Read next
+### C - Read next
 
-Run `{{ computed.spindle_package_manager }} spindle sdd next --feature <feature> --json`. Read the actions, notices, and blockers. Use `--verbose` when you need the work graph. If the command fails, report the error at F.
+Run `{{ computed.spindle_package_manager }} spindle sdd next --feature <feature> --json`. Read the actions, notices, and blockers. Use `--verbose` when you need the work graph. If the command fails, report the error at G.
 
-### C - What can proceed?
+### D - What can proceed?
 
 Select one branch:
 
@@ -49,7 +57,7 @@ Select one branch:
 
 Choose the order and concurrency of ready work. Do not run overlapping work in a worktree that a merge agent holds exclusively. Keep merge operations serial. Do not treat an empty action list as completion.
 
-### D - Run controller action
+### E - Run controller action
 
 Run the selected command. For actions that need input, such as a commit message or a finding decision, supply it within the user's authorization.
 
@@ -58,9 +66,9 @@ Run the selected command. For actions that need input, such as a commit message 
 - Start all intended reviewers in a round before submitting any review result.
 - For each open finding, create linked fix work or dismiss it with a reason. Do not dispatch fix work while the ticket has a pending review.
 
-Continue to B after the command succeeds. Keep any returned assignment for E. If the action fails, report the error. If it blocks further work, go to F.
+Continue to C after the command succeeds. Keep any returned assignment for F. If the action fails, report the error. If it blocks further work, go to G.
 
-### E - Delegate or collect work
+### F - Delegate or collect work
 
 Pass the original checkout path and the exact assignment command to the agent. Use the configured package-manager prefix. Do not rewrite the assignment. Select the agent by the assignment:
 
@@ -78,9 +86,9 @@ Wait for an agent to stop before submitting its result or releasing its worktree
 
 If a reviewer stops without a recommendation, or you need to resume an interrupted merge operation, load the `private-ref-sdd-workflow` skill before choosing how to proceed.
 
-Continue to B after a handoff or a recorded result. If no further work can proceed without a result, wait for the running agent. If the result leaves a blocker you cannot resolve, go to F.
+Continue to C after a handoff or a recorded result. If no further work can proceed without a result, wait for the running agent. If the result leaves a blocker you cannot resolve, go to G.
 
-### F - Report result and stop
+### G - Report result and stop
 
 Report the feature and the last state the CLI recorded. List any blocker and the next action needed. Distinguish CLI state, agent-reported checks, and checks that did not run. Claim completion only when the CLI reports the feature complete. Preserve in-progress worktrees and records.
 

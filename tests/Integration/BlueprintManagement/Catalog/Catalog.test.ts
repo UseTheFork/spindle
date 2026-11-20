@@ -147,6 +147,13 @@ test("init installs the private Spindle reference and its SDD setup guide", asyn
   expect(guide).toMatch(
     /## Workflow\n\nBefore acting on each node, announce `Step <node ID> - <node label>`[^\n]*\n\nWhile following a subworkflow, announce each step as `Step <node ID> - <node label> \(<subworkflow title>\)`[^\n]*\n\n```mermaid/,
   );
+  const orchestrator = await readFile(
+    join(project, ".github", "agents", "sdd-orchestrator.agent.md"),
+    "utf8",
+  );
+  expect(orchestrator).toMatch(
+    /### A - Check SDD worktree setting\n\n[^]*`pnpm spindle --json settings get sdd\.worktree_directory`[^]*load the `private-ref-spindle` skill and follow its `\.\/references\/sdd-project-setup\.md` reference[^]*### B - Bind feature/,
+  );
 });
 
 test("init omits retired SDD reviewers and update removes their managed installations", async () => {
