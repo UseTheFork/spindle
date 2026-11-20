@@ -738,6 +738,10 @@ must be at its recorded work-round commit with all tasks committed and no
 outstanding tracked code changes. Untracked test artifacts and changes under
 `.spindle/` do not affect the reviewed code revision.
 
+New reviews, findings, and merge operations receive sequential IDs within the
+feature, such as `R-0001`, `F-0001`, and `M-0001`. Existing UUID-based IDs
+still work.
+
 ```sh
 spindle sdd review --feature 0001-dispatch --ticket T-0001 --focus 'Readiness tests'
 spindle sdd review submit --feature 0001-dispatch --review <review-id> \

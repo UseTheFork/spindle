@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
@@ -10,6 +9,7 @@ import type { MergeOperation } from "@spindle/SubagentDrivenDevelopment/Models/M
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
+import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
 
 export class MergeOperationService extends Service {
   public async integrate(reference: string, ticketId: string) {
@@ -105,10 +105,13 @@ export class MergeOperationService extends Service {
           this.assertOperationMatches(feature, ledger.tickets, pending);
           return this.operationStarted(feature, pending);
         }
+        const number = SddSequence.next([ledger.lastMergeOperationNumber ?? "0"]);
+        const id = SddSequence.format("M", number);
         const operation =
           request.type === "ticket-integration"
-            ? await this.prepareIntegration(feature, ledger, request.ticketId, git)
-            : await this.prepareFinish(feature, ledger, git);
+            ? await this.prepareIntegration(feature, ledger, request.ticketId, git, id)
+            : await this.prepareFinish(feature, ledger, git, id);
+        ledger.lastMergeOperationNumber = String(number);
         ledger.pendingMergeOperation = operation;
         await publish(ledger);
         return this.operationStarted(feature, operation);
@@ -122,6 +125,7 @@ export class MergeOperationService extends Service {
     ledger: FeatureLedger,
     ticketId: string,
     git: GitService,
+    id: string,
   ): Promise<MergeOperation> {
     if (!feature.featureBranch || !feature.featureWorktree) {
       throw new Error(`Feature '${feature.name}' has no active worktree.`);
@@ -150,7 +154,7 @@ export class MergeOperationService extends Service {
     this.requireBranch(git, feature.featureBranch);
     this.requireBranch(git, ticket.branch);
     return {
-      id: randomUUID(),
+      id,
       type: "ticket-integration",
       ticketId,
       phase: "merge",
@@ -165,6 +169,7 @@ export class MergeOperationService extends Service {
     feature: Feature,
     ledger: FeatureLedger,
     git: GitService,
+    id: string,
   ): Promise<MergeOperation> {
     if (
       !feature.originalBranch ||
@@ -220,7 +225,7 @@ export class MergeOperationService extends Service {
       );
     }
     return {
-      id: randomUUID(),
+      id,
       type: "feature-finish",
       phase: "merge",
       sourceBranch: feature.featureBranch,

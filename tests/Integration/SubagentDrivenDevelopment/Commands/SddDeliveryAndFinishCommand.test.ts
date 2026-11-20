@@ -10,7 +10,7 @@ test(
   { timeout: 60_000 },
   async () => {
     const fixture = await reviewFixture();
-    const { featureFlag, git, invoke, name, repo, workspace } = fixture;
+    const { featureFlag, git, invoke, name, repo, run, workspace } = fixture;
     const featureWorktree = join(fixture.worktrees, fixture.name, "feature");
     await appendFile(join(repo, ".git", "info", "exclude"), "\n.spindle/config.json\n");
     git("config", "user.name", "Test");
@@ -18,8 +18,9 @@ test(
     await fixture.complete(fixture.initialTask, "first.ts");
     fixture.submitReview(fixture.startReview(), "pass");
 
-    const integrateTicket = (ticket: string) => {
+    const integrateTicket = (ticket: string, operationId: string) => {
       const started = invoke("integrate", ...featureFlag, "--ticket", ticket);
+      expect(started.operationId).toBe(operationId);
       const assignment = invoke(
         "assignment",
         "--feature",
@@ -43,7 +44,7 @@ test(
       invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
     };
 
-    integrateTicket("T-0001");
+    integrateTicket("T-0001", "M-0001");
     await writeFile(join(repo, "upstream.txt"), "latest original branch change\n");
     git("add", "upstream.txt");
     git("commit", "-m", "Update original branch");
@@ -114,7 +115,7 @@ test(
       "--recommendation",
       "pass",
     );
-    integrateTicket(delivery.ticket);
+    integrateTicket(delivery.ticket, "M-0002");
 
     const finalReview = invoke("review", ...featureFlag, "--target", "feature");
     invoke(
@@ -131,7 +132,14 @@ test(
     );
 
     const started = invoke("finish", ...featureFlag);
-    expect(started).toMatchObject({ type: "feature-finish", phase: "merge" });
+    expect(started).toMatchObject({
+      operationId: "M-0003",
+      type: "feature-finish",
+      phase: "merge",
+    });
+    expect(run("merge", "record", ...featureFlag, "--merge", "M-0002").stderr).toContain(
+      "Unknown pending merge operation 'M-0002'",
+    );
     const finishAssignment = invoke(
       "assignment",
       "--feature",

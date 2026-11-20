@@ -34,6 +34,7 @@ test(
     ];
     const first = start();
     const second = start();
+    expect([first.review, second.review]).toEqual(["R-0001", "R-0002"]);
     expect(run(...createTask).stderr).toContain("is under review");
     const source = join(worktree, "first.ts");
     await writeFile(source, "Changed before submission\n");
@@ -56,6 +57,7 @@ test(
     await writeFile(path, JSON.stringify(ledger));
     expect(invoke("next", ...featureFlag).tickets[0].acceptance).toBe("InAcceptance");
     const updated = start();
+    expect(updated.review).toBe("R-0003");
     expect(updated.codeRevision).not.toBe(first.codeRevision);
     expect(invoke(...submit(updated.review, "pass")).acceptance).toBe("Accepted");
   },
@@ -64,16 +66,25 @@ test(
 test("records proposed findings and leaves the ticket blocked", { timeout: 20_000 }, async () => {
   const { complete, featureFlag, initialTask, invoke, run, workspace } = await reviewFixture();
   await complete(initialTask, "first.ts");
+  const first = invoke("review", ...featureFlag, "--ticket", "T-0001");
+  const path = join(workspace, "sdd.json");
+  const legacyReview = "R-2e6e0954-e158-4ad0-88cc-7441a0c97247";
+  const original = JSON.parse(await readFile(path, "utf8"));
+  original.reviewRounds[0].reviews[0].id = legacyReview;
+  await writeFile(path, JSON.stringify(original));
+
   const { review } = invoke("review", ...featureFlag, "--ticket", "T-0001");
-  const args = [
+  expect(review).toBe(first.review);
+  const submit = (id: string) => [
     "review",
     "submit",
     ...featureFlag,
     "--review",
-    review,
+    id,
     "--recommendation",
     "changes-required",
   ];
+  const args = submit(review);
   expect(run(...args).stderr).toContain("requires at least one finding");
   const result = invoke(
     ...args,
@@ -92,12 +103,23 @@ test("records proposed findings and leaves the ticket blocked", { timeout: 20_00
     "No input supplied",
     "Supply the input",
   );
-  expect(result.acceptance).toBe("Blocked");
-  expect(result.findings).toHaveLength(2);
-  const ledger = JSON.parse(await readFile(join(workspace, "sdd.json"), "utf8"));
+  expect(result.findings).toEqual(["F-0001", "F-0002"]);
+  const legacyResult = invoke(
+    ...submit(legacyReview),
+    "--finding",
+    "Missing edge case",
+    "minor",
+    "first.ts",
+    "Done",
+    "No empty input tested",
+    "Test empty input",
+  );
+  expect(legacyResult).toMatchObject({ acceptance: "Blocked", findings: ["F-0003"] });
+  const ledger = JSON.parse(await readFile(path, "utf8"));
   expect(ledger.findings).toMatchObject([
-    { title: "Missing assertion", reviewId: review, decision: { status: "open" } },
-    { title: "Missing input", reviewId: review, decision: { status: "open" } },
+    { id: "F-0001", title: "Missing assertion", reviewId: review, decision: { status: "open" } },
+    { id: "F-0002", title: "Missing input", reviewId: review, decision: { status: "open" } },
+    { id: "F-0003", title: "Missing edge case", reviewId: legacyReview },
   ]);
   expect(invoke("next", ...featureFlag).tickets[0].acceptance).toBe("Blocked");
 });

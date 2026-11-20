@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { isAbsolute } from "node:path";
 
 import { Service } from "@spindle/Foundation/Service";
@@ -8,6 +8,7 @@ import { findingSchema } from "@spindle/SubagentDrivenDevelopment/Models/Finding
 import type { ReviewRound } from "@spindle/SubagentDrivenDevelopment/Models/ReviewRound";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
+import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
 
 type ProposedFinding = {
   title: string;
@@ -63,8 +64,12 @@ export class SddReviewService extends Service {
       }
       const round = this.round(feature, target, current.revision);
       const findingsToVerify = this.findingsToVerify(feature, target, current.revision);
+      const reviewNumber = SddSequence.nextForIds(
+        "R",
+        ledger.reviewRounds.flatMap(({ reviews }) => reviews.map(({ id }) => id)),
+      );
       const review = {
-        id: `R-${randomUUID()}`,
+        id: SddSequence.format("R", reviewNumber),
         targetWorktree: current.worktree,
         scope,
         focus,
@@ -148,10 +153,14 @@ export class SddReviewService extends Service {
       if (feature.pendingStart)
         throw new Error("Resume the pending start before submitting reviews.");
       const { review, round } = await this.activeReview(feature, reviewId);
-      const findings = proposals.map((proposal) =>
+      const firstFindingNumber = SddSequence.nextForIds(
+        "F",
+        ledger.findings.map(({ id }) => id),
+      );
+      const findings = proposals.map((proposal, index) =>
         findingSchema.parse({
           ...proposal,
-          id: `F-${randomUUID()}`,
+          id: SddSequence.format("F", firstFindingNumber + BigInt(index)),
           type: "review",
           reviewId,
           decision: { status: "open" },

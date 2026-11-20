@@ -2,7 +2,7 @@ import { ticketIdSchema } from "@spindle/SubagentDrivenDevelopment/Models/Ticket
 import { z } from "zod";
 
 const mergeOperationFields = {
-  id: z.string().uuid(),
+  id: z.union([z.string().regex(/^M-\d{4,}$/), z.string().uuid()]),
   phase: z.enum(["merge", "cleanup"]),
   sourceBranch: z.string().min(1),
   sourceWorktree: z.string().min(1),

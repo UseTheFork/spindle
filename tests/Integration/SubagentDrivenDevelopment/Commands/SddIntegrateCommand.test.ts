@@ -37,6 +37,9 @@ test(
 
     const started = invoke("integrate", ...featureFlag, "--ticket", "T-0001");
     expect(started).toMatchObject({ type: "ticket-integration", phase: "merge" });
+    expect(invoke("integrate", ...featureFlag, "--ticket", "T-0001").operationId).toBe(
+      started.operationId,
+    );
     const assignment = invoke("assignment", "--feature", workspace, "--merge", started.operationId);
     expect(assignment).toMatchObject({
       role: "merge-agent",
@@ -89,7 +92,7 @@ test(
   },
 );
 
-test("keeps conflict resolution in the same merge assignment", { timeout: 40_000 }, async () => {
+test("resumes a legacy merge after resolving conflicts", { timeout: 40_000 }, async () => {
   const { featureFlag, invoke, git, startTicket, task, worktrees, name, workspace, repo } =
     await dispatchFixture();
   const taskId = task("shared.txt");
@@ -109,7 +112,15 @@ test("keeps conflict resolution in the same merge assignment", { timeout: 40_000
   const review = invoke("review", ...featureFlag, "--ticket", "T-0001");
   invoke("review", "submit", ...featureFlag, "--review", review.review, "--recommendation", "pass");
 
+  invoke("integrate", ...featureFlag, "--ticket", "T-0001");
+  const ledgerPath = join(workspace, "sdd.json");
+  const original = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+  const legacyId = "2e6e0954-e158-4ad0-88cc-7441a0c97247";
+  original.pendingMergeOperation.id = legacyId;
+  delete original.lastMergeOperationNumber;
+  await fs.writeFile(ledgerPath, JSON.stringify(original));
   const started = invoke("integrate", ...featureFlag, "--ticket", "T-0001");
+  expect(started.operationId).toBe(legacyId);
   const assignment = invoke("assignment", "--feature", workspace, "--merge", started.operationId);
   expect(assignment.instructions.join(" ")).toContain("Resolve conflicts within this assignment");
   expect(
@@ -128,7 +139,7 @@ test("keeps conflict resolution in the same merge assignment", { timeout: 40_000
   git("-C", featureWorktree, "branch", "-d", "--", ticketBranch);
   invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
 
-  const ledger = JSON.parse(await fs.readFile(join(workspace, "sdd.json"), "utf8"));
+  const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   expect(ledger.findings).toEqual([]);
   expect(git("-C", featureWorktree, "show", "HEAD:shared.txt")).toBe("resolved version");
 });

@@ -27,6 +27,7 @@ import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
+import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
 import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
@@ -328,8 +329,7 @@ export class FeatureWorkspaceService extends Service {
         .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
         .map((entry) => basename(entry, ".md")),
     ];
-    const number = FeatureWorkspaceService.nextNumber(ids.map((id) => id.slice(2)));
-    const id = `T-${number.padStart(4, "0")}`;
+    const id = SddSequence.format("T", SddSequence.nextForIds("T", ids));
     const path = join(directory, `${id}.md`);
     const markdown = await this.renderTicketMarkdown(title, requirements, acceptanceCriteria);
     const parsed = this.ticketRequirements(markdown, path);
@@ -560,8 +560,7 @@ export class FeatureWorkspaceService extends Service {
         .filter((entry) => /^T-\d{4,}\.md$/.test(entry))
         .map((entry) => basename(entry, ".md")),
     ];
-    const number = FeatureWorkspaceService.nextNumber(ids.map((ticketId) => ticketId.slice(2)));
-    const id = `T-${number.padStart(4, "0")}`;
+    const id = SddSequence.format("T", SddSequence.nextForIds("T", ids));
     const plain = (value: string) => value.replace(/\s+/g, " ").trim();
     const title = `Resolve feature finding: ${plain(finding.title)}`;
     const requirements = [
@@ -605,9 +604,7 @@ export class FeatureWorkspaceService extends Service {
     ticket: Pick<Ticket, "id" | "tasks">,
     input: NewTask & Pick<Task, "deliveryMerge" | "discoveredFrom">,
   ): string {
-    const number = FeatureWorkspaceService.nextNumber(
-      ticket.tasks.map(({ id }) => id.slice(ticket.id.length + 1)),
-    );
+    const number = SddSequence.next(ticket.tasks.map(({ id }) => id.slice(ticket.id.length + 1)));
     const id = `${ticket.id}.${number}`;
     ticket.tasks.push({ ...input, id, state: "Pending", attempt: 0 });
     return id;
@@ -792,15 +789,6 @@ export class FeatureWorkspaceService extends Service {
     });
   }
 
-  private static nextNumber(numbers: string[]): string {
-    let highest = 0n;
-    for (const number of numbers) {
-      const value = BigInt(number);
-      if (value > highest) highest = value;
-    }
-    return String(highest + 1n);
-  }
-
   private async withLock<T>(lock: string, operation: () => Promise<T>): Promise<T> {
     try {
       await mkdir(lock, { mode: 0o700 });
@@ -915,7 +903,11 @@ export class FeatureWorkspaceService extends Service {
         return { ...ticket, ...this.ticketRequirements(markdown, path) };
       }),
     );
-    const { version: _version, ...facts } = ledger;
+    const {
+      version: _version,
+      lastMergeOperationNumber: _lastMergeOperationNumber,
+      ...facts
+    } = ledger;
     const feature = featureSchema.parse({
       ...facts,
       name,
