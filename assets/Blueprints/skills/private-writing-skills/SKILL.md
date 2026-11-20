@@ -4,14 +4,14 @@ description: "{{ computed.private_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.3.1
+    version: 1.3.2
 ---
 
 # Writing Skills
 
 Author reusable guidance by testing the current behavior, addressing the observed gap, and retesting. This is an Interactive skill.
 
-**REQUIRED:** Use the `private-writing-for-agents` skill for shared writing principles and the `private-testing-agent-guidance` skill for test execution. This skill owns Skill structure, frontmatter, visibility, invocation, routers, and the authoring workflow.
+**REQUIRED:** Use the `private-ref-writing-for-agents` skill for shared writing principles and the `private-testing-agent-guidance` skill for test execution. This skill owns Skill structure, frontmatter, visibility, invocation, routers, and the authoring workflow.
 
 ## Authoring flow
 

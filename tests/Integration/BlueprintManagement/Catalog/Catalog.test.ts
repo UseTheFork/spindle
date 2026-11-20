@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import { blueprintCatalog as assetCatalog } from "@spindle/Assets/Blueprints/Catalog";
@@ -434,19 +434,21 @@ test("init rejects a nested destination symlink before writing outside the GitHu
   }
 });
 
-test("writing guidance updates consolidate mechanics and preserve skill invocation pointers", async () => {
+test("writing guidance updates migrate the reference and preserve skill invocation pointers", async () => {
   const blueprints = await makeTempDir("spindle-writing-guidance-blueprints-");
   const project = await makeTempDir("spindle-writing-guidance-project-");
   const names = [
-    "private-writing-for-agents",
+    "private-ref-writing-for-agents",
     "private-writing-skills",
     "private-testing-agent-guidance",
   ];
   const installedSkills = join(project, ".github", "skills");
-  const oldMechanics = join(installedSkills, "private-writing-for-agents", "SKILL-MECHANICS.md");
+  const legacyReference = join(installedSkills, "private-writing-for-agents");
+  const newReference = join(installedSkills, "private-ref-writing-for-agents");
+  const oldMechanics = join(installedSkills, "private-writing-skills", "SKILL-MECHANICS.md");
   const disclosedMechanics = join(
     installedSkills,
-    "private-writing-for-agents",
+    "private-writing-skills",
     "references",
     "skill-mechanics.md",
   );
@@ -468,27 +470,30 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
     }
     const init = runCli(project, ["init", "--stack", "python"], process.env.PATH ?? "", env);
     expect(init.status, init.stderr).toBe(0);
-    for (const [name, version] of [
-      ["private-writing-for-agents", "1.1.0"],
-      ["private-writing-skills", "1.2.1"],
-    ]) {
-      await mkdir(join(installedSkills, name), { recursive: true });
-      await writeFile(
-        join(installedSkills, name, "SKILL.md"),
-        `---\nname: ${name}\nmetadata:\n  spindle:\n    version: ${version}\n---\nRead SKILL-MECHANICS.md.\n`,
-      );
-    }
+    await rm(newReference, { recursive: true });
+    await mkdir(legacyReference, { recursive: true });
+    await writeFile(
+      join(legacyReference, "SKILL.md"),
+      "---\nname: private-writing-for-agents\nmetadata:\n  spindle:\n    version: 1.1.1\n---\nOld reference.\n",
+    );
+    await writeFile(
+      join(installedSkills, "private-writing-skills", "SKILL.md"),
+      "---\nname: private-writing-skills\nmetadata:\n  spindle:\n    version: 1.2.1\n---\nRead SKILL-MECHANICS.md.\n",
+    );
     await writeFile(oldMechanics, "Old invocation guidance\n");
     await mkdir(dirname(disclosedMechanics), { recursive: true });
     await writeFile(disclosedMechanics, "Previously disclosed invocation guidance\n");
 
     const result = runCli(project, ["update"], process.env.PATH ?? "", env);
     expect(result.status, result.stderr).toBe(0);
+    await expect(readFile(join(legacyReference, "SKILL.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     await expect(readFile(oldMechanics)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(disclosedMechanics)).rejects.toMatchObject({ code: "ENOENT" });
 
     for (const relative of [
-      "private-writing-for-agents/SKILL.md",
+      "private-ref-writing-for-agents/SKILL.md",
       "private-writing-skills/SKILL.md",
     ]) {
       const file = join(installedSkills, relative);
@@ -501,10 +506,12 @@ test("writing guidance updates consolidate mechanics and preserve skill invocati
         expect(content.includes(`version: ${version}`)).toBeTruthy();
         expect(content).toMatch(/description: "This is a private skill/);
         expect(content).not.toMatch(/\[[^\]]+\]\([^)]*\/SKILL\.md\)/);
-        if (relative === "private-writing-for-agents/SKILL.md") {
-          expect(content.includes("use the `private-writing-skills` skill")).toBeTruthy();
-          expect(content.includes("use the `private-testing-agent-guidance` skill")).toBeTruthy();
+        if (relative === "private-ref-writing-for-agents/SKILL.md") {
+          expect(content).toContain("name: private-ref-writing-for-agents");
+          expect(content).not.toContain("private-writing-skills");
+          expect(content).not.toContain("private-testing-agent-guidance");
         } else {
+          expect(content).toContain("`private-ref-writing-for-agents`");
           expect(content.includes("**Invocation:**")).toBeTruthy();
           expect(content.includes("**Routers:**")).toBeTruthy();
           expect(content.includes("`description` is required in every case")).toBeTruthy();

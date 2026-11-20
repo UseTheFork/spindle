@@ -1,19 +1,15 @@
 ---
-name: private-writing-for-agents
+name: private-ref-writing-for-agents
 description: "{{ computed.private_skill_description }}"
 user-invocable: false
 metadata:
   spindle:
-    version: 1.1.1
+    version: 1.2.0
 ---
 
 # Writing for agents
 
 Shared Reference guidance for writing any document an agent consumes: a Skill, an Agent's instruction body, a project Instruction, or a document reached by a pointer. It covers wording and information hierarchy, not an authoring workflow. Aim for reliable application; the same wording does not guarantee the same behavior across models or hosts.
-
-When writing a Skill, choosing its invocation, or designing a router, use the `private-writing-skills` skill for Skill structure, frontmatter, visibility, and the authoring workflow.
-
-For behavior-shaping edits, use the `private-testing-agent-guidance` skill to establish a baseline and verify the revised guidance.
 
 ## Context pointers
 
@@ -66,7 +62,7 @@ The strongest criteria are both checkable and exhaustive.
 Splitting one document into two spends one of the two loads, so split only when the cut earns it:
 
 - **By sequence**: consider a split when observed premature completion persists after sharpening the criterion. Verify that the split actually isolates later steps and improves the same scenario; otherwise keep the sequence together.
-- **By invocation**: create a separate Skill when it needs independent discovery or explicit invocation by callers. Otherwise a conditionally disclosed reference file may be sufficient. Use the `private-writing-skills` skill to choose invocation and visibility.
+- **By invocation**: create a separate Skill when it needs independent discovery or explicit invocation by callers. Otherwise a conditionally disclosed reference file may be sufficient.
 
 ## Leading words
 
@@ -83,4 +79,4 @@ Prefer a positive target when it makes the action clearer: "For release work, fo
 - Keep each meaning in a **single source of truth**: one authoritative place, so changing the behaviour is a one-place edit. **Duplication** (the same meaning in more than one place) costs maintenance and tokens, and inflates a meaning's prominence on the ladder past its real rank. (The accidental inverse of a leading word, which repeats a token on purpose, never the meaning.)
 - The **environment** is a source of truth too (`package.json` scripts, config files, the directory layout, `--help` output), and a document that restates it is a **cache**: a copy of a lookup, earning its load only when the lookup is expensive. Cache what the agent cannot find by looking: the unwritten convention, the reason behind a choice, the gotcha no config confesses. Leave the one-file, one-command lookups to the environment, where they cannot go stale.
 - Check every line for **relevance**: does it still bear on what the document does? A line loses relevance by never bearing on the task (mere exposition, or a branch that should be disclosed) or by going stale as the behaviour or world it describes changes. Shorter documents are easier to keep relevant. Without a pruning discipline the default fate is **sediment**: stale layers that settle because adding feels safe and removing feels risky, until you must core down through them to find what is still live.
-- Hunt **no-ops** through subtraction: run the same task with and without the candidate guidance, checking observable behavior through `private-testing-agent-guidance`. A passing run without it does not prove irrelevance across other tasks or models. Remove a sentence when the comparison supports that decision; preserve required contracts and guardrails. If wording fails, sharpen the action or criterion rather than merely adding a stronger adjective.
+- Hunt **no-ops** through subtraction: run the same task with and without the candidate guidance, and compare observable behavior. A passing run without it does not prove irrelevance across other tasks or models. Remove a sentence when the comparison supports that decision; preserve required contracts and guardrails. If wording fails, sharpen the action or criterion rather than merely adding a stronger adjective.

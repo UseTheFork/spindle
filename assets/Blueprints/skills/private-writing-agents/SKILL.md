@@ -2,14 +2,14 @@
 name: private-writing-agents
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 description: "{{ computed.private_skill_description }}"
 user-invocable: false
 ---
 
 # Writing Custom Agents
 
-Write focused, reusable agent definitions, not editor setup guides. Use `private-writing-for-agents` skill for the instruction body.
+Write focused, reusable agent definitions, not editor setup guides. Use the `private-ref-writing-for-agents` skill for the instruction body.
 
 ## Workflow
 

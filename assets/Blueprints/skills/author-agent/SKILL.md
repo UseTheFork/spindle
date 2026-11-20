@@ -6,7 +6,7 @@ disable-model-invocation: true
 user-invocable: true
 metadata:
   spindle:
-    version: 1.1.2
+    version: 1.1.3
 ---
 
 # Author Agent
@@ -15,7 +15,7 @@ Create or update a project agent in `.github/agents/<agent-name>.agent.md`.
 
 ## Clarify the request
 
-Before your first question, read and consider only the `private-writing-for-agents` and `public-ref-asd-ste100` skills. Load and follow the `grill` skill to clarify the user's request. Ask one question per turn and wait for the answer. Do not load other skills before the user confirms the shared understanding.
+Before your first question, read and consider only the `private-ref-writing-for-agents` and `public-ref-asd-ste100` skills. Load and follow the `grill` skill to clarify the user's request. Ask one question per turn and wait for the answer. Do not load other skills before the user confirms the shared understanding.
 
 Do not announce workflow steps or load other skills during clarification. Start the workflow only after the user confirms the shared understanding.
 
