@@ -65,6 +65,7 @@ export const blueprintCatalog: BlueprintCatalogDefinition = {
     "private-code-slop-review": { path: "private-code-slop-review/", stacks: [] },
     "private-ref-ears": { path: "private-ref-ears/", stacks: [] },
     "private-ref-sdd-workflow": { path: "private-ref-sdd-workflow/", stacks: [] },
+    "private-ref-spindle": { path: "private-ref-spindle/", stacks: [] },
     "private-ref-writing-for-agents": { path: "private-ref-writing-for-agents/", stacks: [] },
     "public-ref-domain-modeling": { path: "public-ref-domain-modeling/", stacks: [] },
     "private-prototype": { path: "private-prototype/", stacks: [] },

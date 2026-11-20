@@ -124,6 +124,31 @@ test("init ships the private SDD workflow reference with the orchestrator", asyn
   expect(orchestrator.content).toContain(`load the \`${name}\` skill`);
 });
 
+test("init installs the private Spindle reference and its SDD setup guide", async () => {
+  const project = await makeTempDir("spindle-reference-project-");
+  const init = runBundledCli(
+    project,
+    ["init", "--stack", "python", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(init.status, init.stderr).toBe(0);
+
+  const name = "private-ref-spindle";
+  const skill = join(project, ".github", "skills", name);
+  const { data, content } = matter(await readFile(join(skill, "SKILL.md"), "utf8"));
+  expect(data).toMatchObject({
+    name,
+    "user-invocable": false,
+    metadata: { spindle: { version: "1.0.0" } },
+  });
+  const setupGuide = "references/sdd-project-setup.md";
+  expect(content).toContain(`\`${setupGuide}\``);
+  const guide = await readFile(join(skill, setupGuide), "utf8");
+  expect(guide).toMatch(
+    /## Workflow\n\nBefore acting on each node, announce `Step <node ID> - <node label>`[^\n]*\n\nWhile following a subworkflow, announce each step as `Step <node ID> - <node label> \(<subworkflow title>\)`[^\n]*\n\n```mermaid/,
+  );
+});
+
 test("init omits retired SDD reviewers and update removes their managed installations", async () => {
   const project = await makeTempDir("spindle-retired-review-project-");
   const init = runBundledCli(

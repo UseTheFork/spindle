@@ -4,6 +4,7 @@ import { PrivateSkillDescriptionProvider } from "@spindle/TemplateRendering/Comp
 import { ProjectGuidanceProvider } from "@spindle/TemplateRendering/Computed/Providers/ProjectGuidanceProvider";
 import { SkillUsageProvider } from "@spindle/TemplateRendering/Computed/Providers/SkillUsageProvider";
 import { SpindlePackageManagerProvider } from "@spindle/TemplateRendering/Computed/Providers/SpindlePackageManagerProvider";
+import { SubworkflowStepGuidanceProvider } from "@spindle/TemplateRendering/Computed/Providers/SubworkflowStepGuidanceProvider";
 import { WorkflowStepGuidanceProvider } from "@spindle/TemplateRendering/Computed/Providers/WorkflowStepGuidanceProvider";
 
 export const computedVariableProviders = {
@@ -12,5 +13,6 @@ export const computedVariableProviders = {
   project_guidance: ProjectGuidanceProvider,
   skill_usage: SkillUsageProvider,
   spindle_package_manager: SpindlePackageManagerProvider,
+  subworkflow_step_guidance: SubworkflowStepGuidanceProvider,
   workflow_step_guidance: WorkflowStepGuidanceProvider,
 } satisfies ComputedVariableRegistry;
