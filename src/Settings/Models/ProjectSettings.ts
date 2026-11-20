@@ -17,24 +17,29 @@ const toolingEntrySchema = z.looseObject({
     .refine(
       (key) => !BuiltInTooling.isBuiltInToolingKey(key),
       "Key is reserved for a built-in command.",
-    ),
-  section: singleLine,
-  command: singleLine,
-  description: singleLine.optional(),
+    )
+    .describe("Unique key for the documented tooling command."),
+  section: singleLine.describe("Section heading in the generated tooling guide."),
+  command: singleLine.describe("Command to display in the generated tooling guide."),
+  description: singleLine.optional().describe("Optional explanation shown in the tooling guide."),
 });
 
 export const projectSettingsSchema = z.looseObject({
   $schema: z.string().optional(),
-  stacks: z.array(
-    z
-      .string()
-      .refine(
-        (stack) => Stacks.supported.some((supported) => supported === stack),
-        "Unsupported stack.",
-      )
-      .meta({ enum: [...Stacks.supported] }),
-  ),
-  spindle_package_manager: singleLine.optional(),
+  stacks: z
+    .array(
+      z
+        .string()
+        .refine(
+          (stack) => Stacks.supported.some((supported) => supported === stack),
+          "Unsupported stack.",
+        )
+        .meta({ enum: [...Stacks.supported] }),
+    )
+    .describe("Stacks used to select project Blueprints."),
+  spindle_package_manager: singleLine
+    .optional()
+    .describe("Preferred package-manager command for generated project guidance."),
   tooling: z
     .array(toolingEntrySchema)
     .default([])
@@ -42,9 +47,14 @@ export const projectSettingsSchema = z.looseObject({
       if (new Set(entries.map((entry) => entry.key)).size !== entries.length) {
         context.addIssue({ code: "custom", message: "Tooling keys must be unique." });
       }
-    }),
-  commit: commitSettingsSchema.default(defaultCommitSettings),
-  sdd: sddSettingsSchema.optional(),
+    })
+    .describe(
+      "Additional commands documented in the project tooling guide; each entry has a key, section, command, and optional description.",
+    ),
+  commit: commitSettingsSchema
+    .default(defaultCommitSettings)
+    .describe("Conventional Commit guidance settings."),
+  sdd: sddSettingsSchema.optional().describe("Shared SDD worktree and setup settings."),
 });
 
 export type ProjectSettings = z.output<typeof projectSettingsSchema>;

@@ -13,9 +13,9 @@ or worktrees created by the current implementation.
 | Feature      | The complete unit of work, with a spec, a feature branch and one or more tickets.                                               |
 | Ticket       | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, acceptance review and integration. |
 | Task         | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.          |
-| Finding      | A recorded issue from a review. Review findings may be dismissed with a reason.                                                  |
+| Finding      | A recorded issue from a review. Review findings may be dismissed with a reason.                                                 |
 | Controller   | The single operator coordinating the feature through the SDD CLI.                                                               |
-| Worker       | An agent assigned to implement a task or carry out a merge operation.                                                            |
+| Worker       | An agent assigned to implement a task or carry out a merge operation.                                                           |
 | Reviewer     | An agent reviewing a ticket against its acceptance criteria, or the completed feature against the feature spec.                 |
 | Review round | One or more reviews of the same target at the same code revision.                                                               |
 
@@ -204,6 +204,9 @@ Example SDD configuration:
 Relative worktree directories resolve from the original checkout root. The
 ledger stores each created worktree's resolved path, not a feature-level copy
 of the project setting.
+
+Use the [Project Settings CLI](../settings/overview.md) to set or inspect SDD
+worktree settings without editing `.spindle/config.json` directly.
 
 ## Worktrees
 
@@ -842,7 +845,7 @@ failure. `error.details` is optional and provides additional context.
 | `create`                         | Create a numbered feature workspace in the original checkout with spec and design templates and a new `sdd.json` ledger.                                                                                                  |
 | `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
 | `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
-| `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                                    |
+| `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                            |
 | `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup steps.                                                                         |
 | `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope, context and dependencies. Refuses unordered write conflicts.                                                                                                |
 | `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |
@@ -852,10 +855,10 @@ failure. `error.details` is optional and provides additional context.
 | `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                         |
 | `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                    |
 | `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                  |
-| `assignment`                     | Read-only: print a task assignment, review assignment, or merge operation assignment. Requires an absolute `--feature` path.                                                                                               |
-| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                                                                 |
+| `assignment`                     | Read-only: print a task assignment, review assignment, or merge operation assignment. Requires an absolute `--feature` path.                                                                                              |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                                                                |
 | `integrate`                      | Journal a merge operation for an accepted ticket and return its merge assignment.                                                                                                                                         |
-| `merge record`                   | Verify the branch relationship before agent cleanup, then verify cleanup and record merge completion.                                                                                                                      |
+| `merge record`                   | Verify the branch relationship before agent cleanup, then verify cleanup and record merge completion.                                                                                                                     |
 | `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                                                              |
 | `finish`                         | Journal a final merge operation and return its assignment to fast-forward the original branch to the feature branch.                                                                                                      |
 

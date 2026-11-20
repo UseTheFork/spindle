@@ -8,16 +8,23 @@ export const commitSettingsSchema = z
       .int()
       .min(11)
       .default(72)
-      .describe("Maximum length of the complete commit title."),
+      .describe(
+        "Maximum length of the title; minimum is 11, or 12 when breaking changes are enabled.",
+      ),
     scopes_enabled: z
       .boolean()
       .default(false)
-      .describe("Require an allowed scope in commit titles."),
+      .describe("Require a configured allowed scope in commit titles."),
     allowed_scopes: z
       .array(z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/))
       .default([])
-      .describe("Allowed lowercase kebab-case commit scopes."),
-    allow_breaking_changes: z.boolean().default(false).describe("Allow breaking-change notation."),
+      .describe(
+        "Allowed lowercase kebab-case scopes; required scopes must be nonempty, unique, and fit the title limit.",
+      ),
+    allow_breaking_changes: z
+      .boolean()
+      .default(false)
+      .describe("Allow breaking-change notation; increases the minimum title length to 12."),
   })
   .superRefine((settings, context) => {
     if (settings.allow_breaking_changes && settings.title_max_length < 12) {

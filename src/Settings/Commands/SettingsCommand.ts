@@ -1,11 +1,10 @@
-import type { Command as CommanderCommand } from "commander";
-
 import { Command } from "@spindle/Commands/Command";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { SettingsPrompts } from "@spindle/Settings/Commands/SettingsPrompts";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SettingsService } from "@spindle/Settings/Services/SettingsService";
+import type { Command as CommanderCommand } from "commander";
 
 export class SettingsCommand extends Command {
   public static register(program: CommanderCommand, createApp: () => Promise<Application>): void {
@@ -36,6 +35,37 @@ export class SettingsCommand extends Command {
           human: "Settings saved and Blueprints regenerated.",
           data,
         });
+      });
+    settings
+      .command("list")
+      .description("List configurable settings and their metadata.")
+      .allowExcessArguments(false)
+      .action(async () => {
+        const app = await createApp();
+        const data = (await app.make(SettingsService)).list();
+        const human = data.map(
+          ({
+            key,
+            type,
+            description,
+            required,
+            group_optional,
+            default: defaultValue,
+            constraints,
+          }) => {
+            const requirement = required
+              ? group_optional
+                ? " (required when its group is configured)"
+                : " (required)"
+              : "";
+            const fallback =
+              defaultValue === undefined ? "" : ` Default: ${JSON.stringify(defaultValue)}.`;
+            const limits =
+              constraints === undefined ? "" : ` Constraints: ${JSON.stringify(constraints)}.`;
+            return `${key} (${type})${requirement}: ${description}${fallback}${limits}`;
+          },
+        );
+        (await app.make(ConsoleOutputService)).result({ level: "info", human, data });
       });
     settings
       .command("get")

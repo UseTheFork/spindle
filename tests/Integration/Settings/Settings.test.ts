@@ -1,13 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { expect, test, vi } from "vitest";
-
 import { SettingsService } from "@spindle/Settings/Services/SettingsService";
-
 import { runCli, runCliInteractive } from "@test/Helpers/Cli";
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
+import { expect, test, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -54,6 +52,44 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   await writeFile(configPath, JSON.stringify(config));
   const legacy = run(["--json", "settings", "get", "commit.allow_body"]);
   expect(JSON.parse(legacy.stdout)).toEqual({ ok: true, data: false });
+  const listed = run(["--json", "settings", "list"]);
+  expect(listed.status, listed.stderr).toBe(0);
+  const settingDescriptions = JSON.parse(listed.stdout).data;
+  expect(settingDescriptions).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: "commit.allow_body",
+        type: "boolean",
+        description: "Allow commit message bodies.",
+        default: false,
+      }),
+      expect.objectContaining({
+        key: "commit.title_max_length",
+        type: "integer",
+        default: 72,
+        description: expect.stringContaining("minimum is 11"),
+        constraints: expect.objectContaining({ minimum: 11 }),
+      }),
+      expect.objectContaining({
+        key: "sdd.worktree_directory",
+        type: "string",
+        required: true,
+        group_optional: true,
+      }),
+      expect.objectContaining({
+        key: "sdd.setup_command",
+        type: "string[]",
+        description:
+          "Ordered commands for each new ticket worktree; prefix plain-language instructions with Instruction:.",
+        default: [],
+      }),
+    ]),
+  );
+  const humanList = run(["settings", "list"]);
+  expect(humanList.status, humanList.stderr).toBe(0);
+  expect(humanList.stdout).toContain("sdd.worktree_directory (string)");
+  expect(humanList.stdout).toContain("Parent directory for SDD worktrees");
+  expect(humanList.stdout).toContain("Constraints:");
   for (const [key, value] of [
     ["commit.allowed_scopes", '["api","user-auth"]'],
     ["commit.scopes_enabled", "true"],
@@ -64,6 +100,25 @@ test("init persists defaults and settings changes regenerate commit guidance", a
     const result = run(["settings", "set", key!, value!]);
     expect(result.status, result.stderr).toBe(0);
   }
+  const worktreeDirectory = join(project, "..", "worktrees");
+  const setWorktreeDirectory = run([
+    "settings",
+    "set",
+    "sdd.worktree_directory",
+    JSON.stringify(worktreeDirectory),
+  ]);
+  expect(setWorktreeDirectory.status, setWorktreeDirectory.stderr).toBe(0);
+  const setupCommands = [
+    "pnpm install",
+    "Instruction: Copy .env from the original checkout to the ticket worktree if it is missing there. Do not print its contents.",
+  ];
+  const setSetupCommands = run([
+    "settings",
+    "set",
+    "sdd.setup_command",
+    JSON.stringify(setupCommands),
+  ]);
+  expect(setSetupCommands.status, setSetupCommands.stderr).toBe(0);
   const skill = await readFile(skillPath, "utf8");
   expect(skill).toContain("at most 40 characters");
   expect(skill).toContain("Allowed scopes: api, user-auth");
@@ -73,8 +128,14 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   const saved = JSON.parse(await readFile(configPath, "utf8"));
   expect(saved.extra).toEqual({ preserved: true });
   expect(saved.tooling).toEqual([]);
+  expect(saved.sdd).toEqual({
+    worktree_directory: worktreeDirectory,
+    setup_command: setupCommands,
+  });
   const result = run(["--json", "settings", "get", "commit.scopes_enabled"]);
   expect(JSON.parse(result.stdout)).toEqual({ ok: true, data: true });
+  const sddSetting = run(["--json", "settings", "get", "sdd.setup_command"]);
+  expect(JSON.parse(sddSetting.stdout)).toEqual({ ok: true, data: setupCommands });
 
   const before = await readFile(configPath, "utf8");
   const invalid = run(["settings", "set", "commit.allowed_scopes", "[]"]);
