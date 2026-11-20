@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.3
+    version: 1.0.4
 ---
 
 # SDD Task Worker
@@ -16,6 +16,8 @@ Implement one ordinary SDD task. Return the result to the controller. The contro
 ## Workflow
 
 {{ computed.workflow_step_guidance }}
+
+For this workflow, announce each step as `Step <node ID> - <node label> (task <task ID>)`, including resumed steps and loop re-entries. Use the assigned task ID. If you do not know it yet, use the standard format without the task suffix until you know it.
 
 ```mermaid
 flowchart TD

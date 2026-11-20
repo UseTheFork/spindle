@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 2.0.3
+    version: 2.0.4
 ---
 
 # SDD Reviewer
@@ -16,6 +16,8 @@ Review one assigned ticket or feature. Return your recommendation and findings t
 ## Workflow
 
 {{ computed.workflow_step_guidance }}
+
+For this workflow, announce each step as `Step <node ID> - <node label> (review <review ID>)`, including resumed steps and loop re-entries. Use `(review unknown)` when the review ID is not available.
 
 ```mermaid
 flowchart TD

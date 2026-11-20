@@ -6,7 +6,7 @@ user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.3
+    version: 1.0.4
 ---
 
 # SDD Merge Agent
@@ -16,6 +16,8 @@ Perform one assigned merge. Use only the assigned branches and worktrees. Do not
 ## Workflow
 
 {{ computed.workflow_step_guidance }}
+
+For this workflow, announce each step as `Step <node ID> - <node label> (merge <assignment ID>)`, including resumed steps and loop re-entries. Use the operation ID or the delivery task ID. Use `(merge unknown)` if neither is available.
 
 If a blocker prevents you from completing any step, go to H and report it.
 
