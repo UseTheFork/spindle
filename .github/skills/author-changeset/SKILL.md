@@ -20,9 +20,7 @@ flowchart TD
     D -- Revision requested --> E[Revise proposal]
     E --> D
     D -- Exact proposal approved --> F[Create changeset]
-    F --> G[Verify artifact]
-    G -- Matches --> H[Report completion]
-    G -- Mismatch --> I[Stop and report]
+    F --> H[Report completion]
 ```
 
 ### A. Establish scope
@@ -33,7 +31,7 @@ Read `baseBranch` from `.changeset/config.json`, package names from manifests, w
 
 ### B. Analyze evidence
 
-Inspect diffs and history, not subjects alone; use chat, docs, and prior changesets for intent and conventions. Use `pnpm exec changeset add --help` for syntax.
+Inspect diffs and history, not subjects alone; use chat, docs, and prior changesets for intent and conventions.
 
 Recommend per package: patch for compatible fixes, minor for compatible features, major for breaking changes. State rationale. If package or impact is unclear, evidence conflicts, or no releasable change exists, do not guess; ask or report no changeset.
 
@@ -59,24 +57,24 @@ Apply the revision. Return to B if package or impact changes; otherwise return t
 
 ### F. Create changeset
 
-Only after approval, use the installed help for `changeset add` syntax. Enter only approved packages, bumps, and text. With flags, pass each package with its bump option. Preserve every message character, including Markdown punctuation, and quote it so the shell passes it unchanged. If the CLI requires different values, stop before writing and return to D. Do not run versioning or publishing commands.
+Only after approval, run one `changeset add` command for each approved entry:
 
-**Complete when:** The approved entry is created.
+```sh
+pnpm exec changeset add --<bump> <package> [--<bump> <package> ...] --message '<approved text>'
+```
 
-### G. Verify artifact
+For an entry with different bumps, include one bump option per package. For example:
 
-Compare the created entry with the approved packages, bumps, and text. If any value differs, do not overwrite it or claim success; go to I.
+```sh
+pnpm exec changeset add --minor @spindle/core --patch @spindle/cli --message 'Improve parsing and fix CLI output.'
+```
 
-**Complete when:** The entry matches or a mismatch is identified.
+Preserve the approved message exactly, including Markdown punctuation. In a POSIX shell, represent an apostrophe inside a single-quoted message as `'\''`. Run separate commands for separate approved entries. An entry does not need to cover every changed package or change. Changesets may commit the entry when configured; do not make a separate commit. If the CLI requires different values, stop before writing and return to D. Do not run versioning or publishing commands.
+
+**Complete when:** The command exits with code 0. If it exits with an error, report the error and stop.
 
 ### H. Report completion
 
-Report the verified path and contents.
+Report that the command succeeded and include its output, such as the created file path. Do not inspect or compare the generated entry.
 
-**Complete when:** The path and verified result are delivered.
-
-### I. Stop and report
-
-Describe the mismatch, ask how to resolve it, and wait before making further changes.
-
-**Complete when:** The mismatch and user decision are explicit.
+**Complete when:** The successful command and its reported result are delivered.
