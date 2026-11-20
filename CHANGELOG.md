@@ -1,5 +1,13 @@
 # @usethefork/spindle
 
+## 0.6.2
+
+### Patch Changes
+
+- [`09927db`](https://github.com/UseTheFork/spindle/commit/09927db5947d1de63dc65d0b44dca3826db113ea) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Clarify the shipped code-commenting guidance for public API documentation.
+
+- [`5576c09`](https://github.com/UseTheFork/spindle/commit/5576c09db081ca0a94293e8f6fd95f93fbf61221) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add settings discovery and CLI access to SDD worktree settings.
+
 ## 0.6.1
 
 ### Patch Changes
