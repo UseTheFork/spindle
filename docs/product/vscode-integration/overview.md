@@ -1,6 +1,7 @@
 # VS Code Integration
 
-**Status:** Agreed design; implementation pending.
+**Status:** Agreed design. The settings model, assets, and read-only preparation
+are implemented; workflow application, CLI flags, and prompts are pending.
 
 VS Code Integration lets a project opt in to Spindle managing selected VS Code
 Workspace Settings and a commit-message guidance file. The context owns this
@@ -35,10 +36,10 @@ The settings workflow exposes `vscode.enabled`, including through
 
 The new `assets/VsCodeIntegration/` directory contains:
 
-| Asset | Processing | Destination |
-|-------|------------|-------------|
-| `settings.json` | Parse as setting data; do not render through Nunjucks | Merge managed keys into the project's `.vscode/settings.json` |
-| `commit-message-style.md` | Render through the existing Nunjucks pipeline | `.github/copilot/commit-message-style.md` |
+| Asset                     | Processing                                            | Destination                                                   |
+| ------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- |
+| `settings.json`           | Parse as setting data; do not render through Nunjucks | Merge managed keys into the project's `.vscode/settings.json` |
+| `commit-message-style.md` | Render through the existing Nunjucks pipeline         | `.github/copilot/commit-message-style.md`                     |
 
 The settings asset is authoritative for the managed keys and their values:
 
@@ -104,6 +105,18 @@ apply other init/update writes, or persist a newly enabled integration.
 Do not fall back to an empty settings object when an existing file is invalid.
 
 ## Acceptance coverage
+
+The current `VsCodeIntegrationService.prepare` operation returns the workspace
+and prepared files with relative destinations, original content (or `undefined`
+for missing files), and proposed content. It performs no filesystem writes and
+does not persist Project Settings. Its provider can be registered explicitly;
+init, update, and settings do not yet invoke it.
+
+Preparation uses the shared rendering pipeline with the registered
+`commit_guidance` provider and the supplied Project Settings snapshot. It restores
+the application's previous Project Settings state after rendering, including on
+failure. Only the required Computed Variable is resolved, so preparation does not
+require a package-manager preference.
 
 Implementation tests must verify:
 

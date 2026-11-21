@@ -1,0 +1,10 @@
+{
+  "chat.subagents.allowInvocationsFromSubagents": true,
+  "chat.editor.workingSet.enabled": false,
+  "chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "file": ".github/copilot/commit-message-style.md"
+    }
+  ]
+}
