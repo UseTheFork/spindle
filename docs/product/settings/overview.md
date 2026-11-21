@@ -28,3 +28,6 @@ distinct lowercase kebab-case names that fit within the title limit. The limit
 must be at least 11 characters (12 when breaking changes are enabled), so every
 supported type can fit. Existing configurations without `commit` use these
 defaults.
+
+The agreed [VS Code Integration design](../vscode-integration/overview.md)
+adds a default-disabled `vscode.enabled` choice to Project Settings.
