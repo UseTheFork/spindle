@@ -4,7 +4,7 @@ description: "This is a private skill do not load it unless explicitly required 
 user-invocable: false
 metadata:
   spindle:
-    version: 1.4.1
+    version: 1.4.2
 ---
 
 # Retrospective
@@ -77,7 +77,7 @@ Check for individually approved items whose targets and required domain decision
 
 ### G. Apply and verify
 
-Change only approved targets. Load `private-writing-for-agents` for agent-facing writing, `private-writing-instruction` for workspace instructions, `private-writing-skills` for skills, and `private-testing-agent-guidance` for behavior-shaping guidance validation. Instruction briefs are not validated files. Use existing repository tooling for checks and test each proposal against its recorded criterion.
+Change only approved targets. Load the `private-ref-writing-for-agents` skill for agent-facing writing, the `private-writing-instruction` skill for workspace instructions, the `private-writing-skills` skill for skills, and the `private-testing-agent-guidance` skill for behavior-shaping guidance validation. Instruction briefs are not validated files. Use existing repository tooling for checks and test each proposal against its recorded criterion.
 
 **Complete when:** each actionable approved item has an applied change and passing evidence, or an explicit blocker/unverified result, selecting H.
 
