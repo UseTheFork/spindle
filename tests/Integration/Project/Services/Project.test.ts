@@ -1,7 +1,12 @@
-import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
-
-import { expect, test } from "vitest";
 
 import { Application } from "@spindle/Foundation/Application";
 import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
@@ -10,8 +15,8 @@ import { ProjectService } from "@spindle/Project/Services/ProjectService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
 import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
-
 import { makeTempDirSync, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import { expect, test } from "vitest";
 
 const copilotInstructionsTemplate = readFileSync(
   join(repoRoot, "assets/Templates/project/copilot-instructions.md"),
@@ -65,6 +70,7 @@ test("project operations require a booted application", async () => {
 test("tooling changes use the Project Settings snapshot after the file changes", async () => {
   const { app, workspace, service, tooling } = await fixture();
   await service.initialize();
+  await tooling.initialize(ProjectSettingsService.requireCurrent(app).settings);
   const path = join(workspace, ".spindle/config.json");
   const config = JSON.parse(readFileSync(path, "utf8"));
   config.commit.title_max_length = 1;
@@ -78,8 +84,8 @@ test("tooling changes use the Project Settings snapshot after the file changes",
   expect(ProjectSettingsService.requireCurrent(app).settings.commit.title_max_length).toBe(72);
 });
 
-test("project initialization creates the baseline, seeds Spindle commands, and renders the guide", async () => {
-  const { app, workspace, service } = await fixture();
+test("Project creates guidance while Tooling independently initializes its guide", async () => {
+  const { app, workspace, service, tooling } = await fixture();
   const result = await service.initialize();
 
   expect(result).toEqual({
@@ -92,9 +98,13 @@ test("project initialization creates the baseline, seeds Spindle commands, and r
       ".github/copilot-instructions.md",
       "docs/agents/domain.md",
       "docs/agents/constitution.md",
-      "docs/agents/tooling.md",
     ],
     preserved: [".spindle", ".github"],
+    updated: [],
+  });
+  expect(existsSync(join(workspace, "docs/agents/tooling.md"))).toBe(false);
+  expect(await tooling.initialize(ProjectSettingsService.requireCurrent(app).settings)).toEqual({
+    created: ["docs/agents/tooling.md"],
     updated: [".spindle/config.json"],
   });
   const config = JSON.parse(readFileSync(join(workspace, ".spindle/config.json"), "utf8"));
@@ -175,7 +185,11 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
   );
   await ProjectSettingsService.refresh(app);
   const first = await service.initialize();
-  expect(first.updated).toEqual([".spindle/config.json"]);
+  expect(first.updated).toEqual([]);
+  const toolingResult = await tooling.initialize(
+    ProjectSettingsService.requireCurrent(app).settings,
+  );
+  expect(toolingResult.updated).toEqual([".spindle/config.json"]);
   const original = JSON.parse(readFileSync(join(workspace, ".spindle/config.json"), "utf8"));
   expect(original).toMatchObject({
     stacks: ["typescript"],
@@ -195,9 +209,12 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
   writeFileSync(join(workspace, "docs/agents/ticket-tracker.md"), customTicketTracker);
   writeFileSync(join(workspace, "docs/agents/tooling.md"), "stale generated contents\n");
   const repeated = await service.initialize();
+  const repeatedTooling = await tooling.initialize(
+    ProjectSettingsService.requireCurrent(app).settings,
+  );
   expect(repeated.created).toEqual([]);
   expect(repeated.updated).toContain("docs/agents/domain.md");
-  expect(repeated.updated).toContain("docs/agents/tooling.md");
+  expect(repeatedTooling.updated).toContain("docs/agents/tooling.md");
   expect(readFileSync(join(workspace, "docs/agents/domain.md"))).not.toEqual(customDomain);
   expect(readFileSync(join(workspace, "docs/agents/ticket-tracker.md"))).toEqual(
     customTicketTracker,
@@ -211,6 +228,7 @@ test("initialization seeds a registry in legacy Project Settings and preserves e
 test("tooling mutations list, group and regenerate the registry projection", async () => {
   const { app, workspace, service, tooling } = await fixture();
   await service.initialize();
+  await tooling.initialize(ProjectSettingsService.requireCurrent(app).settings);
   const first = await tooling.addTooling({
     key: "test-unit",
     section: "Testing",
@@ -269,7 +287,7 @@ test("tooling mutations list, group and regenerate the registry projection", asy
 });
 
 test("tooling operations reject missing initialization, duplicate keys, invalid updates, and invalid keys", async () => {
-  const { service, tooling } = await fixture();
+  const { app, service, tooling } = await fixture();
   expect((await tooling.listTooling()).map((entry) => entry.key)).toEqual([
     "spindle-init",
     "spindle-update",
@@ -279,6 +297,7 @@ test("tooling operations reject missing initialization, duplicate keys, invalid 
     tooling.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
   ).rejects.toThrow("not initialized");
   await service.initialize();
+  await tooling.initialize(ProjectSettingsService.requireCurrent(app).settings);
   await expect(
     tooling.addTooling({ key: "test-unit", section: "Testing", command: "pnpm test" }),
   ).resolves.toMatchObject({ key: "test-unit" });
@@ -319,7 +338,7 @@ test.each([
   );
 });
 
-test("project initialization rejects invalid Project Settings and symlinked generated files", async () => {
+test("Project rejects invalid settings and Tooling rejects its symlinked guide before application", async () => {
   const invalid = await fixture();
   writeFileSync(join(invalid.workspace, ".spindle/config.json"), "{");
   await ProjectSettingsService.refresh(invalid.app);
@@ -331,7 +350,7 @@ test("project initialization rejects invalid Project Settings and symlinked gene
   const outside = join(symlinked.workspace, "outside.md");
   writeFileSync(outside, "do not overwrite");
   symlinkSync(outside, join(symlinked.workspace, "docs/agents/tooling.md"));
-  await expect(symlinked.service.initialize()).rejects.toThrow(
+  expect(() => symlinked.tooling.prepare()).toThrow(
     "docs/agents/tooling.md must be a regular file",
   );
   expect(readFileSync(outside, "utf8")).toBe("do not overwrite");

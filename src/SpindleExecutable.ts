@@ -7,6 +7,7 @@ import { SettingsServiceProvider } from "@spindle/Settings/SettingsServiceProvid
 import { SubagentDrivenDevelopmentServiceProvider } from "@spindle/SubagentDrivenDevelopment/SubagentDrivenDevelopmentServiceProvider";
 import { TemplateRenderingServiceProvider } from "@spindle/TemplateRendering/TemplateRenderingServiceProvider";
 import { ToolingServiceProvider } from "@spindle/Tooling/ToolingServiceProvider";
+import { VsCodeIntegrationServiceProvider } from "@spindle/VsCodeIntegration/VsCodeIntegrationServiceProvider";
 
 export class SpindleExecutable {
   public static async run(
@@ -24,6 +25,7 @@ export class SpindleExecutable {
         ProjectServiceProvider,
         SettingsServiceProvider,
         ToolingServiceProvider,
+        VsCodeIntegrationServiceProvider,
         SubagentDrivenDevelopmentServiceProvider,
       ],
       output,

@@ -7,3 +7,7 @@ Blueprints, `spindle init` initializes project assets and creates
 [Blueprint installation and updates](../blueprints/overview.md) for the
 Blueprint setup order and [CLI workspace discovery](../cli/workspace.md) for
 the working-tree root behavior.
+
+[VS Code Integration](../vscode-integration/overview.md) optionally manages
+workspace settings during `spindle init` when previously enabled in Project
+Settings. Init flags and an interactive opt-in prompt are planned.

@@ -12,7 +12,7 @@ Use this skill to create or amend `docs/agents/constitution.md`. A ratified cons
 
 ## Workflow
 
-On entering each node, announce `Step <node path> - <label path>` before acting. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch.
+Before acting on each node, announce `Step <node ID> - <node label>`. Announce resumed steps and loop re-entries. After each decision, state its result and selected branch before entering the next node. Select the mode from the calling context before entering A.
 
 ```mermaid
 flowchart TD

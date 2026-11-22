@@ -13,6 +13,7 @@ import { join, relative } from "node:path";
 
 import { templateCatalog } from "@spindle/Assets/Templates/Catalog";
 import { Service } from "@spindle/Foundation/Service";
+import { PreparedProjectGuidance } from "@spindle/Project/Models/PreparedProjectGuidance";
 import {
   ProjectSettingsService,
   projectSettingsPath,
@@ -20,7 +21,8 @@ import {
 } from "@spindle/Settings/Services/ProjectSettingsService";
 import { ResolveRenderContext } from "@spindle/TemplateRendering/Computed/ResolveRenderContext";
 import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
-import { ToolingService } from "@spindle/Tooling/Services/ToolingService";
+
+export { PreparedProjectGuidance } from "@spindle/Project/Models/PreparedProjectGuidance";
 
 const copilotPath = ".github/copilot-instructions.md";
 const startMarker = "<!-- spindle:start -->";
@@ -42,18 +44,6 @@ export interface ProjectInitializationResult {
   updated: string[];
 }
 
-export interface PreparedProjectGuidance {
-  workspace: string;
-  settings: ProjectSettingsData;
-  directories: readonly string[];
-  files: {
-    destination: string;
-    content: string;
-    original: string | undefined;
-    createOnce: boolean;
-  }[];
-}
-
 export class ProjectService extends Service {
   public async prepare(
     settings: ProjectSettingsData,
@@ -72,10 +62,6 @@ export class ProjectService extends Service {
     const directories = mode === "init" ? initializationDirectories : updateDirectories;
     for (const directory of directories) this.validateDirectory(workspace, directory);
     this.assertRegularFileOrMissing(join(workspace, projectSettingsPath), projectSettingsPath);
-    this.assertRegularFileOrMissing(
-      join(workspace, "docs/agents/tooling.md"),
-      "docs/agents/tooling.md",
-    );
     const context = await ProjectSettingsService.withTemporaryState(
       this.app,
       { status: "valid", data: settings },
@@ -106,7 +92,7 @@ export class ProjectService extends Service {
             : rendered,
       };
     });
-    return { workspace, settings, directories, files };
+    return new PreparedProjectGuidance(workspace, settings, directories, files);
   }
 
   public async initialize(): Promise<ProjectInitializationResult> {
@@ -117,7 +103,7 @@ export class ProjectService extends Service {
 
   public async apply(prepared: PreparedProjectGuidance): Promise<ProjectInitializationResult> {
     this.assertApplicationBooted();
-    const { workspace, files, settings, directories } = prepared;
+    const { workspace, files, directories } = prepared;
     const created: string[] = [];
     const preserved: string[] = [];
     const updated: string[] = [];
@@ -150,9 +136,6 @@ export class ProjectService extends Service {
         }
         (stat ? updated : created).push(destination);
       }
-      const tooling = await (await this.app.make(ToolingService)).initialize(settings);
-      created.push(...tooling.created);
-      updated.push(...tooling.updated);
     } catch (error) {
       const completed = [...created, ...updated];
       throw new Error(

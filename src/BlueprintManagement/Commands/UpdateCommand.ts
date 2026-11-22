@@ -1,19 +1,21 @@
-import type { Command as CommanderCommand } from "commander";
-
 import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintLifecycleService } from "@spindle/BlueprintManagement/Services/BlueprintLifecycleService";
 import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
 import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@spindle/Commands/Command";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
-import { ProjectService } from "@spindle/Project/Services/ProjectService";
-import { projectSettingsSchema, ProjectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import {
+  projectSettingsSchema,
+  ProjectSettingsSchema,
+} from "@spindle/Settings/Models/ProjectSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
 } from "@spindle/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@spindle/Support/Stacks";
+import type { Command as CommanderCommand } from "commander";
 
 export interface UpdateResult {
   stacks: string[];
@@ -97,32 +99,18 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
       );
     }
 
-    const project = await this.app.make(ProjectService);
-    const guidance = await project.prepare(settings, "update");
-    const outcomes = await this.reconciliationService.reconcile(this.handlers, {
-      mode: "update",
-      settings,
-      persistSettings: true,
-      resolveContext: async () => ({
-        stacks: settings.stacks,
-        variables: {},
+    const lifecycle = await this.app.make(BlueprintLifecycleService);
+    const outcomes = await lifecycle.run("update", settings, () =>
+      this.reconciliationService.reconcile(this.handlers, {
+        mode: "update",
+        settings,
+        persistSettings: true,
+        resolveContext: async () => ({
+          stacks: settings.stacks,
+          variables: {},
+        }),
       }),
-    });
-    try {
-      await project.apply(guidance);
-    } catch (error) {
-      const completed = outcomes.filter(
-        (outcome) =>
-          outcome.status === "installed" ||
-          outcome.status === "updated" ||
-          outcome.status === "removed",
-      );
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)} Completed Blueprint changes: ${completed.map((outcome) => `${outcome.status} ${outcome.kind} '${outcome.name}'`).join(", ") || "none"}.`,
-        { cause: error },
-      );
-    }
-    await ProjectSettingsService.refresh(this.app);
+    );
     return { stacks: settings.stacks, outcomes, guidanceInitialized: true };
   }
 }

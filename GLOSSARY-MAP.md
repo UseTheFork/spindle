@@ -9,6 +9,8 @@
 - [Tooling](src/Tooling/GLOSSARY.md): registered tooling commands and their
   human-readable guide.
 - [Settings](src/Settings/GLOSSARY.md): Project Settings and their lifecycle.
+- [VS Code Integration](src/VsCodeIntegration/GLOSSARY.md): VS Code Workspace
+  Settings and Spindle-managed VS Code Settings.
 - [Subagent-driven development](src/SubagentDrivenDevelopment/GLOSSARY.md):
   features, tickets, assignments, findings, evidence, and delivery.
 - [SDD target workflow](docs/product/sdd/workflow.md): target design for the SDD rebuild:

@@ -3,6 +3,7 @@ import { Service } from "@spindle/Foundation/Service";
 import { commitSettingsSchema } from "@spindle/Settings/Models/CommitSettings";
 import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 import { sddSettingsSchema } from "@spindle/Settings/Models/SddSettings";
+import { vsCodeSettingsSchema } from "@spindle/Settings/Models/VsCodeSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
@@ -14,6 +15,7 @@ const keys = new Set([
   ...Object.keys(projectSettingsSchema.shape).filter((key) => key !== "$schema"),
   ...Object.keys(commitSettingsSchema.shape).map((field) => `commit.${field}`),
   ...Object.keys(sddSettingsSchema.shape).map((field) => `sdd.${field}`),
+  ...Object.keys(vsCodeSettingsSchema.shape).map((field) => `vscode.${field}`),
 ]);
 
 export interface SettingDescription {

@@ -5,7 +5,7 @@ argument-hint: "[spec.md path]"
 disable-model-invocation: true
 metadata:
   spindle:
-    version: 2.0.0
+    version: 2.1.1
 ---
 
 # Plan SDD Tickets and Tasks
@@ -13,6 +13,18 @@ metadata:
 Turn an approved spec into a work graph in its existing SDD feature workspace. This skill records the plan. It does not start implementation.
 
 Accept one optional path to the feature workspace's `spec.md`. If omitted, use the approved spec identified in the conversation. If the spec is missing, unapproved, or ambiguous, ask the user before planning.
+
+```mermaid
+flowchart TD
+    A[1. Confirm the feature] --> B[2. Draft the work graph]
+    B --> C{3. Plan approved?}
+    C -- Revise --> B
+    C -- Approved --> D[4. Record the approved plan]
+    D --> E{5. Recorded plan matches?}
+    E -- Mismatch --> D
+    E -- Matches --> F[6. Commit the work]
+    F --> G[7. Hand off]
+```
 
 ## 1. Confirm the feature
 
@@ -56,8 +68,22 @@ Use `sdd ticket update` or `sdd task update` for approved changes to existing it
 
 **Complete when:** the CLI has recorded every approved ticket, task, and dependency.
 
-## 5. Check the plan and hand off
+## 5. Check the plan
 
-Run the same `sdd next --verbose --json` command again. Compare the recorded graph with the approved plan. Check ticket Markdown and ledger entries for approved text and context that the graph does not show. Report the feature, ticket IDs, task IDs, and any mismatch. Do not execute the actions that `sdd next` suggests. If the plan matches, tell the user to invoke `/sdd-implement-spec` when ready to start implementation.
+Run the same `sdd next --verbose --json` command again. Compare the recorded graph with the approved plan. Check ticket Markdown and ledger entries for approved text and context that the graph does not show. Report the feature, ticket IDs, task IDs, and any mismatch. Do not execute the actions that `sdd next` suggests. If the plan does not match, return to step 4 to reconcile it through the CLI and check again before committing. Obtain user approval before changing the approved plan.
 
 **Complete when:** the recorded plan matches the approved plan, all IDs have been reported, and implementation has not started.
+
+## 6. Commit the work
+
+Follow the `public-ref-commit-format` skill for the commit message. Review the working tree and index in the original checkout. Stage only the ticket Markdown and feature ledger changes created by this workflow. If unrelated changes are already staged, ask the user how to proceed without including or unstaging them.
+
+Commit the work and verify that all approved tickets, tasks, and dependencies are committed. If they are already committed, do not create an empty commit. If the commit fails, report the error and stop before handoff.
+
+**Complete when:** the verified work graph is committed, with no unrelated changes included.
+
+## 7. Hand off
+
+Tell the user to select `sdd-orchestrator` as the active agent, then invoke `/sdd-implement-spec` with the feature when ready to start implementation. Do not invoke that skill automatically or start implementation.
+
+**Complete when:** the user has the committed feature's reference for implementation.

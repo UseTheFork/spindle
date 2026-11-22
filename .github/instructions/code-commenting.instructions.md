@@ -4,7 +4,7 @@ description: "Defines when you should and should NOT write code comments. Apply 
 applyTo: "**/*"
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 # Code Commenting Rules
@@ -20,17 +20,22 @@ Only when the **WHY** is non-obvious and a future reader would otherwise be conf
 - A workaround for a specific bug or spec quirk (e.g. "Safari 17 fires `focus` twice — debounce").
 - Focus on behavior that would surprise a competent reader.
 
-Keep it to **one line** wherever possible. Two lines max. Never a paragraph, never a multi-line block, never a docstring with sections.
+Keep explanatory comments to **one line** wherever possible, with a two-line maximum. For public API documentation, follow the project's PHPDoc, TSDoc, or other standard format when required. These docs can use multiple lines and standard tags when they add useful contract details.
 
 ## When a comment is NOT warranted (delete or skip)
 
-- Restating WHAT the code does ("// increment counter", "// loop through users") — well-named identifiers already do
-  that.
+- Repeating what clear names, signatures, types, or nearby code already state ("// increment counter", "// loop through users").
 - Narrating the change or its origin ("// added to fix bug #123", "// used by the X flow", "// previously called Y"). That belongs in the PR description and rots as the codebase evolves.
 - Section headers ("// === Helpers ===" , // --- Validation ---") inside a normal function body.
-- Restating type annotations or signatures.
 - TODO/FIXME without a tracked issue or owner — either fix it now or file it; don't leave drift markers.
 - Commented-out code. Delete it; git remembers.
+
+## Class and method documentation
+
+- Do not add a comment to every class or method. Document one only when its purpose or contract is not clear from its name, signature, types, and context, or when project conventions require public API documentation.
+- For a class, document its responsibility, important invariants, or lifecycle constraints when they are not clear from the code.
+- For a method, document non-obvious preconditions, side effects, error behavior, or guarantees when they are not clear from the code.
+- Do not paraphrase a class or method name or repeat its signature. Add only details that help a reader use or maintain it.
 
 ## How to apply
 

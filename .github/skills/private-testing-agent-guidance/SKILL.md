@@ -2,7 +2,7 @@
 name: private-testing-agent-guidance
 metadata:
   spindle:
-    version: 1.0.1
+    version: 1.0.2
 description: "This is a private skill do not load it unless explicitly required by the user or another skill."
 user-invocable: false
 ---
@@ -50,4 +50,4 @@ Always run expanded testing for authoring tasks. It adds independent samples and
 - Freeze prompts and criteria before the baseline so the retest remains comparable.
 - Separate scenarios into fresh contexts when one result could influence another.
 
-Use the `private-writing-for-agents` skill for document structure and context-pointer principles. This skill defines how to test the resulting guidance; it does not replace artifact-specific authoring requirements.
+Use the `private-ref-writing-for-agents` skill for document structure and context-pointer principles. This skill defines how to test the resulting guidance; it does not replace artifact-specific authoring requirements.

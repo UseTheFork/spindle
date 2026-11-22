@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/@use-the-fork/spindle@0.5.0/build/spindle.schema.json",
+  "$schema": "https://unpkg.com/@use-the-fork/spindle@0.6.2/build/spindle.schema.json",
   "stacks": [
     "typescript"
   ],
@@ -66,5 +66,8 @@
     "scopes_enabled": false,
     "allowed_scopes": [],
     "allow_breaking_changes": false
+  },
+  "vscode": {
+    "enabled": true
   }
 }

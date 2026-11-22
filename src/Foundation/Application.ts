@@ -7,7 +7,8 @@ import { ApplicationConfiguration } from "@spindle/Foundation/ApplicationConfigu
 import type { BootstrapperConstructor } from "@spindle/Foundation/Bootstrap/Bootstrapper";
 import { Container } from "@spindle/Foundation/Container";
 import { FoundationServiceProvider } from "@spindle/Foundation/FoundationServiceProvider";
-import type { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
+import type { ProjectLifecycleContext } from "@spindle/Foundation/ProjectLifecycleContext";
+import type { ProjectLifecycleHook, ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 import { GitServiceProvider } from "@spindle/Git/GitServiceProvider";
 
 export type { ServiceConstructor } from "@spindle/Foundation/Container";
@@ -132,6 +133,16 @@ export class Application extends Container {
       this._hasBeenBooted = true;
     });
     await this.bootPromise;
+  }
+
+  public async runProjectHooks(
+    hook: ProjectLifecycleHook,
+    context: ProjectLifecycleContext,
+  ): Promise<void> {
+    if (!this.hasBeenBooted) {
+      throw new Error("Project lifecycle hooks can only run after the application has booted.");
+    }
+    for (const provider of this.bootableProviders) await provider[hook](context);
   }
 
   private registerBaseBindings(): void {

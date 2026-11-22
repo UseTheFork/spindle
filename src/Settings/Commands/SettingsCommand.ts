@@ -13,7 +13,7 @@ export class SettingsCommand extends Command {
       .description("View or change project settings.")
       .addHelpText(
         "after",
-        "\nSaving settings regenerates selected Blueprints and overwrites their catalog paths.\n",
+        "\nSaving settings regenerates selected Blueprints and overwrites their catalog paths.\nEnabling vscode.enabled overwrites managed VS Code settings, the commit-message instruction array, and .github/copilot/commit-message-style.md.\n",
       )
       .allowExcessArguments(false)
       .action(async (_options: unknown, command: CommanderCommand) => {

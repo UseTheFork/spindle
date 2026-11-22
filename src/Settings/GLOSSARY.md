@@ -8,8 +8,8 @@ Template Rendering derives commit guidance from Project Settings.
 
 **Project Settings**:
 The `.spindle/config.json` file holding the project's selected Stacks, preferred
-Spindle package-manager command, registered tooling commands, and commit
-guidance settings.
+Spindle package-manager command, registered tooling commands, commit guidance
+settings, and VS Code integration opt-in.
 
 _Avoid_: Config
 
