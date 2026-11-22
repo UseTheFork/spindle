@@ -35,11 +35,19 @@ export interface ToolingInitializationResult {
 }
 
 export class ToolingService extends Service {
-  public async initialize(previous: ProjectSettingsData): Promise<ToolingInitializationResult> {
+  public prepare(): void {
     this.assertApplicationBooted();
+    this.assertRegularFileOrMissing(
+      this.app.workspacePath(projectSettingsPath),
+      projectSettingsPath,
+    );
+    this.assertRegularFileOrMissing(this.app.workspacePath(toolingPath), toolingPath);
+  }
+
+  public async initialize(previous: ProjectSettingsData): Promise<ToolingInitializationResult> {
+    this.prepare();
     const workspace = this.app.workspacePath();
     const settingsFile = join(workspace, projectSettingsPath);
-    this.assertRegularFileOrMissing(settingsFile, projectSettingsPath);
 
     const tooling = previous.tooling;
     const settings: ProjectSettingsData = {
@@ -49,7 +57,6 @@ export class ToolingService extends Service {
     };
 
     const documentFile = join(workspace, toolingPath);
-    this.assertRegularFileOrMissing(documentFile, toolingPath);
     const documentExisted = existsSync(documentFile);
     const original = readFileSync(settingsFile);
     const current = ProjectSettingsService.parse(original.toString("utf8"));

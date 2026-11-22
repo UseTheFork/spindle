@@ -1,25 +1,27 @@
-import type { Command as CommanderCommand } from "commander";
-
 import { BlueprintCommandOptions } from "@spindle/BlueprintManagement/Commands/BlueprintCommandOptions";
+import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
+import { BlueprintLifecycleService } from "@spindle/BlueprintManagement/Services/BlueprintLifecycleService";
+import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
 import { BlueprintPrompts } from "@spindle/BlueprintManagement/Support/BlueprintPrompts";
 import { ConflictPolicyParser } from "@spindle/BlueprintManagement/Support/ConflictPolicyParser";
-import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
-import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
 import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
 import type { ConflictPolicy } from "@spindle/BlueprintManagement/Types/Installation";
 import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@spindle/Commands/Command";
 import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
-import { ProjectService } from "@spindle/Project/Services/ProjectService";
 import { SettingsPrompts } from "@spindle/Settings/Commands/SettingsPrompts";
 import { defaultCommitSettings } from "@spindle/Settings/Models/CommitSettings";
-import { projectSettingsSchema, ProjectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
+import {
+  projectSettingsSchema,
+  ProjectSettingsSchema,
+} from "@spindle/Settings/Models/ProjectSettings";
 import {
   ProjectSettingsService,
   type ProjectSettingsData,
 } from "@spindle/Settings/Services/ProjectSettingsService";
 import { Stacks } from "@spindle/Support/Stacks";
+import type { Command as CommanderCommand } from "commander";
 
 export interface InitResult {
   stacks: string[];
@@ -66,8 +68,8 @@ export class InitCommand extends Command {
       .addHelpText(
         "after",
         `
-If Blueprint stacks are already configured, project guidance is initialized and
-\`spindle update\` is required to change the installed Blueprints.
+If Blueprint stacks are already configured, init exits without changing files.
+Run \`spindle update\` to refresh Blueprints, project guidance, and tooling documentation.
 Prompts are also disabled when stdin or stdout is not a terminal.
 Other commands: settings (see \`spindle settings --help\`), update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
@@ -160,9 +162,8 @@ Run \`spindle --version\` to print the installed version.
       throw new Error(existing.reason, { cause: existing.error });
     }
     if (existing.status === "valid" && existing.data.stacks.length > 0) {
-      await (await this.app.make(ProjectService)).initialize();
       throw new Error(
-        "Initialized project guidance and tooling documentation. This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
+        "This repository already has configured Blueprint stacks; run `spindle update` instead of `init`.",
       );
     }
 
@@ -202,27 +203,16 @@ Run \`spindle --version\` to print the installed version.
       spindle_package_manager: spindlePackageManager,
       commit,
     });
-    const project = await this.app.make(ProjectService);
-    const guidance = await project.prepare(settings);
-    const outcomes = await this.reconciliationService.reconcile(this.handlers, {
-      mode: "init",
-      context: { stacks, variables: {} },
-      settings,
-      conflictPolicy: policy,
-      chooseConflict: interactive ? BlueprintPrompts.promptConflict : undefined,
-    });
-    await ProjectSettingsService.refresh(this.app);
-    try {
-      await project.apply(guidance);
-    } catch (error) {
-      const completed = outcomes.filter(
-        (outcome) => outcome.status === "installed" || outcome.status === "removed",
-      );
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)} Completed Blueprint changes: ${completed.map((outcome) => `${outcome.status} ${outcome.kind} '${outcome.name}'`).join(", ") || "none"}.`,
-        { cause: error },
-      );
-    }
+    const lifecycle = await this.app.make(BlueprintLifecycleService);
+    const outcomes = await lifecycle.run("init", settings, () =>
+      this.reconciliationService.reconcile(this.handlers, {
+        mode: "init",
+        context: { stacks, variables: {} },
+        settings,
+        conflictPolicy: policy,
+        chooseConflict: interactive ? BlueprintPrompts.promptConflict : undefined,
+      }),
+    );
     return { stacks, outcomes, guidanceInitialized: true };
   }
 }

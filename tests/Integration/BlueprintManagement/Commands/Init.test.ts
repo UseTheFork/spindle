@@ -5,14 +5,13 @@ import { beforeEach, test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
-import { Chalk } from "chalk";
-
 import {
   runCliWithFixtureCatalog as runCli,
   runCliWithFixtureCatalogRaw as runCliRaw,
   runCliInteractiveWithFixtureCatalog as runCliInteractive,
 } from "@test/Helpers/Cli";
 import { makeTempDir } from "@test/Helpers/TemporaryDirectories";
+import { Chalk } from "chalk";
 
 let stubsDirectory: string;
 
@@ -358,10 +357,12 @@ test("init fails clearly and writes nothing when no stack is selected", async ()
   await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
 });
 
-test("init initializes project guidance for configured stacks before directing updates", async () => {
+test("init rejects configured stacks without restoring guidance or changing files", async () => {
   const { project, result: initial } = await runInit(["--stack", "python"]);
   expect(initial.status, initial.stderr).toBe(0);
   const originalConfig = await readFile(join(project, ".spindle/config.json"), "utf8");
+  const skillPath = join(project, ".github/skills/demo/SKILL.md");
+  const originalSkill = await readFile(skillPath, "utf8");
   await rm(join(project, "docs"), { recursive: true });
 
   const repeated = runCli(
@@ -373,8 +374,11 @@ test("init initializes project guidance for configured stacks before directing u
 
   expect(repeated.status).not.toBe(0);
   expect(repeated.stderr).toMatch(/already has configured Blueprint stacks.*spindle update/i);
-  expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).not.toBe("");
+  await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toMatchObject({
+    code: "ENOENT",
+  });
   expect(await readFile(join(project, ".spindle/config.json"), "utf8")).toBe(originalConfig);
+  expect(await readFile(skillPath, "utf8")).toBe(originalSkill);
 });
 
 test("init rejects unsupported stack ids with a clear error", async () => {
@@ -418,7 +422,7 @@ test(
     const outside = join(project, "outside");
     await mkdir(join(project, ".spindle"));
     await mkdir(outside);
-    const config = '{"stacks":["python"],"spindle_package_manager":"pnpm"}\n';
+    const config = '{"stacks":[],"spindle_package_manager":"pnpm"}\n';
     await writeFile(join(outside, "config.json"), config);
     await symlink(join(outside, "config.json"), join(project, ".spindle", "config.json"), "file");
     const result = runCli(
