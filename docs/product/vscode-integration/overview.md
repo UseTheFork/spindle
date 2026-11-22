@@ -1,7 +1,7 @@
 # VS Code Integration
 
-**Status:** Agreed design. The settings model, assets, and read-only preparation
-are implemented; workflow application, CLI flags, and prompts are pending.
+**Status:** The settings model, assets, and init/update lifecycle integration are
+implemented. Init CLI flags and the opt-in prompt are pending.
 
 VS Code Integration lets a project opt in to Spindle managing selected VS Code
 Workspace Settings and a commit-message guidance file. The context owns this
@@ -15,7 +15,7 @@ Settings. It defaults to `false`, including for existing projects without a
 `vscode` entry. Project Settings stores the opt-in, not copies of the managed
 VS Code setting values.
 
-`spindle init` supports these explicit choices:
+Planned init CLI choices:
 
 - `--vscode` enables management.
 - `--no-vscode` disables management.
@@ -24,13 +24,15 @@ VS Code setting values.
   integration?" with No selected by default. Non-interactive init defaults to
   disabled.
 
-Explicit flags take precedence over an existing choice and suppress the prompt.
+Explicit flags will take precedence over an existing choice and suppress the prompt.
 The opt-in prompt and CLI help must disclose that enabled management replaces
 managed setting values, the commit-message instruction array, and the entire
 commit-message guidance file.
 
 The settings workflow exposes `vscode.enabled`, including through
-`spindle settings set vscode.enabled true`.
+`spindle settings set vscode.enabled true`. Enabling it replaces managed setting
+values, the commit-message instruction array, and the entire commit-message
+guidance file.
 
 ## Managed assets
 
@@ -109,8 +111,14 @@ Do not fall back to an empty settings object when an existing file is invalid.
 The current `VsCodeIntegrationService.prepare` operation returns the workspace
 and prepared files with relative destinations, original content (or `undefined`
 for missing files), and proposed content. It performs no filesystem writes and
-does not persist Project Settings. Its provider can be registered explicitly;
-init, update, and settings do not yet invoke it.
+does not persist Project Settings. The registered provider invokes it for init,
+update, and settings changes.
+
+The provider prepares during the before-init and before-update hooks, and
+applies the same prepared outputs during the corresponding after-hooks. It
+checks for changes since preparation, writes changed files atomically, and
+reports completed changes if application fails. After-hook failures may occur
+after other lifecycle writes; rollback is not attempted.
 
 Preparation uses the shared rendering pipeline with the registered
 `commit_guidance` provider and the supplied Project Settings snapshot. It restores

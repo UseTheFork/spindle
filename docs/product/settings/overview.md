@@ -29,5 +29,7 @@ must be at least 11 characters (12 when breaking changes are enabled), so every
 supported type can fit. Existing configurations without `commit` use these
 defaults.
 
-The agreed [VS Code Integration design](../vscode-integration/overview.md)
-adds a default-disabled `vscode.enabled` choice to Project Settings.
+[VS Code Integration](../vscode-integration/overview.md) is controlled by the
+default-disabled `vscode.enabled` setting. Enabling it replaces managed VS Code
+settings, the commit-message instruction array, and the commit-message guidance
+file. Disabling it leaves those files unchanged.

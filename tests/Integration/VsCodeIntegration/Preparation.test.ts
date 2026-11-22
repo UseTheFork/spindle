@@ -1,4 +1,12 @@
-import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import { Application } from "@spindle/Foundation/Application";
@@ -211,6 +219,56 @@ test.each([settingsPath, guidancePath])(
     await expect(service.prepare(settings)).rejects.toThrow(`'${path}' must be a regular file.`);
   },
 );
+
+test("apply creates files, preserves permissions when updating, and skips unchanged content", async () => {
+  const { workspace, service, settings } = await fixture();
+  const first = await service.apply(await service.prepare(settings));
+  expect(first.created).toEqual([
+    ".vscode",
+    settingsPath,
+    ".github",
+    ".github/copilot",
+    guidancePath,
+  ]);
+  expect(first.updated).toEqual([]);
+  expect(first.preserved).toEqual([]);
+  const second = await service.apply(await service.prepare(settings));
+  expect(second).toEqual({ created: [], updated: [], preserved: [settingsPath, guidancePath] });
+  chmodSync(join(workspace, guidancePath), 0o640);
+  settings.commit.title_max_length = 40;
+  const third = await service.apply(await service.prepare(settings));
+  expect(third.updated).toEqual([guidancePath]);
+  expect(third.preserved).toEqual([settingsPath]);
+  expect(statSync(join(workspace, guidancePath)).mode & 0o777).toBe(0o640);
+  expect(readFileSync(join(workspace, guidancePath), "utf8")).toContain("at most 40 characters");
+});
+
+test.each([settingsPath, guidancePath])(
+  "apply refuses a changed %s before touching either prepared file",
+  async (path) => {
+    const { workspace, service, settings } = await fixture();
+    const initial = await service.prepare(settings);
+    await service.apply(initial);
+    const prepared = await service.prepare(settings);
+    writeFileSync(join(workspace, path), "external edit\n");
+    const other = path === settingsPath ? guidancePath : settingsPath;
+    const otherBefore = readFileSync(join(workspace, other), "utf8");
+    await expect(service.apply(prepared)).rejects.toThrow(
+      `'${path}' changed while preparing VS Code integration`,
+    );
+    expect(readFileSync(join(workspace, path), "utf8")).toBe("external edit\n");
+    expect(readFileSync(join(workspace, other), "utf8")).toBe(otherBefore);
+  },
+);
+
+test("apply rejects a destination directory replaced by a symlink after preparation", async () => {
+  const { workspace, service, settings } = await fixture();
+  const prepared = await service.prepare(settings);
+  const outside = makeTempDirSync("vscode-apply-outside-");
+  symlinkSync(outside, join(workspace, ".vscode"));
+  await expect(service.apply(prepared)).rejects.toThrow("must be a real directory");
+  expect(readdirSync(outside)).toEqual([]);
+});
 
 test.each([settingsPath, guidancePath])(
   "preparation rejects symlinked destination files without touching their targets: %s",
