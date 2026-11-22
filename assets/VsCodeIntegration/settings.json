@@ -1,7 +1,44 @@
 {
+  "chat.agentSessions.appearanceTools.enabled": false,
   "chat.subagents.allowInvocationsFromSubagents": true,
   "chat.editor.workingSet.enabled": false,
+  "chat.checkpoints.enabled": false,
+  "chat.instructionsFilesLocations": {
+    ".github/instructions": true
+  },
+  "chat.includeApplyingInstructions": true,
+  "chat.includeReferencedInstructions": true,
+  "chat.useNestedAgentsMdFiles": false,
+  "chat.useClaudeMdFile": false,
+  "chat.useAgentsMdFile": false,
+  "chat.useAgentSkills": true,
+  "chat.agentSkillsLocations": {
+    ".github/skills": true
+  },
   "chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+  "chat.tools.terminal.autoApprove": {
+    "rm": false,
+    "rmdir": false,
+    "del": false,
+    "kill": false,
+    "curl": false,
+    "wget": false,
+    "eval": false,
+    "chmod": false,
+    "chown": false,
+    "/^Remove-Item\\b/i": false
+  },
+  "chat.copilot.memory.enabled": false,
+  "chat.agentFilesLocations": {
+    ".github/agents": true
+  },
+  "notebook.experimental.generate": false,
+  "github.copilot.chat.setupTests.enabled": false,
+  "github.copilot.chat.cli.customAgents.enabled": true,
+  "github.copilot.chat.agent.autoFix": true,
+  "github.copilot.chat.claudeAgent.enabled": false,
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "github.copilot.chat.organizationInstructions.enabled": false,
   "github.copilot.chat.commitMessageGeneration.instructions": [
     {
       "file": ".github/copilot/commit-message-style.md"
