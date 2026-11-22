@@ -1,5 +1,11 @@
 # @usethefork/spindle
 
+## 0.7.0
+
+### Minor Changes
+
+- [#20](https://github.com/UseTheFork/spindle/pull/20) [`481cd2d`](https://github.com/UseTheFork/spindle/commit/481cd2d5b42b2f46ef0377338de86f92b45587eb) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add opt-in VS Code integration to manage workspace settings and generated commit-message guidance during initialization and updates.
+
 ## 0.6.2
 
 ### Patch Changes
