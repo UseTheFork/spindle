@@ -71,6 +71,9 @@ test("preparation creates both outputs in memory without creating files or persi
     "github.copilot.chat.commitMessageGeneration.instructions": [{ file: guidancePath }],
   });
   expect(prepared.files[1]!.content).toContain("Use Conventional Commits");
+  expect(prepared.files[1]!.content).toContain(
+    "Do not wrap the final commit message in triple-backtick code fences.",
+  );
   expect(prepared.files[1]!.content).toContain("at most 72 characters");
   expect(prepared.files[1]!.content).not.toContain("{{");
   expect(readdirSync(workspace, { recursive: true })).toEqual(before);
