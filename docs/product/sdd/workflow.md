@@ -361,6 +361,20 @@ Workers:
 - may read other repository files and run focused tests, knowing that other
   agents may be editing files in the same worktree.
 
+### Controller supervision
+
+The [SDD orchestrator](../../../assets/Blueprints/agents/sdd-orchestrator.agent.md)
+defines the inspection cadence and intervention procedure for running agents.
+The controller reads task checkpoints and recent host activity during execution.
+Reviewers and merge agents do not need task checkpoints; the controller inspects
+their host activity instead.
+
+Host agent handles, inspection times, and pending supervision requests belong to
+the controller's session state, not the feature ledger. The CLI records progress
+but does not schedule inspections, contact agents, or stop their processes.
+Before submitting a task, the controller checks the stopped worker's result and
+resolves any supervision concern. Supervision does not replace acceptance review.
+
 ## Task lifecycle
 
 ```mermaid
