@@ -7,7 +7,7 @@ tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skil
 agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.3.0
+    version: 2.3.1
 ---
 
 # SDD Orchestrator
@@ -53,7 +53,7 @@ Run all SDD commands from the original checkout. Invoke Spindle with `{{ compute
 
 ### C - Read next
 
-Run `{{ computed.spindle_package_manager }} spindle sdd next --feature <feature> --json`. Read the actions, notices, and blockers. Use `--verbose` when you need the work graph. If the command fails, report the error at G.
+Run the command in **Agent supervision**. Read the actions, notices, and blockers. Use `--verbose` when you need the work graph. If the command fails, report the error at G.
 
 ### D - What can proceed?
 
@@ -110,14 +110,13 @@ If the result leaves a blocker you cannot resolve, go to G.
 
 ### H - Inspect running agents
 
-Use the latest C response to read task checkpoints once for the feature, not once per agent.
-Inspect new host activity for each running agent. Read only activity since its previous inspection.
-For reviewers and merge agents, use host activity; do not require task checkpoints.
+Read `tickets[].tasks[].checkpoint` from the latest C response. Use only checkpoints that match the assigned attempt.
+Compare `recordedAt` with its previous value to identify new reports.
+A missing checkpoint means unknown progress, not proof that the agent stopped.
+Use host activity for reviewers, merge agents, or missing task progress. Read only new activity.
 
 Compare each task's current checkpoint with its assignment, requirements, and acceptance criteria.
 Check whether its reported approach and next action still serve the task. Record any concrete progress and inspection time.
-Do not treat a checkpoint from an earlier attempt as current progress.
-
 Start with reported files and recent activity. Read targeted diffs when you suspect incorrect edits or overlap.
 A shared worktree diff does not identify which agent made each edit. Ordinary task write scopes remain advisory.
 
@@ -162,39 +161,31 @@ Identify any agent that still runs or whose stop remains unconfirmed.
 
 ## Agent supervision
 
-Keep these facts in controller session state for each assignment:
+Track each assignment in controller session state:
 
 - The task ID and attempt, review ID and revision, or merge operation ID.
 - The exact assignment command, host agent handle, and assigned worktree.
-- The last checkpoint inspected, last host activity inspected, and last observed progress time.
+- The last checkpoint and host activity inspected, and last progress time.
 - Any unanswered request or unresolved concern.
 
-Initialize the progress time at dispatch. Update it when a new checkpoint or observable progress arrives, not merely after inspection.
+On resumption, reconcile CLI and host state. Do not redispatch work while the previous agent's state is unknown.
+Report a blocker if safe recovery is impossible. Keep host metadata out of workflow records.
 
-On resumption, reconcile these facts with the CLI state and host agent state.
-An InProgress task does not prove that its worker still runs. Do not redispatch when the previous agent's state is unknown.
-Report a blocker if you cannot recover enough information to supervise safely.
-Do not put host agent handles or inspection times in workflow records.
+While agents run, repeat C and H every 60 seconds, even when other workflow actions remain ready.
+Use one interval for all agents. Run this command once for the feature, not once per agent:
 
-Use one inspection deadline for all running agents:
+```sh
+{{ computed.spindle_package_manager }} spindle sdd next --feature <feature> --json
+```
 
-- When the running set becomes non-empty, set the deadline to 60 seconds later.
-- After H inspects the running set, set the next deadline to 60 seconds later.
-- Go to H when the deadline arrives, even if other workflow actions remain ready.
-- Inspect immediately when a checkpoint changes or the host reports a blocker, possible overlap, or contradictory activity.
-- Inspect affected agents before dispatching work that could interact with their worktrees or changes.
+Start the interval when the running set becomes non-empty. Reset it after H. Clear it when no agents run.
+Inspect early for new checkpoints, blockers, possible overlap, or contradictory activity. Inspect affected agents before interacting dispatches.
+Do not repeat early inspections for unchanged concerns or unanswered requests.
 
-Inspect once for each new checkpoint, concern, or interacting action.
-An unchanged concern or unanswered request does not trigger another immediate inspection before the deadline.
-Inspect or wait only while agents still run. Clear the deadline when the running set becomes empty.
-
-Use the host's bounded waits and incremental activity tools to meet this cadence.
-Use bounded or asynchronous execution for longer commands. Collect their results before dependent actions.
-Do not start a blocking wait or command that prevents the next inspection.
-
-After 3 minutes without a new checkpoint or observable progress, request a brief status update through J.
-Request it once for that period without progress. Record the request while awaiting a reply.
-Check whether a long-running operation explains the silence. Silence alone does not justify cancellation, retry, or a failure claim.
+Initialize progress time at dispatch. Update it only for a new checkpoint or observable progress.
+After 3 minutes without progress, request status once through J. Check whether a long-running operation explains the silence.
+Silence alone does not justify cancellation, retry, or a failure claim.
+Use bounded or asynchronous execution for long commands. Collect their results before dependent actions.
 
 # Operating Rules
 
