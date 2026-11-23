@@ -186,7 +186,9 @@ export class TaskDispatchService extends Service {
           : "Work in the assigned ticket worktree. The write scope is advisory; you may change other files when needed.",
         "You may read other files and run focused tests. Other workers may be editing files in the same worktree.",
         "After completing the task, send the controller a concise summary of changes and checks for the submission comment.",
-        "Do not change workflow records or run other SDD commands.",
+        merge
+          ? "Do not change workflow records or run other SDD commands."
+          : "Do not edit workflow records directly. Run only the assignment and task checkpoint SDD commands.",
         merge
           ? task.deliveryMerge
             ? `Merge the assigned original branch '${task.deliveryMerge.originalBranch}' with \`git merge --no-ff\`. Resolve only files in the write scope, create the merge commit, and do not move either branch.`
