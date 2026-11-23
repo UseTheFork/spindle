@@ -4,10 +4,48 @@ import { isAbsolute, resolve } from "node:path";
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
 import type { Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature";
+import {
+  taskCheckpointSchema,
+  type TaskCheckpointInput,
+} from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
 export class TaskDispatchService extends Service {
+  public async checkpoint(
+    reference: string,
+    taskId: string,
+    attempt: number,
+    input: TaskCheckpointInput,
+  ) {
+    this.assertApplicationBooted();
+    this.requireAttempt(attempt);
+    const workspace = await this.app.make(FeatureWorkspaceService);
+    return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
+      if (feature.pendingStart)
+        throw new Error("Resume the pending start before recording task checkpoints.");
+      const { ticket, task } = this.findTask(ledger.tickets, taskId);
+      this.requireActiveAssignment(task, attempt);
+      if (!ticket.worktree || ticket.merged) {
+        throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
+      }
+      const checkpoint = taskCheckpointSchema.parse({
+        ...input,
+        attempt,
+        recordedAt: new Date().toISOString(),
+      });
+      task.checkpoints ??= [];
+      task.checkpoints.push(checkpoint);
+      await publish(ledger);
+      return {
+        feature: feature.name,
+        ticket: ticket.id,
+        task: task.id,
+        checkpoint,
+      };
+    });
+  }
+
   public async dispatch(reference: string, taskId: string, stoppedAttempt?: number) {
     this.assertApplicationBooted();
     const workspace = await this.app.make(FeatureWorkspaceService);

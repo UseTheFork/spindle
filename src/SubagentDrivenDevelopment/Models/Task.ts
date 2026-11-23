@@ -14,8 +14,21 @@ const writePathSchema = z
       !/^[a-zA-Z]:/.test(path) &&
       !/[?*[\]{}]/.test(path) &&
       path.split("/").every((part) => part !== "" && part !== "." && part !== ".."),
-    "Write scope must contain repository-relative file paths, not directories or patterns.",
+    "Expected repository-relative file paths, not directories or patterns.",
   );
+
+export const taskCheckpointSchema = z.strictObject({
+  attempt: z.number().int().positive(),
+  recordedAt: z.iso.datetime(),
+  phase: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  next: z.string().trim().min(1),
+  blocker: z.string().trim().min(1).optional(),
+  filesChanged: z.array(writePathSchema).optional(),
+});
+
+export type TaskCheckpoint = z.output<typeof taskCheckpointSchema>;
+export type TaskCheckpointInput = Omit<TaskCheckpoint, "attempt" | "recordedAt">;
 
 export const taskSchema = z
   .strictObject({
@@ -34,6 +47,7 @@ export const taskSchema = z
       .optional(),
     state: z.enum(["Pending", "InProgress", "Done"]),
     attempt: z.number().int().nonnegative(),
+    checkpoints: z.array(taskCheckpointSchema).optional(),
   })
   .refine((task) => task.deliveryMerge !== undefined || task.writeScope.length > 0, {
     path: ["writeScope"],
@@ -56,6 +70,10 @@ export const taskSchema = z
   .refine((task) => task.submissionComment === undefined || task.state === "Done", {
     path: ["submissionComment"],
     message: "Submission comments can only be recorded for completed tasks.",
+  })
+  .refine((task) => task.checkpoints?.every(({ attempt }) => attempt <= task.attempt) ?? true, {
+    path: ["checkpoints"],
+    message: "Checkpoints must belong to an existing task attempt.",
   });
 
 export type Task = z.output<typeof taskSchema>;

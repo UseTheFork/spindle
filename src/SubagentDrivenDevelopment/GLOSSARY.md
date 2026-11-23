@@ -23,6 +23,14 @@ A unit of implementation within a ticket, defined by its instructions, planned
 write scope, and dependencies.
 _Avoid_: Subtask
 
+**Task attempt**:
+One dispatch of a task to a worker. A retry starts a new attempt of the same
+task.
+
+**Task checkpoint**:
+A worker's progress report for a particular task attempt, describing its current
+phase and intended next action. It is not approval, completion, or acceptance.
+
 **Work graph**:
 A feature's hierarchy of tickets and their tasks, connected by dependencies.
 

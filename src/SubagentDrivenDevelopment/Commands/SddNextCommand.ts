@@ -4,6 +4,7 @@ import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
+import type { TaskCheckpoint } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
@@ -34,6 +35,14 @@ export class SddNextCommand extends Command {
           );
           for (const task of ticket.tasks) {
             human.push(`  ${task.taskId}: ${SddNextCommand.describe(task.blockers)}`);
+            if (task.checkpoint) {
+              const checkpoint = task.checkpoint;
+              human.push(
+                `    Checkpoint (attempt ${checkpoint.attempt}, ${checkpoint.recordedAt}): ${checkpoint.phase} - ${checkpoint.summary}`,
+                `    Next: ${checkpoint.next}`,
+              );
+              if (checkpoint.blocker) human.push(`    Blocker: ${checkpoint.blocker}`);
+            }
           }
         }
         if (data.graph) human.push(JSON.stringify(data.graph, null, 2));
@@ -45,9 +54,25 @@ export class SddNextCommand extends Command {
     this.assertApplicationBooted();
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
     const { tickets: readiness } = (await this.app.make(WorkGraphService)).readiness(feature);
+    const tasksById = new Map(
+      feature.tickets.flatMap(({ tasks }) => tasks.map((task) => [task.id, task] as const)),
+    );
     const tickets: ((typeof readiness)[number] & {
       acceptance?: "Accepted" | "InAcceptance" | "Blocked";
-    })[] = readiness.map((ticket) => ({ ...ticket }));
+      tasks: ((typeof readiness)[number]["tasks"][number] & {
+        checkpoint?: TaskCheckpoint;
+      })[];
+    })[] = readiness.map((ticket) => ({
+      ...ticket,
+      tasks: ticket.tasks.map((task) => {
+        const record = tasksById.get(task.taskId);
+        const checkpoint =
+          record?.state === "InProgress"
+            ? record.checkpoints?.filter(({ attempt }) => attempt === record.attempt).at(-1)
+            : undefined;
+        return { ...task, ...(checkpoint ? { checkpoint } : {}) };
+      }),
+    }));
     const settings = ProjectSettingsService.current(this.app);
     const canStart = settings.status === "valid" && settings.data.sdd !== undefined;
     const actions: string[] = [];
@@ -231,13 +256,17 @@ export class SddNextCommand extends Command {
           dependencies,
           merged,
           worktree,
-          tasks: tasks.map(({ id, state, dependencies, writeScope, deliveryMerge }) => ({
-            id,
-            state,
-            dependencies,
-            writeScope,
-            ...(deliveryMerge ? { deliveryMerge } : {}),
-          })),
+          tasks: tasks.map(
+            ({ id, state, attempt, dependencies, writeScope, deliveryMerge, checkpoints }) => ({
+              id,
+              state,
+              attempt,
+              dependencies,
+              writeScope,
+              ...(deliveryMerge ? { deliveryMerge } : {}),
+              ...(checkpoints ? { checkpoints } : {}),
+            }),
+          ),
         }))
       : undefined;
     return {

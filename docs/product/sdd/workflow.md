@@ -161,10 +161,12 @@ The ledger stores workflow facts: the original branch, the feature branch and
 worktree path, each ticket's branch and worktree path, task states,
 dependencies, findings and their links, ticket work-round completion, reviews
 with their code revisions and recommendations, finding decisions and operation
-journals. Ticket state is derived from these facts; it is not stored
-separately. Only the controller changes the ledger, through the CLI. A
-workspace lock serializes ledger writes, and each write replaces the file
-atomically. Workers do not change workflow records. A task's optional
+journals. It also stores worker-reported task checkpoints.
+Ticket state is derived from workflow facts; it is not stored
+separately. Only the controller changes workflow state, through the CLI.
+Workers can record task checkpoints through the CLI without changing workflow
+state. A workspace lock serializes ledger writes, and each write replaces the
+file atomically. Workers do not edit workflow records directly. A task's optional
 submission comment is stored with that task in the ledger, not in the ticket's
 Markdown Comments section. A final-delivery merge may bring
 committed `.spindle/` files from the original branch into the feature branch;
@@ -349,8 +351,9 @@ Workers:
   change other files when needed. Merge-task agents must stay within their
   assigned scope;
 - do not commit, stage or run SDD commands other than the read-only
-  `assignment` command, except that an assigned merge agent may run Git merge,
-  stage conflict resolutions and create the assigned merge commit;
+  `assignment` command or `task checkpoint` for progress reports, except that an
+  assigned merge agent may run Git merge, stage conflict resolutions and create
+  the assigned merge commit;
 - a merge-operation agent runs the `assignment --merge` command from the
   original checkout, performs only the branch operations and cleanup in that
   assignment, and may run `merge record` as instructed. It does not edit
@@ -390,6 +393,49 @@ stateDiagram-v2
   the agent stops and the CLI verifies the submission.
 - An agent that stops without submitting leaves its files in place. The task
   can be dispatched again.
+
+### Task checkpoints
+
+`task checkpoint` appends a worker-reported progress record to an active task
+attempt. Run it from the original checkout:
+
+```sh
+pnpm spindle sdd task checkpoint \
+  --feature <feature> \
+  --task T-0002.3 \
+  --attempt 1 \
+  --phase implementing \
+  --summary "Added assignment validation" \
+  --next "Run focused dispatch tests" \
+  --files-changed src/Services/Dispatch.ts \
+  --json
+```
+
+`--phase`, `--summary`, and `--next` are required non-empty text. The phase is a
+descriptive label, not a workflow state. `--blocker` supplies optional non-empty
+text. Repeat `--files-changed` for each reported repository-relative file path.
+These paths are advisory and may be outside the task's planned write scope.
+The CLI does not verify that this worker changed those files.
+
+The CLI validates the current task attempt and adds `recordedAt`, a UTC
+timestamp, before publishing the checkpoint under the ledger's task record.
+Pending and Done tasks, stale attempts, and invalid input are rejected without
+recording a checkpoint. Existing feature records do not need a checkpoints field.
+Checkpoint history is append-only through this command and survives retries and
+task completion. Ticket Markdown comments are not changed.
+
+`next` includes the latest checkpoint for each InProgress task's current attempt
+in both human-readable and JSON output. In JSON, it appears at
+`tickets[].tasks[].checkpoint`. `next --verbose` also includes the task's attempt
+and complete checkpoint history at `graph[].tasks[].checkpoints`, including
+previous attempts and completed tasks. A retry does not display an old attempt's
+checkpoint as current progress.
+
+A checkpoint does not complete a task, unblock its dependencies, approve its
+approach, or create a review finding. A reported blocker does not change task
+readiness. Recording a checkpoint does not notify or wake the controller; the
+controller must read it. Agent checkpoint timing and intervention protocols are
+separate from this command's recording contract.
 
 ## Ticket lifecycle
 
