@@ -348,14 +348,44 @@ test("init overwrite policy removes files that are no longer in the Stub", async
   await expect(readFile(stalePath)).rejects.toThrow();
 });
 
-test("init fails clearly and writes nothing when no stack is selected", async () => {
-  const { project, result } = await runInit([]);
+test(
+  "interactive init allows no stack selection and updates Stack-independent Blueprints",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const project = await makeTempDir();
+    const result = await runCliInteractive(
+      project,
+      ["init", "--spindle-package-manager", "pnpm"],
+      process.env.PATH ?? "",
+      [
+        { trigger: "Which stacks does this project use?", input: "\r" },
+        { trigger: "Allow commit message bodies?", input: "\r" },
+        { trigger: "Maximum commit title length", input: "\r" },
+        { trigger: "Require commit scopes?", input: "\r" },
+        { trigger: "Allow breaking-change notation?", input: "\r" },
+      ],
+      { SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory },
+    );
 
-  expect(result.status).not.toBe(0);
-  expect(result.stderr).toMatch(/at least one --stack/i);
-  await expect(readFile(join(project, ".spindle/config.json"))).rejects.toThrow();
-  await expect(readFile(join(project, "docs/agents/domain.md"))).rejects.toThrow();
-});
+    expect(result.status, result.stdout).toBe(0);
+    expect(result.stdout).toContain("None / skip");
+    expect(result.stdout).toContain("Installed 1 skill(s) with no stacks selected");
+    expect(JSON.parse(await readFile(join(project, ".spindle/config.json"), "utf8"))).toMatchObject(
+      {
+        stacks: [],
+        spindle_package_manager: "pnpm",
+      },
+    );
+    expect(await readFile(join(project, "docs/agents/domain.md"), "utf8")).toContain(
+      "# Domain Docs",
+    );
+
+    const update = runCli(project, ["update"], process.env.PATH ?? "", {
+      SPINDLE_TEST_BLUEPRINTS_DIR: stubsDirectory,
+    });
+    expect(update.status, update.stderr).toBe(0);
+  },
+);
 
 test("init rejects configured stacks without restoring guidance or changing files", async () => {
   const { project, result: initial } = await runInit(["--stack", "python"]);

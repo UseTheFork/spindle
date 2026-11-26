@@ -70,6 +70,7 @@ export class InitCommand extends Command {
         `
 If Blueprint stacks are already configured, init exits without changing files.
 Run \`spindle update\` to refresh Blueprints, project guidance, and tooling documentation.
+In interactive mode, choose "None / skip" to initialize without stack-specific Blueprints.
 Prompts are also disabled when stdin or stdout is not a terminal.
 Other commands: settings (see \`spindle settings --help\`), update (see \`spindle update --help\`), tool (see \`spindle tool --help\`), sdd (see \`spindle sdd --help\`).
 Run \`spindle --version\` to print the installed version.
@@ -132,7 +133,7 @@ Run \`spindle --version\` to print the installed version.
               ...result.outcomes
                 .filter((outcome) => outcome.status === "removed")
                 .map((outcome) => `Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`),
-              `Installed ${counts("installed") || "0 Blueprints"} for ${result.stacks.join(", ")}${skipped ? `. Skipped ${skipped}` : ""}`,
+              `Installed ${counts("installed") || "0 Blueprints"} ${result.stacks.length ? `for ${result.stacks.join(", ")}` : "with no stacks selected"}${skipped ? `. Skipped ${skipped}` : ""}`,
               "Initialized project guidance and tooling documentation.",
             ],
             data: result,

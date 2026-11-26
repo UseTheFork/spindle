@@ -53,11 +53,6 @@ export class ProjectService extends Service {
     const state = ProjectSettingsService.parse(JSON.stringify(settings));
     if (state.status !== "valid")
       throw new Error(state.status === "invalid" ? state.reason : "Invalid Project Settings.");
-    if (settings.stacks.length === 0) {
-      throw new Error(
-        "Install at least one Blueprint stack with `spindle init` before initializing project guidance.",
-      );
-    }
     const workspace = realpathSync(this.app.workspacePath());
     const directories = mode === "init" ? initializationDirectories : updateDirectories;
     for (const directory of directories) this.validateDirectory(workspace, directory);

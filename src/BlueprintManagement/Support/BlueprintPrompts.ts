@@ -11,12 +11,19 @@ export class BlueprintPrompts {
   }
 
   public static async promptStacks(supported: readonly string[]): Promise<string[]> {
-    const answer = await multiselect({
+    const skip: unique symbol = Symbol("skip");
+    const answer = await multiselect<string | typeof skip>({
       message: "Which stacks does this project use?",
-      options: supported.map((value) => ({ value, label: value })),
-      required: true,
+      options: [
+        { value: skip, label: "None / skip" },
+        ...supported.map((value) => ({ value, label: value })),
+      ],
+      required: false,
     });
-    return BlueprintPrompts.ensureAnswer<string[]>(answer);
+    const selected = BlueprintPrompts.ensureAnswer<Array<string | typeof skip>>(answer);
+    return selected.includes(skip)
+      ? []
+      : selected.filter((value): value is string => value !== skip);
   }
 
   public static async promptSpindlePackageManager(): Promise<string> {

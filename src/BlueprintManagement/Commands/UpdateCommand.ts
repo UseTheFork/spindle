@@ -14,7 +14,6 @@ import {
   ProjectSettingsService,
   type ProjectSettingsData,
 } from "@spindle/Settings/Services/ProjectSettingsService";
-import { Stacks } from "@spindle/Support/Stacks";
 import type { Command as CommanderCommand } from "commander";
 
 export interface UpdateResult {
@@ -87,11 +86,6 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
       ...resolved.settings,
       $schema: ProjectSettingsSchema.schemaUrl(),
     });
-    if (settings.stacks.length === 0) {
-      throw new Error(
-        `No Blueprint stacks are configured. Run \`spindle init --stack <${Stacks.supported.join("|")}>\` first.`,
-      );
-    }
     const spindlePackageManager = settings.spindle_package_manager;
     if (spindlePackageManager === undefined) {
       throw new Error(
