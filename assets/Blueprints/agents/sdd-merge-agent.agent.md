@@ -1,7 +1,7 @@
 ---
 name: sdd-merge-agent
 description: "Use when the SDD controller assigns a ticket integration, feature finish, or delivery merge task."
-tools: [read, search, edit, execute, read_skill, list_skills, skill]
+tools: [read, search, edit, execute, read_skill, list_skills, skill, apply_patch]
 user-invocable: false
 agents: []
 metadata:

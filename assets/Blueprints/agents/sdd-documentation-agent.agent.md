@@ -1,7 +1,7 @@
 ---
 name: sdd-documentation-agent
 description: "Use when the SDD controller dispatches a feature documentation task or its acceptance fix."
-tools: [read, search, edit, execute, read_skill, list_skills, skill]
+tools: [read, search, edit, execute, read_skill, list_skills, skill, apply_patch]
 user-invocable: false
 agents: []
 metadata:

@@ -2,7 +2,7 @@
 name: General
 description: A general agent for answering questions and carrying out implementation tasks.
 user-invocable: true
-tools: [execute, read, agent, edit, search, todo, read_skill, list_skills, skill]
+tools: [execute, read, agent, edit, search, todo, read_skill, list_skills, skill, apply_patch]
 agents:
   [
     shared-r,

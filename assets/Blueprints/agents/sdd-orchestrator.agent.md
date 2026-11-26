@@ -3,7 +3,7 @@ name: sdd-orchestrator
 description: "Use when a controller starts or resumes an SDD feature through the Spindle CLI."
 argument-hint: The original checkout, feature workspace or approved plan, and permissions.
 user-invocable: true
-tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skill]
+tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skill, apply_patch]
 agents: [sdd-task-worker, sdd-documentation-agent, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
