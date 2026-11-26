@@ -3,6 +3,7 @@ import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Ca
 export const blueprintCatalog: BlueprintCatalogDefinition = {
   agents: {
     general: { path: "general.agent.md", stacks: [] },
+    "sdd-documentation-agent": { path: "sdd-documentation-agent.agent.md", stacks: [] },
     "sdd-merge-agent": { path: "sdd-merge-agent.agent.md", stacks: [] },
     "sdd-orchestrator": { path: "sdd-orchestrator.agent.md", stacks: [] },
     "sdd-reviewer": {

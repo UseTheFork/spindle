@@ -25,13 +25,16 @@ import {
 import type { Finding } from "@spindle/SubagentDrivenDevelopment/Models/Finding";
 import type { Task } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
 import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
 
 type NewWorkspace = Pick<Feature, "name" | "specification" | "design">;
-type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies">;
+type NewTicket = Pick<Ticket, "title" | "requirements" | "acceptanceCriteria" | "dependencies"> & {
+  documentation?: boolean;
+};
 type NewTask = Pick<Task, "instructions" | "writeScope" | "context" | "dependencies">;
 type NewDeliveryTask = NewTask &
   Pick<Task, "deliveryMerge"> & { deliveryMerge: NonNullable<Task["deliveryMerge"]> };
@@ -122,6 +125,13 @@ export class FeatureWorkspaceService extends Service {
   public async createTicket(reference: string, input: NewTicket) {
     this.assertApplicationBooted();
     return this.withLedger(reference, async (ledger, name, workspace) => {
+      if (input.documentation) {
+        await (
+          await this.app.make(DocumentationService)
+        ).assertCanCreate(await this.assemble(name, workspace, ledger));
+      } else if (ledger.tickets.some(({ documentation, merged }) => documentation && !merged)) {
+        throw new Error("Complete the active documentation ticket before creating other work.");
+      }
       return this.createTicketRecord(ledger, name, workspace, input);
     });
   }
@@ -346,6 +356,7 @@ export class FeatureWorkspaceService extends Service {
       workRoundCommits: [],
       merged: false,
       ...(options.delivery === undefined ? {} : { delivery: options.delivery }),
+      ...(input.documentation ? { documentation: {} } : {}),
     };
     const task = options.task === undefined ? undefined : this.appendTask(ticket, options.task);
     const next = featureLedgerSchema.parse({ ...ledger, tickets: [...ledger.tickets, ticket] });
@@ -362,6 +373,11 @@ export class FeatureWorkspaceService extends Service {
       const ticket = ledger.tickets.find(({ id }) => id === ticketId);
       if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
       if (ticket.merged) throw new Error(`Cannot add a task to merged ticket '${ticketId}'.`);
+      if (ticket.documentation && ticket.tasks.some(({ discoveredFrom }) => !discoveredFrom)) {
+        throw new Error(
+          "A documentation ticket has one initial task. Use finding fix for acceptance corrections.",
+        );
+      }
       if (
         ticket.delivery &&
         ticket.tasks.some(({ deliveryMerge, state }) => deliveryMerge && state !== "Done")

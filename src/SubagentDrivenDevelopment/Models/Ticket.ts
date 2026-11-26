@@ -14,6 +14,7 @@ export const ticketSchema = z.strictObject({
   branch: z.string().min(1).optional(),
   worktree: z.string().min(1).optional(),
   delivery: deliveryDetailsSchema.optional(),
+  documentation: z.strictObject({ baseCommit: z.string().min(1).optional() }).optional(),
   workRoundCommits: z.array(z.string().min(1)),
   committedTaskIds: z.array(taskIdSchema).optional(),
   merged: z.boolean(),

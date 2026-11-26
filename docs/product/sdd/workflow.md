@@ -8,16 +8,17 @@ or worktrees created by the current implementation.
 
 ## Concepts
 
-| Term         | Meaning                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Feature      | The complete unit of work, with a spec, a feature branch and one or more tickets.                                               |
-| Ticket       | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, acceptance review and integration. |
-| Task         | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.          |
-| Finding      | A recorded issue from a review. Review findings may be dismissed with a reason.                                                 |
-| Controller   | The single operator coordinating the feature through the SDD CLI.                                                               |
-| Worker       | An agent assigned to implement a task or carry out a merge operation.                                                           |
-| Reviewer     | An agent reviewing a ticket against its acceptance criteria, or the completed feature against the feature spec.                 |
-| Review round | One or more reviews of the same target at the same code revision.                                                               |
+| Term                | Meaning                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Feature             | The complete unit of work, with a spec, a feature branch and one or more tickets.                                               |
+| Ticket              | A coherent deliverable within a feature. It owns acceptance criteria, a branch and worktree, acceptance review and integration. |
+| Task                | A dispatchable unit of implementation within a ticket. It declares its instructions, file scope and task dependencies.          |
+| Finding             | A recorded issue from a review. Review findings may be dismissed with a reason.                                                 |
+| Controller          | The single operator coordinating the feature through the SDD CLI.                                                               |
+| Worker              | An agent assigned to implement a task or carry out a merge operation.                                                           |
+| Documentation agent | An agent that assesses documentation needs and implements assigned documentation updates for the feature.                       |
+| Reviewer            | An agent reviewing a ticket against its acceptance criteria, or the completed feature against the feature spec.                 |
+| Review round        | One or more reviews of the same target at the same code revision.                                                               |
 
 ## Design principles
 
@@ -54,6 +55,10 @@ or worktrees created by the current implementation.
    commands.
 9. **`next` is the only guide.** It lists all currently available actions with
    exact commands and explains why other work is blocked.
+10. **Documentation is a feature-level stage.** After implementation tickets
+    merge, one final task checks and updates documentation for the combined
+    feature. The documentation agent uses the ordinary task workflow before
+    final feature review. Individual ticket integrations do not run this task.
 
 ## Work graph
 
@@ -161,7 +166,11 @@ The ledger stores workflow facts: the original branch, the feature branch and
 worktree path, each ticket's branch and worktree path, task states,
 dependencies, findings and their links, ticket work-round completion, reviews
 with their code revisions and recommendations, finding decisions and operation
-journals. It also stores worker-reported task checkpoints.
+journals. It also stores worker-reported task checkpoints. A documentation
+ticket records the feature commit from which its worktree starts. The CLI
+derives coverage from that base, the completed task commits, and the resulting
+integration commit. It does not add assessment records or
+a separate documentation result lifecycle.
 Ticket state is derived from workflow facts; it is not stored
 separately. Only the controller changes workflow state, through the CLI.
 Workers can record task checkpoints through the CLI without changing workflow
@@ -571,6 +580,115 @@ flowchart TD
   the feature or ticket branches, so they do not affect merges or
   fast-forwards.
 
+## Feature documentation
+
+The CLI, documentation agent, and controller support this stage.
+
+The controller runs one documentation stage after all implementation tickets
+merge and before final feature review. It does not run the stage after each
+ticket integration. Ordinary implementation tasks still update directly
+related documentation.
+
+The dedicated `sdd-documentation-agent` checks and updates documentation in
+one ordinary task. Initially, it uses the `public-ref-domain-modeling` skill to assess
+terminology, context glossaries, glossary maps, and relevant architectural
+decisions. General repository documentation is not automatically in scope.
+Broader documentation responsibilities can be added later.
+
+### Stage workflow
+
+```mermaid
+flowchart TD
+    A["All implementation tickets merged"] --> B["Controller creates the final documentation ticket and task"]
+    B --> C["Dispatch the task to sdd-documentation-agent"]
+    C --> D["Check the combined feature and update documentation"]
+    D --> E{"Task result?"}
+    E -- DONE --> F["Normal task submission, ticket commit, acceptance review, and integration"]
+    F --> G["Continue to feature review or delivery"]
+    E -- BLOCKED or NEEDS_CONTEXT --> H["Controller resolves the blocker or missing input"]
+    H --> I["Confirm the worker stopped; retry through the normal task workflow"]
+    I --> C
+```
+
+### Task assignment and result
+
+The controller uses `ticket create --documentation` to identify the final
+documentation ticket. It adds one task with `task create`, including its
+instructions and planned write scope. The ticket starts
+from the feature branch tip after implementation work is integrated.
+
+`next` prints the ticket creation command when documentation is missing or
+stale. It guides task creation if the ticket has no tasks. Dispatch output and
+task assignments identify `sdd-documentation-agent` in the `agent` field.
+Assignments retain `role: "worker"` and include a `documentation` context.
+Acceptance corrections use the normal `finding fix` workflow.
+
+The controller supplies the original checkout and exact task assignment
+command. The assignment uses the ordinary worker contract, including:
+
+- Task ID, active attempt, and absolute ticket worktree path.
+- Task instructions, planned write scope, and ticket acceptance criteria.
+- Feature specification and approved design if one exists.
+- The feature commit being documented, combined change scope, and relevant
+  domain-documentation context.
+
+The documentation agent loads the domain-modeling skill and makes required
+updates in its ticket worktree. It follows ordinary worker rules for
+checkpoints, focused checks, preserving shared changes, and leaving work
+uncommitted. It does not edit the feature worktree directly or submit its own
+task.
+
+The agent returns the ordinary task result: `DONE`, `BLOCKED`, or
+`NEEDS_CONTEXT`, with changed files, observed checks, and unresolved problems.
+If no documentation changes are needed, it returns `DONE` with an explanation.
+No edits are required merely to prove that the task ran.
+
+If an update requires a domain or architectural decision, the agent stops
+and reports the required decision. The controller obtains the needed user
+approval before work continues.
+
+The controller submits the stopped worker's result with `task submit` and
+commits the ticket work with `ticket commit`. Independent reviewers perform
+ticket acceptance review. The merge agent integrates the accepted ticket.
+This same path handles a successful task with no file changes; do not
+fabricate documentation edits. The documentation agent does not accept its
+own updates.
+
+### Completion and later changes
+
+Only one final documentation task runs at a time. The CLI blocks other ticket
+creation and integration while the documentation ticket is active. Do not
+change the feature branch while this stage runs. If it changes unexpectedly,
+complete the existing ticket through the normal workflow. Its integration
+does not establish current coverage. Run a new final task for the changed
+feature.
+
+The documentation stage completes when the task is Done, its worker stopped,
+and its ticket passed acceptance review and merged. Its own integration
+establishes documentation coverage for the resulting feature commit. That
+integration must not immediately schedule another documentation task.
+
+Later fix tickets, delivery integrations, or other feature changes make that
+coverage stale. Run a new final documentation task for the changed feature,
+not for every earlier implementation ticket.
+
+`next` remains read-only. It identifies missing or stale documentation work
+and guides the controller through existing ticket creation, task dispatch,
+submission, review, and integration commands. It does not create work itself.
+There are no separate documentation assessment or submission commands.
+
+Feature review and `finish` require current documentation coverage. Ticket
+acceptance review remains available to complete the documentation ticket.
+The CLI derives coverage from the final documentation task, its ticket, and
+the feature commit covered by integration, not from conversation history.
+It does not load skills or perform the documentation work.
+
+`next --json` reports `documentation.state` as `Missing`, `InProgress`,
+`Current`, or `Stale`. Current coverage requires the feature tip to be the
+documentation integration commit. Its first parent must match the recorded
+feature base; its second parent must match the completed documentation commit.
+Later commits invalidate coverage even if their file contents do not change.
+
 ## Reviews and findings
 
 | Level             | Target                                                | Reviewed against           |
@@ -585,6 +703,10 @@ round**: one or more reviews of the same target at the same code revision. The
 controller decides how many reviewers to start and can give each one a focus,
 such as security, tests or a specific acceptance criterion. Reviewers in a
 round can run at the same time.
+
+A feature review round can start only after the
+[documentation stage](#feature-documentation) is complete for the current
+feature commit. This gate does not apply to ticket acceptance reviews.
 
 A review round passes when every review in it has a recorded result and no
 finding from it is open. If every reviewer finds nothing, the round passes
@@ -662,8 +784,9 @@ The CLI does not infer a fix task's write scope from review output.
 
 A ticket needs a new review round whenever its code revision changes. For the
 feature, the controller decides when another feature review round is needed;
-`finish` requires at least one passed round. When a review verifies a fix, its
-assignment includes the finding to verify. A delivery ticket's acceptance
+`finish` requires at least one passed round and current documentation
+completion. When a review verifies a fix, its assignment includes the finding
+to verify. A delivery ticket's acceptance
 review assesses its selected worktree against the ticket criteria; a feature
 review assesses the selected feature worktree against the feature spec. The
 reviewer returns its response to the controller; no review report file is
@@ -675,15 +798,17 @@ finding.
 
 ```mermaid
 flowchart TD
-    A["All tickets merged into feature branch"] --> B["Feature review round"]
+    A["All implementation tickets merged into feature branch"] --> DA[["Documentation stage"]]
+    DA --> B["Feature review round"]
     B --> C{"Open findings?"}
     C -->|"Yes"| D["Fix tickets: acceptance review, integrate"]
-    D --> B
+    D --> DA
     C -->|"No"| E{"Original branch tip already included?"}
     E -->|"No"| M["Create delivery ticket and dispatch merge task"]
     M --> N["Merge agent runs merge, resolves conflicts, commits and submits a comment"]
     N --> O["CLI verifies delivery merge; acceptance review, integrate"]
-    O --> P{"Controller requests another feature review?"}
+    O --> DD[["Documentation stage for the new feature commit"]]
+    DD --> P{"Controller requests another feature review?"}
     P -->|"Yes"| B
     P -->|"No"| I
     E -->|"Yes"| I["finish starts a merge assignment"]
@@ -694,15 +819,18 @@ flowchart TD
 
 - `finish` starts a journaled merge operation when all tickets are merged, no
   finding is open, the feature branch includes the original branch tip, and at
-  least one feature review round has passed. It returns an
+  least one feature review round has passed. The documentation stage must be
+  complete for the current feature commit. It returns an
   `assignment --merge <operation-id>` command.
 - If the feature branch does not include the original branch tip, the
   controller creates a delivery ticket from the feature branch tip. Its merge
   task goes to a specialized merge agent, which performs the merge itself.
   The CLI does not start the Git merge or create its merge commit.
 - The delivery ticket follows the normal acceptance review and integration
-  process. After integration, the controller decides whether to start another
-  feature review round before `finish`.
+  process. After integration, the controller completes the documentation stage
+  for the new feature commit. It then decides whether to start another feature
+  review round before `finish`. Documentation completion does not replace a
+  required review or change the policy for additional feature review rounds.
 - The final merge agent runs `git merge --ff-only <feature-branch>` in the
   original checkout. Before cleanup, `merge record` checks by branch name that
   the feature branch is included in the original branch and records that phase.
@@ -779,8 +907,10 @@ template does not enable implementation. `next` accepts a
 numbered workspace name or a directory under `.spindle/features/` in the
 original checkout. Set
 `sdd.worktree_directory` before starting worktrees. `next` offers `start`,
-`ticket start`, `dispatch`, ticket and feature review, delivery-ticket
-creation, `integrate`, and `finish` when available. `integrate` and `finish`
+`ticket start`, `dispatch`, documentation-stage actions, ticket and feature
+review, delivery-ticket creation, `integrate`, and `finish` when available.
+Documentation actions follow the contract in
+[Feature documentation](#feature-documentation). `integrate` and `finish`
 journal a merge operation and return a merge assignment. The merge agent
 performs the Git merge or fast-forward and cleanup; `merge record` verifies
 the branch relationship before cleanup and finalizes the ledger after cleanup.
@@ -789,8 +919,9 @@ the assignment or record command to resume it.
 
 The SDD orchestrator acts as the controller. It returns to `next` after each
 action or handoff. It uses the listed actions and notices to decide what to
-do, and sends CLI-generated assignments to the Task Worker, Reviewer, or
-Merge Agent. An empty action list does not mean the feature is complete.
+do, and sends CLI-generated assignments to the Task Worker, Documentation
+Agent, Reviewer, or Merge Agent. An empty action list does not mean the feature
+is complete.
 
 Start all reviewers in a ticket's round before submitting results. Do not
 add tasks while a review result is pending. A ticket
@@ -904,27 +1035,27 @@ A failed command writes one JSON object to stderr and exits with status `1`:
 `error.code` is stable and machine-readable. `error.message` explains the
 failure. `error.details` is optional and provides additional context.
 
-| Command                          | Purpose                                                                                                                                                                                                                   |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create`                         | Create a numbered feature workspace in the original checkout with spec and design templates and a new `sdd.json` ledger.                                                                                                  |
-| `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                       |
-| `ticket create`, `ticket update` | Create or edit tickets and dependencies. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
-| `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                            |
-| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup steps.                                                                         |
-| `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope, context and dependencies. Refuses unordered write conflicts.                                                                                                |
-| `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                  |
-| `next`                           | List ready actions and blocked items with reasons. `--verbose` adds the full graph and state.                                                                                                                             |
-| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                                                                              |
-| `task submit`                    | Record task completion with an optional comment, or verify a merge-task commit and record it as the work-round commit.                                                                                                    |
-| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                         |
-| `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                    |
-| `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                  |
-| `assignment`                     | Read-only: print a task assignment, review assignment, or merge operation assignment. Requires an absolute `--feature` path.                                                                                              |
-| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                                                                |
-| `integrate`                      | Journal a merge operation for an accepted ticket and return its merge assignment.                                                                                                                                         |
-| `merge record`                   | Verify the branch relationship before agent cleanup, then verify cleanup and record merge completion.                                                                                                                     |
-| `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                                                              |
-| `finish`                         | Journal a final merge operation and return its assignment to fast-forward the original branch to the feature branch.                                                                                                      |
+| Command                          | Purpose                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create`                         | Create a numbered feature workspace in the original checkout with spec and design templates and a new `sdd.json` ledger.                                                                                                                                                                      |
+| `start`                          | Record the original branch, create the feature branch and worktree, and record both in the ledger. Does not commit.                                                                                                                                                                           |
+| `ticket create`, `ticket update` | Create or edit tickets and dependencies. `create --documentation` identifies the final documentation ticket. Requirements and acceptance criteria can be edited only before the first task is dispatched; ticket title and dependencies can be edited until merge. A new ticket has no tasks. |
+| `ticket comment add`             | Append a note under a ticket's `## Comments` section without changing its requirements or acceptance criteria.                                                                                                                                                                                |
+| `ticket start`                   | Create a Ready ticket's branch and worktree from the feature branch tip, record both in the ledger, and return the worktree path and setup steps.                                                                                                                                             |
+| `task create`, `task update`     | Add tasks or edit a pending task's instructions, write scope, context and dependencies. Refuses unordered write conflicts.                                                                                                                                                                    |
+| `task remove`                    | Remove an undispatched task that has no dependent tasks.                                                                                                                                                                                                                                      |
+| `next`                           | List ready actions and blocked items with reasons, including documentation coverage and required final work. `--verbose` adds the full graph and state.                                                                                                                                       |
+| `dispatch`                       | Atomically mark a ready task in progress and return the attempt number and `assignment` command. Refuses tasks whose ticket has no worktree.                                                                                                                                                  |
+| `task submit`                    | Record task completion with an optional comment, or verify a merge-task commit and record it as the work-round commit.                                                                                                                                                                        |
+| `ticket commit`                  | Commit the combined ticket work for a completed task round; requires `--message`.                                                                                                                                                                                                             |
+| `review submit`                  | Record one review's recommendation and all its proposed findings in one ledger update.                                                                                                                                                                                                        |
+| `review`                         | Create one ticket-acceptance or feature review in the current round, with an optional focus, and return its ID and `assignment` command.                                                                                                                                                      |
+| `assignment`                     | Read-only: print a task assignment, review assignment, or merge operation assignment. Requires an absolute `--feature` path.                                                                                                                                                                  |
+| `finding`                        | `fix` (creates linked fix work) or `dismiss --reason` for review findings.                                                                                                                                                                                                                    |
+| `integrate`                      | Journal a merge operation for an accepted ticket and return its merge assignment.                                                                                                                                                                                                             |
+| `merge record`                   | Verify the branch relationship before agent cleanup, then verify cleanup and record merge completion.                                                                                                                                                                                         |
+| `delivery create`                | Create a delivery ticket whose merge task is scoped to the incoming original-branch changes.                                                                                                                                                                                                  |
+| `finish`                         | Require current documentation coverage and feature acceptance, then journal a final merge operation to fast-forward the original branch to the feature branch.                                                                                                                                |
 
 ## Recovery and safety
 

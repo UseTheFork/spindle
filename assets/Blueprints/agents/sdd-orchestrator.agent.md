@@ -4,10 +4,10 @@ description: "Use when a controller starts or resumes an SDD feature through the
 argument-hint: The original checkout, feature workspace or approved plan, and permissions.
 user-invocable: true
 tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skill]
-agents: [sdd-task-worker, sdd-merge-agent, sdd-reviewer]
+agents: [sdd-task-worker, sdd-documentation-agent, sdd-merge-agent, sdd-reviewer]
 metadata:
   spindle:
-    version: 2.3.1
+    version: 2.4.0
 ---
 
 # SDD Orchestrator
@@ -74,6 +74,7 @@ Hold interacting actions while a supervision concern remains unresolved. Choose 
 Run the selected command. For actions that need input, such as a commit message or a finding decision, supply it within the user's authorization.
 
 - After `ticket start`, complete the entries in `setupCommands` in order before dispatch. Follow entries prefixed with `Instruction:` as prose; do not pass them to a shell. Run unprefixed entries as shell commands in the ticket worktree. Ask the user if an instruction is unclear or requires authorization. Do not print or commit secret file contents. Stop dispatch for that ticket if any setup step fails or is blocked.
+- When `next` offers a documentation ticket, create it. When it calls for its task, create one task to check and update the combined feature's domain documentation. Supply task instructions and planned `--write-scope` paths based on the feature context. Read `next` again after integration or later feature changes. Create another documentation ticket only when `next` calls for one.
 - Commit combined ticket work only after all tasks are Done and their workers have stopped. Use the commit command and message required by the CLI.
 - Start all intended reviewers in a round before submitting any review result.
 - For each open finding, create linked fix work or dismiss it with a reason. Do not dispatch fix work while the ticket has a pending review.
@@ -84,11 +85,14 @@ Continue to C after the command succeeds. Keep any returned assignment for F. If
 
 Pass the original checkout path and the exact assignment command to the agent. Use the configured package-manager prefix. Do not rewrite the assignment. Select the agent by the assignment:
 
-| Assignment                                                 | Agent             |
-| ---------------------------------------------------------- | ----------------- |
-| Ordinary task or fix task                                  | `sdd-task-worker` |
-| Ticket acceptance or feature review                        | `sdd-reviewer`    |
-| Ticket integration, feature finish, or delivery merge task | `sdd-merge-agent` |
+| Assignment                                                 | Agent                     |
+| ---------------------------------------------------------- | ------------------------- |
+| Task or fix with `agent: sdd-documentation-agent`          | `sdd-documentation-agent` |
+| Other ordinary task or fix task                            | `sdd-task-worker`         |
+| Ticket acceptance or feature review                        | `sdd-reviewer`            |
+| Ticket integration, feature finish, or delivery merge task | `sdd-merge-agent`         |
+
+Use the assignment's `agent` field before its `worker` role to select a documentation agent. If the required agent is unavailable, report the blocker. Do not substitute another agent.
 
 Track each handoff as specified in **Agent supervision**. Do not wait indefinitely in F. Continue to C after dispatch.
 
@@ -100,6 +104,7 @@ Resolve any supervision concern before submitting a result. Task sanity checks d
 Then act on the result:
 
 - **Task:** Submit completed work with its current attempt and a summary. For a delivery merge task, let `task submit` verify the merge. If a worker stops without completing, leave its work in place. Retry only after you confirm the previous attempt stopped.
+- **Documentation task:** Accept a `DONE` result without edits when the agent explains why no updates are needed and required checks are accounted for. Submit it through the ordinary task workflow. If a domain or architectural decision is unresolved, obtain user approval before retrying. After confirming the agent stopped, use `dispatch --retry-stopped-attempt` with its current attempt. Send the approved decision to the agent separately. Do not change the new assignment command or the dispatched task instructions.
 - **Review:** Submit the recommendation and every proposed finding together. Decide each finding after submission. Do not submit a blocked review as a pass.
 - **Merge operation:** Follow the CLI's recorded phase. Do not permit cleanup before the first `merge record` succeeds.
 

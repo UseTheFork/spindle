@@ -70,7 +70,15 @@ target and the instructions or criteria relevant to that work.
 A worker assigned to merge branches as part of ticket integration or feature
 delivery.
 
+**Documentation agent**:
+An agent that assesses a feature's documentation needs and implements assigned
+documentation updates.
+
 ## Reviews and Delivery
+
+**Documentation stage**:
+One final documentation task that checks and updates documentation for the
+combined feature before feature review.
 
 **Review round**:
 One or more reviews of the same target at the same code revision.

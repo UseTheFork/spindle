@@ -8,6 +8,7 @@ import {
   taskCheckpointSchema,
   type TaskCheckpointInput,
 } from "@spindle/SubagentDrivenDevelopment/Models/Task";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
@@ -120,6 +121,7 @@ export class TaskDispatchService extends Service {
         task: task.id,
         attempt,
         assignmentCommand,
+        ...(ticket.documentation ? { agent: DocumentationService.agent } : {}),
       };
     });
   }
@@ -156,8 +158,12 @@ export class TaskDispatchService extends Service {
       throw new Error(`Delivery task '${task.id}' has no target branch.`);
     }
 
+    const documentation = ticket.documentation
+      ? await (await this.app.make(DocumentationService)).assignment(feature, ticket)
+      : undefined;
     return {
       role: merge ? "merge-agent" : "worker",
+      ...documentation,
       feature: feature.name,
       ticket: ticket.id,
       task: task.id,

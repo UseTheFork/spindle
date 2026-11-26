@@ -44,7 +44,12 @@ test("init renders shared operating rules for the agents that use them", async (
   expect(init.status, init.stderr).toBe(0);
 
   const agents = join(project, ".github", "agents");
-  const projectGuidanceAgents = new Set(["sdd-task-worker", "sdd-reviewer", "sdd-merge-agent"]);
+  const projectGuidanceAgents = new Set([
+    "sdd-task-worker",
+    "sdd-reviewer",
+    "sdd-merge-agent",
+    "sdd-documentation-agent",
+  ]);
   const guidanceHeading = "## Project Guidance";
   for (const [key, { path }] of Object.entries(assetCatalog.agents)) {
     const { content } = matter(await readFile(join(agents, path), "utf8"));
@@ -69,6 +74,26 @@ test("init renders shared operating rules for the agents that use them", async (
   const general = await readFile(join(agents, "general.agent.md"), "utf8");
   expect(general).toContain("## Delegation");
   expect(general).not.toMatch(/<\/?communication-style\b/);
+  const documentation = matter(
+    await readFile(join(agents, "sdd-documentation-agent.agent.md"), "utf8"),
+  );
+  expect(documentation.data).toMatchObject({
+    name: "sdd-documentation-agent",
+    "user-invocable": false,
+    agents: [],
+    metadata: { spindle: { version: "1.0.0" } },
+  });
+  expect(documentation.content).toContain("[sdd-task-worker.agent.md](sdd-task-worker.agent.md)");
+  expect(documentation.content).toContain("`public-ref-domain-modeling` skill");
+  expect(documentation.content).not.toMatch(/{{\s*computed\./);
+  const orchestrator = matter(await readFile(join(agents, "sdd-orchestrator.agent.md"), "utf8"));
+  expect(orchestrator.data.agents).toContain("sdd-documentation-agent");
+  expect(orchestrator.content).toContain(
+    "| Task or fix with `agent: sdd-documentation-agent`          | `sdd-documentation-agent` |",
+  );
+  expect(orchestrator.content).toContain("If the required agent is unavailable");
+  expect(orchestrator.content).toContain("Accept a `DONE` result without edits");
+  expect(orchestrator.content).toContain("Send the approved decision to the agent separately");
 });
 
 test("init renders the shipped SDD reviewer", async () => {
