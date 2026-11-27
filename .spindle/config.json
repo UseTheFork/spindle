@@ -1,6 +1,8 @@
 {
-  "$schema": "https://unpkg.com/@use-the-fork/spindle@0.6.2/build/spindle.schema.json",
-  "stacks": ["typescript"],
+  "$schema": "https://unpkg.com/@use-the-fork/spindle@0.7.0/build/spindle.schema.json",
+  "stacks": [
+    "typescript"
+  ],
   "spindle_package_manager": "pnpm",
   "tooling": [
     {
