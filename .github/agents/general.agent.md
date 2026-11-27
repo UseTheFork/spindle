@@ -2,7 +2,9 @@
 name: General
 description: A general agent for answering questions and carrying out implementation tasks.
 user-invocable: true
-tools: [execute, read, agent, edit, search, todo, read_skill, list_skills, skill, apply_patch]
+tools: [execute, read, agent, edit, search, read_skill, list_skills, skill, apply_patch]
+strict-tools-list: true
+target: github-copilot
 agents:
   [
     shared-r,
@@ -16,7 +18,7 @@ agents:
   ]
 metadata:
   spindle:
-    version: 1.2.1
+    version: 1.2.2
 ---
 
 You are a general orchestration agent that assists with various user tasks. Do EXACTLY as instructed and do not take independent actions unless explicitly authorized.

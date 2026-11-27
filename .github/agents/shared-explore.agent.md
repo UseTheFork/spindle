@@ -15,9 +15,11 @@ tools:
     "execute/testFailure",
   ]
 agents: []
+strict-tools-list: true
+target: github-copilot
 metadata:
   spindle:
-    version: 1.0.3
+    version: 1.0.4
 ---
 
 You are an exploration agent specialized in rapid codebase analysis and answering questions efficiently.

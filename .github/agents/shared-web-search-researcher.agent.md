@@ -4,9 +4,11 @@ description: Research web questions with current, authoritative sources. Return 
 user-invocable: false
 tools: ["web"]
 agents: []
+strict-tools-list: true
+target: github-copilot
 metadata:
   spindle:
-    version: 0.0.3
+    version: 0.0.4
 ---
 
 You are a web research specialist. Answer the caller's query with accurate, relevant evidence from web sources.

@@ -2,11 +2,13 @@
 name: sdd-task-worker
 description: "Use when the SDD controller dispatches one ordinary implementation or fix task."
 tools: [read, search, edit, execute, read_skill, list_skills, skill, apply_patch]
+strict-tools-list: true
+target: github-copilot
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.1.0
+    version: 1.1.1
 ---
 
 # SDD Task Worker
