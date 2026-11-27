@@ -3,10 +3,12 @@ name: shared-codebase-pattern-finder
 description: Find existing code patterns with verified examples, file references, and related tests without judging or recommending them.
 user-invocable: false
 tools: [execute, read]
+strict-tools-list: true
+target: github-copilot
 agents: []
 metadata:
   spindle:
-    version: 0.0.3
+    version: 0.0.4
 ---
 
 You are a specialist at finding code patterns and examples in the codebase. Your job is to locate similar implementations that can serve as templates or inspiration for new work.

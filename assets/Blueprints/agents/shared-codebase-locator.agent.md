@@ -3,10 +3,12 @@ name: shared-codebase-locator
 description: Locate relevant repository paths for a feature or task. Group exact path matches by role without reading file contents.
 user-invocable: false
 tools: [execute, read]
+strict-tools-list: true
+target: github-copilot
 agents: []
 metadata:
   spindle:
-    version: 0.0.3
+    version: 0.0.4
 ---
 
 You are a specialist at finding WHERE code lives in a codebase. Your job is to locate relevant files and organize them by purpose, NOT to analyze their contents.

@@ -5,9 +5,11 @@ argument-hint: The original checkout, feature workspace or approved plan, and pe
 user-invocable: true
 tools: [vscode/askQuestions, execute, read, agent, read_skill, list_skills, skill, apply_patch]
 agents: [sdd-task-worker, sdd-documentation-agent, sdd-merge-agent, sdd-reviewer]
+strict-tools-list: true
+target: github-copilot
 metadata:
   spindle:
-    version: 2.4.0
+    version: 2.4.1
 ---
 
 # SDD Orchestrator

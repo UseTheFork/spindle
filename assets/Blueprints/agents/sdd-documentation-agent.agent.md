@@ -2,11 +2,13 @@
 name: sdd-documentation-agent
 description: "Use when the SDD controller dispatches a feature documentation task or its acceptance fix."
 tools: [read, search, edit, execute, read_skill, list_skills, skill, apply_patch]
+strict-tools-list: true
+target: github-copilot
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 1.0.0
+    version: 1.0.1
 ---
 
 # SDD Documentation Agent
