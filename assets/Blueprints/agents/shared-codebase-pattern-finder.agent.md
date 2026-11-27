@@ -5,6 +5,9 @@ user-invocable: false
 tools: [execute, read]
 strict-tools-list: true
 target: github-copilot
+{% if computed.model_fast is defined %}
+model: {{ computed.model_fast }}
+{% endif %}
 agents: []
 metadata:
   spindle:

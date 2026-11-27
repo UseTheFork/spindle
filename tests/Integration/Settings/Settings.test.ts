@@ -45,6 +45,14 @@ test("init persists defaults and settings changes regenerate commit guidance", a
     allowed_scopes: [],
     allow_breaking_changes: false,
   });
+  expect(config.models).toEqual({
+    enabled: true,
+    profiles: {
+      fast: ["gemini-3.8-flash", "auto"],
+      balanced: ["gemini-3.8-flash", "auto"],
+      deep: ["gemini-3.8-flash", "auto"],
+    },
+  });
   expect(await readFile(skillPath, "utf8")).toContain("Use the title only");
   delete config.commit;
   delete config.tooling;
@@ -69,6 +77,20 @@ test("init persists defaults and settings changes regenerate commit guidance", a
         default: 72,
         description: expect.stringContaining("minimum is 11"),
         constraints: expect.objectContaining({ minimum: 11 }),
+      }),
+      expect.objectContaining({
+        key: "models.enabled",
+        type: "boolean",
+        default: true,
+      }),
+      expect.objectContaining({
+        key: "models.profiles",
+        type: "object",
+        default: {
+          fast: ["gemini-3.8-flash", "auto"],
+          balanced: ["gemini-3.8-flash", "auto"],
+          deep: ["gemini-3.8-flash", "auto"],
+        },
       }),
       expect.objectContaining({
         key: "sdd.worktree_directory",
@@ -96,6 +118,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
     ["commit.allow_body", "true"],
     ["commit.allow_breaking_changes", "true"],
     ["commit.title_max_length", "40"],
+    ["models.enabled", "false"],
   ]) {
     const result = run(["settings", "set", key!, value!]);
     expect(result.status, result.stderr).toBe(0);
@@ -128,6 +151,7 @@ test("init persists defaults and settings changes regenerate commit guidance", a
   const saved = JSON.parse(await readFile(configPath, "utf8"));
   expect(saved.extra).toEqual({ preserved: true });
   expect(saved.tooling).toEqual([]);
+  expect(saved.models.enabled).toBe(false);
   expect(saved.sdd).toEqual({
     worktree_directory: worktreeDirectory,
     setup_command: setupCommands,

@@ -5,6 +5,9 @@ tools: [execute, read]
 user-invocable: false
 strict-tools-list: true
 target: github-copilot
+{% if computed.model_deep is defined %}
+model: {{ computed.model_deep }}
+{% endif %}
 agents: []
 metadata:
   spindle:

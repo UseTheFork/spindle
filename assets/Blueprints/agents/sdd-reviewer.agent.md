@@ -4,6 +4,9 @@ description: "Use when the SDD controller assigns a ticket acceptance review or 
 tools: [read, search, execute, read_skill, list_skills, skill]
 strict-tools-list: true
 target: github-copilot
+{% if computed.model_deep is defined %}
+model: {{ computed.model_deep }}
+{% endif %}
 user-invocable: false
 agents: []
 metadata:

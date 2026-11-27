@@ -9,9 +9,14 @@ Template Rendering derives commit guidance from Project Settings.
 **Project Settings**:
 The `.spindle/config.json` file holding the project's selected Stacks, preferred
 Spindle package-manager command, registered tooling commands, commit guidance
-settings, and VS Code integration opt-in.
+settings, VS Code integration opt-in, and Model Profiles.
 
 _Avoid_: Config
+
+**Model Profile**:
+A named, workload-based, ordered list of preferred models that Spindle assigns
+to selected Agents. Users change a profile's models, not which Agents use it.
+_Avoid_: Tier, model tier
 
 **Commit settings**:
 Project Settings that control the Conventional Commits guidance rendered

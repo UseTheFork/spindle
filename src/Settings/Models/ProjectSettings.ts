@@ -4,6 +4,10 @@ import {
   commitSettingsSchema,
   defaultCommitSettings,
 } from "@spindle/Settings/Models/CommitSettings";
+import {
+  defaultModelsSettings,
+  modelsSettingsSchema,
+} from "@spindle/Settings/Models/ModelSettings";
 import { sddSettingsSchema } from "@spindle/Settings/Models/SddSettings";
 import {
   defaultVsCodeSettings,
@@ -59,6 +63,9 @@ export const projectSettingsSchema = z.looseObject({
     .default(defaultCommitSettings)
     .describe("Conventional Commit guidance settings."),
   sdd: sddSettingsSchema.optional().describe("Shared SDD worktree and setup settings."),
+  models: modelsSettingsSchema
+    .default(defaultModelsSettings)
+    .describe("Preferred model settings for Spindle-assigned Agent profiles."),
   vscode: vsCodeSettingsSchema
     .default(defaultVsCodeSettings)
     .describe("Opt-in VS Code integration settings."),

@@ -1,6 +1,7 @@
 import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
 import { Service } from "@spindle/Foundation/Service";
 import { commitSettingsSchema } from "@spindle/Settings/Models/CommitSettings";
+import { modelsSettingsSchema } from "@spindle/Settings/Models/ModelSettings";
 import { projectSettingsSchema } from "@spindle/Settings/Models/ProjectSettings";
 import { sddSettingsSchema } from "@spindle/Settings/Models/SddSettings";
 import { vsCodeSettingsSchema } from "@spindle/Settings/Models/VsCodeSettings";
@@ -15,6 +16,7 @@ const keys = new Set([
   ...Object.keys(projectSettingsSchema.shape).filter((key) => key !== "$schema"),
   ...Object.keys(commitSettingsSchema.shape).map((field) => `commit.${field}`),
   ...Object.keys(sddSettingsSchema.shape).map((field) => `sdd.${field}`),
+  ...Object.keys(modelsSettingsSchema.shape).map((field) => `models.${field}`),
   ...Object.keys(vsCodeSettingsSchema.shape).map((field) => `vscode.${field}`),
 ]);
 
