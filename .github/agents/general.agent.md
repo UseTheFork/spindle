@@ -2,7 +2,7 @@
 name: General
 description: A general agent for answering questions and carrying out implementation tasks.
 user-invocable: true
-tools: [execute, read, agent, edit, search, read_skill, list_skills, skill, apply_patch]
+tools: [execute, read, agent, edit, search, read_skill, list_skills, skill, apply_patch, web],
 strict-tools-list: true
 target: github-copilot
 agents:
