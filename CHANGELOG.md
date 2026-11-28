@@ -1,5 +1,19 @@
 # @usethefork/spindle
 
+## 0.8.0
+
+### Minor Changes
+
+- [#22](https://github.com/UseTheFork/spindle/pull/22) [`bcd85fd`](https://github.com/UseTheFork/spindle/commit/bcd85fdc160241d7fcc03b9ec118f61fba5a4031) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add opt-in automatic commits for `spindle update`, with a configurable commit message and safeguards for existing changes.
+
+- [#22](https://github.com/UseTheFork/spindle/pull/22) [`a7bff41`](https://github.com/UseTheFork/spindle/commit/a7bff4109094da70680c1c2f98e07d4404f4ba7d) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Require a final documentation ticket before SDD feature review and completion. Update bundled agents with revised research, delegation, and tool guidance.
+
+- [#22](https://github.com/UseTheFork/spindle/pull/22) [`1e2c5fc`](https://github.com/UseTheFork/spindle/commit/1e2c5fc764cd0c2de9b5099d64d892172ae4a1d2) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add enabled-by-default model profiles for selected agents, with configurable model lists and a global opt-out.
+
+- [#22](https://github.com/UseTheFork/spindle/pull/22) [`ba81227`](https://github.com/UseTheFork/spindle/commit/ba81227d00147446a896f9db49872b4a75a4c0a4) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Allow `spindle init` to initialize without selecting a Stack.
+
+- [#22](https://github.com/UseTheFork/spindle/pull/22) [`aa71954`](https://github.com/UseTheFork/spindle/commit/aa71954c2ee0d4ff9ee828cb282cd2cc90646068) Thanks [@UseTheFork](https://github.com/UseTheFork)! - Add `sdd task checkpoint` to record progress for active task attempts. Show the latest checkpoint in `sdd next` and preserve checkpoint history across retries. Update SDD worker and orchestrator guidance with required checkpoints, periodic supervision, and safer submission and retry checks.
+
 ## 0.7.0
 
 ### Minor Changes
