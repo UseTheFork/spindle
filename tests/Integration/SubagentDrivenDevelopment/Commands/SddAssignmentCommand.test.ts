@@ -40,7 +40,10 @@ test(
       context: ["docs/schema.md"],
       requirements: "Scope",
       acceptanceCriteria: "Done",
-      workerRules: expect.arrayContaining(["Do not stage or commit changes."]),
+      workerRules: expect.arrayContaining([
+        "Do not stage or commit changes.",
+        "Do not edit workflow records directly. Run only the assignment and task checkpoint SDD commands.",
+      ]),
     });
     expect(assigned).not.toHaveProperty("reportPath");
     expect(assigned).not.toHaveProperty("reportInstructions");

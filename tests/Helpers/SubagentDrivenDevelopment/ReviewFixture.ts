@@ -62,6 +62,57 @@ export async function reviewFixture() {
     git("-C", assignment.target.worktree, "branch", "-d", "--", assignment.source.branch);
     invoke("merge", "record", ...featureFlag, "--merge", started.operationId);
   };
+  const completeDocumentation = async () => {
+    const { ticket } = invoke(
+      "ticket",
+      "create",
+      ...featureFlag,
+      "--documentation",
+      "--title",
+      "Finalize domain documentation",
+      "--requirements",
+      "Check the combined feature domain documentation.",
+      "--acceptance-criteria",
+      "Update the documentation or explain why no changes are needed.",
+    );
+    const { task } = invoke(
+      "task",
+      "create",
+      ...featureFlag,
+      "--ticket",
+      ticket,
+      "--instructions",
+      "Load public-ref-domain-modeling and check the combined feature.",
+      "--write-scope",
+      "GLOSSARY.md",
+    );
+    invoke("ticket", "start", ...featureFlag, "--ticket", ticket);
+    invoke("dispatch", ...featureFlag, "--task", task);
+    invoke(
+      "task",
+      "submit",
+      ...featureFlag,
+      "--task",
+      task,
+      "--attempt",
+      "1",
+      "--comment",
+      "The domain documentation needs no changes.",
+    );
+    invoke(
+      "ticket",
+      "commit",
+      ...featureFlag,
+      "--ticket",
+      ticket,
+      "--message",
+      "Check domain docs",
+    );
+    const { review } = invoke("review", ...featureFlag, "--ticket", ticket);
+    submitReview(review, "pass");
+    integrateTicket(ticket);
+    return { ticket, task };
+  };
   return {
     ...fixture,
     worktree,
@@ -71,5 +122,6 @@ export async function reviewFixture() {
     submitReview,
     reportFinding,
     integrateTicket,
+    completeDocumentation,
   };
 }

@@ -5,8 +5,6 @@ import { test, expect, vi } from "vitest";
 
 vi.setConfig({ testTimeout: 30_000 });
 
-import matter from "gray-matter";
-
 import type { BlueprintCatalogDefinition } from "@spindle/BlueprintManagement/Catalog/BlueprintCatalogOperations";
 import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
@@ -17,11 +15,11 @@ import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettin
 import { ComputedContextService } from "@spindle/TemplateRendering/Computed/ComputedContextService";
 import { ComputedVariableProvider } from "@spindle/TemplateRendering/Computed/ComputedVariableProvider";
 import { RenderText } from "@spindle/TemplateRendering/Rendering/RenderText";
-
 import { applicationFixture } from "@test/Helpers/ApplicationFixture";
 import { writeCatalogFixture } from "@test/Helpers/CatalogFixtures";
-import { runCliWithCatalog } from "@test/Helpers/Cli";
+import { runCli, runCliWithCatalog } from "@test/Helpers/Cli";
 import { makeTempDir, repoRoot } from "@test/Helpers/TemporaryDirectories";
+import matter from "gray-matter";
 
 const description =
   "This is a private skill do not load it unless explicitly required by the user or another skill.";
@@ -153,6 +151,76 @@ test("init renders the computed namespace throughout Skills, Agents, and Instruc
       );
     }
     expect(JSON.stringify(config)).not.toMatch(/computed|private_skill_description/);
+  }
+});
+
+test("Agent model profiles render configured lists and disappear when disabled", async () => {
+  const project = await makeTempDir("spindle-agent-model-profiles-");
+  const configPath = join(project, ".spindle/config.json");
+  const agentsPath = join(project, ".github/agents");
+  const profileAssignments = {
+    "shared-codebase-locator.agent.md": "fast",
+    "shared-codebase-pattern-finder.agent.md": "fast",
+    "shared-explore.agent.md": "balanced",
+    "shared-web-search-researcher.agent.md": "balanced",
+    "sdd-task-worker.agent.md": "balanced",
+    "sdd-merge-agent.agent.md": "balanced",
+    "sdd-documentation-agent.agent.md": "balanced",
+    "shared-codebase-analyzer.agent.md": "deep",
+    "sdd-reviewer.agent.md": "deep",
+  } as const;
+  const unassignedAgents = [
+    "general.agent.md",
+    "sdd-orchestrator.agent.md",
+    "shared-r.agent.md",
+    "shared-rw.agent.md",
+    "shared-rwx.agent.md",
+  ];
+  const allAgentFiles = [...Object.keys(profileAssignments), ...unassignedAgents];
+  const readAgent = async (filename: string) =>
+    matter(await readFile(join(agentsPath, filename), "utf8")).data;
+
+  const initialized = runCli(
+    project,
+    ["init", "--stack", "typescript", "--spindle-package-manager", "pnpm"],
+    process.env.PATH ?? "",
+  );
+  expect(initialized.status, initialized.stderr).toBe(0);
+
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  expect(config.models).toEqual({
+    enabled: true,
+    profiles: {
+      fast: ["gemini-3.8-flash", "auto"],
+      balanced: ["gemini-3.8-flash", "auto"],
+      deep: ["gemini-3.8-flash", "auto"],
+    },
+  });
+  for (const [filename, profile] of Object.entries(profileAssignments)) {
+    expect((await readAgent(filename)).model).toEqual(config.models.profiles[profile]);
+  }
+  for (const filename of unassignedAgents) {
+    expect(Object.hasOwn(await readAgent(filename), "model")).toBe(false);
+  }
+
+  config.models.profiles = {
+    fast: ["custom-fast", "auto"],
+    balanced: ["custom-balanced", "auto"],
+    deep: ["custom-deep", "auto"],
+  };
+  await writeFile(configPath, JSON.stringify(config, null, 2));
+  const customized = runCli(project, ["update"], process.env.PATH ?? "");
+  expect(customized.status, customized.stderr).toBe(0);
+  for (const [filename, profile] of Object.entries(profileAssignments)) {
+    expect((await readAgent(filename)).model).toEqual(config.models.profiles[profile]);
+  }
+
+  config.models.enabled = false;
+  await writeFile(configPath, JSON.stringify(config, null, 2));
+  const disabled = runCli(project, ["update"], process.env.PATH ?? "");
+  expect(disabled.status, disabled.stderr).toBe(0);
+  for (const filename of allAgentFiles) {
+    expect(Object.hasOwn(await readAgent(filename), "model")).toBe(false);
   }
 });
 

@@ -7,6 +7,7 @@ import type { Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature"
 import type { FeatureLedger } from "@spindle/SubagentDrivenDevelopment/Models/FeatureLedger";
 import type { MergeOperation } from "@spindle/SubagentDrivenDevelopment/Models/MergeOperation";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
@@ -133,6 +134,13 @@ export class MergeOperationService extends Service {
     const ticket = ledger.tickets.find(({ id }) => id === ticketId);
     if (!ticket) throw new Error(`Unknown ticket '${ticketId}'.`);
     if (ticket.merged) throw new Error(`Ticket '${ticketId}' is already integrated.`);
+    if (
+      ledger.tickets.some(
+        ({ id, documentation, merged }) => id !== ticketId && documentation && !merged,
+      )
+    ) {
+      throw new Error("Complete the active documentation ticket before integrating other work.");
+    }
     if (!ticket.branch || !ticket.worktree || ticket.tasks.length === 0) {
       throw new Error(`Ticket '${ticket.id}' has no active worktree or completed tasks.`);
     }
@@ -190,6 +198,7 @@ export class MergeOperationService extends Service {
       throw new Error("Resolve all findings before finishing.");
     }
     const reviews = await this.app.make(SddReviewService);
+    await (await this.app.make(DocumentationService)).requireCurrent(feature);
     if (!reviews.hasPassedFeatureReview(feature)) {
       throw new Error("At least one feature review round must pass before finishing.");
     }

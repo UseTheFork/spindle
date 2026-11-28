@@ -1,15 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { expect, test } from "vitest";
-
 import { InitCommand } from "@spindle/BlueprintManagement/Commands/InitCommand";
 import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateCommand";
 import { Application } from "@spindle/Foundation/Application";
 import { LoadProjectSettings } from "@spindle/Foundation/Bootstrap/LoadProjectSettings";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
-
 import { serviceFixture } from "@test/Helpers/SubagentDrivenDevelopment/helpers";
+import { expect, test } from "vitest";
 
 test("configuration commands require a booted application", async () => {
   const app = new Application({ basePath: "/workspace" });
@@ -60,6 +58,53 @@ test("configuration accepts an empty stack list and an optional tooling registry
   ]);
 });
 
+test("update settings have opt-in defaults and accept a custom message", () => {
+  const defaults = ProjectSettingsService.parse('{"stacks":[]}');
+  expect(defaults.status).toBe("valid");
+  if (defaults.status !== "valid") throw new Error("Expected valid state");
+  expect(defaults.data.update).toEqual({
+    auto_commit: false,
+    commit_message: "chore: update spindle",
+  });
+  const custom = ProjectSettingsService.parse(
+    JSON.stringify({ stacks: [], update: { auto_commit: true, commit_message: "refresh" } }),
+  );
+  expect(custom.status).toBe("valid");
+  if (custom.status !== "valid") throw new Error("Expected valid state");
+  expect(custom.data.update).toEqual({ auto_commit: true, commit_message: "refresh" });
+});
+
+test("model profiles default to enabled ordered lists and accept profile overrides", () => {
+  const defaults = ProjectSettingsService.parse('{"stacks":[]}');
+  expect(defaults.status).toBe("valid");
+  if (defaults.status !== "valid") throw new Error("Expected valid state");
+  expect(defaults.data.models).toEqual({
+    enabled: true,
+    profiles: {
+      fast: ["gemini-3.8-flash", "auto"],
+      balanced: ["gemini-3.8-flash", "auto"],
+      deep: ["gemini-3.8-flash", "auto"],
+    },
+  });
+
+  const overridden = ProjectSettingsService.parse(
+    JSON.stringify({
+      stacks: [],
+      models: { enabled: false, profiles: { fast: ["custom-fast", "auto"] } },
+    }),
+  );
+  expect(overridden.status).toBe("valid");
+  if (overridden.status !== "valid") throw new Error("Expected valid state");
+  expect(overridden.data.models).toEqual({
+    enabled: false,
+    profiles: {
+      fast: ["custom-fast", "auto"],
+      balanced: ["gemini-3.8-flash", "auto"],
+      deep: ["gemini-3.8-flash", "auto"],
+    },
+  });
+});
+
 test("partial commit settings resolve defaults and preserve unknown nested fields", () => {
   const state = ProjectSettingsService.parse(
     JSON.stringify({ stacks: [], commit: { allow_body: true, extension: "kept" } }),
@@ -92,6 +137,12 @@ test.each([
   { stacks: [1], variables: {} },
   { stacks: ["python"], spindle_package_manager: "" },
   { stacks: ["python"], spindle_package_manager: "pnpm\nrun" },
+  { stacks: [], models: { profiles: { fast: [] } } },
+  { stacks: [], models: { profiles: { fast: [""] } } },
+  { stacks: [], update: { commit_message: "  " } },
+  { stacks: [], update: { commit_message: "line\nline" } },
+  { stacks: [], update: { commit_message: "bad\0message" } },
+  { stacks: [], update: { auto_commit: "true" } },
   {
     stacks: [],
     variables: {},

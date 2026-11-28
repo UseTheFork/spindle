@@ -3,6 +3,7 @@ import { UpdateCommand } from "@spindle/BlueprintManagement/Commands/UpdateComma
 import { BlueprintLifecycleService } from "@spindle/BlueprintManagement/Services/BlueprintLifecycleService";
 import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
 import { InstallationService } from "@spindle/BlueprintManagement/Services/InstallationService";
+import { UpdateAutoCommitService } from "@spindle/BlueprintManagement/Services/UpdateAutoCommitService";
 import type { CommandConstructor } from "@spindle/Commands/Command";
 import { ServiceProvider } from "@spindle/Foundation/ServiceProvider";
 
@@ -15,6 +16,7 @@ export class BlueprintManagementServiceProvider extends ServiceProvider {
     this.app.singleton(BlueprintLifecycleService);
     this.app.singleton(BlueprintReconciliationService);
     this.app.singleton(InstallationService);
+    this.app.singleton(UpdateAutoCommitService);
   }
 
   public async boot(): Promise<void> {}

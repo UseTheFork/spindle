@@ -356,14 +356,15 @@ test("Project rejects invalid settings and Tooling rejects its symlinked guide b
   expect(readFileSync(outside, "utf8")).toBe("do not overwrite");
 });
 
-test("project initialization requires an installed Blueprint stack", async () => {
+test("project initialization creates guidance without an installed Blueprint stack", async () => {
   const { workspace, service, app } = await fixture();
   writeFileSync(
     join(workspace, ".spindle/config.json"),
-    JSON.stringify({ stacks: [], variables: {} }),
+    JSON.stringify({ stacks: [], spindle_package_manager: "pnpm", variables: {} }),
   );
   await ProjectSettingsService.refresh(app);
 
-  await expect(service.initialize()).rejects.toThrow(/Install at least one Blueprint stack/);
-  expect(readdirSync(workspace)).toEqual([".github", ".spindle"]);
+  const result = await service.initialize();
+  expect(result.created).toContain("docs/agents/domain.md");
+  expect(readFileSync(join(workspace, "docs/agents/domain.md"), "utf8")).toContain("# Domain Docs");
 });

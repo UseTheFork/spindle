@@ -4,10 +4,49 @@ import { isAbsolute, resolve } from "node:path";
 import { Service } from "@spindle/Foundation/Service";
 import { GitService } from "@spindle/Git/Services/GitService";
 import type { Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature";
+import {
+  taskCheckpointSchema,
+  type TaskCheckpointInput,
+} from "@spindle/SubagentDrivenDevelopment/Models/Task";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
 
 export class TaskDispatchService extends Service {
+  public async checkpoint(
+    reference: string,
+    taskId: string,
+    attempt: number,
+    input: TaskCheckpointInput,
+  ) {
+    this.assertApplicationBooted();
+    this.requireAttempt(attempt);
+    const workspace = await this.app.make(FeatureWorkspaceService);
+    return workspace.withLedgerTransaction(reference, async (feature, ledger, publish) => {
+      if (feature.pendingStart)
+        throw new Error("Resume the pending start before recording task checkpoints.");
+      const { ticket, task } = this.findTask(ledger.tickets, taskId);
+      this.requireActiveAssignment(task, attempt);
+      if (!ticket.worktree || ticket.merged) {
+        throw new Error(`Ticket '${ticket.id}' has no active worktree.`);
+      }
+      const checkpoint = taskCheckpointSchema.parse({
+        ...input,
+        attempt,
+        recordedAt: new Date().toISOString(),
+      });
+      task.checkpoints ??= [];
+      task.checkpoints.push(checkpoint);
+      await publish(ledger);
+      return {
+        feature: feature.name,
+        ticket: ticket.id,
+        task: task.id,
+        checkpoint,
+      };
+    });
+  }
+
   public async dispatch(reference: string, taskId: string, stoppedAttempt?: number) {
     this.assertApplicationBooted();
     const workspace = await this.app.make(FeatureWorkspaceService);
@@ -82,6 +121,7 @@ export class TaskDispatchService extends Service {
         task: task.id,
         attempt,
         assignmentCommand,
+        ...(ticket.documentation ? { agent: DocumentationService.agent } : {}),
       };
     });
   }
@@ -118,8 +158,12 @@ export class TaskDispatchService extends Service {
       throw new Error(`Delivery task '${task.id}' has no target branch.`);
     }
 
+    const documentation = ticket.documentation
+      ? await (await this.app.make(DocumentationService)).assignment(feature, ticket)
+      : undefined;
     return {
       role: merge ? "merge-agent" : "worker",
+      ...documentation,
       feature: feature.name,
       ticket: ticket.id,
       task: task.id,
@@ -148,7 +192,9 @@ export class TaskDispatchService extends Service {
           : "Work in the assigned ticket worktree. The write scope is advisory; you may change other files when needed.",
         "You may read other files and run focused tests. Other workers may be editing files in the same worktree.",
         "After completing the task, send the controller a concise summary of changes and checks for the submission comment.",
-        "Do not change workflow records or run other SDD commands.",
+        merge
+          ? "Do not change workflow records or run other SDD commands."
+          : "Do not edit workflow records directly. Run only the assignment and task checkpoint SDD commands.",
         merge
           ? task.deliveryMerge
             ? `Merge the assigned original branch '${task.deliveryMerge.originalBranch}' with \`git merge --no-ff\`. Resolve only files in the write scope, create the merge commit, and do not move either branch.`

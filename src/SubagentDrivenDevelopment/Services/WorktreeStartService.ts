@@ -45,6 +45,12 @@ export class WorktreeStartService extends Service {
           if (!ledger.featureBranch || !ledger.featureWorktree)
             throw new Error("Start the feature first.");
           if (
+            ticket.documentation &&
+            ledger.tickets.some(({ id, merged }) => id !== ticket.id && !merged)
+          ) {
+            throw new Error("Integrate all other tickets before starting documentation work.");
+          }
+          if (
             ticket.delivery &&
             (ticket.delivery.originalBranch !== ledger.originalBranch ||
               ticket.delivery.baseCommit !==
@@ -124,6 +130,7 @@ export class WorktreeStartService extends Service {
       } else if (ticket) {
         ticket.branch = plan.branch;
         ticket.worktree = plan.worktree;
+        if (ticket.documentation) ticket.documentation.baseCommit = plan.commit;
         if (ticket.delivery && ticket.delivery.baseCommit !== plan.commit) {
           throw new Error(
             `Delivery ticket '${ticket.id}' started from a different feature commit.`,

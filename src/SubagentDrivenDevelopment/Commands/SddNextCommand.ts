@@ -4,7 +4,12 @@ import type { Application } from "@spindle/Foundation/Application";
 import { ConsoleOutputService } from "@spindle/Foundation/ConsoleOutputService";
 import { ProjectSettingsService } from "@spindle/Settings/Services/ProjectSettingsService";
 import { SddCommandGroup } from "@spindle/SubagentDrivenDevelopment/Commands/SddCommandGroup";
+import type { TaskCheckpoint } from "@spindle/SubagentDrivenDevelopment/Models/Task";
 import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import {
+  DocumentationService,
+  type DocumentationStatus,
+} from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
 import { WorkGraphService } from "@spindle/SubagentDrivenDevelopment/Services/WorkGraphService";
@@ -26,6 +31,7 @@ export class SddNextCommand extends Command {
         const app = await createApp();
         const data = await (await app.make(SddNextCommand)).run(feature, verbose);
         const human = [`Feature ${data.feature}`, ...data.notices];
+        if (data.documentation) human.push(`Documentation: ${data.documentation.state}`);
         if (data.featureReview) human.push(`Feature review: ${data.featureReview.state}`);
         if (data.actions.length > 0) human.push("Available actions:", ...data.actions);
         for (const ticket of data.tickets) {
@@ -34,6 +40,14 @@ export class SddNextCommand extends Command {
           );
           for (const task of ticket.tasks) {
             human.push(`  ${task.taskId}: ${SddNextCommand.describe(task.blockers)}`);
+            if (task.checkpoint) {
+              const checkpoint = task.checkpoint;
+              human.push(
+                `    Checkpoint (attempt ${checkpoint.attempt}, ${checkpoint.recordedAt}): ${checkpoint.phase} - ${checkpoint.summary}`,
+                `    Next: ${checkpoint.next}`,
+              );
+              if (checkpoint.blocker) human.push(`    Blocker: ${checkpoint.blocker}`);
+            }
           }
         }
         if (data.graph) human.push(JSON.stringify(data.graph, null, 2));
@@ -45,9 +59,32 @@ export class SddNextCommand extends Command {
     this.assertApplicationBooted();
     const feature = await (await this.app.make(FeatureWorkspaceService)).load(reference);
     const { tickets: readiness } = (await this.app.make(WorkGraphService)).readiness(feature);
+    const tasksById = new Map(
+      feature.tickets.flatMap(({ tasks }) => tasks.map((task) => [task.id, task] as const)),
+    );
     const tickets: ((typeof readiness)[number] & {
       acceptance?: "Accepted" | "InAcceptance" | "Blocked";
-    })[] = readiness.map((ticket) => ({ ...ticket }));
+      tasks: ((typeof readiness)[number]["tasks"][number] & {
+        checkpoint?: TaskCheckpoint;
+        agent?: string;
+      })[];
+    })[] = readiness.map((ticket) => ({
+      ...ticket,
+      tasks: ticket.tasks.map((task) => {
+        const record = tasksById.get(task.taskId);
+        const checkpoint =
+          record?.state === "InProgress"
+            ? record.checkpoints?.filter(({ attempt }) => attempt === record.attempt).at(-1)
+            : undefined;
+        return {
+          ...task,
+          ...(checkpoint ? { checkpoint } : {}),
+          ...(feature.tickets.find(({ id }) => id === ticket.ticketId)?.documentation
+            ? { agent: DocumentationService.agent }
+            : {}),
+        };
+      }),
+    }));
     const settings = ProjectSettingsService.current(this.app);
     const canStart = settings.status === "valid" && settings.data.sdd !== undefined;
     const actions: string[] = [];
@@ -121,6 +158,11 @@ export class SddNextCommand extends Command {
         }
       }
       for (const ticket of feature.tickets) {
+        if (ticket.documentation && !ticket.merged && ticket.tasks.length === 0) {
+          notices.push(
+            `${ticket.id}: create its final documentation task with spindle sdd task create --feature ${feature.name} --ticket ${ticket.id}. Supply --instructions and the planned --write-scope paths. Assign it to ${DocumentationService.agent}.`,
+          );
+        }
         if (
           ticket.worktree &&
           ticket.branch &&
@@ -162,6 +204,17 @@ export class SddNextCommand extends Command {
           hasRound: boolean;
         }
       | undefined;
+    let documentation: DocumentationStatus | undefined;
+    if (
+      feature.featureBranch &&
+      feature.featureWorktree &&
+      !feature.completed &&
+      !feature.pendingStart &&
+      !feature.pendingTicketCommit &&
+      !feature.pendingMergeOperation
+    ) {
+      documentation = await (await this.app.make(DocumentationService)).status(feature);
+    }
     if (
       !feature.pendingStart &&
       !feature.pendingTicketCommit &&
@@ -179,7 +232,7 @@ export class SddNextCommand extends Command {
           codeRevision: status.codeRevision,
           hasRound: status.hasRound,
         };
-        if (status.state === "InReview") {
+        if (documentation?.state === "Current" && status.state === "InReview") {
           actions.push(`spindle sdd review --feature ${feature.name} --target feature`);
         } else if (status.state === "Blocked") {
           const reviewIds = new Set(
@@ -201,7 +254,26 @@ export class SddNextCommand extends Command {
         }
       }
     }
-    if (featureReview?.state === "Accepted" && !feature.completed) {
+    if (
+      featureReview &&
+      documentation &&
+      documentation.state !== "Current" &&
+      documentation.state !== "InProgress"
+    ) {
+      const blocker = await (await this.app.make(DocumentationService)).creationBlocker(feature);
+      notices.push(
+        documentation.state === "Stale"
+          ? "Documentation is stale for the current feature commit."
+          : "The final documentation task is missing.",
+      );
+      if (blocker) notices.push(blocker);
+      else actions.push(DocumentationService.creationCommand(feature.name));
+    }
+    if (
+      featureReview?.state === "Accepted" &&
+      documentation?.state === "Current" &&
+      !feature.completed
+    ) {
       const reviews = await this.app.make(SddReviewService);
       if (!reviews.hasPassedFeatureReview(feature)) {
         notices.push("At least one feature review round must pass before delivery.");
@@ -226,18 +298,23 @@ export class SddNextCommand extends Command {
       }
     }
     const graph = verbose
-      ? feature.tickets.map(({ id, dependencies, merged, worktree, tasks }) => ({
+      ? feature.tickets.map(({ id, dependencies, merged, worktree, tasks, documentation }) => ({
           id,
           dependencies,
           merged,
           worktree,
-          tasks: tasks.map(({ id, state, dependencies, writeScope, deliveryMerge }) => ({
-            id,
-            state,
-            dependencies,
-            writeScope,
-            ...(deliveryMerge ? { deliveryMerge } : {}),
-          })),
+          ...(documentation ? { documentation } : {}),
+          tasks: tasks.map(
+            ({ id, state, attempt, dependencies, writeScope, deliveryMerge, checkpoints }) => ({
+              id,
+              state,
+              attempt,
+              dependencies,
+              writeScope,
+              ...(deliveryMerge ? { deliveryMerge } : {}),
+              ...(checkpoints ? { checkpoints } : {}),
+            }),
+          ),
         }))
       : undefined;
     return {
@@ -245,6 +322,7 @@ export class SddNextCommand extends Command {
       actions,
       notices,
       tickets,
+      ...(documentation ? { documentation } : {}),
       ...(featureReview ? { featureReview } : {}),
       ...(graph ? { graph } : {}),
     };

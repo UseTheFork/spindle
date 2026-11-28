@@ -23,6 +23,14 @@ A unit of implementation within a ticket, defined by its instructions, planned
 write scope, and dependencies.
 _Avoid_: Subtask
 
+**Task attempt**:
+One dispatch of a task to a worker. A retry starts a new attempt of the same
+task.
+
+**Task checkpoint**:
+A worker's progress report for a particular task attempt, describing its current
+phase and intended next action. It is not approval, completion, or acceptance.
+
 **Work graph**:
 A feature's hierarchy of tickets and their tasks, connected by dependencies.
 
@@ -62,7 +70,15 @@ target and the instructions or criteria relevant to that work.
 A worker assigned to merge branches as part of ticket integration or feature
 delivery.
 
+**Documentation agent**:
+An agent that assesses a feature's documentation needs and implements assigned
+documentation updates.
+
 ## Reviews and Delivery
+
+**Documentation stage**:
+One final documentation task that checks and updates documentation for the
+combined feature before feature review.
 
 **Review round**:
 One or more reviews of the same target at the same code revision.

@@ -13,6 +13,7 @@ import { SddNextCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddN
 import { SddReviewCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewCommand";
 import { SddReviewSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddReviewSubmitCommand";
 import { SddStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddStartCommand";
+import { SddTaskCheckpointCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskCheckpointCommand";
 import { SddTaskCreateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskCreateCommand";
 import { SddTaskRemoveCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskRemoveCommand";
 import { SddTaskSubmitCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTaskSubmitCommand";
@@ -23,6 +24,7 @@ import { SddTicketCreateCommand } from "@spindle/SubagentDrivenDevelopment/Comma
 import { SddTicketStartCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketStartCommand";
 import { SddTicketUpdateCommand } from "@spindle/SubagentDrivenDevelopment/Commands/SddTicketUpdateCommand";
 import { DeliveryService } from "@spindle/SubagentDrivenDevelopment/Services/DeliveryService";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { MergeOperationService } from "@spindle/SubagentDrivenDevelopment/Services/MergeOperationService";
 import { SddReviewService } from "@spindle/SubagentDrivenDevelopment/Services/SddReviewService";
@@ -48,6 +50,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
       SddTicketStartCommand,
       SddDispatchCommand,
       SddAssignmentCommand,
+      SddTaskCheckpointCommand,
       SddTaskSubmitCommand,
       SddTicketCommitCommand,
       SddReviewCommand,
@@ -63,6 +66,7 @@ export class SubagentDrivenDevelopmentServiceProvider extends ServiceProvider {
     this.app.singleton(WorkGraphService);
     this.app.singleton(FeatureWorkspaceService);
     this.app.singleton(DeliveryService);
+    this.app.singleton(DocumentationService);
     this.app.singleton(MergeOperationService);
     this.app.singleton(WorktreeStartService);
     this.app.singleton(TaskDispatchService);

@@ -2,11 +2,16 @@
 name: sdd-reviewer
 description: "Use when the SDD controller assigns a ticket acceptance review or a feature review."
 tools: [read, search, execute, read_skill, list_skills, skill]
+strict-tools-list: true
+target: github-copilot
+
+model: ["gemini-3.8-flash","auto"]
+
 user-invocable: false
 agents: []
 metadata:
   spindle:
-    version: 2.0.4
+    version: 2.0.5
 ---
 
 # SDD Reviewer

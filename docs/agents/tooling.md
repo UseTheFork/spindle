@@ -22,7 +22,6 @@
 ## Type checking
 
 - `pnpm exec tsc --noEmit`: Type-check production sources without emitting files.
-- `pnpm exec tsc --noEmit -p tests/tsconfig.sdd.json`: Type-check the SDD and related tests.
 - `pnpm exec tsc --noEmit -p tests/tsconfig.assets-project.json`: Type-check BlueprintManagement, Project, Tooling, Foundation, and related tests.
 
 ## Testing

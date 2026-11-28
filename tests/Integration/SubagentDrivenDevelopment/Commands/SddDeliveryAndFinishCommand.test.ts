@@ -45,6 +45,7 @@ test(
     };
 
     integrateTicket("T-0001", "M-0001");
+    await fixture.completeDocumentation();
     await writeFile(join(repo, "upstream.txt"), "latest original branch change\n");
     git("add", "upstream.txt");
     git("commit", "-m", "Update original branch");
@@ -77,7 +78,7 @@ test(
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
 
     const delivery = invoke("delivery", "create", ...featureFlag, "--write-scope", "upstream.txt");
-    expect(delivery).toMatchObject({ ticket: "T-0002", task: "T-0002.1" });
+    expect(delivery).toMatchObject({ ticket: "T-0003", task: "T-0003.1" });
     const { worktree } = invoke("ticket", "start", ...featureFlag, "--ticket", delivery.ticket);
     invoke("dispatch", ...featureFlag, "--task", delivery.task);
     const assignment = invoke(
@@ -94,7 +95,7 @@ test(
       writeScope: ["upstream.txt"],
       delivery: {
         source: { branch: "main", worktree: repo },
-        target: { branch: "sdd/0001-example/T-0002", worktree },
+        target: { branch: "sdd/0001-example/T-0003", worktree },
       },
     });
     expect(assignment.delivery).not.toHaveProperty("sourceCommit");
@@ -115,7 +116,13 @@ test(
       "--recommendation",
       "pass",
     );
-    integrateTicket(delivery.ticket, "M-0002");
+    integrateTicket(delivery.ticket, "M-0003");
+    expect(invoke("next", ...featureFlag).documentation.state).toBe("Stale");
+    expect(run("finish", ...featureFlag).stderr).toContain("final documentation ticket");
+    expect(run("review", ...featureFlag, "--target", "feature").stderr).toContain(
+      "final documentation ticket",
+    );
+    await fixture.completeDocumentation();
 
     const finalReview = invoke("review", ...featureFlag, "--target", "feature");
     invoke(
@@ -133,12 +140,12 @@ test(
 
     const started = invoke("finish", ...featureFlag);
     expect(started).toMatchObject({
-      operationId: "M-0003",
+      operationId: "M-0005",
       type: "feature-finish",
       phase: "merge",
     });
-    expect(run("merge", "record", ...featureFlag, "--merge", "M-0002").stderr).toContain(
-      "Unknown pending merge operation 'M-0002'",
+    expect(run("merge", "record", ...featureFlag, "--merge", "M-0003").stderr).toContain(
+      "Unknown pending merge operation 'M-0003'",
     );
     const finishAssignment = invoke(
       "assignment",

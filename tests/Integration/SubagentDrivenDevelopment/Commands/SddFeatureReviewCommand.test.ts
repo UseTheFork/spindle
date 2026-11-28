@@ -9,6 +9,7 @@ async function integratedFeature() {
   await fixture.complete(fixture.initialTask, "first.ts");
   fixture.submitReview(fixture.startReview(), "pass");
   fixture.integrateTicket("T-0001");
+  await fixture.completeDocumentation();
   return {
     ...fixture,
     featureWorktree: join(fixture.worktrees, fixture.name, "feature"),
@@ -63,9 +64,10 @@ test(
     expect(run("assignment", "--feature", workspace, "--review", second.review).stderr).toContain(
       "no longer matches the current feature revision",
     );
-    expect(invoke("next", ...featureFlag).actions).toContain(
-      `spindle sdd review --feature ${name} --target feature`,
-    );
+    const stale = invoke("next", ...featureFlag);
+    expect(stale.documentation.state).toBe("Stale");
+    expect(stale.actions.join("\n")).toContain("--documentation");
+    expect(stale.actions).not.toContain(`spindle sdd review --feature ${name} --target feature`);
   },
 );
 
@@ -73,7 +75,8 @@ test(
   "creates feature finding tickets and verifies findings in a later feature round",
   { timeout: 60_000 },
   async () => {
-    const { featureFlag, integrateTicket, invoke, workspace, run } = await integratedFeature();
+    const { featureFlag, integrateTicket, completeDocumentation, invoke, workspace, run } =
+      await integratedFeature();
     const review = invoke("review", ...featureFlag, "--target", "feature");
     const result = invoke(
       "review",
@@ -110,26 +113,26 @@ test(
     const created = invoke(...fix);
     expect(created).toMatchObject({
       finding,
-      ticket: "T-0002",
-      task: "T-0002.1",
+      ticket: "T-0003",
+      task: "T-0003.1",
       ticketCreated: true,
     });
     expect(run(...fix).stderr).toContain("no existing fix work");
     const ledgerPath = join(workspace, "sdd.json");
     const ledger = JSON.parse(await readFile(ledgerPath, "utf8"));
-    expect(ledger.findings[0].fixWork).toEqual({ type: "ticket", ticketId: "T-0002" });
-    expect(ledger.tickets[1].tasks[0]).toMatchObject({
-      id: "T-0002.1",
+    expect(ledger.findings[0].fixWork).toEqual({ type: "ticket", ticketId: "T-0003" });
+    expect(ledger.tickets[2].tasks[0]).toMatchObject({
+      id: "T-0003.1",
       discoveredFrom: finding,
       writeScope: ["fix.ts"],
     });
 
-    const { worktree } = invoke("ticket", "start", ...featureFlag, "--ticket", "T-0002");
-    invoke("dispatch", ...featureFlag, "--task", "T-0002.1");
+    const { worktree } = invoke("ticket", "start", ...featureFlag, "--ticket", "T-0003");
+    invoke("dispatch", ...featureFlag, "--task", "T-0003.1");
     await writeFile(join(worktree, "fix.ts"), "fixed\n");
-    invoke("task", "submit", ...featureFlag, "--task", "T-0002.1", "--attempt", "1");
-    invoke("ticket", "commit", ...featureFlag, "--ticket", "T-0002", "--message", "Fix finding");
-    const ticketReview = invoke("review", ...featureFlag, "--ticket", "T-0002");
+    invoke("task", "submit", ...featureFlag, "--task", "T-0003.1", "--attempt", "1");
+    invoke("ticket", "commit", ...featureFlag, "--ticket", "T-0003", "--message", "Fix finding");
+    const ticketReview = invoke("review", ...featureFlag, "--ticket", "T-0003");
     invoke(
       "review",
       "submit",
@@ -139,8 +142,9 @@ test(
       "--recommendation",
       "pass",
     );
-    integrateTicket("T-0002");
+    integrateTicket("T-0003");
     expect(invoke("next", ...featureFlag).featureReview.state).toBe("InReview");
+    await completeDocumentation();
 
     const followup = invoke("review", ...featureFlag, "--target", "feature");
     expect(

@@ -7,6 +7,7 @@ import type { Feature } from "@spindle/SubagentDrivenDevelopment/Models/Feature"
 import { findingSchema } from "@spindle/SubagentDrivenDevelopment/Models/Finding";
 import type { ReviewRound } from "@spindle/SubagentDrivenDevelopment/Models/ReviewRound";
 import type { Ticket } from "@spindle/SubagentDrivenDevelopment/Models/Ticket";
+import { DocumentationService } from "@spindle/SubagentDrivenDevelopment/Services/DocumentationService";
 import { FeatureWorkspaceService } from "@spindle/SubagentDrivenDevelopment/Services/FeatureWorkspaceService";
 import { SddSequence } from "@spindle/SubagentDrivenDevelopment/Support/SddSequence";
 
@@ -59,6 +60,9 @@ export class SddReviewService extends Service {
           ? await this.currentTicketRevision(this.ticket(feature, target.ticketId))
           : await this.currentFeatureRevision(feature);
       if ("blocker" in current) throw new Error(current.blocker);
+      if (target.type === "feature") {
+        await (await this.app.make(DocumentationService)).requireCurrent(feature);
+      }
       if (this.acceptance(feature, target, current.revision, feature.tickets) === "Accepted") {
         throw new Error(`${this.describeTarget(target)} is already accepted at this revision.`);
       }

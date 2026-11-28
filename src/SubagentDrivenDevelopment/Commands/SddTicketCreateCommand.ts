@@ -14,6 +14,7 @@ type Options = {
   requirements: string;
   acceptanceCriteria: string;
   dependsOn?: string[];
+  documentation?: boolean;
 };
 
 export class SddTicketCreateCommand extends Command {
@@ -27,6 +28,7 @@ export class SddTicketCreateCommand extends Command {
         CommandOptions.once("--feature"),
       )
       .requiredOption("--title <title>", "Ticket title", CommandOptions.once("--title"))
+      .option("--documentation", "Designate the final feature documentation ticket")
       .requiredOption(
         "--requirements <text>",
         "Requirements, or - for stdin",
@@ -70,13 +72,21 @@ export class SddTicketCreateCommand extends Command {
       });
   }
 
-  public async run({ feature, title, requirements, acceptanceCriteria, dependsOn = [] }: Options) {
+  public async run({
+    feature,
+    title,
+    requirements,
+    acceptanceCriteria,
+    dependsOn = [],
+    documentation,
+  }: Options) {
     this.assertApplicationBooted();
     return (await this.app.make(FeatureWorkspaceService)).createTicket(feature, {
       title,
       requirements,
       acceptanceCriteria,
       dependencies: dependsOn,
+      documentation,
     });
   }
 }
