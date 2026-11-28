@@ -4,9 +4,9 @@ description: "Use when the SDD controller dispatches a feature documentation tas
 tools: [read, search, edit, execute, read_skill, list_skills, skill, apply_patch]
 strict-tools-list: true
 target: github-copilot
-{% if computed.model_balanced is defined %}
+{% if computed.model_balanced is defined -%}
 model: {{ computed.model_balanced }}
-{% endif %}
+{% endif -%}
 user-invocable: false
 agents: []
 metadata:

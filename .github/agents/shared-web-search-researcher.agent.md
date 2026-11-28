@@ -1,6 +1,7 @@
 ---
 name: shared-web-search-researcher
 description: Research web questions with current, authoritative sources. Return evidence-backed findings, direct links, conflicts, and limitations.
+model: ["gemini-3.8-flash","auto"]
 user-invocable: false
 tools: ["web"]
 agents: []

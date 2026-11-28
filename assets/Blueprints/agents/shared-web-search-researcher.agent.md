@@ -1,9 +1,9 @@
 ---
 name: shared-web-search-researcher
 description: Research web questions with current, authoritative sources. Return evidence-backed findings, direct links, conflicts, and limitations.
-{% if computed.model_balanced is defined %}
+{% if computed.model_balanced is defined -%}
 model: {{ computed.model_balanced }}
-{% endif %}
+{% endif -%}
 user-invocable: false
 tools: ["web"]
 agents: []

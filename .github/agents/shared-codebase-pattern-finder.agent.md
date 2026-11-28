@@ -5,6 +5,9 @@ user-invocable: false
 tools: [execute, read]
 strict-tools-list: true
 target: github-copilot
+
+model: ["gemini-3.8-flash","auto"]
+
 agents: []
 metadata:
   spindle:
