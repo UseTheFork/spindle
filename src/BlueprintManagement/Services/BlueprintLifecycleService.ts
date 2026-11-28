@@ -15,6 +15,7 @@ export class BlueprintLifecycleService extends Service {
     mode: "init" | "update",
     settings: ProjectSettingsData,
     reconcile: () => Promise<BlueprintOutcome[]>,
+    onChanges?: (paths: readonly string[]) => void,
   ): Promise<BlueprintOutcome[]> {
     this.assertApplicationBooted();
     if (this.running) throw new Error("A project lifecycle operation is already running.");
@@ -37,6 +38,7 @@ export class BlueprintLifecycleService extends Service {
           throw new Error("Project Settings changed during reconciliation; run again.");
         }
         await this.app.runProjectHooks(mode === "init" ? "afterInit" : "afterUpdate", context);
+        onChanges?.(context.completedChanges);
       } catch (error) {
         const completed = outcomes.filter(
           (outcome) =>

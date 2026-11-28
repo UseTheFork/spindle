@@ -58,6 +58,22 @@ test("configuration accepts an empty stack list and an optional tooling registry
   ]);
 });
 
+test("update settings have opt-in defaults and accept a custom message", () => {
+  const defaults = ProjectSettingsService.parse('{"stacks":[]}');
+  expect(defaults.status).toBe("valid");
+  if (defaults.status !== "valid") throw new Error("Expected valid state");
+  expect(defaults.data.update).toEqual({
+    auto_commit: false,
+    commit_message: "chore: update spindle",
+  });
+  const custom = ProjectSettingsService.parse(
+    JSON.stringify({ stacks: [], update: { auto_commit: true, commit_message: "refresh" } }),
+  );
+  expect(custom.status).toBe("valid");
+  if (custom.status !== "valid") throw new Error("Expected valid state");
+  expect(custom.data.update).toEqual({ auto_commit: true, commit_message: "refresh" });
+});
+
 test("model profiles default to enabled ordered lists and accept profile overrides", () => {
   const defaults = ProjectSettingsService.parse('{"stacks":[]}');
   expect(defaults.status).toBe("valid");
@@ -123,6 +139,10 @@ test.each([
   { stacks: ["python"], spindle_package_manager: "pnpm\nrun" },
   { stacks: [], models: { profiles: { fast: [] } } },
   { stacks: [], models: { profiles: { fast: [""] } } },
+  { stacks: [], update: { commit_message: "  " } },
+  { stacks: [], update: { commit_message: "line\nline" } },
+  { stacks: [], update: { commit_message: "bad\0message" } },
+  { stacks: [], update: { auto_commit: "true" } },
   {
     stacks: [],
     variables: {},

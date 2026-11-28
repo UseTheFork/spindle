@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -94,6 +95,229 @@ const goodConfig = {
   variables: { owner: "legacy" },
   tooling: [],
 };
+
+function git(project: string, ...args: string[]): string {
+  return execFileSync("git", args, { cwd: project, encoding: "utf8" }).trim();
+}
+
+async function autoCommitProject(): Promise<string> {
+  const project = await createProject("spindle-auto-commit-");
+  await writeFile(join(project, ".spindle/config.json"), JSON.stringify(goodConfig));
+  const initial = runCli(project, ["update"], process.env.PATH ?? "", {
+    SPINDLE_TEST_BLUEPRINTS_DIR: stubs,
+  });
+  expect(initial.status, initial.stderr).toBe(0);
+  git(project, "config", "user.name", "Test User");
+  git(project, "config", "user.email", "test@example.com");
+  const path = join(project, ".spindle/config.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.update = { auto_commit: true, commit_message: "chore: custom update" };
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  git(project, "add", "-A");
+  git(project, "commit", "-qm", "baseline");
+  return project;
+}
+
+async function updateWithAutoCommit(project: string) {
+  return runCli(project, ["update", "--json"], process.env.PATH ?? "", {
+    SPINDLE_TEST_BLUEPRINTS_DIR: stubs,
+  });
+}
+
+test("auto-commit isolates update changes from unrelated staged and unstaged work", async () => {
+  const project = await autoCommitProject();
+  await writeFile(join(project, "staged.txt"), "staged\n");
+  git(project, "add", "staged.txt");
+  await writeFile(join(project, "unstaged.txt"), "unstaged\n");
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("committed");
+  expect(git(project, "log", "-1", "--format=%s")).toBe("chore: custom update");
+  expect(git(project, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")).toBe(
+    ".github/skills/newer/SKILL.md",
+  );
+  expect(git(project, "diff", "--cached", "--name-only")).toBe("staged.txt");
+  expect(await readFile(join(project, "unstaged.txt"), "utf8")).toBe("unstaged\n");
+});
+
+test("auto-commit includes settings only when update changes them", async () => {
+  const project = await autoCommitProject();
+  const path = join(project, ".spindle/config.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.$schema = "https://example.test/old";
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  git(project, "add", ".spindle/config.json");
+  git(project, "commit", "-qm", "old schema");
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("committed");
+  expect(git(project, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")).toContain(
+    ".spindle/config.json",
+  );
+});
+
+test("auto-commit uses the default commit message", async () => {
+  const project = await autoCommitProject();
+  const path = join(project, ".spindle/config.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.update.commit_message = "chore: update spindle";
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  git(project, "add", ".spindle/config.json");
+  git(project, "commit", "-qm", "use default message");
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(git(project, "log", "-1", "--format=%s")).toBe("chore: update spindle");
+});
+
+test("auto-commit records newly installed and removed Blueprint files", async () => {
+  const project = await autoCommitProject();
+  await writeFile(join(stubs, "skills/newer/new.txt"), "new file\n");
+  await rm(join(stubs, "skills/lower"), { recursive: true });
+  await rm(join(stubs, "catalog.fixture.json"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("committed");
+  const changes = git(project, "diff-tree", "--no-commit-id", "--name-status", "-r", "HEAD");
+  expect(changes).toContain("A\t.github/skills/newer/new.txt");
+  expect(changes).toContain("D\t.github/skills/lower/SKILL.md");
+  expect(git(project, "status", "--porcelain")).toBe("");
+});
+
+test.each(["unstaged", "staged"])("auto-commit skips %s changes in update paths", async (state) => {
+  const project = await autoCommitProject();
+  await writeFile(join(project, ".github/skills/newer/SKILL.md"), "user edits\n");
+  if (state === "staged") git(project, "add", ".github/skills/newer/SKILL.md");
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+  const head = git(project, "rev-parse", "HEAD");
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("skipped");
+  expect(result.stderr).toContain(".github/skills/newer/SKILL.md");
+  expect(git(project, "rev-parse", "HEAD")).toBe(head);
+  expect(await read(project, "newer")).toContain("new content");
+});
+
+test("auto-commit skips when update changes an already dirty config", async () => {
+  const project = await autoCommitProject();
+  const path = join(project, ".spindle/config.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.$schema = "https://example.test/old";
+  config.custom = "user changes";
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  const head = git(project, "rev-parse", "HEAD");
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("skipped");
+  expect(result.stderr).toContain(".spindle/config.json");
+  expect(git(project, "rev-parse", "HEAD")).toBe(head);
+  expect(JSON.parse(await readFile(path, "utf8")).custom).toBe("user changes");
+});
+
+test("auto-commit leaves a dirty config alone when update does not change it", async () => {
+  const project = await autoCommitProject();
+  const path = join(project, ".spindle/config.json");
+  const config = JSON.parse(await readFile(path, "utf8"));
+  config.custom = "user changes";
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("committed");
+  expect(git(project, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD")).toBe(
+    ".github/skills/newer/SKILL.md",
+  );
+  expect(git(project, "status", "--porcelain")).toContain(".spindle/config.json");
+});
+
+test("auto-commit skips ignored user files removed by update", async () => {
+  const project = await autoCommitProject();
+  await writeFile(join(project, ".gitignore"), "*.secret\n");
+  git(project, "add", ".gitignore");
+  git(project, "commit", "-qm", "ignore local files");
+  await writeFile(join(project, ".github/skills/newer/user.secret"), "local data\n");
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+  const head = git(project, "rev-parse", "HEAD");
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("skipped");
+  expect(result.stderr).toContain("user.secret");
+  expect(git(project, "rev-parse", "HEAD")).toBe(head);
+});
+
+test("auto-commit skips an unchanged update", async () => {
+  const project = await autoCommitProject();
+  const head = git(project, "rev-parse", "HEAD");
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.message).toContain("no update changes");
+  expect(git(project, "rev-parse", "HEAD")).toBe(head);
+});
+
+test("auto-commit reports Git hook failures and keeps the original index", async () => {
+  const project = await autoCommitProject();
+  await writeFile(
+    join(project, ".git/hooks/pre-commit"),
+    "#!/bin/sh\necho rejected >&2\nexit 1\n",
+    { mode: 0o755 },
+  );
+  await writeFile(join(project, "staged.txt"), "staged\n");
+  git(project, "add", "staged.txt");
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+  const head = git(project, "rev-parse", "HEAD");
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("failed");
+  expect(result.stderr).toContain("rejected");
+  expect(git(project, "rev-parse", "HEAD")).toBe(head);
+  expect(git(project, "diff", "--cached", "--name-only")).toBe("staged.txt");
+});
+
+test("auto-commit does not include unrelated paths staged by a hook", async () => {
+  const project = await autoCommitProject();
+  await writeFile(join(project, "other.txt"), "baseline\n");
+  git(project, "add", "other.txt");
+  git(project, "commit", "-qm", "add unrelated file");
+  await writeFile(join(project, "other.txt"), "user edits\n");
+  await writeFile(join(project, ".git/hooks/pre-commit"), "#!/bin/sh\ngit add other.txt\n", {
+    mode: 0o755,
+  });
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("failed");
+  expect(result.stderr).toContain("Git hooks staged unrelated paths");
+  expect(git(project, "show", "HEAD:other.txt")).toBe("baseline");
+  expect(git(project, "diff", "--cached", "--name-only")).toBe("");
+});
+
+test("auto-commit preserves the configured reference transaction hook", async () => {
+  const project = await autoCommitProject();
+  await writeFile(
+    join(project, ".git/hooks/reference-transaction"),
+    '#!/bin/sh\necho "$1" >> .git/ref-events\n',
+    { mode: 0o755 },
+  );
+  await writeFile(join(stubs, "skills/newer/SKILL.md"), skill("3.0.0", "new content"));
+
+  const result = await updateWithAutoCommit(project);
+  expect(result.status, result.stderr).toBe(0);
+  expect(JSON.parse(result.stdout).data.autoCommit.status).toBe("committed");
+  const events = await readFile(join(project, ".git/ref-events"), "utf8");
+  expect(events).toContain("prepared");
+  expect(events).toContain("committed");
+});
 
 test("JSON update returns one typed result when replacing a collision", async () => {
   await withProject(

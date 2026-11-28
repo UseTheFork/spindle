@@ -1,6 +1,11 @@
 import { blueprintHandlers } from "@spindle/BlueprintManagement/Handlers/BlueprintHandlers";
 import { BlueprintLifecycleService } from "@spindle/BlueprintManagement/Services/BlueprintLifecycleService";
 import { BlueprintReconciliationService } from "@spindle/BlueprintManagement/Services/BlueprintReconciliationService";
+import {
+  UpdateAutoCommitService,
+  type UpdateCommitResult,
+  type UpdateCommitSnapshot,
+} from "@spindle/BlueprintManagement/Services/UpdateAutoCommitService";
 import type { BlueprintHandler } from "@spindle/BlueprintManagement/Types/Blueprint";
 import type { BlueprintOutcome } from "@spindle/BlueprintManagement/Types/Reconciliation";
 import { Command } from "@spindle/Commands/Command";
@@ -20,6 +25,7 @@ export interface UpdateResult {
   stacks: string[];
   outcomes: BlueprintOutcome[];
   guidanceInitialized: true;
+  autoCommit?: UpdateCommitResult;
 }
 
 export class UpdateCommand extends Command {
@@ -39,16 +45,22 @@ Installs missing Blueprints, removes obsolete managed Blueprints, and refreshes 
         `
 Requires .spindle/config.json; run \`spindle init\` first.
 Catalog paths are overwritten, including local edits. Unrelated paths are preserved.
+Set update.auto_commit to true to commit update changes; update.commit_message sets the message.
 `,
       )
       .allowExcessArguments(false)
       .action(async () => {
         const app = await createApp();
-        const result = await (await app.make(UpdateCommand)).run();
+        const result = await (await app.make(UpdateCommand)).run(undefined, true);
         const output = await app.make(ConsoleOutputService);
         for (const outcome of result.outcomes) {
           if (outcome.warning) output.notice("warning", outcome.warning);
         }
+        if (
+          result.autoCommit &&
+          (result.autoCommit.level === "warning" || result.autoCommit.status === "skipped")
+        )
+          output.notice(result.autoCommit.level, result.autoCommit.message);
         const human = result.outcomes
           .filter((outcome) => outcome.status === "removed")
           .map((outcome) => `Removed ${outcome.kind.toLowerCase()} '${outcome.name}'`);
@@ -60,6 +72,9 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
           human.push(
             `Added ${count("installed")}, updated ${count("updated")}, skipped ${count("skipped")}, up to date ${count("up-to-date")} ${kind.toLowerCase()}(s)`,
           );
+        }
+        if (result.autoCommit?.status === "committed" && result.autoCommit.level === "info") {
+          human.push(result.autoCommit.message);
         }
         output.result({ level: "success", human, data: result });
       });
@@ -74,7 +89,7 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
     this.reconciliationService = await this.app.make(BlueprintReconciliationService);
   }
 
-  public async run(replacement?: ProjectSettingsData): Promise<UpdateResult> {
+  public async run(replacement?: ProjectSettingsData, autoCommit = false): Promise<UpdateResult> {
     this.assertApplicationBooted();
     const current = ProjectSettingsService.requireCurrent(this.app);
     const state =
@@ -93,18 +108,64 @@ Catalog paths are overwritten, including local edits. Unrelated paths are preser
       );
     }
 
+    const commitService =
+      autoCommit && settings.update.auto_commit
+        ? await this.app.make(UpdateAutoCommitService)
+        : undefined;
+    let snapshot: UpdateCommitSnapshot | undefined;
+    let commitResult: UpdateCommitResult | undefined;
+    if (commitService) {
+      try {
+        snapshot = await commitService.snapshot();
+      } catch (error) {
+        commitResult = {
+          status: "failed",
+          level: "warning",
+          message: `Auto-commit unavailable: ${error instanceof Error ? error.message : String(error)}. Commit the update manually.`,
+        };
+      }
+    }
+    let lifecycleChanges: readonly string[] = [];
     const lifecycle = await this.app.make(BlueprintLifecycleService);
-    const outcomes = await lifecycle.run("update", settings, () =>
-      this.reconciliationService.reconcile(this.handlers, {
-        mode: "update",
-        settings,
-        persistSettings: true,
-        resolveContext: async () => ({
-          stacks: settings.stacks,
-          variables: {},
+    const outcomes = await lifecycle.run(
+      "update",
+      settings,
+      () =>
+        this.reconciliationService.reconcile(this.handlers, {
+          mode: "update",
+          settings,
+          persistSettings: true,
+          resolveContext: async () => ({
+            stacks: settings.stacks,
+            variables: {},
+          }),
         }),
-      }),
+      (paths) => {
+        lifecycleChanges = paths;
+      },
     );
-    return { stacks: settings.stacks, outcomes, guidanceInitialized: true };
+    if (commitService && snapshot) {
+      try {
+        commitResult = await commitService.commit(
+          snapshot,
+          outcomes,
+          this.handlers,
+          lifecycleChanges,
+          settings.update.commit_message,
+        );
+      } catch (error) {
+        commitResult = {
+          status: "failed",
+          level: "warning",
+          message: `Auto-commit failed: ${error instanceof Error ? error.message : String(error)}. Commit the update manually.`,
+        };
+      }
+    }
+    return {
+      stacks: settings.stacks,
+      outcomes,
+      guidanceInitialized: true,
+      ...(commitResult ? { autoCommit: commitResult } : {}),
+    };
   }
 }

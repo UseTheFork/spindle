@@ -61,6 +61,10 @@
     "allowed_scopes": [],
     "allow_breaking_changes": false
   },
+  "update": {
+    "auto_commit": false,
+    "commit_message": "chore: update spindle"
+  },
   "models": {
     "enabled": true,
     "profiles": {
